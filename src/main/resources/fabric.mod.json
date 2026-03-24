@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "itemeditor",
+  "version": "${version}",
+  "name": "Item Editor",
+  "description": "Client-side item editor with an extensible workflow for held items.",
+  "authors": [
+    "noramibu"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/project/item-editor",
+    "sources": "https://github.com/noramibu/Item-Editor",
+    "issues": "https://github.com/noramibu/Item-Editor/issues",
+    "discord": "https://discord.gg/FaxbR9eEFW"
+  },
+  "license": "GPL-3.0-only",
+  "icon": "assets/itemeditor/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "me.noramibu.itemeditor.ItemEditorClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "owo": ">=0.13.0"
+  },
+  "custom": {
+    "itemeditor": {
+      "dependencies": {
+        "owo-lib": "https://modrinth.com/mod/owo-lib"
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+# Build / Gradle
+.gradle/
+build/
+out/
+classes/
+
+# Runtime / generated
+run/
+logs/
+crash-reports/
+*.log
+
+# Java crash / profiling files
+hs_err_pid*
+replay_pid*
+*.hprof
+*.jfr
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+*.launch
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.tmp
+*.temp
