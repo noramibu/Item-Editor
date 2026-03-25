@@ -13,7 +13,7 @@ import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Whence;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -273,7 +273,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    protected void renderContents(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         int baseX = this.getInnerLeft();
         int baseY = this.getInnerTop();
         int innerWidth = this.innerContentWidth();

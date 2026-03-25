@@ -183,9 +183,8 @@ final class ItemEditorDialogController {
         var result = this.screen.session().apply();
 
         if (minecraft.player != null) {
-            minecraft.player.displayClientMessage(
-                    Component.literal(result.message()).withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED),
-                    true
+            minecraft.player.sendOverlayMessage(
+                    Component.literal(result.message()).withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED)
             );
         }
 
@@ -198,9 +197,8 @@ final class ItemEditorDialogController {
             if (minecraft.player == null || verification.matchesExpected() || verification.message().isBlank()) {
                 return;
             }
-            minecraft.player.displayClientMessage(
-                    Component.literal(verification.message()).withStyle(ChatFormatting.YELLOW),
-                    false
+            minecraft.player.sendSystemMessage(
+                    Component.literal(verification.message()).withStyle(ChatFormatting.YELLOW)
             );
         });
 

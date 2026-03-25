@@ -1,35 +1,28 @@
 # Item Editor
 
-Client-side Fabric item editor for Minecraft `1.21.11`, built with `owo-ui`.
+A client-side in-game item component editor for Fabric.
 
-![Item Editor Icon](src/main/resources/assets/itemeditor/icon.png)
+Item Editor opens a full editor UI for the item currently held by the player and lets you work on a safe draft before applying changes. It uses modern item component editing instead of old raw-NBT-only workflows and supports dynamic editors for many special item types, including books, banners, fireworks, containers, signs, potions, and more.
 
-[![Modrinth](https://img.shields.io/badge/Modrinth-item--editor-1bd96a?logo=modrinth&logoColor=white)](https://modrinth.com/project/item-editor)
+## Compatibility
+
+- Current: Minecraft `26.1`
+- Previous: Minecraft `1.21.11`
 
 ## Links
 
-- Modrinth: https://modrinth.com/project/item-editor
 - GitHub: https://github.com/noramibu/Item-Editor
 - Discord: https://discord.gg/FaxbR9eEFW
 
 ## Installation
 
-1. Install Fabric Loader for Minecraft `1.21.11`.
+1. Install Fabric Loader.
 2. Put these files in your `mods` folder:
-   - `Item Editor-1.21.11-b<build>.jar`
-   - Fabric API (`0.141.3+1.21.11` or newer)
-   - owo-lib (`0.13.0+1.21.11` or newer)
-3. Start the game and open the editor with the keybind in Controls under `Item Editor` (default: `I`).
-
-## What This Mod Is
-
-Item Editor is a client-side in-game item component editor for Fabric `1.21.11`.
-
-- Opens a full editor UI for the item currently held by the player.
-- Applies edits to a draft first, then lets you confirm with `Save / Apply`.
-- Uses modern item component editing (not legacy raw-NBT-only workflows).
-- Designed for creative/singleplayer authoring, with safe preview behavior in multiplayer survival.
-- Includes dynamic editors for special item types (books, banners, fireworks, containers, signs, potions, and more).
+  - `Item Editor-version-b<build>.jar`
+  - Fabric API (`0.144.3+26.1` or newer)
+  - owo-lib (`0.13.0+26.1` or newer)
+3. Start the game.
+4. Open the editor using the keybind in Controls under `Item Editor` (default: `I`).
 
 ## Supported Languages
 
@@ -42,65 +35,133 @@ Item Editor is a client-side in-game item component editor for Fabric `1.21.11`.
 
 ## Features
 
-- **Session flow**
-  - Edits are made on a cloned draft of the held item.
-  - Preview updates live while editing.
-  - `Save / Apply` shows a diff and then writes if allowed.
-  - Post-apply verification warns when a server rewrites/rejects fields.
+### Session Flow
 
-- **Apply behavior**
-  - Creative mode: writes via creative inventory packet.
-  - Singleplayer: writes through the integrated server.
-  - Multiplayer survival: preview-only when server authority is required.
+- Edits are made on a cloned draft of the held item.
+- Preview updates live while editing.
+- `Save / Apply` shows a diff before writing changes.
+- Post-apply verification warns when a server rewrites or rejects fields.
 
-- **Category-based editor**
-  - General, Display, Attributes, Enchantments, Flags, Book.
-  - Special Data category is dynamic and changes by held item type.
+### Apply Behavior
 
-- **General**
-  - Styled custom name editor.
-  - Stack count and rarity.
-  - Durability/current damage/max damage/repair cost (when item supports them).
-  - Unbreakable and glint override.
-  - Item model id and custom model data fields (float/string/color/flag).
+- **Creative mode:** writes through the creative inventory packet.
+- **Singleplayer:** writes through the integrated server.
+- **Multiplayer survival:** preview-only when server authority is required.
 
-- **Display**
-  - Lore editor with rich text styling.
-  - Multiple lines, selection-based formatting, preset colors.
-  - Hex color picker and gradients.
+### Category-Based Editor
 
-- **Attributes**
-  - Add/remove/reorder attribute modifiers.
-  - Searchable attribute picker.
-  - Operation, slot group, amount, modifier id editing.
-  - Effective attribute preview.
+- General
+- Display
+- Attributes
+- Enchantments
+- Flags
+- Book
+- Special Data
 
-- **Enchantments**
-  - Regular and stored enchantment lists.
-  - Searchable enchantment picker.
-  - Optional unsafe/high-level values.
+The **Special Data** category is dynamic and changes based on the held item type.
 
-- **Flags**
-  - Hide full tooltip toggle.
-  - Hidden tooltip component toggles for common component lines.
+## Editor Categories
 
-- **Book**
-  - Writable/written workflow.
-  - Page editor with vanilla-like page limits.
-  - Page navigation, add/remove/reorder, and mini-map list.
-  - Written-book metadata: title, author, generation.
-  - Rich text styling tools for page content.
+### General
 
-- **Special Data** (only when supported by held item)
-  - Potion contents: base potion, color, custom name, custom effects.
-  - Suspicious stew effects.
-  - Firework rocket/star editor with live burst preview, shape/colors/fade/trail/twinkle.
-  - Banner editor with base color, pattern layers, and live canvas preview.
-  - Sign editor with front/back text, style, color, glowing, and board preview.
-  - Container editor with visual slot grid, click move/swap, and searchable item picker.
-  - Bucket creature editor (axolotl/salmon/tropical variants and bucket entity flags).
-  - Dyed item color editor.
-  - Armor trim material/pattern pickers.
-  - Player head profile/skin texture fields.
-  - Instrument and jukebox song fields.
-  - Map color and map post-processing metadata.
+- Styled custom name editor
+- Stack count and rarity
+- Durability, current damage, max damage, and repair cost when supported
+- Unbreakable and glint override
+- Item model id and custom model data fields (float, string, color, flag)
+
+### Display
+
+- Lore editor with rich text styling
+- Multiple lines
+- Selection-based formatting
+- Preset colors
+- Hex color picker
+- Gradient support
+
+### Attributes
+
+- Add, remove, and reorder attribute modifiers
+- Searchable attribute picker
+- Operation, slot group, amount, and modifier id editing
+- Effective attribute preview
+
+### Enchantments
+
+- Regular and stored enchantment lists
+- Searchable enchantment picker
+- Optional unsafe or high-level values
+
+### Flags
+
+- Hide full tooltip toggle
+- Hidden tooltip component toggles for common component lines
+
+### Book
+
+- Writable and written book workflow
+- Page editor with vanilla-like page limits
+- Page navigation
+- Add, remove, and reorder pages
+- Mini-map page list
+- Title, author, and generation editing
+- Rich text styling tools for page content
+
+### Special Data
+
+Available only when supported by the held item.
+
+- **Potion contents:** base potion, color, custom name, and custom effects
+- **Suspicious stew effects**
+- **Fireworks:** rocket and star editor with live burst preview, shape, colors, fade, trail, and twinkle
+- **Banners:** base color, pattern layers, and live canvas preview
+- **Signs:** front and back text, style, color, glowing text, and board preview
+- **Containers:** visual slot grid, click move or swap, and searchable item picker
+- **Bucket creatures:** axolotl, salmon, tropical fish variants, and bucket entity flags
+- **Dyed item colors**
+- **Armor trims:** material and pattern pickers
+- **Player heads:** profile and skin texture fields
+- **Instruments and jukebox songs**
+- **Map color and post-processing metadata**
+
+## Screenshots
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/c609dca904a5f0a4435a8e4a205bd590b8e39470.png" alt="General Editor" width="420" />
+</div>
+
+### General Editor
+
+Edit core item data like name, rarity, durability, unbreakable state, glint override, and custom model fields.
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/a7961c5ab0533bd2551a164e0c22779c3df35f2e.png" alt="Lore Editor" width="420" />
+</div>
+
+### Lore Editor
+
+Write and style lore with multiple lines, formatting, preset colors, hex colors, and gradients.
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/40503432cef7f5496b853f236c2c125298743844.png" alt="Banner Editor" width="420" />
+</div>
+
+### Banner Editor
+
+Change banner base color, manage pattern layers, and preview the result live in the editor.
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/2af18c8809472030b85bcf0350e99de531fad85d.png" alt="Book Editor" width="420" />
+</div>
+
+### Book Editor
+
+Edit pages, reorder them, and manage written book data like title, author, and generation.
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/de1f3cca86eaeebc60803064fae60a140e68242c.png" alt="Container Editor" width="420" />
+</div>
+
+### Container Editor
+
+Open a visual slot-based container editor with move, swap, and searchable item selection support.

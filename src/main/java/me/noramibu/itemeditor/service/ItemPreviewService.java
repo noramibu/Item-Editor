@@ -8,7 +8,6 @@ import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.util.Unit;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -52,7 +51,7 @@ public final class ItemPreviewService {
 
         this.specialDataPreviewService.applySpecialData(originalStack, preview, state, baselineState, registryAccess, messages);
 
-        DataResult<Unit> validationResult = ItemStack.validateComponents(preview.getComponents());
+        DataResult<ItemStack> validationResult = ItemStack.validateStrict(preview);
         validationResult.resultOrPartial(problem -> messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
         this.validatePacketRoundTrip(preview, registryAccess, messages);
 

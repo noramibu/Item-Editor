@@ -3,7 +3,7 @@ package me.noramibu.itemeditor.ui.component;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 
@@ -17,7 +17,7 @@ final class RichTextRenderer {
         this.lineHeight = lineHeight;
     }
 
-    void renderChrome(GuiGraphics context, int baseX, int baseY, int innerWidth, int visibleHeight, int backgroundColor, int borderColor) {
+    void renderChrome(GuiGraphicsExtractor context, int baseX, int baseY, int innerWidth, int visibleHeight, int backgroundColor, int borderColor) {
         context.fill(baseX - 2, baseY - 2, baseX + innerWidth + 2, baseY + visibleHeight + 2, backgroundColor);
         context.fill(baseX - 2, baseY - 2, baseX + innerWidth + 2, baseY - 1, borderColor);
         context.fill(baseX - 2, baseY + visibleHeight + 1, baseX + innerWidth + 2, baseY + visibleHeight + 2, borderColor);
@@ -25,12 +25,12 @@ final class RichTextRenderer {
         context.fill(baseX + innerWidth + 1, baseY - 2, baseX + innerWidth + 2, baseY + visibleHeight + 2, borderColor);
     }
 
-    void renderPlaceholder(GuiGraphics context, String placeholder, int x, int y, int color) {
-        context.drawString(this.font, Component.literal(placeholder).getVisualOrderText(), x, y, color, false);
+    void renderPlaceholder(GuiGraphicsExtractor context, String placeholder, int x, int y, int color) {
+        context.text(this.font, Component.literal(placeholder), x, y, color, false);
     }
 
     void renderLine(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             RichTextLayoutUtil.LineLayout line,
             int baseX,
             int lineY,
@@ -40,11 +40,11 @@ final class RichTextRenderer {
         if (line.start() == line.end()) {
             return;
         }
-        context.drawString(this.font, this.renderedComponent(line.component(), defaultInsertionStyle).getVisualOrderText(), baseX, lineY, color, false);
+        context.text(this.font, this.renderedComponent(line.component(), defaultInsertionStyle), baseX, lineY, color, false);
     }
 
     void renderSelection(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             RichTextLayoutUtil.LineLayout line,
             int baseX,
             int lineY,
@@ -69,7 +69,7 @@ final class RichTextRenderer {
     }
 
     void renderCaret(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             RichTextLayoutUtil.LineLayout line,
             int baseX,
             int lineY,
