@@ -183,6 +183,7 @@
     "itemeditor.flags.hidden.map_color":  "Hide map color",
     "itemeditor.book.editing.title":  "Book Editing",
     "itemeditor.book.output_written":  "Output as Written Book",
+    "itemeditor.book.writable_format_notice":  "Color and style formatting is only available for written book output.",
     "itemeditor.book.title_hidden_by_name":  "Title will not be shown because a custom item name is already applied to this book.",
     "itemeditor.book.metadata.title":  "Book Metadata",
     "itemeditor.book.metadata.title_field":  "Title",

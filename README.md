@@ -6,7 +6,8 @@ Item Editor opens a full editor UI for the item currently held by the player and
 
 ## Compatibility
 
-- Supported Minecraft version: `1.21.11`
+- Supported Minecraft versions: `26.1` and `26.1.1`
+- Previously supported Minecraft versions: `1.21.4`, `1.21.5`, `1.21.6`, `1.21.7`, `1.21.8`, `1.21.9`, `1.21.10`, `1.21.11`
 
 ## Links
 
@@ -19,8 +20,8 @@ Item Editor opens a full editor UI for the item currently held by the player and
 1. Install Fabric Loader.
 2. Put these files in your `mods` folder:
   - `Item Editor-version-b<build>.jar`
-  - Fabric API for `1.21.11`
-  - owo-lib (`0.13.0+1.21.11` or newer)
+  - Fabric API
+  - owo-lib
 3. Start the game.
 4. Open the editor using the keybind in Controls under `Item Editor` (default: `I`).
 

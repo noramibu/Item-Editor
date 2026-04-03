@@ -6,6 +6,8 @@ import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -189,6 +191,28 @@ public final class StyledTextFieldSection {
                     RichTextToolbarUtil.WRITTEN_OUTPUT_ACTIONS,
                     true,
                     true
+            );
+        }
+
+        public static StylePreset writableBookPage() {
+            return new StylePreset(
+                    RichTextStyle.EMPTY,
+                    false,
+                    0x3D2D1F,
+                    0x3D2D1F,
+                    0x9076644E,
+                    0xB99AB7FF,
+                    0xFFF8FAFF,
+                    0xFF3C2E22,
+                    0xFFF3E6C8,
+                    0xFFB29A72,
+                    List.of(
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.cap"), Component.empty(), RichTextAreaComponent::capitalizeSelectionOrAll, false),
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
+                    ),
+                    false,
+                    false
             );
         }
 
