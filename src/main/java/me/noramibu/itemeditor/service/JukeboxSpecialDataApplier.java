@@ -7,6 +7,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.JukeboxPlayable;
 
@@ -35,7 +36,7 @@ final class JukeboxSpecialDataApplier extends AbstractPreviewApplierSupport impl
         ResourceKey<JukeboxSong> songKey = ResourceKey.create(Registries.JUKEBOX_SONG, songId);
         context.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG).get(songKey)
                 .ifPresentOrElse(
-                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(songHolder)),
+                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(songHolder))),
                         () -> context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")))
                 );
     }
