@@ -179,9 +179,9 @@ public final class ContainerSpecialDataSection {
         FlowLayout topMarkers = UiFactory.row();
         topMarkers.horizontalSizing(Sizing.fill(100));
         if (dragSource) {
-            topMarkers.child(Components.label(Component.literal("â†•").withColor(0xC8A0FF)));
+            topMarkers.child(Components.label(Component.literal(">>").withColor(0xC8A0FF)));
         } else if (edited) {
-            topMarkers.child(Components.label(Component.literal("â€¢").withColor(0xE7B766)));
+            topMarkers.child(Components.label(Component.literal("*").withColor(0xE7B766)));
         } else {
             topMarkers.child(Components.label(Component.literal(" ")));
         }

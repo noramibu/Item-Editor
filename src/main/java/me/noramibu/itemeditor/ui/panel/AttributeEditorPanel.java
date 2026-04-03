@@ -185,21 +185,8 @@ public final class AttributeEditorPanel implements EditorPanel {
 
     private FlowLayout buildAttributeSummaryCard(ItemAttributeModifiers.Entry entry, String sourceLabel) {
         FlowLayout card = UiFactory.subCard();
-        List<Component> previewLines = new ArrayList<>();
-        entry.display().apply(
-                previewLines::add,
-                this.screen.session().minecraft().player,
-                entry.attribute(),
-                entry.modifier()
-        );
-
-        if (previewLines.isEmpty()) {
-            previewLines.add(Component.translatable(entry.attribute().value().getDescriptionId()));
-        }
-
-        for (Component line : previewLines) {
-            card.child(Components.label(line).maxWidth(520));
-        }
+        Component attributeLabel = Component.translatable(entry.attribute().value().getDescriptionId());
+        card.child(Components.label(attributeLabel).maxWidth(520));
 
         String attributeId = entry.attribute().unwrapKey().map(key -> key.location().toString()).orElse(ItemEditorText.str("attributes.preview.unbound"));
         card.child(UiFactory.muted(

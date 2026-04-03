@@ -40,6 +40,9 @@ import java.util.function.IntConsumer;
 
 public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
+    private static final int MODAL_Z_INDEX = 400;
+    private static final int DROPDOWN_Z_INDEX = 450;
+
     private final ItemEditorSession session;
     private final List<EditorModule> modules;
     private final ItemEditorDialogController dialogController;
@@ -225,7 +228,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         DropdownComponent dropdown = DropdownComponent.openContextMenu(
                 this,
                 this.rootLayout,
-                (parent, menu) -> parent.child(menu),
+                (parent, menu) -> parent.child(menu.zIndex(DROPDOWN_Z_INDEX)),
                 menuX,
                 menuY,
                 menu -> values.forEach(value ->
@@ -237,6 +240,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                         })
                 )
         );
+        dropdown.zIndex(DROPDOWN_Z_INDEX);
         dropdown.closeWhenNotHovered(false);
     }
 
@@ -322,7 +326,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.clearDialog();
         this.activeDialog = dialog;
         if (this.rootLayout != null) {
-            this.rootLayout.child(dialog);
+            this.rootLayout.child(dialog.zIndex(MODAL_Z_INDEX));
         }
     }
 
