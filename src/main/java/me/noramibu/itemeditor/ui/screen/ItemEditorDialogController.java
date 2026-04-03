@@ -13,8 +13,10 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -25,6 +27,7 @@ import java.util.function.IntConsumer;
 final class ItemEditorDialogController {
 
     private final ItemEditorScreen screen;
+    private Runnable dialogConfirmShortcut;
 
     ItemEditorDialogController(ItemEditorScreen screen) {
         this.screen = screen;
@@ -65,18 +68,22 @@ final class ItemEditorDialogController {
                     ItemEditorText.str("common.save_apply"),
                     () -> this.performApply(preview),
                     ItemEditorText.str("common.cancel"),
-                    this::clearDialog
+                    this::clearDialog,
+                    () -> this.performApply(preview)
             );
             return;
         }
 
-        this.showDialog(ItemDiffDialog.create(
+        this.showDialog(
+                ItemDiffDialog.create(
                 ItemEditorText.str("dialog.apply.title"),
                 this.screen.applyModeText(),
                 diff.entries(),
                 () -> this.performApply(preview),
                 this::clearDialog
-        ));
+        ),
+                () -> this.performApply(preview)
+        );
     }
 
     void requestClose() {
@@ -96,6 +103,20 @@ final class ItemEditorDialogController {
 
     boolean shouldCloseOnEsc() {
         return !this.screen.hasActiveDialog();
+    }
+
+    boolean handleDialogShortcut(KeyEvent input) {
+        if (!this.screen.hasActiveDialog()) {
+            return false;
+        }
+        if (!input.hasControlDownWithQuirk() || input.key() != GLFW.GLFW_KEY_S) {
+            return false;
+        }
+        if (this.dialogConfirmShortcut == null) {
+            return false;
+        }
+        this.dialogConfirmShortcut.run();
+        return true;
     }
 
     void openColorPickerDialog(String title, int initialRgb, IntConsumer onApply) {
@@ -163,11 +184,28 @@ final class ItemEditorDialogController {
     }
 
     private void showDialog(String title, String body, String confirmText, Runnable onConfirm, String cancelText, Runnable onCancel) {
-        this.showDialog(ConfirmationDialog.create(title, body, confirmText, onConfirm, cancelText, onCancel));
+        this.showDialog(title, body, confirmText, onConfirm, cancelText, onCancel, null);
+    }
+
+    private void showDialog(
+            String title,
+            String body,
+            String confirmText,
+            Runnable onConfirm,
+            String cancelText,
+            Runnable onCancel,
+            Runnable confirmShortcut
+    ) {
+        this.showDialog(ConfirmationDialog.create(title, body, confirmText, onConfirm, cancelText, onCancel), confirmShortcut);
     }
 
     private void showDialog(FlowLayout dialog) {
+        this.showDialog(dialog, null);
+    }
+
+    private void showDialog(FlowLayout dialog, Runnable confirmShortcut) {
         this.clearDialog();
+        this.dialogConfirmShortcut = confirmShortcut;
         this.screen.attachDialog(dialog);
     }
 
@@ -206,6 +244,7 @@ final class ItemEditorDialogController {
     }
 
     private void clearDialog() {
+        this.dialogConfirmShortcut = null;
         this.screen.clearDialog();
     }
 

@@ -6,11 +6,11 @@ Item Editor opens a full editor UI for the item currently held by the player and
 
 ## Compatibility
 
-- Current: Minecraft `26.1`
-- Previous: Minecraft `1.21.11`
+- Supported Minecraft versions: `1.21.11` to `26.1.1`
 
 ## Links
 
+- Modrinth: https://modrinth.com/project/item-editor
 - GitHub: https://github.com/noramibu/Item-Editor
 - Discord: https://discord.gg/FaxbR9eEFW
 

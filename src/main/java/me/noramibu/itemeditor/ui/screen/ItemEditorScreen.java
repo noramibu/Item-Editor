@@ -25,9 +25,11 @@ import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -293,6 +295,29 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         return this.dialogController.shouldCloseOnEsc();
     }
 
+    @Override
+    public boolean keyPressed(KeyEvent input) {
+        if (this.dialogController.handleDialogShortcut(input)) {
+            return true;
+        }
+
+        if (input.hasControlDownWithQuirk()) {
+            if (input.key() == GLFW.GLFW_KEY_S) {
+                this.requestApply();
+                return true;
+            }
+            if (input.key() == GLFW.GLFW_KEY_R) {
+                this.requestReset();
+                return true;
+            }
+            if (input.key() == GLFW.GLFW_KEY_TAB) {
+                this.selectAdjacentCategory(input.hasShiftDown() ? -1 : 1);
+                return true;
+            }
+        }
+        return super.keyPressed(input);
+    }
+
     void attachDialog(FlowLayout dialog) {
         this.clearDialog();
         this.activeDialog = dialog;
@@ -440,5 +465,19 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         }
 
         this.minecraft.execute(this::refreshTabs);
+    }
+
+    private void selectAdjacentCategory(int direction) {
+        if (this.modules.isEmpty()) {
+            return;
+        }
+
+        int currentIndex = this.modules.indexOf(this.selectedModule);
+        if (currentIndex < 0) {
+            currentIndex = 0;
+        }
+        int nextIndex = Math.floorMod(currentIndex + direction, this.modules.size());
+        this.selectedModule = this.modules.get(nextIndex);
+        this.refreshCurrentPanel(false);
     }
 }

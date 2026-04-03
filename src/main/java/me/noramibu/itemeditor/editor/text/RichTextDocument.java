@@ -114,12 +114,30 @@ public final class RichTextDocument {
         }
 
         int offset = 0;
-        for (Segment segment : this.segments) {
+        for (int segmentIndex = 0; segmentIndex < this.segments.size(); segmentIndex++) {
+            Segment segment = this.segments.get(segmentIndex);
+            int start = offset;
             int end = offset + segment.text().length();
-            if (index <= end) {
+            if (index < end) {
                 return segment.style();
             }
-            offset = end;
+            if (index == end) {
+                if (segmentIndex + 1 < this.segments.size()) {
+                    Segment next = this.segments.get(segmentIndex + 1);
+                    boolean nextStartsWithNewline = !next.text().isEmpty() && next.text().charAt(0) == '\n';
+                    if (nextStartsWithNewline) {
+                        return segment.style();
+                    }
+
+                    RichTextStyle nextStyle = next.style();
+                    if (nextStyle.equals(RichTextStyle.EMPTY) && !segment.style().equals(RichTextStyle.EMPTY)) {
+                        return segment.style();
+                    }
+                    return nextStyle;
+                }
+                return segment.style();
+            }
+            offset = start + segment.text().length();
         }
 
         return this.segments.getLast().style();
