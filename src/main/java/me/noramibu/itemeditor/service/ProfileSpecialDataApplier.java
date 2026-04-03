@@ -8,7 +8,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.util.Util;
+import net.minecraft.Util;
 import net.minecraft.world.item.component.ResolvableProfile;
 
 import java.util.Objects;

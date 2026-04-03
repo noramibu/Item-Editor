@@ -3,7 +3,6 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -131,17 +130,19 @@ public final class SpawnerSpecialDataSection {
         return card;
     }
 
-    private static UIComponent buildIntField(
+    private static FlowLayout buildIntField(
             SpecialDataPanelContext context,
             Component label,
             String value,
             java.util.function.Consumer<String> setter
     ) {
-        return UiFactory.field(
+        FlowLayout field = UiFactory.field(
                 label,
                 Component.empty(),
                 UiFactory.textBox(value, context.bindText(setter)).horizontalSizing(Sizing.fixed(100))
-        ).horizontalSizing(Sizing.fill(100));
+        );
+        field.horizontalSizing(Sizing.fill(100));
+        return field;
     }
 
     private static void movePotential(List<ItemEditorState.SpawnerPotentialDraft> drafts, int from, int to) {

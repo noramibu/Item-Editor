@@ -3,7 +3,6 @@ package me.noramibu.itemeditor.ui.panel;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
@@ -26,7 +25,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState state = this.screen.session().state();
         Registry<Enchantment> enchantmentRegistry = this.screen.session().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         List<String> enchantmentIds = RegistryUtil.ids(enchantmentRegistry);

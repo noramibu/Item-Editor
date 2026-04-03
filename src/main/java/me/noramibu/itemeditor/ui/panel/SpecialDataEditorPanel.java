@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.panel.specialdata.BannerSpecialDataSection;
@@ -25,7 +24,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         var stack = this.context.originalStack();
         FlowLayout root = UiFactory.column();
 

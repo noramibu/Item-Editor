@@ -9,7 +9,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -129,7 +129,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             return;
         }
 
-        Identifier entityId = IdFieldNormalizer.parse(entityIdRaw);
+        ResourceLocation entityId = IdFieldNormalizer.parse(entityIdRaw);
         if (entityId == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(entityId)) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
                     "validation.registry_missing",
@@ -163,7 +163,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 continue;
             }
 
-            Identifier entityId = IdFieldNormalizer.parse(entityIdRaw);
+            ResourceLocation entityId = IdFieldNormalizer.parse(entityIdRaw);
             if (entityId == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(entityId)) {
                 messages.add(ValidationMessage.error(ItemEditorText.str(
                         "validation.registry_missing",

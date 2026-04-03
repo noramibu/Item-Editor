@@ -3,12 +3,11 @@ package me.noramibu.itemeditor.ui.panel;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
@@ -57,7 +56,7 @@ public final class BookEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState.BookData book = this.screen.session().state().book;
         if (book.pages.isEmpty()) {
             book.pages.add("");
@@ -290,7 +289,7 @@ public final class BookEditorPanel implements EditorPanel {
             return scroll != null ? ScrollStateUtil.offset(scroll) : 0;
         });
 
-        ScrollContainer<FlowLayout> scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(136), pageList);
+        ScrollContainer<FlowLayout> scroll = Containers.verticalScroll(Sizing.fill(100), Sizing.fixed(136), pageList);
         scroll.verticalSizing(Sizing.fixed(PAGE_MINIMAP_LIST_HEIGHT));
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         scroll.scrollbarThiccness(8);

@@ -4,7 +4,7 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
@@ -55,7 +55,7 @@ public final class SearchablePickerDialog {
 
         FlowLayout results = UiFactory.column();
         ScrollContainer<FlowLayout> resultScroll = DialogUiUtil.vanillaScroll(
-                UIContainers.verticalScroll(
+                Containers.verticalScroll(
                         Sizing.fill(100),
                         Sizing.fixed(resultsHeight),
                         results

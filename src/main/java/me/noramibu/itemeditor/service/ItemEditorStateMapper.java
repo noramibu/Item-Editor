@@ -37,8 +37,8 @@ import net.minecraft.world.item.component.WrittenBookContent;
 import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
-import net.minecraft.world.entity.animal.fish.Salmon;
-import net.minecraft.world.entity.animal.fish.TropicalFish;
+import net.minecraft.world.entity.animal.Salmon;
+import net.minecraft.world.entity.animal.TropicalFish;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.SignText;
@@ -204,12 +204,12 @@ public final class ItemEditorStateMapper {
 
         PotionContents potionContents = stack.get(DataComponents.POTION_CONTENTS);
         if (potionContents != null) {
-            potionContents.potion().flatMap(holder -> holder.unwrapKey().map(key -> key.identifier())).ifPresent(identifier -> state.special.potionId = identifier.toString());
+            potionContents.potion().flatMap(holder -> holder.unwrapKey().map(key -> key.location())).ifPresent(identifier -> state.special.potionId = identifier.toString());
             potionContents.customColor().ifPresent(color -> state.special.potionCustomColor = ValidationUtil.toHex(color));
             potionContents.customName().ifPresent(name -> state.special.potionCustomName = name);
             potionContents.customEffects().forEach(effect -> {
                 ItemEditorState.PotionEffectDraft draft = new ItemEditorState.PotionEffectDraft();
-                draft.effectId = effect.getEffect().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+                draft.effectId = effect.getEffect().unwrapKey().map(key -> key.location().toString()).orElse("");
                 draft.duration = Integer.toString(effect.getDuration());
                 draft.amplifier = Integer.toString(effect.getAmplifier());
                 draft.ambient = effect.isAmbient();
@@ -223,7 +223,7 @@ public final class ItemEditorStateMapper {
         if (stewEffects != null) {
             stewEffects.effects().forEach(effect -> {
                 ItemEditorState.SuspiciousStewEffectDraft draft = new ItemEditorState.SuspiciousStewEffectDraft();
-                draft.effectId = effect.effect().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+                draft.effectId = effect.effect().unwrapKey().map(key -> key.location().toString()).orElse("");
                 draft.duration = Integer.toString(effect.duration());
                 state.special.stewEffects.add(draft);
             });
@@ -265,8 +265,8 @@ public final class ItemEditorStateMapper {
 
         ArmorTrim trim = stack.get(DataComponents.TRIM);
         if (trim != null) {
-            trim.material().unwrapKey().ifPresent(key -> state.special.trimMaterialId = key.identifier().toString());
-            trim.pattern().unwrapKey().ifPresent(key -> state.special.trimPatternId = key.identifier().toString());
+            trim.material().unwrapKey().ifPresent(key -> state.special.trimMaterialId = key.location().toString());
+            trim.pattern().unwrapKey().ifPresent(key -> state.special.trimPatternId = key.location().toString());
         }
 
         ResolvableProfile profile = stack.get(DataComponents.PROFILE);
@@ -322,12 +322,12 @@ public final class ItemEditorStateMapper {
 
         InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
         if (instrument != null) {
-            instrument.instrument().key().map(key -> key.identifier().toString()).ifPresent(id -> state.special.instrumentId = id);
+            instrument.instrument().key().map(key -> key.location().toString()).ifPresent(id -> state.special.instrumentId = id);
         }
 
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
-            jukeboxPlayable.song().key().map(key -> key.identifier().toString()).ifPresent(id -> state.special.jukeboxSongId = id);
+            jukeboxPlayable.song().key().map(key -> key.location().toString()).ifPresent(id -> state.special.jukeboxSongId = id);
         }
 
         MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);

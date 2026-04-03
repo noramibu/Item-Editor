@@ -7,7 +7,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Unit;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomModelData;
@@ -112,7 +112,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         } else if (state.itemModelId.isBlank()) {
             this.clearToPrototype(context.previewStack(), DataComponents.ITEM_MODEL);
         } else {
-            Identifier itemModelId = IdFieldNormalizer.parse(state.itemModelId);
+            ResourceLocation itemModelId = IdFieldNormalizer.parse(state.itemModelId);
             if (itemModelId != null) {
                 context.previewStack().set(DataComponents.ITEM_MODEL, itemModelId);
             } else {

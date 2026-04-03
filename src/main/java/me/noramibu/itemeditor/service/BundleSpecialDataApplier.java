@@ -7,7 +7,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -75,7 +75,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
             return ItemStack.EMPTY;
         }
 
-        Identifier itemId = IdFieldNormalizer.parse(draft.itemId);
+        ResourceLocation itemId = IdFieldNormalizer.parse(draft.itemId);
         if (itemId == null) {
             messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.bundle_item_id", index + 1)));
             return ItemStack.EMPTY;

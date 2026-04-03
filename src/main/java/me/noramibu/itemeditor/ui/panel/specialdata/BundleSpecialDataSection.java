@@ -1,7 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
@@ -142,7 +142,7 @@ public final class BundleSpecialDataSection {
         );
 
         FlowLayout preview = UiFactory.row();
-        preview.child(UIComponents.item(stack).showOverlay(true));
+        preview.child(Components.item(stack).showOverlay(true));
         preview.child(UiFactory.muted(stack.isEmpty()
                 ? ItemEditorText.tr("special.bundle.entry.empty")
                 : ItemEditorText.tr("special.bundle.entry.stack", stack.getHoverName(), stack.getCount()), 240));

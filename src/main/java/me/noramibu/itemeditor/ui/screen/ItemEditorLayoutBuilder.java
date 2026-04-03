@@ -3,14 +3,13 @@ package me.noramibu.itemeditor.ui.screen;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
@@ -49,7 +48,7 @@ final class ItemEditorLayoutBuilder {
     }
 
     BuildResult build() {
-        UIComponent shell = this.buildShell();
+        FlowLayout shell = this.buildShell();
         return new BuildResult(
                 shell,
                 this.tabs,
@@ -70,11 +69,11 @@ final class ItemEditorLayoutBuilder {
         );
     }
 
-    private UIComponent buildShell() {
+    private FlowLayout buildShell() {
         this.shellWidth = Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2)));
         int bodyHeight = this.availableBodyHeight();
 
-        FlowLayout shell = UIContainers.verticalFlow(Sizing.fixed(this.shellWidth), Sizing.content());
+        FlowLayout shell = Containers.verticalFlow(Sizing.fixed(this.shellWidth), Sizing.content());
         shell.gap(4);
         shell.allowOverflow(false);
 
@@ -83,7 +82,7 @@ final class ItemEditorLayoutBuilder {
         shell.child(topBar);
 
         WideLayoutMetrics metrics = this.wideLayoutMetrics(this.shellWidth);
-        FlowLayout body = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.fixed(bodyHeight));
+        FlowLayout body = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(bodyHeight));
         body.gap(8);
         body.allowOverflow(false);
         body.child(this.buildTabsCard().horizontalSizing(Sizing.fixed(metrics.tabsWidth())));
@@ -91,7 +90,7 @@ final class ItemEditorLayoutBuilder {
         body.child(this.buildPreviewCard(metrics.previewWidth()).horizontalSizing(Sizing.fixed(metrics.previewWidth())));
         shell.child(body);
 
-        FlowLayout centered = UIContainers.verticalFlow(Sizing.fill(), Sizing.fill());
+        FlowLayout centered = Containers.verticalFlow(Sizing.fill(), Sizing.fill());
         centered.padding(Insets.of(SHELL_SIDE_PADDING / 2));
         centered.horizontalAlignment(HorizontalAlignment.CENTER);
         centered.child(shell);
@@ -147,7 +146,7 @@ final class ItemEditorLayoutBuilder {
         this.panelHost.allowOverflow(false);
         this.panelHost.padding(Insets.of(0, 8, 8, 0));
         this.panelScroll = this.configureScroll(
-                UIContainers.verticalScroll(
+                Containers.verticalScroll(
                         Sizing.fill(100),
                         Sizing.fill(100),
                         this.panelHost
@@ -167,7 +166,7 @@ final class ItemEditorLayoutBuilder {
         FlowLayout card = UiFactory.card();
         card.verticalSizing(Sizing.fill(100));
         card.gap(8);
-        this.previewItem = UIComponents.item(this.screen.session().previewStack())
+        this.previewItem = Components.item(this.screen.session().previewStack())
                 .showOverlay(true);
 
         FlowLayout previewHeader = UiFactory.row();
@@ -181,7 +180,7 @@ final class ItemEditorLayoutBuilder {
         this.messages.padding(Insets.right(10));
 
         this.tooltipScroll = this.configureScroll(
-                UIContainers.verticalScroll(
+                Containers.verticalScroll(
                         Sizing.fill(100),
                         Sizing.fixed(220),
                         this.tooltipLines
@@ -191,7 +190,7 @@ final class ItemEditorLayoutBuilder {
         );
 
         this.messageScroll = this.configureScroll(
-                UIContainers.verticalScroll(
+                Containers.verticalScroll(
                         Sizing.fill(100),
                         Sizing.fill(100),
                         this.messages
@@ -233,7 +232,7 @@ final class ItemEditorLayoutBuilder {
         return section;
     }
 
-    private <C extends UIComponent> ScrollContainer<C> configureScroll(ScrollContainer<C> scroll, int step, int thickness) {
+    private ScrollContainer<FlowLayout> configureScroll(ScrollContainer<FlowLayout> scroll, int step, int thickness) {
         scroll.scrollStep(step);
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         scroll.scrollbarThiccness(thickness);
@@ -290,7 +289,7 @@ final class ItemEditorLayoutBuilder {
     }
 
     record BuildResult(
-            UIComponent shell,
+            FlowLayout shell,
             FlowLayout tabs,
             FlowLayout panelHost,
             ScrollContainer<FlowLayout> panelScroll,

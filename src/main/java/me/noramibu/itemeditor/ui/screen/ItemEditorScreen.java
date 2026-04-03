@@ -5,11 +5,11 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.DropdownComponent;
 import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.StackLayout;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
@@ -77,7 +77,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     protected OwoUIAdapter<StackLayout> createAdapter() {
-        return OwoUIAdapter.create(this, UIContainers::stack);
+        return OwoUIAdapter.create(this, Containers::stack);
     }
 
     @Override
@@ -178,7 +178,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
         EditorPanel panel = this.selectedModule.panelFactory().apply(this);
         this.panelHost.child(panel.build());
-        this.panelHost.child(UIContainers.verticalFlow(Sizing.fill(100), Sizing.fixed(120)));
+        this.panelHost.child(Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(120)));
         this.restorePanelScroll(scrollAmount);
         this.refreshTabs();
     }
@@ -275,14 +275,14 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     @Override
-    public void resize(int width, int height) {
+    public void resize(net.minecraft.client.Minecraft minecraft, int width, int height) {
         this.captureScrollStateForRebuild();
         this.clearDialog();
         if (this.uiAdapter != null) {
             this.uiAdapter.dispose();
             this.uiAdapter = null;
         }
-        super.resize(width, height);
+        super.resize(minecraft, width, height);
     }
 
     @Override
@@ -301,7 +301,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             return true;
         }
 
-        if (input.hasControlDownWithQuirk()) {
+        if (input.hasControlDown()) {
             if (input.key() == GLFW.GLFW_KEY_S) {
                 this.requestApply();
                 return true;
@@ -447,7 +447,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void addTooltipLine(Component line) {
-        this.tooltipLines.child(UIComponents.label(line).maxWidth(this.previewTextWidthHint));
+        this.tooltipLines.child(Components.label(line).maxWidth(this.previewTextWidthHint));
     }
 
     private List<Component> categoryTooltip(Component title, Component description) {

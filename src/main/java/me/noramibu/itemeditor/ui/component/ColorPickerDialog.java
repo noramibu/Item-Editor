@@ -4,7 +4,7 @@ import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ColorPickerComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Sizing;
@@ -41,7 +41,7 @@ public final class ColorPickerDialog {
                 .selectorPadding(8);
         picker.sizing(Sizing.fixed(pickerWidth), Sizing.fixed(145));
 
-        BoxComponent swatch = UIComponents.box(Sizing.fixed(36), Sizing.fixed(36))
+        BoxComponent swatch = Components.box(Sizing.fixed(36), Sizing.fixed(36))
                 .fill(true)
                 .color(Color.ofRgb(selectedRgb.get()));
         LabelComponent swatchLabel = UiFactory.title(ValidationUtil.toHex(selectedRgb.get())).shadow(false);

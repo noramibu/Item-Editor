@@ -1,7 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
@@ -179,18 +179,18 @@ public final class ContainerSpecialDataSection {
         FlowLayout topMarkers = UiFactory.row();
         topMarkers.horizontalSizing(Sizing.fill(100));
         if (dragSource) {
-            topMarkers.child(UIComponents.label(Component.literal("↕").withColor(0xC8A0FF)));
+            topMarkers.child(Components.label(Component.literal("â†•").withColor(0xC8A0FF)));
         } else if (edited) {
-            topMarkers.child(UIComponents.label(Component.literal("•").withColor(0xE7B766)));
+            topMarkers.child(Components.label(Component.literal("â€¢").withColor(0xE7B766)));
         } else {
-            topMarkers.child(UIComponents.label(Component.literal(" ")));
+            topMarkers.child(Components.label(Component.literal(" ")));
         }
         if (invalidItem) {
-            topMarkers.child(UIComponents.label(Component.literal("!").withColor(0xFF8A8A)));
+            topMarkers.child(Components.label(Component.literal("!").withColor(0xFF8A8A)));
         }
         cell.child(topMarkers);
 
-        cell.child(UIComponents.item(slotStack).showOverlay(true));
+        cell.child(Components.item(slotStack).showOverlay(true));
 
         FlowLayout footer = UiFactory.row();
         footer.horizontalSizing(Sizing.fill(100));
@@ -229,7 +229,7 @@ public final class ContainerSpecialDataSection {
         boolean invalidItem = isInvalidItemDraft(selectedDraft);
 
         FlowLayout top = UiFactory.row();
-        top.child(UIComponents.item(selectedStack).showOverlay(true).margins(Insets.right(6)));
+        top.child(Components.item(selectedStack).showOverlay(true).margins(Insets.right(6)));
         top.child(UiFactory.muted(ItemEditorText.tr("special.container.selected_slot", selectedSlot), 240));
         card.child(top);
 

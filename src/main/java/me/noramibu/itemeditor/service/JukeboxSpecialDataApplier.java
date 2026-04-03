@@ -5,7 +5,7 @@ import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.JukeboxSong;
@@ -27,7 +27,7 @@ final class JukeboxSpecialDataApplier extends AbstractPreviewApplierSupport impl
             return;
         }
 
-        Identifier songId = IdFieldNormalizer.parse(context.special().jukeboxSongId);
+        ResourceLocation songId = IdFieldNormalizer.parse(context.special().jukeboxSongId);
         if (songId == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")));
             return;

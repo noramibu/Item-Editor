@@ -2,12 +2,12 @@ package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.UIComponent;
+import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.Minecraft;
 
@@ -24,7 +24,7 @@ final class DialogUiUtil {
     }
 
     static FlowLayout overlay() {
-        FlowLayout overlay = UIContainers.verticalFlow(Sizing.fill(), Sizing.fill());
+        FlowLayout overlay = Containers.verticalFlow(Sizing.fill(), Sizing.fill());
         overlay.surface(Surface.flat(0xAA050607));
         overlay.horizontalAlignment(HorizontalAlignment.CENTER);
         overlay.verticalAlignment(VerticalAlignment.CENTER);
@@ -38,9 +38,9 @@ final class DialogUiUtil {
         return row;
     }
 
-    static <C extends UIComponent> FlowLayout scrollCard(C content, int height) {
+    static <C extends Component> FlowLayout scrollCard(C content, int height) {
         ScrollContainer<C> scroll = vanillaScroll(
-                UIContainers.verticalScroll(
+                Containers.verticalScroll(
                         Sizing.fill(100),
                         Sizing.fixed(scrollHeight(height)),
                         content
@@ -54,7 +54,7 @@ final class DialogUiUtil {
         return card;
     }
 
-    static <C extends UIComponent> ScrollContainer<C> vanillaScroll(ScrollContainer<C> scroll, int step) {
+    static <C extends Component> ScrollContainer<C> vanillaScroll(ScrollContainer<C> scroll, int step) {
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         scroll.scrollbarThiccness(DEFAULT_SCROLLBAR_THICKNESS);
         scroll.scrollStep(step);

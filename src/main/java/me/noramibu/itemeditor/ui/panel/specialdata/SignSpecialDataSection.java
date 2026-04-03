@@ -1,10 +1,10 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.LabelComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
@@ -185,7 +185,7 @@ public final class SignSpecialDataSection {
         FlowLayout previewCard = UiFactory.subCard();
         previewCard.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
 
-        StackLayout signFace = UIContainers.stack(Sizing.content(), Sizing.content());
+        StackLayout signFace = Containers.stack(Sizing.content(), Sizing.content());
         signFace.child(buildBoardTexture(boardStyle, layout));
 
         FlowLayout textLayer = UiFactory.column();
@@ -196,7 +196,7 @@ public final class SignSpecialDataSection {
 
         List<LabelComponent> lines = new ArrayList<>(SIGN_LINE_COUNT);
         for (int index = 0; index < SIGN_LINE_COUNT; index++) {
-            LabelComponent line = UIComponents.label(Component.literal(" "))
+            LabelComponent line = Components.label(Component.literal(" "))
                     .maxWidth(layout.maxTextLineWidth());
             textLayer.child(line);
             lines.add(line);

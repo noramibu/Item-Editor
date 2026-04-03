@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
@@ -35,7 +34,7 @@ public final class FlagsEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState state = this.screen.session().state();
         FlowLayout root = UiFactory.column();
 

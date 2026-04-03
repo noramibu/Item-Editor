@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
@@ -25,7 +24,7 @@ public final class GeneralEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState state = this.screen.session().state();
         ItemStack stack = this.screen.session().originalStack();
         boolean supportsDurability = ItemEditorCapabilities.supportsDurability(stack);

@@ -7,7 +7,7 @@ import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Instrument;
 import net.minecraft.world.item.component.InstrumentComponent;
 
@@ -27,7 +27,7 @@ final class InstrumentSpecialDataApplier extends AbstractPreviewApplierSupport i
             return;
         }
 
-        Identifier instrumentId = IdFieldNormalizer.parse(context.special().instrumentId);
+        ResourceLocation instrumentId = IdFieldNormalizer.parse(context.special().instrumentId);
         if (instrumentId == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.instrument_id")));
             return;

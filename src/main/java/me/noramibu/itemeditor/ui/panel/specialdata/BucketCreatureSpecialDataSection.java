@@ -11,8 +11,8 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
-import net.minecraft.world.entity.animal.fish.Salmon;
-import net.minecraft.world.entity.animal.fish.TropicalFish;
+import net.minecraft.world.entity.animal.Salmon;
+import net.minecraft.world.entity.animal.TropicalFish;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 

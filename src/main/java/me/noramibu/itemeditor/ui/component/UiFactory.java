@@ -5,19 +5,18 @@ import io.wispforest.owo.ui.component.CheckboxComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import io.wispforest.owo.ui.core.Component;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
@@ -35,11 +34,11 @@ public final class UiFactory {
     }
 
     public static FlowLayout column() {
-        return UIContainers.verticalFlow(Sizing.fill(100), Sizing.content()).gap(4);
+        return Containers.verticalFlow(Sizing.fill(100), Sizing.content()).gap(4);
     }
 
     public static FlowLayout row() {
-        FlowLayout row = UIContainers.ltrTextFlow(Sizing.fill(100), Sizing.content());
+        FlowLayout row = Containers.ltrTextFlow(Sizing.fill(100), Sizing.content());
         row.gap(4);
         row.verticalAlignment(VerticalAlignment.CENTER);
         return row;
@@ -53,7 +52,7 @@ public final class UiFactory {
         return card;
     }
 
-    public static FlowLayout section(Component title, Component description) {
+    public static FlowLayout section(net.minecraft.network.chat.Component title, net.minecraft.network.chat.Component description) {
         FlowLayout section = card();
         section.child(title(title));
         if (!description.getString().isBlank()) {
@@ -62,7 +61,7 @@ public final class UiFactory {
         return section;
     }
 
-    public static FlowLayout field(Component label, Component helpText, UIComponent input) {
+    public static FlowLayout field(net.minecraft.network.chat.Component label, net.minecraft.network.chat.Component helpText, Component input) {
         FlowLayout field = column().gap(3);
         field.horizontalSizing(Sizing.fill(100));
         int textWidth = responsiveFieldTextWidth();
@@ -83,11 +82,11 @@ public final class UiFactory {
     }
 
     public static LabelComponent title(String text) {
-        return title(Component.literal(text));
+        return title(net.minecraft.network.chat.Component.literal(text));
     }
 
-    public static LabelComponent title(Component text) {
-        return UIComponents.label(text)
+    public static LabelComponent title(net.minecraft.network.chat.Component text) {
+        return Components.label(text)
                 .color(Color.ofRgb(0xF2F5F8))
                 .shadow(true);
     }
@@ -97,38 +96,38 @@ public final class UiFactory {
     }
 
     public static LabelComponent muted(String text, int maxWidth) {
-        return muted(Component.literal(text), maxWidth);
+        return muted(net.minecraft.network.chat.Component.literal(text), maxWidth);
     }
 
-    public static LabelComponent muted(Component text) {
+    public static LabelComponent muted(net.minecraft.network.chat.Component text) {
         return muted(text, responsiveBodyTextWidth());
     }
 
-    public static LabelComponent muted(Component text, int maxWidth) {
-        return UIComponents.label(text)
+    public static LabelComponent muted(net.minecraft.network.chat.Component text, int maxWidth) {
+        return Components.label(text)
                 .color(Color.ofRgb(0xA9B5C0))
                 .maxWidth(maxWidth);
     }
 
     public static LabelComponent message(String text, int color) {
-        return message(Component.literal(text), color);
+        return message(net.minecraft.network.chat.Component.literal(text), color);
     }
 
-    public static LabelComponent message(Component text, int color) {
-        return UIComponents.label(text)
+    public static LabelComponent message(net.minecraft.network.chat.Component text, int color) {
+        return Components.label(text)
                 .color(Color.ofRgb(color))
                 .maxWidth(responsiveBodyTextWidth());
     }
 
     public static ButtonComponent button(String text, Consumer<ButtonComponent> onPress) {
-        return button(Component.literal(text), onPress);
+        return button(net.minecraft.network.chat.Component.literal(text), onPress);
     }
 
-    public static ButtonComponent button(Component text, Consumer<ButtonComponent> onPress) {
-        return UIComponents.button(text, onPress);
+    public static ButtonComponent button(net.minecraft.network.chat.Component text, Consumer<ButtonComponent> onPress) {
+        return Components.button(text, onPress);
     }
 
-    public static ButtonComponent pickerButton(Component text, int width, Consumer<ButtonComponent> onPress) {
+    public static ButtonComponent pickerButton(net.minecraft.network.chat.Component text, int width, Consumer<ButtonComponent> onPress) {
         ButtonComponent button = button(text, onPress);
         if (width > 0) {
             button.horizontalSizing(Sizing.fixed(width));
@@ -139,21 +138,21 @@ public final class UiFactory {
     }
 
     public static FlowLayout pickerField(
-            Component label,
-            Component helpText,
-            Component buttonText,
+            net.minecraft.network.chat.Component label,
+            net.minecraft.network.chat.Component helpText,
+            net.minecraft.network.chat.Component buttonText,
             int buttonWidth,
             Consumer<ButtonComponent> onPress
     ) {
         return field(label, helpText, pickerButton(buttonText, buttonWidth, onPress));
     }
 
-    public static FlowLayout removableSubCard(Component title, Runnable onRemove) {
+    public static FlowLayout removableSubCard(net.minecraft.network.chat.Component title, Runnable onRemove) {
         return reorderableSubCard(title, false, null, false, null, onRemove);
     }
 
     public static FlowLayout reorderableSubCard(
-            Component title,
+            net.minecraft.network.chat.Component title,
             boolean canMoveUp,
             Runnable onMoveUp,
             boolean canMoveDown,
@@ -166,7 +165,7 @@ public final class UiFactory {
     }
 
     public static FlowLayout reorderableHeader(
-            Component title,
+            net.minecraft.network.chat.Component title,
             boolean canMoveUp,
             Runnable onMoveUp,
             boolean canMoveDown,
@@ -187,9 +186,9 @@ public final class UiFactory {
         return header;
     }
 
-    public static Component fitToWidth(Component text, int maxPixelWidth) {
+    public static net.minecraft.network.chat.Component fitToWidth(net.minecraft.network.chat.Component text, int maxPixelWidth) {
         if (maxPixelWidth <= 0) {
-            return Component.empty();
+            return net.minecraft.network.chat.Component.empty();
         }
 
         Minecraft minecraft = Minecraft.getInstance();
@@ -201,31 +200,31 @@ public final class UiFactory {
         String ellipsis = "...";
         int ellipsisWidth = minecraft.font.width(ellipsis);
         if (maxPixelWidth <= ellipsisWidth) {
-            return Component.literal(ellipsis);
+            return net.minecraft.network.chat.Component.literal(ellipsis);
         }
 
         String shortened = minecraft.font.plainSubstrByWidth(raw, Math.max(0, maxPixelWidth - ellipsisWidth)).trim();
         if (shortened.isEmpty()) {
-            return Component.literal(ellipsis);
+            return net.minecraft.network.chat.Component.literal(ellipsis);
         }
-        return Component.literal(shortened + ellipsis);
+        return net.minecraft.network.chat.Component.literal(shortened + ellipsis);
     }
 
     public static TextBoxComponent textBox(String value, Consumer<String> onChanged) {
-        TextBoxComponent box = UIComponents.textBox(Sizing.fill(100), value);
+        TextBoxComponent box = Components.textBox(Sizing.fill(100), value);
         box.onChanged().subscribe(onChanged::accept);
         return box;
     }
 
     public static TextAreaComponent textArea(String value, int height, Consumer<String> onChanged) {
-        TextAreaComponent textArea = UIComponents.textArea(Sizing.fill(100), Sizing.fixed(height), value);
+        TextAreaComponent textArea = Components.textArea(Sizing.fill(100), Sizing.fixed(height), value);
         textArea.onChanged().subscribe(onChanged::accept);
         textArea.displayCharCount(true);
         return textArea;
     }
 
-    public static CheckboxComponent checkbox(Component text, boolean checked, Consumer<Boolean> onChanged) {
-        CheckboxComponent checkbox = UIComponents.checkbox(text);
+    public static CheckboxComponent checkbox(net.minecraft.network.chat.Component text, boolean checked, Consumer<Boolean> onChanged) {
+        CheckboxComponent checkbox = Components.checkbox(text);
         checkbox.checked(checked);
         checkbox.onChanged(onChanged);
         return checkbox;
@@ -260,7 +259,7 @@ public final class UiFactory {
         return Math.max(min, Math.min(max, responsive));
     }
 
-    private static ButtonComponent actionButton(Component label, boolean enabled, Runnable onPress) {
+    private static ButtonComponent actionButton(net.minecraft.network.chat.Component label, boolean enabled, Runnable onPress) {
         ButtonComponent button = button(label, component -> onPress.run());
         button.horizontalSizing(Sizing.content());
         button.active(enabled);

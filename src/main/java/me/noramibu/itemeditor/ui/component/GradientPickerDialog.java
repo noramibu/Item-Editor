@@ -4,7 +4,7 @@ import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ColorPickerComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Sizing;
@@ -93,7 +93,7 @@ public final class GradientPickerDialog {
                 .selectorPadding(6);
         picker.sizing(Sizing.fixed(Math.max(120, columnWidth - 24)), Sizing.fixed(110));
 
-        BoxComponent swatch = UIComponents.box(Sizing.fixed(24), Sizing.fixed(24))
+        BoxComponent swatch = Components.box(Sizing.fixed(24), Sizing.fixed(24))
                 .fill(true)
                 .color(Color.ofRgb(colorRef.get()));
         LabelComponent swatchLabel = UiFactory.title(ValidationUtil.toHex(colorRef.get())).shadow(false);
@@ -144,7 +144,7 @@ public final class GradientPickerDialog {
         for (int index = 0; index < length; index++) {
             float progress = length == 1 ? 0f : (float) index / (length - 1);
             int color = ColorInterpolationUtil.interpolateRgb(startRgb, endRgb, progress);
-            row.child(UIComponents.label(Component.literal(Character.toString(text.charAt(index))).withColor(color)));
+            row.child(Components.label(Component.literal(Character.toString(text.charAt(index))).withColor(color)));
         }
 
         return row;

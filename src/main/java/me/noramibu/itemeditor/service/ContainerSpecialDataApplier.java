@@ -7,7 +7,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -46,7 +46,7 @@ final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport im
                 continue;
             }
 
-            Identifier itemId = IdFieldNormalizer.parse(draft.itemId);
+            ResourceLocation itemId = IdFieldNormalizer.parse(draft.itemId);
             if (itemId == null) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.container_item_id")));
                 continue;

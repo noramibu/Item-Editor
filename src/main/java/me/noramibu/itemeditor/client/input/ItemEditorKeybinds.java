@@ -6,13 +6,13 @@ import me.noramibu.itemeditor.ui.screen.ItemEditorLauncher;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 public final class ItemEditorKeybinds {
 
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
-            Identifier.fromNamespaceAndPath(ItemEditorClient.MOD_ID, "controls")
+            ResourceLocation.fromNamespaceAndPath(ItemEditorClient.MOD_ID, "controls")
     );
 
     private static final KeyMapping OPEN_EDITOR = KeyBindingHelper.registerKeyBinding(

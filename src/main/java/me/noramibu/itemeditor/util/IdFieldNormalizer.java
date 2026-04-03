@@ -1,6 +1,6 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Locale;
 
@@ -16,11 +16,11 @@ public final class IdFieldNormalizer {
         return raw.trim().toLowerCase(Locale.ROOT);
     }
 
-    public static Identifier parse(String raw) {
+    public static ResourceLocation parse(String raw) {
         String normalized = normalize(raw);
         if (normalized.isBlank()) {
             return null;
         }
-        return Identifier.tryParse(normalized);
+        return ResourceLocation.tryParse(normalized);
     }
 }

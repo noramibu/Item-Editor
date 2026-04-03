@@ -3,7 +3,7 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -14,7 +14,7 @@ final class ContainerEntryDraftUtil {
     }
 
     static Item resolveItem(String rawItemId) {
-        Identifier id = IdFieldNormalizer.parse(rawItemId);
+        ResourceLocation id = IdFieldNormalizer.parse(rawItemId);
         if (id == null) {
             return null;
         }

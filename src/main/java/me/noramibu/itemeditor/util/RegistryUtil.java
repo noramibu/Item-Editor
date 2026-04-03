@@ -3,7 +3,7 @@ package me.noramibu.itemeditor.util;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Comparator;
 import java.util.List;
@@ -15,7 +15,7 @@ public final class RegistryUtil {
     }
 
     public static <T> Holder<T> resolveHolder(Registry<T> registry, String rawId) {
-        Identifier identifier = Identifier.tryParse(rawId);
+        ResourceLocation identifier = ResourceLocation.tryParse(rawId);
         if (identifier == null) {
             return null;
         }
@@ -36,6 +36,6 @@ public final class RegistryUtil {
     }
 
     public static <T> List<String> ids(Registry<T> registry) {
-        return registry.keySet().stream().map(Identifier::toString).sorted(Comparator.naturalOrder()).toList();
+        return registry.keySet().stream().map(ResourceLocation::toString).sorted(Comparator.naturalOrder()).toList();
     }
 }

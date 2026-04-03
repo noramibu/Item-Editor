@@ -109,7 +109,7 @@ final class ItemEditorDialogController {
         if (!this.screen.hasActiveDialog()) {
             return false;
         }
-        if (!input.hasControlDownWithQuirk() || input.key() != GLFW.GLFW_KEY_S) {
+        if (!input.hasControlDown() || input.key() != GLFW.GLFW_KEY_S) {
             return false;
         }
         if (this.dialogConfirmShortcut == null) {

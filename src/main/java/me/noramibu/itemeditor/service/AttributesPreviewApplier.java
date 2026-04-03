@@ -10,7 +10,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -54,11 +54,11 @@ final class AttributesPreviewApplier extends AbstractPreviewApplierSupport imple
                 continue;
             }
 
-            Identifier modifierId;
+            ResourceLocation modifierId;
             if (draft.modifierId.isBlank()) {
-                modifierId = Identifier.fromNamespaceAndPath(ItemEditorClient.MOD_ID, "generated/" + index);
+                modifierId = ResourceLocation.fromNamespaceAndPath(ItemEditorClient.MOD_ID, "generated/" + index);
             } else {
-                modifierId = Identifier.tryParse(draft.modifierId);
+                modifierId = ResourceLocation.tryParse(draft.modifierId);
                 if (modifierId == null) {
                     context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.modifier_id", draft.modifierId)));
                     continue;

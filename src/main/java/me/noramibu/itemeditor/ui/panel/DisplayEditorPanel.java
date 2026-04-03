@@ -5,7 +5,6 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
@@ -33,7 +32,7 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState state = this.screen.session().state();
         FlowLayout root = UiFactory.column();
         RichTextStyle defaultLoreStyle = this.defaultLoreStyle();

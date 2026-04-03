@@ -1,12 +1,11 @@
 package me.noramibu.itemeditor.ui.component;
 
 import com.mojang.logging.LogUtils;
-import io.wispforest.owo.mixin.ui.access.MultilineTextFieldAccessor;
+import io.wispforest.owo.mixin.ui.access.EditBoxAccessor;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
-import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
+import io.wispforest.owo.ui.inject.GreedyInputComponent;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
@@ -32,7 +31,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputUIComponent {
+import static io.wispforest.owo.ui.core.Component.FocusSource.MOUSE_CLICK;
+
+public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputComponent {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int LINE_HEIGHT = 9;
@@ -192,7 +193,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         double preservedScroll = this.scrollAmount();
         this.preservePendingStyleOnFocus = true;
         if (this.focusHandler() != null) {
-            this.focusHandler().focus(this, UIComponent.FocusSource.MOUSE_CLICK);
+            this.focusHandler().focus(this, MOUSE_CLICK);
         }
         this.setFocused(true);
         this.setScrollAmount(preservedScroll);
@@ -248,9 +249,9 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
         int targetCursor = this.cursorForPoint(click.x(), click.y());
         if (click.hasShiftDown()) {
-            ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(beforeSelection);
+            ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(beforeSelection);
         } else {
-            ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(targetCursor);
+            ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(targetCursor);
         }
         this.editBox.seekCursor(Whence.ABSOLUTE, targetCursor);
         if (doubled) {
@@ -301,7 +302,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 return true;
             });
         }
-        if (input.hasControlDownWithQuirk()) {
+        if (input.hasControlDown()) {
             if (input.key() == GLFW.GLFW_KEY_Z) {
                 if (input.hasShiftDown()) {
                     this.redo();
@@ -333,11 +334,11 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             return true;
         }
         if (input.key() == GLFW.GLFW_KEY_HOME) {
-            this.moveCursorToLineEdge(false, input.hasShiftDown(), input.hasControlDownWithQuirk());
+            this.moveCursorToLineEdge(false, input.hasShiftDown(), input.hasControlDown());
             return true;
         }
         if (input.key() == GLFW.GLFW_KEY_END) {
-            this.moveCursorToLineEdge(true, input.hasShiftDown(), input.hasControlDownWithQuirk());
+            this.moveCursorToLineEdge(true, input.hasShiftDown(), input.hasControlDown());
             return true;
         }
 
@@ -532,7 +533,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         String plainText = this.document.plainText();
         this.editBox.setValue(plainText, false);
         this.editBox.seekCursor(Whence.ABSOLUTE, result.newCursor());
-        ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(result.newSelection());
+        ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(result.newSelection());
         this.textValue.set(plainText);
         this.pendingStylePinned = false;
         this.pendingStyle = this.resolveInsertionStyle(result.newCursor());
@@ -589,7 +590,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     private int selectionCursor() {
-        return ((MultilineTextFieldAccessor) this.editBox).owo$getSelectCursor();
+        return ((EditBoxAccessor) this.editBox).owo$getSelectionEnd();
     }
 
     private RichTextSelectionModel currentSelection() {
@@ -770,7 +771,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     private void applyPlainTextState(String text, int cursor, int selectionCursor) {
         this.editBox.setValue(text, false);
         this.editBox.seekCursor(Whence.ABSOLUTE, cursor);
-        ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(selectionCursor);
+        ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(selectionCursor);
         this.textValue.set(text);
         this.pendingStylePinned = false;
         this.pendingStyle = this.resolveInsertionStyle(cursor);

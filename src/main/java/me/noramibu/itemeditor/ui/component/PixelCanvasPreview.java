@@ -1,9 +1,9 @@
 package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.component.BoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
@@ -53,11 +53,11 @@ public final class PixelCanvasPreview {
 
         List<List<BoxComponent>> grid = new ArrayList<>(height);
         for (int y = 0; y < height; y++) {
-            FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(pixelSize));
+            FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.fixed(pixelSize));
             row.gap(gap);
             List<BoxComponent> rowPixels = new ArrayList<>(width);
             for (int x = 0; x < width; x++) {
-                BoxComponent pixel = UIComponents.box(Sizing.fixed(pixelSize), Sizing.fixed(pixelSize))
+                BoxComponent pixel = Components.box(Sizing.fixed(pixelSize), Sizing.fixed(pixelSize))
                         .fill(true)
                         .color(Color.ofArgb(0x00000000));
                 rowPixels.add(pixel);

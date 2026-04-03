@@ -1,10 +1,9 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
@@ -38,7 +37,7 @@ public final class AttributeEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
+    public FlowLayout build() {
         ItemEditorState state = this.screen.session().state();
         Registry<Attribute> attributeRegistry = this.screen.session().registryAccess().lookupOrThrow(Registries.ATTRIBUTE);
         List<String> attributeIds = RegistryUtil.ids(attributeRegistry);
@@ -177,7 +176,7 @@ public final class AttributeEditorPanel implements EditorPanel {
     }
 
     private String entryKey(ItemAttributeModifiers.Entry entry) {
-        return entry.attribute().unwrapKey().map(key -> key.identifier().toString()).orElse("")
+        return entry.attribute().unwrapKey().map(key -> key.location().toString()).orElse("")
                 + "|" + entry.modifier().id()
                 + "|" + entry.modifier().amount()
                 + "|" + entry.modifier().operation().name()
@@ -199,10 +198,10 @@ public final class AttributeEditorPanel implements EditorPanel {
         }
 
         for (Component line : previewLines) {
-            card.child(UIComponents.label(line).maxWidth(520));
+            card.child(Components.label(line).maxWidth(520));
         }
 
-        String attributeId = entry.attribute().unwrapKey().map(key -> key.identifier().toString()).orElse(ItemEditorText.str("attributes.preview.unbound"));
+        String attributeId = entry.attribute().unwrapKey().map(key -> key.location().toString()).orElse(ItemEditorText.str("attributes.preview.unbound"));
         card.child(UiFactory.muted(
                 ItemEditorText.str(
                         "attributes.preview.source_line",

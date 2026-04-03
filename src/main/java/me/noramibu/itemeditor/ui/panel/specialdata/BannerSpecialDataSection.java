@@ -1,7 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.BoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
@@ -117,7 +117,7 @@ public final class BannerSpecialDataSection {
         card.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
 
         FlowLayout previewRow = UiFactory.row();
-        previewRow.child(UIComponents.item(context.screen().session().previewStack()).showOverlay(true).margins(Insets.right(8)));
+        previewRow.child(Components.item(context.screen().session().previewStack()).showOverlay(true).margins(Insets.right(8)));
         previewRow.child(UiFactory.muted(ItemEditorText.tr("special.banner.preview.layers", special.bannerLayers.size()), 240));
         card.child(previewRow);
 
@@ -201,7 +201,7 @@ public final class BannerSpecialDataSection {
 
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.muted(ItemEditorText.tr("special.banner.layer_index", index + 1), 40));
-        BoxComponent colorChip = UIComponents.box(Sizing.fixed(10), Sizing.fixed(10)).fill(true);
+        BoxComponent colorChip = Components.box(Sizing.fixed(10), Sizing.fixed(10)).fill(true);
         DyeColor parsedColor = DyeColorSelectorSection.parse(layer.color);
         int chipColor = parsedColor == null ? 0xB0B0B0 : parsedColor.getTextColor();
         colorChip.color(Color.ofRgb(chipColor));

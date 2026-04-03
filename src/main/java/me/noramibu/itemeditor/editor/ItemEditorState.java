@@ -86,7 +86,7 @@ public final class ItemEditorState {
 
         public static AttributeModifierDraft fromEntry(ItemAttributeModifiers.Entry entry) {
             AttributeModifierDraft draft = new AttributeModifierDraft();
-            draft.attributeId = entry.attribute().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.attributeId = entry.attribute().unwrapKey().map(key -> key.location().toString()).orElse("");
             draft.modifierId = entry.modifier().id().toString();
             draft.amount = String.valueOf(entry.modifier().amount());
             draft.operation = entry.modifier().operation().name();
@@ -101,7 +101,7 @@ public final class ItemEditorState {
 
         public static EnchantmentDraft fromEntry(Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment, int level) {
             EnchantmentDraft draft = new EnchantmentDraft();
-            draft.enchantmentId = enchantment.unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.enchantmentId = enchantment.unwrapKey().map(key -> key.location().toString()).orElse("");
             draft.level = Integer.toString(level);
             return draft;
         }
@@ -259,7 +259,7 @@ public final class ItemEditorState {
 
         public static BannerLayerDraft fromLayer(BannerPatternLayers.Layer layer) {
             BannerLayerDraft draft = new BannerLayerDraft();
-            draft.patternId = layer.pattern().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.patternId = layer.pattern().unwrapKey().map(key -> key.location().toString()).orElse("");
             draft.color = layer.color().name();
             return draft;
         }
