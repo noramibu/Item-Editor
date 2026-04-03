@@ -71,7 +71,7 @@ final class ItemEditorLayoutBuilder {
     }
 
     private UIComponent buildShell() {
-        this.shellWidth = Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - SHELL_SIDE_PADDING));
+        this.shellWidth = Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2)));
         int bodyHeight = this.availableBodyHeight();
 
         FlowLayout shell = UIContainers.verticalFlow(Sizing.fixed(this.shellWidth), Sizing.content());
@@ -92,7 +92,7 @@ final class ItemEditorLayoutBuilder {
         shell.child(body);
 
         FlowLayout centered = UIContainers.verticalFlow(Sizing.fill(), Sizing.fill());
-        centered.padding(Insets.of(2));
+        centered.padding(Insets.of(SHELL_SIDE_PADDING / 2));
         centered.horizontalAlignment(HorizontalAlignment.CENTER);
         centered.child(shell);
         return centered;

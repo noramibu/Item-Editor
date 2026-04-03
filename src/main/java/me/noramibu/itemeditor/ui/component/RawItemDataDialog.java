@@ -20,14 +20,17 @@ public final class RawItemDataDialog {
             Runnable onClose
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
+        int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 32);
+        int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 48);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
-        dialog.child(UiFactory.muted(body, DIALOG_WIDTH - 32));
+        dialog.child(UiFactory.muted(body, bodyTextWidth));
 
         FlowLayout lines = UiFactory.column();
         for (String line : rawData.split("\\R", -1)) {
-            lines.child(UiFactory.muted(line, DIALOG_WIDTH - 48));
+            lines.child(UiFactory.muted(line, lineTextWidth));
         }
 
         dialog.child(DialogUiUtil.scrollCard(lines, DATA_HEIGHT));

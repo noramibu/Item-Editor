@@ -25,8 +25,10 @@ public final class ColorPickerDialog {
 
     public static FlowLayout create(String title, int initialRgb, IntConsumer onApply, Runnable onCancel) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
+        int pickerWidth = Math.max(150, dialogWidth - 48);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
 
         AtomicInteger selectedRgb = new AtomicInteger(initialRgb & 0xFFFFFF);
@@ -37,7 +39,7 @@ public final class ColorPickerDialog {
                 .showAlpha(false)
                 .selectorWidth(18)
                 .selectorPadding(8);
-        picker.sizing(Sizing.fixed(250), Sizing.fixed(145));
+        picker.sizing(Sizing.fixed(pickerWidth), Sizing.fixed(145));
 
         BoxComponent swatch = UIComponents.box(Sizing.fixed(36), Sizing.fixed(36))
                 .fill(true)

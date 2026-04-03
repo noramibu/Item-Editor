@@ -31,11 +31,15 @@ public final class SearchablePickerDialog {
             Runnable onCancel
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
+        int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 32);
+        int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 48);
+        int resultsHeight = DialogUiUtil.scrollHeight(RESULTS_HEIGHT);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
         if (!body.isBlank()) {
-            dialog.child(UiFactory.muted(body, DIALOG_WIDTH - 32));
+            dialog.child(UiFactory.muted(body, bodyTextWidth));
         }
 
         TextBoxComponent search = UiFactory.textBox("", value -> {});
@@ -46,14 +50,14 @@ public final class SearchablePickerDialog {
                 search
         ));
 
-        LabelComponent resultsCount = UiFactory.muted("", DIALOG_WIDTH - 32);
+        LabelComponent resultsCount = UiFactory.muted("", bodyTextWidth);
         dialog.child(resultsCount);
 
         FlowLayout results = UiFactory.column();
         ScrollContainer<FlowLayout> resultScroll = DialogUiUtil.vanillaScroll(
                 UIContainers.verticalScroll(
                         Sizing.fill(100),
-                        Sizing.fixed(RESULTS_HEIGHT),
+                        Sizing.fixed(resultsHeight),
                         results
                 ),
                 12
@@ -87,7 +91,7 @@ public final class SearchablePickerDialog {
 
             resultsCount.text(ItemEditorText.tr("dialog.searchable_picker.results", matches, values.size()));
             if (matches == 0) {
-                results.child(UiFactory.muted(ItemEditorText.tr("dialog.searchable_picker.none"), DIALOG_WIDTH - 48));
+                results.child(UiFactory.muted(ItemEditorText.tr("dialog.searchable_picker.none"), lineTextWidth));
             }
         };
 

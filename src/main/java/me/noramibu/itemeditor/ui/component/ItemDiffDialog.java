@@ -24,18 +24,22 @@ public final class ItemDiffDialog {
             Runnable onCancel
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
+        int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 32);
+        int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 48);
+        int valueTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 120);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
-        dialog.child(UiFactory.muted(body, DIALOG_WIDTH - 32));
-        dialog.child(UiFactory.muted(ItemEditorText.tr("dialog.apply.diff.summary", entries.size()), DIALOG_WIDTH - 32));
+        dialog.child(UiFactory.muted(body, bodyTextWidth));
+        dialog.child(UiFactory.muted(ItemEditorText.tr("dialog.apply.diff.summary", entries.size()), bodyTextWidth));
 
         FlowLayout lines = UiFactory.column();
         if (entries.isEmpty()) {
-            lines.child(UiFactory.muted(ItemEditorText.tr("dialog.apply.diff.none"), DIALOG_WIDTH - 48));
+            lines.child(UiFactory.muted(ItemEditorText.tr("dialog.apply.diff.none"), lineTextWidth));
         } else {
             for (ItemComponentDiffUtil.Entry entry : entries) {
-                lines.child(entryCard(entry));
+                lines.child(entryCard(entry, valueTextWidth));
             }
         }
 
@@ -50,7 +54,7 @@ public final class ItemDiffDialog {
         return overlay;
     }
 
-    private static FlowLayout entryCard(ItemComponentDiffUtil.Entry entry) {
+    private static FlowLayout entryCard(ItemComponentDiffUtil.Entry entry, int valueTextWidth) {
         FlowLayout card = UiFactory.subCard();
         int color = switch (entry.type()) {
             case ADDED -> 0x7ED67A;
@@ -69,14 +73,14 @@ public final class ItemDiffDialog {
             card.child(UiFactory.field(
                     ItemEditorText.tr("dialog.apply.diff.original"),
                     Component.empty(),
-                    UiFactory.muted(Component.literal(entry.originalValue()), DIALOG_WIDTH - 120)
+                    UiFactory.muted(Component.literal(entry.originalValue()), valueTextWidth)
             ));
         }
         if (entry.type() != ItemComponentDiffUtil.EntryType.REMOVED) {
             card.child(UiFactory.field(
                     ItemEditorText.tr("screen.preview"),
                     Component.empty(),
-                    UiFactory.muted(Component.literal(entry.previewValue()), DIALOG_WIDTH - 120)
+                    UiFactory.muted(Component.literal(entry.previewValue()), valueTextWidth)
             ));
         }
         return card;

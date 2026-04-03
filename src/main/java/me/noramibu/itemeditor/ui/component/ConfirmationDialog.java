@@ -20,11 +20,12 @@ public final class ConfirmationDialog {
             Runnable onCancel
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
         if (!body.isBlank()) {
-            dialog.child(UiFactory.message(body, 0xA9B5C0).maxWidth(DIALOG_WIDTH - 32));
+            dialog.child(UiFactory.message(body, 0xA9B5C0).maxWidth(DialogUiUtil.dialogTextWidth(dialogWidth, 32)));
         }
 
         FlowLayout buttonRow = DialogUiUtil.rightAlignedButtonRow();

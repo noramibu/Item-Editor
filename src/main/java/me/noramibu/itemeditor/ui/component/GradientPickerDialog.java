@@ -35,18 +35,21 @@ public final class GradientPickerDialog {
             Runnable onCancel
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
+        int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
+        boolean compactLayout = dialogWidth < 420;
+        int columnWidth = compactLayout ? dialogWidth - 24 : Math.max(140, (dialogWidth - 22) / 2);
 
-        FlowLayout dialog = UiFactory.centeredCard(DIALOG_WIDTH).gap(8);
+        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
         dialog.child(UiFactory.title(title));
 
         AtomicInteger startRgb = new AtomicInteger(initialStartRgb & 0xFFFFFF);
         AtomicInteger endRgb = new AtomicInteger(initialEndRgb & 0xFFFFFF);
         LabelComponent errorLabel = UiFactory.message("", 0xFF8A8A);
 
-        PickerColumn startColumn = createPickerColumn(ItemEditorText.str("dialog.gradient_picker.start"), startRgb, errorLabel);
-        PickerColumn endColumn = createPickerColumn(ItemEditorText.str("dialog.gradient_picker.end"), endRgb, errorLabel);
+        PickerColumn startColumn = createPickerColumn(ItemEditorText.str("dialog.gradient_picker.start"), startRgb, errorLabel, columnWidth);
+        PickerColumn endColumn = createPickerColumn(ItemEditorText.str("dialog.gradient_picker.end"), endRgb, errorLabel, columnWidth);
 
-        FlowLayout pickerRow = UiFactory.row();
+        FlowLayout pickerRow = compactLayout ? UiFactory.column() : UiFactory.row();
         pickerRow.child(startColumn.layout());
         pickerRow.child(endColumn.layout());
         dialog.child(pickerRow);
@@ -76,9 +79,9 @@ public final class GradientPickerDialog {
         return overlay;
     }
 
-    private static PickerColumn createPickerColumn(String title, AtomicInteger colorRef, LabelComponent errorLabel) {
+    private static PickerColumn createPickerColumn(String title, AtomicInteger colorRef, LabelComponent errorLabel, int columnWidth) {
         FlowLayout column = UiFactory.subCard();
-        column.horizontalSizing(Sizing.fixed(244));
+        column.horizontalSizing(Sizing.fixed(columnWidth));
         column.child(UiFactory.title(title).shadow(false));
 
         AtomicBoolean syncing = new AtomicBoolean(false);
@@ -88,7 +91,7 @@ public final class GradientPickerDialog {
                 .showAlpha(false)
                 .selectorWidth(14)
                 .selectorPadding(6);
-        picker.sizing(Sizing.fixed(160), Sizing.fixed(110));
+        picker.sizing(Sizing.fixed(Math.max(120, columnWidth - 24)), Sizing.fixed(110));
 
         BoxComponent swatch = UIComponents.box(Sizing.fixed(24), Sizing.fixed(24))
                 .fill(true)

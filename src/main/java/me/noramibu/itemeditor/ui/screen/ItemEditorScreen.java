@@ -109,6 +109,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.refreshCurrentPanel(false);
         this.refreshPreview();
         this.restorePendingScrollState();
+        this.schedulePostLayoutTabRefresh();
     }
 
     public ItemEditorSession session() {
@@ -431,5 +432,13 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             tooltip.add(description);
         }
         return tooltip;
+    }
+
+    private void schedulePostLayoutTabRefresh() {
+        if (this.minecraft == null) {
+            return;
+        }
+
+        this.minecraft.execute(this::refreshTabs);
     }
 }

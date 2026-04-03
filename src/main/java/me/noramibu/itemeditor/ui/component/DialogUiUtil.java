@@ -9,11 +9,16 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import net.minecraft.client.Minecraft;
 
 final class DialogUiUtil {
 
+    private static final int OVERLAY_PADDING = 16;
     private static final int DEFAULT_SCROLLBAR_THICKNESS = 8;
     private static final int DEFAULT_SCROLL_STEP = 14;
+    private static final int MIN_DIALOG_WIDTH = 220;
+    private static final int MIN_SCROLL_HEIGHT = 96;
+    private static final int SCROLL_RESERVED_HEIGHT = 220;
 
     private DialogUiUtil() {
     }
@@ -23,7 +28,7 @@ final class DialogUiUtil {
         overlay.surface(Surface.flat(0xAA050607));
         overlay.horizontalAlignment(HorizontalAlignment.CENTER);
         overlay.verticalAlignment(VerticalAlignment.CENTER);
-        overlay.padding(Insets.of(16));
+        overlay.padding(Insets.of(OVERLAY_PADDING));
         return overlay;
     }
 
@@ -37,7 +42,7 @@ final class DialogUiUtil {
         ScrollContainer<C> scroll = vanillaScroll(
                 UIContainers.verticalScroll(
                         Sizing.fill(100),
-                        Sizing.fixed(height),
+                        Sizing.fixed(scrollHeight(height)),
                         content
                 ),
                 DEFAULT_SCROLL_STEP
@@ -54,5 +59,29 @@ final class DialogUiUtil {
         scroll.scrollbarThiccness(DEFAULT_SCROLLBAR_THICKNESS);
         scroll.scrollStep(step);
         return scroll;
+    }
+
+    static int dialogWidth(int preferredWidth) {
+        int available = Math.max(MIN_DIALOG_WIDTH, guiWidth() - (OVERLAY_PADDING * 2));
+        return Math.max(MIN_DIALOG_WIDTH, Math.min(preferredWidth, available));
+    }
+
+    static int dialogTextWidth(int dialogWidth, int horizontalPadding) {
+        return Math.max(80, dialogWidth - horizontalPadding);
+    }
+
+    static int scrollHeight(int preferredHeight) {
+        int available = Math.max(MIN_SCROLL_HEIGHT, guiHeight() - SCROLL_RESERVED_HEIGHT);
+        return Math.max(MIN_SCROLL_HEIGHT, Math.min(preferredHeight, available));
+    }
+
+    private static int guiWidth() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft != null ? minecraft.getWindow().getGuiScaledWidth() : 854;
+    }
+
+    private static int guiHeight() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft != null ? minecraft.getWindow().getGuiScaledHeight() : 480;
     }
 }

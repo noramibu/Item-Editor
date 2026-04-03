@@ -233,7 +233,7 @@ public final class UiFactory {
 
     public static FlowLayout centeredCard(int width) {
         FlowLayout card = card();
-        card.horizontalSizing(Sizing.fixed(width));
+        card.horizontalSizing(Sizing.fixed(DialogUiUtil.dialogWidth(width)));
         card.horizontalAlignment(HorizontalAlignment.CENTER);
         return card;
     }
