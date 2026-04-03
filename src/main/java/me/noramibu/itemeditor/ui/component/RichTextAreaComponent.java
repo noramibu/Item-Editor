@@ -523,7 +523,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
         this.document = result.document();
         String plainText = this.document.plainText();
-        this.editBox.setValue(plainText, false);
+        this.editBox.setValue(plainText);
         this.editBox.seekCursor(Whence.ABSOLUTE, result.newCursor());
         ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(result.newSelection());
         this.textValue.set(plainText);
@@ -761,7 +761,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     private void applyPlainTextState(String text, int cursor, int selectionCursor) {
-        this.editBox.setValue(text, false);
+        this.editBox.setValue(text);
         this.editBox.seekCursor(Whence.ABSOLUTE, cursor);
         ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(selectionCursor);
         this.textValue.set(text);

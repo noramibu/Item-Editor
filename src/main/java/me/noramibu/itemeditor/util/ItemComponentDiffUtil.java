@@ -86,12 +86,12 @@ public final class ItemComponentDiffUtil {
             return new Snapshot("", 0, Map.of(), ItemEditorText.str("raw.serialize_failed", error));
         }
 
-        String itemId = compound.getStringOr("id", "");
-        int count = compound.getIntOr("count", 0);
-        CompoundTag components = compound.getCompoundOrEmpty("components");
+        String itemId = NbtCompatUtil.getStringOr(compound, "id", "");
+        int count = NbtCompatUtil.getIntOr(compound, "count", 0);
+        CompoundTag components = NbtCompatUtil.getCompoundOrEmpty(compound, "components");
 
         Map<String, String> componentMap = new LinkedHashMap<>();
-        for (String key : new TreeSet<>(components.keySet())) {
+        for (String key : new TreeSet<>(NbtCompatUtil.keys(components))) {
             Tag value = components.get(key);
             if (value != null) {
                 componentMap.put(key, new SnbtPrinterTagVisitor().visit(value));

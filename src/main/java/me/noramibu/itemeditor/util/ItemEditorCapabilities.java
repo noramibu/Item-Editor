@@ -58,11 +58,6 @@ public final class ItemEditorCapabilities {
 
     public static boolean supportsBucketCreature(ItemStack stack) {
         return stack.has(DataComponents.BUCKET_ENTITY_DATA)
-                || stack.has(DataComponents.AXOLOTL_VARIANT)
-                || stack.has(DataComponents.SALMON_SIZE)
-                || stack.has(DataComponents.TROPICAL_FISH_PATTERN)
-                || stack.has(DataComponents.TROPICAL_FISH_BASE_COLOR)
-                || stack.has(DataComponents.TROPICAL_FISH_PATTERN_COLOR)
                 || isBucketCreatureBucketItem(stack);
     }
 

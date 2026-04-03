@@ -12,7 +12,7 @@ public final class ItemApplyService {
             return ApplyResult.failure(ItemEditorText.str("apply.no_player"));
         }
 
-        int selectedSlot = minecraft.player.getInventory().getSelectedSlot();
+        int selectedSlot = minecraft.player.getInventory().selected;
         ItemStack copy = stack.copy();
 
         if (minecraft.player.hasInfiniteMaterials() && minecraft.gameMode != null) {

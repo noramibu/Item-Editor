@@ -9,7 +9,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Instrument;
-import net.minecraft.world.item.component.InstrumentComponent;
 
 import java.util.Objects;
 
@@ -42,6 +41,6 @@ final class InstrumentSpecialDataApplier extends AbstractPreviewApplierSupport i
             return;
         }
 
-        context.previewStack().set(DataComponents.INSTRUMENT, new InstrumentComponent(instrument));
+        context.previewStack().set(DataComponents.INSTRUMENT, instrument);
     }
 }

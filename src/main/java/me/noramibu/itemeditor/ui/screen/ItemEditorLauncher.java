@@ -16,7 +16,7 @@ public final class ItemEditorLauncher {
             return;
         }
 
-        ItemStack held = client.player.getInventory().getSelectedItem();
+        ItemStack held = client.player.getInventory().getSelected();
         if (held.isEmpty()) {
             client.player.displayClientMessage(ItemEditorText.tr("launcher.hold_item").copy().withStyle(ChatFormatting.RED), true);
             return;

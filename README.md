@@ -6,7 +6,7 @@ Item Editor opens a full editor UI for the item currently held by the player and
 
 ## Compatibility
 
-- Supported Minecraft versions: `1.21.6` to `1.21.8`
+- Supported Minecraft versions: `1.21.4`
 
 ## Links
 

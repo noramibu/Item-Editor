@@ -217,7 +217,7 @@ final class ItemEditorDialogController {
         this.clearDialog();
 
         Minecraft minecraft = this.screen.session().minecraft();
-        int selectedSlot = minecraft.player != null ? minecraft.player.getInventory().getSelectedSlot() : -1;
+        int selectedSlot = minecraft.player != null ? minecraft.player.getInventory().selected : -1;
         var result = this.screen.session().apply();
 
         if (minecraft.player != null) {

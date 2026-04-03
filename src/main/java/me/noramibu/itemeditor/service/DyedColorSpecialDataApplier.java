@@ -23,7 +23,7 @@ final class DyedColorSpecialDataApplier extends AbstractPreviewApplierSupport im
 
         Integer dyedColor = ValidationUtil.parseColor(context.special().dyedColor, ItemEditorText.str("special.misc.dyed.title"), context.messages());
         if (dyedColor != null) {
-            context.previewStack().set(DataComponents.DYED_COLOR, new DyedItemColor(dyedColor));
+            context.previewStack().set(DataComponents.DYED_COLOR, new DyedItemColor(dyedColor, true));
         }
     }
 }

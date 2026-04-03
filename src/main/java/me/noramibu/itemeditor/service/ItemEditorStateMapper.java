@@ -1,6 +1,7 @@
 package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.util.NbtCompatUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
@@ -13,6 +14,7 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.network.Filterable;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.Instrument;
 import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.DyeColor;
@@ -21,7 +23,6 @@ import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.Fireworks;
-import net.minecraft.world.item.component.InstrumentComponent;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -30,20 +31,33 @@ import net.minecraft.world.item.component.MapItemColor;
 import net.minecraft.world.item.component.MapPostProcessing;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
-import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.item.component.WritableBookContent;
 import net.minecraft.world.item.component.WrittenBookContent;
 import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
-import net.minecraft.world.entity.animal.Salmon;
-import net.minecraft.world.entity.animal.TropicalFish;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.level.block.entity.SignText;
 
 import java.util.Optional;
 
 public final class ItemEditorStateMapper {
+
+    private static final java.util.List<String> DEFAULT_HIDDEN_COMPONENT_IDS = java.util.List.of(
+            "minecraft:enchantments",
+            "minecraft:stored_enchantments",
+            "minecraft:attribute_modifiers",
+            "minecraft:unbreakable",
+            "minecraft:dyed_color",
+            "minecraft:trim",
+            "minecraft:can_break",
+            "minecraft:can_place_on",
+            "minecraft:potion_contents",
+            "minecraft:fireworks",
+            "minecraft:firework_explosion",
+            "minecraft:banner_patterns",
+            "minecraft:map_color"
+    );
 
     public ItemEditorState map(ItemStack stack) {
         ItemEditorState state = new ItemEditorState();
@@ -100,14 +114,10 @@ public final class ItemEditorStateMapper {
                     .forEach(state.loreLines::add);
         }
 
-        TooltipDisplay tooltipDisplay = stack.getOrDefault(DataComponents.TOOLTIP_DISPLAY, TooltipDisplay.DEFAULT);
-        state.hideTooltip = tooltipDisplay.hideTooltip();
-        tooltipDisplay.hiddenComponents().forEach(componentType -> {
-            var key = net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(componentType);
-            if (key != null) {
-                state.hiddenTooltipComponents.add(key.toString());
-            }
-        });
+        state.hideTooltip = stack.has(DataComponents.HIDE_TOOLTIP);
+        if (stack.has(DataComponents.HIDE_ADDITIONAL_TOOLTIP)) {
+            state.hiddenTooltipComponents.addAll(DEFAULT_HIDDEN_COMPONENT_IDS);
+        }
 
         ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
         enchantments.entrySet().stream()
@@ -188,12 +198,12 @@ public final class ItemEditorStateMapper {
         CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
         if (blockEntityData != null && (stack.getItem() instanceof net.minecraft.world.item.SignItem || stack.getItem() instanceof net.minecraft.world.item.HangingSignItem)) {
             var blockTag = blockEntityData.copyTag();
-            SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
-            SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
+            SignText front = NbtCompatUtil.readOrDefault(blockTag, "front_text", SignText.DIRECT_CODEC, new SignText());
+            SignText back = NbtCompatUtil.readOrDefault(blockTag, "back_text", SignText.DIRECT_CODEC, new SignText());
 
             this.readSignSide(front, state.special.sign.front);
             this.readSignSide(back, state.special.sign.back);
-            state.special.sign.waxed = blockTag.getBooleanOr("is_waxed", false);
+            state.special.sign.waxed = NbtCompatUtil.getBooleanOr(blockTag, "is_waxed", false);
         }
         if (blockEntityData != null && stack.is(Items.SPAWNER)) {
             this.readSpawnerData(blockEntityData.copyTag(), state.special);
@@ -276,51 +286,42 @@ public final class ItemEditorStateMapper {
             });
         }
 
-        Axolotl.Variant axolotlVariant = stack.get(DataComponents.AXOLOTL_VARIANT);
-        if (axolotlVariant != null) {
-            state.special.bucketAxolotlVariant = axolotlVariant.getSerializedName();
-        }
-
-        Salmon.Variant salmonVariant = stack.get(DataComponents.SALMON_SIZE);
-        if (salmonVariant != null) {
-            state.special.bucketSalmonSize = salmonVariant.getSerializedName();
-        }
-
-        TropicalFish.Pattern tropicalPattern = stack.get(DataComponents.TROPICAL_FISH_PATTERN);
-        if (tropicalPattern != null) {
-            state.special.bucketTropicalPattern = tropicalPattern.getSerializedName();
-        }
-
-        DyeColor tropicalBaseColor = stack.get(DataComponents.TROPICAL_FISH_BASE_COLOR);
-        if (tropicalBaseColor != null) {
-            state.special.bucketTropicalBaseColor = tropicalBaseColor.name();
-        }
-
-        DyeColor tropicalPatternColor = stack.get(DataComponents.TROPICAL_FISH_PATTERN_COLOR);
-        if (tropicalPatternColor != null) {
-            state.special.bucketTropicalPatternColor = tropicalPatternColor.name();
-        }
-
         CustomData bucketEntityData = stack.get(DataComponents.BUCKET_ENTITY_DATA);
         if (bucketEntityData != null) {
             var tag = bucketEntityData.copyTag();
-            tag.getInt("PuffState").ifPresent(value -> state.special.bucketPuffState = Integer.toString(value));
-            state.special.bucketNoAi = tag.getBooleanOr("NoAI", false);
-            state.special.bucketSilent = tag.getBooleanOr("Silent", false);
-            state.special.bucketNoGravity = tag.getBooleanOr("NoGravity", false);
-            state.special.bucketGlowing = tag.getBooleanOr("Glowing", false);
-            state.special.bucketInvulnerable = tag.getBooleanOr("Invulnerable", false);
-            tag.getFloat("Health").ifPresent(value -> state.special.bucketHealth = Float.toString(value));
+            if (tag.contains("PuffState", net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                state.special.bucketPuffState = Integer.toString(tag.getInt("PuffState"));
+            }
+            state.special.bucketNoAi = NbtCompatUtil.getBooleanOr(tag, "NoAI", false);
+            state.special.bucketSilent = NbtCompatUtil.getBooleanOr(tag, "Silent", false);
+            state.special.bucketNoGravity = NbtCompatUtil.getBooleanOr(tag, "NoGravity", false);
+            state.special.bucketGlowing = NbtCompatUtil.getBooleanOr(tag, "Glowing", false);
+            state.special.bucketInvulnerable = NbtCompatUtil.getBooleanOr(tag, "Invulnerable", false);
+            if (tag.contains("Health", net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                state.special.bucketHealth = Float.toString(tag.getFloat("Health"));
+            }
+            if (stack.is(Items.AXOLOTL_BUCKET) && tag.contains("Variant", net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                state.special.bucketAxolotlVariant = Axolotl.Variant.byId(tag.getInt("Variant")).getSerializedName();
+            }
+            if (stack.is(Items.SALMON_BUCKET) && tag.contains("type", net.minecraft.nbt.Tag.TAG_STRING)) {
+                state.special.bucketSalmonSize = tag.getString("type");
+            }
+            if (stack.is(Items.TROPICAL_FISH_BUCKET) && tag.contains("BucketVariantTag", net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)) {
+                int variantId = tag.getInt("BucketVariantTag");
+                state.special.bucketTropicalPattern = net.minecraft.world.entity.animal.TropicalFish.getPattern(variantId).getSerializedName();
+                state.special.bucketTropicalBaseColor = net.minecraft.world.entity.animal.TropicalFish.getBaseColor(variantId).name();
+                state.special.bucketTropicalPatternColor = net.minecraft.world.entity.animal.TropicalFish.getPatternColor(variantId).name();
+            }
         }
 
-        InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
+        net.minecraft.core.Holder<Instrument> instrument = stack.get(DataComponents.INSTRUMENT);
         if (instrument != null) {
-            instrument.instrument().key().map(key -> key.location().toString()).ifPresent(id -> state.special.instrumentId = id);
+            instrument.unwrapKey().map(key -> key.location().toString()).ifPresent(id -> state.special.instrumentId = id);
         }
 
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
-            jukeboxPlayable.song().key().map(key -> key.location().toString()).ifPresent(id -> state.special.jukeboxSongId = id);
+            state.special.jukeboxSongId = jukeboxPlayable.song().key().location().toString();
         }
 
         MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);
@@ -369,29 +370,29 @@ public final class ItemEditorStateMapper {
         special.spawnerRequiredPlayerRange = readOptionalInt(blockTag, "RequiredPlayerRange");
         special.spawnerSpawnRange = readOptionalInt(blockTag, "SpawnRange");
 
-        net.minecraft.nbt.CompoundTag spawnDataTag = blockTag.getCompoundOrEmpty("SpawnData");
-        net.minecraft.nbt.CompoundTag spawnEntityTag = spawnDataTag.getCompoundOrEmpty("entity");
-        special.spawnerEntityId = spawnEntityTag.getStringOr("id", "");
+        net.minecraft.nbt.CompoundTag spawnDataTag = NbtCompatUtil.getCompoundOrEmpty(blockTag, "SpawnData");
+        net.minecraft.nbt.CompoundTag spawnEntityTag = NbtCompatUtil.getCompoundOrEmpty(spawnDataTag, "entity");
+        special.spawnerEntityId = NbtCompatUtil.getStringOr(spawnEntityTag, "id", "");
         if (special.spawnerEntityId.isBlank()) {
-            special.spawnerEntityId = spawnDataTag.getStringOr("id", "");
+            special.spawnerEntityId = NbtCompatUtil.getStringOr(spawnDataTag, "id", "");
         }
 
-        ListTag potentialsTag = blockTag.getListOrEmpty("SpawnPotentials");
+        ListTag potentialsTag = NbtCompatUtil.getListOrEmpty(blockTag, "SpawnPotentials");
         if (!potentialsTag.isEmpty()) {
             special.spawnerUsePotentials = true;
             special.spawnerPotentials.clear();
             for (int index = 0; index < potentialsTag.size(); index++) {
-                var potentialTag = potentialsTag.getCompoundOrEmpty(index);
-                var dataTag = potentialTag.getCompoundOrEmpty("data");
-                var entityTag = dataTag.getCompoundOrEmpty("entity");
-                String entityId = entityTag.getStringOr("id", "");
+                var potentialTag = NbtCompatUtil.getCompoundOrEmpty(potentialsTag, index);
+                var dataTag = NbtCompatUtil.getCompoundOrEmpty(potentialTag, "data");
+                var entityTag = NbtCompatUtil.getCompoundOrEmpty(dataTag, "entity");
+                String entityId = NbtCompatUtil.getStringOr(entityTag, "id", "");
                 if (entityId.isBlank()) {
-                    entityId = dataTag.getStringOr("id", "");
+                    entityId = NbtCompatUtil.getStringOr(dataTag, "id", "");
                 }
 
                 ItemEditorState.SpawnerPotentialDraft draft = new ItemEditorState.SpawnerPotentialDraft();
                 draft.entityId = entityId;
-                int weight = Math.max(1, potentialTag.getIntOr("weight", 1));
+                int weight = Math.max(1, NbtCompatUtil.getIntOr(potentialTag, "weight", 1));
                 draft.weight = Integer.toString(weight);
                 special.spawnerPotentials.add(draft);
             }
@@ -399,6 +400,6 @@ public final class ItemEditorStateMapper {
     }
 
     private static String readOptionalInt(net.minecraft.nbt.CompoundTag tag, String key) {
-        return tag.getInt(key).map(String::valueOf).orElse("");
+        return tag.contains(key, net.minecraft.nbt.Tag.TAG_ANY_NUMERIC) ? Integer.toString(tag.getInt(key)) : "";
     }
 }

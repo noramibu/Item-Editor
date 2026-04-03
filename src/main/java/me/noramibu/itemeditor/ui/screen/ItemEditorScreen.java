@@ -225,7 +225,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         DropdownComponent dropdown = DropdownComponent.openContextMenu(
                 this,
                 this.rootLayout,
-                (parent, menu) -> parent.child(menu),
+                (parent, menu) -> parent.child(menu.zIndex(8)),
                 menuX,
                 menuY,
                 menu -> values.forEach(value ->
@@ -237,6 +237,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                         })
                 )
         );
+        dropdown.zIndex(8);
         dropdown.closeWhenNotHovered(false);
     }
 
@@ -322,7 +323,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.clearDialog();
         this.activeDialog = dialog;
         if (this.rootLayout != null) {
-            this.rootLayout.child(dialog);
+            this.rootLayout.child(dialog.zIndex(30));
         }
     }
 

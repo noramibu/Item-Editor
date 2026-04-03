@@ -4,6 +4,7 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.NbtCompatUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -137,8 +138,8 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             return;
         }
 
-        CompoundTag spawnDataTag = blockTag.getCompoundOrEmpty("SpawnData");
-        CompoundTag entityTag = spawnDataTag.getCompoundOrEmpty("entity");
+        CompoundTag spawnDataTag = NbtCompatUtil.getCompoundOrEmpty(blockTag, "SpawnData");
+        CompoundTag entityTag = NbtCompatUtil.getCompoundOrEmpty(spawnDataTag, "entity");
         entityTag.putString("id", entityId.toString());
         spawnDataTag.put("entity", entityTag);
         blockTag.put("SpawnData", spawnDataTag);

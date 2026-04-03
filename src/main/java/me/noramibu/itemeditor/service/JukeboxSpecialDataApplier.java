@@ -36,7 +36,7 @@ final class JukeboxSpecialDataApplier extends AbstractPreviewApplierSupport impl
         ResourceKey<JukeboxSong> songKey = ResourceKey.create(Registries.JUKEBOX_SONG, songId);
         context.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG).get(songKey)
                 .ifPresentOrElse(
-                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(songHolder))),
+                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(songHolder), true)),
                         () -> context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")))
                 );
     }

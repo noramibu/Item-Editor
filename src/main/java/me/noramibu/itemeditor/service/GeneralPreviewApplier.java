@@ -8,9 +8,9 @@ import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Unit;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.item.component.Unbreakable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +77,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
 
         if (state.unbreakable != baselineState.unbreakable) {
             if (state.unbreakable) {
-                context.previewStack().set(DataComponents.UNBREAKABLE, Unit.INSTANCE);
+                context.previewStack().set(DataComponents.UNBREAKABLE, new Unbreakable(true));
             } else {
                 this.clearToPrototype(context.previewStack(), DataComponents.UNBREAKABLE);
             }

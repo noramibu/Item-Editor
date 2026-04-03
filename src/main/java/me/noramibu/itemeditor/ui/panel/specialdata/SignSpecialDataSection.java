@@ -17,6 +17,7 @@ import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.NbtCompatUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
@@ -280,7 +281,7 @@ public final class SignSpecialDataSection {
         if (blockEntityData == null) {
             return false;
         }
-        String blockEntityId = blockEntityData.copyTag().getStringOr("id", "").toLowerCase(Locale.ROOT);
+        String blockEntityId = NbtCompatUtil.getStringOr(blockEntityData.copyTag(), "id", "").toLowerCase(Locale.ROOT);
         return blockEntityId.contains("hanging_sign");
     }
 

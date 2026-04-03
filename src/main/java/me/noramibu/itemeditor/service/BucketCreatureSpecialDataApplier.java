@@ -19,142 +19,11 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
     @Override
     public void apply(SpecialDataApplyContext context) {
         if (this.sameBucketCreatureData(context)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.AXOLOTL_VARIANT);
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.SALMON_SIZE);
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN);
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_BASE_COLOR);
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN_COLOR);
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
             return;
         }
 
-        this.applyAxolotlVariant(context);
-        this.applySalmonSize(context);
-        this.applyTropicalPattern(context);
-        this.applyTropicalBaseColor(context);
-        this.applyTropicalPatternColor(context);
         this.applyBucketEntityData(context);
-    }
-
-    private void applyAxolotlVariant(SpecialDataApplyContext context) {
-        String raw = context.special().bucketAxolotlVariant.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.AXOLOTL_VARIANT);
-            return;
-        }
-
-        Axolotl.Variant variant = null;
-        for (Axolotl.Variant candidate : Axolotl.Variant.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                variant = candidate;
-                break;
-            }
-        }
-
-        if (variant == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.axolotl_variant"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.AXOLOTL_VARIANT);
-            return;
-        }
-        context.previewStack().set(DataComponents.AXOLOTL_VARIANT, variant);
-    }
-
-    private void applySalmonSize(SpecialDataApplyContext context) {
-        String raw = context.special().bucketSalmonSize.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.SALMON_SIZE);
-            return;
-        }
-
-        Salmon.Variant variant = null;
-        for (Salmon.Variant candidate : Salmon.Variant.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                variant = candidate;
-                break;
-            }
-        }
-
-        if (variant == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.salmon_size"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.SALMON_SIZE);
-            return;
-        }
-        context.previewStack().set(DataComponents.SALMON_SIZE, variant);
-    }
-
-    private void applyTropicalPattern(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalPattern.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN);
-            return;
-        }
-
-        TropicalFish.Pattern pattern = null;
-        for (TropicalFish.Pattern candidate : TropicalFish.Pattern.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                pattern = candidate;
-                break;
-            }
-        }
-
-        if (pattern == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_pattern"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN);
-            return;
-        }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_PATTERN, pattern);
-    }
-
-    private void applyTropicalBaseColor(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalBaseColor.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_BASE_COLOR);
-            return;
-        }
-
-        DyeColor color = parseDyeColor(raw);
-        if (color == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_base_color"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_BASE_COLOR);
-            return;
-        }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_BASE_COLOR, color);
-    }
-
-    private void applyTropicalPatternColor(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalPatternColor.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN_COLOR);
-            return;
-        }
-
-        DyeColor color = parseDyeColor(raw);
-        if (color == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_pattern_color"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN_COLOR);
-            return;
-        }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_PATTERN_COLOR, color);
     }
 
     private void applyBucketEntityData(SpecialDataApplyContext context) {
@@ -164,6 +33,11 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 || context.special().bucketGlowing
                 || context.special().bucketInvulnerable
                 || !context.special().bucketPuffState.isBlank()
+                || !context.special().bucketAxolotlVariant.isBlank()
+                || !context.special().bucketSalmonSize.isBlank()
+                || !context.special().bucketTropicalPattern.isBlank()
+                || !context.special().bucketTropicalBaseColor.isBlank()
+                || !context.special().bucketTropicalPatternColor.isBlank()
                 || !context.special().bucketHealth.isBlank();
         if (!hasAnyEntry) {
             this.clearToPrototype(context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
@@ -205,6 +79,16 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
             }
         }
 
+        this.applyAxolotlVariant(bucketTag, context.special().bucketAxolotlVariant, context.messages());
+        this.applySalmonVariant(bucketTag, context.special().bucketSalmonSize, context.messages());
+        this.applyTropicalVariant(
+                bucketTag,
+                context.special().bucketTropicalPattern,
+                context.special().bucketTropicalBaseColor,
+                context.special().bucketTropicalPatternColor,
+                context.messages()
+        );
+
         if (bucketTag.isEmpty()) {
             this.clearToPrototype(context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
             return;
@@ -230,6 +114,141 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         } catch (IllegalArgumentException exception) {
             return null;
         }
+    }
+
+    private static Axolotl.Variant parseAxolotlVariant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        for (Axolotl.Variant candidate : Axolotl.Variant.values()) {
+            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static Salmon.Variant parseSalmonVariant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        for (Salmon.Variant candidate : Salmon.Variant.values()) {
+            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private void applyAxolotlVariant(CompoundTag bucketTag, String rawValue, java.util.List<ValidationMessage> messages) {
+        String raw = rawValue == null ? "" : rawValue.trim();
+        if (raw.isBlank()) {
+            bucketTag.remove("Variant");
+            return;
+        }
+
+        Axolotl.Variant variant = parseAxolotlVariant(raw);
+        if (variant == null) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.bucket.axolotl_variant"),
+                    raw
+            )));
+            return;
+        }
+        bucketTag.putInt("Variant", variant.getId());
+    }
+
+    private void applySalmonVariant(CompoundTag bucketTag, String rawValue, java.util.List<ValidationMessage> messages) {
+        String raw = rawValue == null ? "" : rawValue.trim();
+        if (raw.isBlank()) {
+            bucketTag.remove("type");
+            return;
+        }
+
+        Salmon.Variant variant = parseSalmonVariant(raw);
+        if (variant == null) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.bucket.salmon_size"),
+                    raw
+            )));
+            return;
+        }
+        bucketTag.putString("type", variant.getSerializedName());
+    }
+
+    private void applyTropicalVariant(
+            CompoundTag bucketTag,
+            String patternRawValue,
+            String baseColorRawValue,
+            String patternColorRawValue,
+            java.util.List<ValidationMessage> messages
+    ) {
+        String patternRaw = patternRawValue == null ? "" : patternRawValue.trim();
+        String baseRaw = baseColorRawValue == null ? "" : baseColorRawValue.trim();
+        String patternColorRaw = patternColorRawValue == null ? "" : patternColorRawValue.trim();
+
+        if (patternRaw.isBlank() && baseRaw.isBlank() && patternColorRaw.isBlank()) {
+            bucketTag.remove("BucketVariantTag");
+            return;
+        }
+
+        int existingVariant = bucketTag.contains("BucketVariantTag", net.minecraft.nbt.Tag.TAG_ANY_NUMERIC)
+                ? bucketTag.getInt("BucketVariantTag")
+                : 0;
+
+        TropicalFish.Pattern pattern = patternRaw.isBlank()
+                ? TropicalFish.getPattern(existingVariant)
+                : this.parseTropicalPattern(patternRaw, messages);
+        DyeColor baseColor = baseRaw.isBlank()
+                ? TropicalFish.getBaseColor(existingVariant)
+                : parseDyeColor(baseRaw);
+        DyeColor patternColor = patternColorRaw.isBlank()
+                ? TropicalFish.getPatternColor(existingVariant)
+                : parseDyeColor(patternColorRaw);
+
+        if (pattern == null) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.bucket.tropical_pattern"),
+                    patternRaw
+            )));
+            return;
+        }
+        if (baseColor == null) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.bucket.tropical_base_color"),
+                    baseRaw
+            )));
+            return;
+        }
+        if (patternColor == null) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.bucket.tropical_pattern_color"),
+                    patternColorRaw
+            )));
+            return;
+        }
+
+        bucketTag.putInt("BucketVariantTag", packTropicalVariant(pattern, baseColor, patternColor));
+    }
+
+    private TropicalFish.Pattern parseTropicalPattern(String raw, java.util.List<ValidationMessage> messages) {
+        for (TropicalFish.Pattern candidate : TropicalFish.Pattern.values()) {
+            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static int packTropicalVariant(TropicalFish.Pattern pattern, DyeColor baseColor, DyeColor patternColor) {
+        return (pattern.getPackedId() & 0xFFFF)
+                | ((baseColor.getId() & 0xFF) << 16)
+                | ((patternColor.getId() & 0xFF) << 24);
     }
 
     private boolean sameBucketCreatureData(SpecialDataApplyContext context) {

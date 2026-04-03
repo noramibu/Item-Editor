@@ -51,7 +51,7 @@ public final class ItemPreviewService {
 
         this.specialDataPreviewService.applySpecialData(originalStack, preview, state, baselineState, registryAccess, messages);
 
-        DataResult<ItemStack> validationResult = ItemStack.validateStrict(preview);
+        DataResult<net.minecraft.util.Unit> validationResult = ItemStack.validateComponents(preview.getComponents());
         validationResult.resultOrPartial(problem -> messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
         this.validatePacketRoundTrip(preview, registryAccess, messages);
 
