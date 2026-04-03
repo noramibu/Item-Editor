@@ -15,7 +15,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 import org.apache.commons.lang3.math.Fraction;
@@ -72,13 +71,7 @@ public final class BundleSpecialDataSection {
             return card;
         }
 
-        var weightResult = contents.weight();
-        if (weightResult.error().isPresent()) {
-            card.child(UiFactory.message(ItemEditorText.tr("special.bundle.metrics.invalid"), 0xFF8A8A));
-            return card;
-        }
-
-        Fraction weight = weightResult.result().orElseGet(() -> Fraction.getFraction(0, 1));
+        Fraction weight = contents.weight();
         double fillPercent = weight.doubleValue() * 100d;
         card.child(UiFactory.muted(ItemEditorText.tr(
                 "special.bundle.metrics.value",
@@ -196,11 +189,11 @@ public final class BundleSpecialDataSection {
     }
 
     private static BundleContents buildContents(List<ItemEditorState.ContainerEntryDraft> entries) {
-        List<ItemStackTemplate> stacks = new ArrayList<>();
+        List<ItemStack> stacks = new ArrayList<>();
         for (ItemEditorState.ContainerEntryDraft entry : entries) {
             ItemStack stack = stackForEntry(entry);
             if (!stack.isEmpty()) {
-                stacks.add(ItemStackTemplate.fromNonEmptyStack(stack));
+                stacks.add(stack.copy());
             }
         }
         try {
