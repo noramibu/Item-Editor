@@ -24,8 +24,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.HangingSignItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.TypedEntityData;
-import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.item.component.CustomData;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -277,8 +276,12 @@ public final class SignSpecialDataSection {
         if (stack.getItem() instanceof HangingSignItem) {
             return true;
         }
-        TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return blockEntityData != null && blockEntityData.type() == BlockEntityType.HANGING_SIGN;
+        CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockEntityData == null) {
+            return false;
+        }
+        String blockEntityId = blockEntityData.copyTag().getStringOr("id", "").toLowerCase(Locale.ROOT);
+        return blockEntityId.contains("hanging_sign");
     }
 
     private static void ensureSignLineCount(ItemEditorState.SignSideDraft sideDraft) {

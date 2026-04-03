@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.PlayerHeadItem;
 import net.minecraft.world.item.SignItem;
-import net.minecraft.world.item.component.TypedEntityData;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DispenserBlock;
@@ -18,7 +18,6 @@ import net.minecraft.world.level.block.DropperBlock;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.TrappedChestBlock;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 
 public final class ItemEditorCapabilities {
 
@@ -52,9 +51,9 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsSpawnerData(ItemStack stack) {
-        TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
         return stack.is(Items.SPAWNER)
-                || (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER);
+                || (blockEntityData != null && looksLikeSpawnerTag(blockEntityData.copyTag()));
     }
 
     public static boolean supportsBucketCreature(ItemStack stack) {
@@ -156,9 +155,24 @@ public final class ItemEditorCapabilities {
     }
 
     private static boolean hasSignBlockEntityData(ItemStack stack) {
-        TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN);
+        CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockEntityData == null) {
+            return false;
+        }
+        var tag = blockEntityData.copyTag();
+        return tag.contains("front_text") || tag.contains("back_text");
+    }
+
+    private static boolean looksLikeSpawnerTag(net.minecraft.nbt.CompoundTag tag) {
+        return tag.contains("SpawnData")
+                || tag.contains("SpawnPotentials")
+                || tag.contains("Delay")
+                || tag.contains("MinSpawnDelay")
+                || tag.contains("MaxSpawnDelay")
+                || tag.contains("SpawnCount")
+                || tag.contains("MaxNearbyEntities")
+                || tag.contains("RequiredPlayerRange")
+                || tag.contains("SpawnRange");
     }
 
     private static SpecialDataFocus detectSpecialDataFocus(ItemStack stack) {

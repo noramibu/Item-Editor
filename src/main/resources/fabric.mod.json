@@ -23,10 +23,10 @@
   },
   "depends": {
     "fabricloader": ">=0.17.0",
-    "minecraft": ">=1.21.9 <1.21.11",
+    "minecraft": ">=1.21.6 <1.21.9",
     "java": ">=21",
     "fabric-api": "*",
-    "owo": ">=0.12.24"
+    "owo": ">=0.12.23"
   },
   "custom": {
     "itemeditor": {

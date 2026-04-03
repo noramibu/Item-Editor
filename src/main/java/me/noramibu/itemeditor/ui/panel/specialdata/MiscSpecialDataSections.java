@@ -153,14 +153,14 @@ public final class MiscSpecialDataSections {
                 return;
             }
 
-            var textures = player.getGameProfile().properties().get("textures").stream().findFirst().orElse(null);
+            var textures = player.getGameProfile().getProperties().get("textures").stream().findFirst().orElse(null);
             if (textures == null) {
                 return;
             }
 
             context.mutateRefresh(() -> {
-                special.profileName = player.getGameProfile().name();
-                special.profileUuid = player.getGameProfile().id() == null ? "" : player.getGameProfile().id().toString();
+                special.profileName = player.getGameProfile().getName();
+                special.profileUuid = player.getGameProfile().getId() == null ? "" : player.getGameProfile().getId().toString();
                 special.profileTextureValue = textures.value();
                 special.profileTextureSignature = textures.signature() == null ? "" : textures.signature();
             });

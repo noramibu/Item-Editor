@@ -11,8 +11,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.TypedEntityData;
-import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.item.component.CustomData;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,8 +23,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        BlockEntityType<?> spawnerType = this.resolveSpawnerType(context);
-        if (spawnerType == null) {
+        if (!this.supportsSpawnerData(context)) {
             return;
         }
 
@@ -40,9 +38,9 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         CompoundTag blockTag = new CompoundTag();
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
-            blockTag = originalData.copyTagWithoutId();
+        CustomData originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        if (originalData != null) {
+            blockTag = originalData.copyTag();
         }
 
         this.applyPrimaryEntity(blockTag, context.special(), context.messages());
@@ -115,7 +113,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             this.clearToPrototype(context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
             return;
         }
-        context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(spawnerType, blockTag));
+        context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(blockTag));
     }
 
     private void applyPrimaryEntity(
@@ -201,22 +199,28 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
     }
 
-    private BlockEntityType<?> resolveSpawnerType(SpecialDataApplyContext context) {
-        if (context.previewStack().is(Items.SPAWNER)) {
-            return BlockEntityType.MOB_SPAWNER;
+    private boolean supportsSpawnerData(SpecialDataApplyContext context) {
+        if (context.previewStack().is(Items.SPAWNER) || context.originalStack().is(Items.SPAWNER)) {
+            return true;
         }
-
-        TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && previewData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
+        CustomData previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        if (previewData != null && this.looksLikeSpawnerTag(previewData.copyTag())) {
+            return true;
         }
+        CustomData originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        return originalData != null && this.looksLikeSpawnerTag(originalData.copyTag());
+    }
 
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
-        }
-
-        return null;
+    private boolean looksLikeSpawnerTag(CompoundTag blockTag) {
+        return blockTag.contains("SpawnData")
+                || blockTag.contains("SpawnPotentials")
+                || blockTag.contains("Delay")
+                || blockTag.contains("MinSpawnDelay")
+                || blockTag.contains("MaxSpawnDelay")
+                || blockTag.contains("SpawnCount")
+                || blockTag.contains("MaxNearbyEntities")
+                || blockTag.contains("RequiredPlayerRange")
+                || blockTag.contains("SpawnRange");
     }
 
     private boolean sameSpawnerData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {

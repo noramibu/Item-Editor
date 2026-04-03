@@ -30,7 +30,6 @@ import net.minecraft.world.item.component.MapItemColor;
 import net.minecraft.world.item.component.MapPostProcessing;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
-import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.item.component.WritableBookContent;
 import net.minecraft.world.item.component.WrittenBookContent;
@@ -40,7 +39,6 @@ import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.Salmon;
 import net.minecraft.world.entity.animal.TropicalFish;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.SignText;
 
 import java.util.Optional;
@@ -187,10 +185,9 @@ public final class ItemEditorStateMapper {
             }
         }
 
-        TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        if (blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
-            var blockTag = blockEntityData.copyTagWithoutId();
+        CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockEntityData != null && (stack.getItem() instanceof net.minecraft.world.item.SignItem || stack.getItem() instanceof net.minecraft.world.item.HangingSignItem)) {
+            var blockTag = blockEntityData.copyTag();
             SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
             SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
 
@@ -198,8 +195,8 @@ public final class ItemEditorStateMapper {
             this.readSignSide(back, state.special.sign.back);
             state.special.sign.waxed = blockTag.getBooleanOr("is_waxed", false);
         }
-        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER) {
-            this.readSpawnerData(blockEntityData.copyTagWithoutId(), state.special);
+        if (blockEntityData != null && stack.is(Items.SPAWNER)) {
+            this.readSpawnerData(blockEntityData.copyTag(), state.special);
         }
 
         PotionContents potionContents = stack.get(DataComponents.POTION_CONTENTS);
@@ -271,13 +268,9 @@ public final class ItemEditorStateMapper {
 
         ResolvableProfile profile = stack.get(DataComponents.PROFILE);
         if (profile != null) {
-            if (profile.partialProfile().name() != null) {
-                state.special.profileName = profile.partialProfile().name();
-            }
-            if (profile.partialProfile().id() != null) {
-                state.special.profileUuid = profile.partialProfile().id().toString();
-            }
-            profile.partialProfile().properties().get("textures").stream().findFirst().ifPresent(property -> {
+            profile.name().ifPresent(name -> state.special.profileName = name);
+            profile.id().ifPresent(id -> state.special.profileUuid = id.toString());
+            profile.properties().get("textures").stream().findFirst().ifPresent(property -> {
                 state.special.profileTextureValue = property.value();
                 state.special.profileTextureSignature = property.signature() == null ? "" : property.signature();
             });

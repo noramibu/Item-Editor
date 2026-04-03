@@ -8,9 +8,9 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.HangingSignItem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SignItem;
-import net.minecraft.world.item.component.TypedEntityData;
-import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.entity.SignText;
 
 import java.util.List;
@@ -30,47 +30,25 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
             return;
         }
 
-        BlockEntityType<?> signType = this.resolveSignBlockEntityType(context);
-        if (signType == null) {
+        if (!this.isSignItem(context.previewStack()) && !this.isSignItem(context.originalStack())) {
             return;
         }
 
         CompoundTag blockEntityTag = new CompoundTag();
-        TypedEntityData<BlockEntityType<?>> blockEntityData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (blockEntityData != null && blockEntityData.type() == signType) {
-            blockEntityTag = blockEntityData.copyTagWithoutId();
+        CustomData blockEntityData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        if (blockEntityData != null) {
+            blockEntityTag = blockEntityData.copyTag();
         }
 
         blockEntityTag.store("front_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.front, context.messages()));
         blockEntityTag.store("back_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.back, context.messages()));
         blockEntityTag.putBoolean("is_waxed", context.special().sign.waxed);
 
-        context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(signType, blockEntityTag));
+        context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(blockEntityTag));
     }
 
-    private BlockEntityType<?> resolveSignBlockEntityType(SpecialDataApplyContext context) {
-        if (context.previewStack().getItem() instanceof HangingSignItem) {
-            return BlockEntityType.HANGING_SIGN;
-        }
-        if (context.previewStack().getItem() instanceof SignItem) {
-            return BlockEntityType.SIGN;
-        }
-
-        TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && this.isSignBlockEntityType(previewData.type())) {
-            return previewData.type();
-        }
-
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && this.isSignBlockEntityType(originalData.type())) {
-            return originalData.type();
-        }
-
-        return null;
-    }
-
-    private boolean isSignBlockEntityType(BlockEntityType<?> blockEntityType) {
-        return blockEntityType == BlockEntityType.SIGN || blockEntityType == BlockEntityType.HANGING_SIGN;
+    private boolean isSignItem(ItemStack stack) {
+        return stack.getItem() instanceof SignItem || stack.getItem() instanceof HangingSignItem;
     }
 
     private SignText buildSignText(ItemEditorState.SignSideDraft sideDraft, List<ValidationMessage> messages) {

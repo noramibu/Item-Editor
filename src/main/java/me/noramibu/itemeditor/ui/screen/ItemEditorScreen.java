@@ -25,7 +25,7 @@ import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.TooltipFlag;
@@ -296,26 +296,26 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent input) {
-        if (this.dialogController.handleDialogShortcut(input)) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.dialogController.handleDialogShortcut(keyCode)) {
             return true;
         }
 
-        if (input.hasControlDown()) {
-            if (input.key() == GLFW.GLFW_KEY_S) {
+        if (Screen.hasControlDown()) {
+            if (keyCode == GLFW.GLFW_KEY_S) {
                 this.requestApply();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_R) {
+            if (keyCode == GLFW.GLFW_KEY_R) {
                 this.requestReset();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_TAB) {
-                this.selectAdjacentCategory(input.hasShiftDown() ? -1 : 1);
+            if (keyCode == GLFW.GLFW_KEY_TAB) {
+                this.selectAdjacentCategory(Screen.hasShiftDown() ? -1 : 1);
                 return true;
             }
         }
-        return super.keyPressed(input);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     void attachDialog(FlowLayout dialog) {

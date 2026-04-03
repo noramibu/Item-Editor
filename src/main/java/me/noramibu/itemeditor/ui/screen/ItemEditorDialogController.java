@@ -13,7 +13,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
@@ -105,11 +105,11 @@ final class ItemEditorDialogController {
         return !this.screen.hasActiveDialog();
     }
 
-    boolean handleDialogShortcut(KeyEvent input) {
+    boolean handleDialogShortcut(int keyCode) {
         if (!this.screen.hasActiveDialog()) {
             return false;
         }
-        if (!input.hasControlDown() || input.key() != GLFW.GLFW_KEY_S) {
+        if (!Screen.hasControlDown() || keyCode != GLFW.GLFW_KEY_S) {
             return false;
         }
         if (this.dialogConfirmShortcut == null) {

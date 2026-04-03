@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.service;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.properties.PropertyMap;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.HeadTextureUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -11,6 +12,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.Util;
 import net.minecraft.world.item.component.ResolvableProfile;
 
+import java.util.Optional;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -60,8 +62,8 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
             Property texturesProperty = textureSignature.isBlank()
                     ? new Property("textures", textureValue)
                     : new Property("textures", textureValue, textureSignature);
-            profile.properties().put("textures", texturesProperty);
-            context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createResolved(profile));
+            profile.getProperties().put("textures", texturesProperty);
+            context.previewStack().set(DataComponents.PROFILE, new ResolvableProfile(profile));
             return;
         }
 
@@ -70,12 +72,20 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         if (!profileName.isBlank()) {
-            context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createUnresolved(profileName));
+            context.previewStack().set(DataComponents.PROFILE, new ResolvableProfile(
+                    Optional.of(profileName),
+                    Optional.ofNullable(profileUuid),
+                    new PropertyMap()
+            ));
             return;
         }
 
         if (profileUuid != null) {
-            context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createUnresolved(profileUuid));
+            context.previewStack().set(DataComponents.PROFILE, new ResolvableProfile(
+                    Optional.empty(),
+                    Optional.of(profileUuid),
+                    new PropertyMap()
+            ));
         }
     }
 }

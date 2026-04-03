@@ -15,10 +15,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Whence;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.StringUtil;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
@@ -223,23 +222,19 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-        if (!this.active || !this.visible || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.isMouseOver(click.x(), click.y())) {
-            if (!this.isMouseOver(click.x(), click.y())) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!this.active || !this.visible || button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.isMouseOver(mouseX, mouseY)) {
+            if (!this.isMouseOver(mouseX, mouseY)) {
                 this.setFocused(false);
             }
             return false;
-        }
-
-        if (this.isOverScrollbar(click.x(), click.y())) {
-            return super.mouseClicked(click, doubled);
         }
 
         boolean wasFocused = this.isFocused();
         double preservedScroll = this.scrollAmount();
         int beforeCursor = this.editBox.cursor();
         int beforeSelection = this.selectionCursor();
-        this.debugMouse("click:before", click, preservedScroll, beforeCursor, beforeSelection, false);
+        this.debugMouse("click:before", mouseX, mouseY, preservedScroll, beforeCursor, beforeSelection, false);
         this.suppressFocusSyncOnce = !wasFocused;
         this.setFocused(true);
         if (!wasFocused) {
@@ -247,16 +242,13 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             this.clampScrollAmount();
         }
 
-        int targetCursor = this.cursorForPoint(click.x(), click.y());
-        if (click.hasShiftDown()) {
+        int targetCursor = this.cursorForPoint(mouseX, mouseY);
+        if (Screen.hasShiftDown()) {
             ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(beforeSelection);
         } else {
             ((EditBoxAccessor) this.editBox).owo$setSelectionEnd(targetCursor);
         }
         this.editBox.seekCursor(Whence.ABSOLUTE, targetCursor);
-        if (doubled) {
-            this.editBox.selectWordAtCursor();
-        }
 
         int afterCursor = this.editBox.cursor();
         int afterSelection = this.selectionCursor();
@@ -268,91 +260,91 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         if (moved) {
             this.afterCursorMove();
         }
-        this.debugMouse("click:after", click, this.scrollAmount(), afterCursor, afterSelection, true);
+        this.debugMouse("click:after", mouseX, mouseY, this.scrollAmount(), afterCursor, afterSelection, true);
         return true;
     }
 
     @Override
-    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
-        if (!this.visible || !this.isFocused() || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (!this.visible || !this.isFocused() || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             return false;
         }
         int beforeCursor = this.editBox.cursor();
         int beforeSelection = this.selectionCursor();
         double beforeScroll = this.scrollAmount();
-        boolean handled = super.mouseDragged(click, deltaX, deltaY);
+        boolean handled = super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         int afterCursor = this.editBox.cursor();
         int afterSelection = this.selectionCursor();
         if (handled && (beforeCursor != afterCursor || beforeSelection != afterSelection)) {
             this.afterCursorMove();
         }
-        this.debugMouse("drag", click, beforeScroll, afterCursor, afterSelection, handled);
+        this.debugMouse("drag", mouseX, mouseY, beforeScroll, afterCursor, afterSelection, handled);
         return handled;
     }
 
     @Override
-    public boolean keyPressed(KeyEvent input) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!this.visible || !this.isFocused()) {
             return false;
         }
 
-        if (input.isCycleFocus()) {
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
             return this.applyTextMutation(() -> {
                 this.editBox.insertText("    ");
                 return true;
             });
         }
-        if (input.hasControlDown()) {
-            if (input.key() == GLFW.GLFW_KEY_Z) {
-                if (input.hasShiftDown()) {
+        if (Screen.hasControlDown()) {
+            if (keyCode == GLFW.GLFW_KEY_Z) {
+                if (Screen.hasShiftDown()) {
                     this.redo();
                 } else {
                     this.undo();
                 }
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_Y) {
+            if (keyCode == GLFW.GLFW_KEY_Y) {
                 this.redo();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_C) {
+            if (keyCode == GLFW.GLFW_KEY_C) {
                 return this.copySelectionToClipboard(false);
             }
-            if (input.key() == GLFW.GLFW_KEY_X) {
+            if (keyCode == GLFW.GLFW_KEY_X) {
                 return this.copySelectionToClipboard(true);
             }
-            if (input.key() == GLFW.GLFW_KEY_V) {
+            if (keyCode == GLFW.GLFW_KEY_V) {
                 return this.pasteClipboardContents();
             }
         }
-        if (input.isUp()) {
-            this.moveCursorVertical(-1, input.hasShiftDown());
+        if (keyCode == GLFW.GLFW_KEY_UP) {
+            this.moveCursorVertical(-1, Screen.hasShiftDown());
             return true;
         }
-        if (input.isDown()) {
-            this.moveCursorVertical(1, input.hasShiftDown());
+        if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            this.moveCursorVertical(1, Screen.hasShiftDown());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_HOME) {
-            this.moveCursorToLineEdge(false, input.hasShiftDown(), input.hasControlDown());
+        if (keyCode == GLFW.GLFW_KEY_HOME) {
+            this.moveCursorToLineEdge(false, Screen.hasShiftDown(), Screen.hasControlDown());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_END) {
-            this.moveCursorToLineEdge(true, input.hasShiftDown(), input.hasControlDown());
+        if (keyCode == GLFW.GLFW_KEY_END) {
+            this.moveCursorToLineEdge(true, Screen.hasShiftDown(), Screen.hasControlDown());
             return true;
         }
 
-        return this.applyTextMutation(() -> this.editBox.keyPressed(input));
+        return this.applyTextMutation(() -> this.editBox.keyPressed(keyCode));
     }
 
     @Override
-    public boolean charTyped(CharacterEvent input) {
-        if (!this.visible || !this.isFocused() || !input.isAllowedChatCharacter()) {
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (!this.visible || !this.isFocused() || !StringUtil.isAllowedChatCharacter(codePoint)) {
             return false;
         }
 
         return this.applyTextMutation(() -> {
-            this.editBox.insertText(input.codepointAsString());
+            this.editBox.insertText(Character.toString(codePoint));
             return true;
         });
     }
@@ -672,20 +664,20 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         return (color & 0xFF000000) == 0 ? color | 0xFF000000 : color;
     }
 
-    private void debugMouse(String phase, MouseButtonEvent event, double scroll, int cursor, int selection, boolean handled) {
+    private void debugMouse(String phase, double mouseX, double mouseY, double scroll, int cursor, int selection, boolean handled) {
         if (!DEBUG_MOUSE_SYNC) {
             return;
         }
-        int localX = (int) Math.floor(event.x() - this.getInnerLeft());
-        int localY = (int) Math.floor(event.y() - this.getInnerTop() + scroll);
+        int localX = (int) Math.floor(mouseX - this.getInnerLeft());
+        int localY = (int) Math.floor(mouseY - this.getInnerTop() + scroll);
         int lineIndex = this.layoutLines.isEmpty() ? 0 : Math.clamp(localY / LINE_HEIGHT, 0, this.layoutLines.size() - 1);
         int targetCursor = this.layoutLines.isEmpty() ? 0 : this.layoutLines.get(lineIndex).positionForX(localX);
         LOGGER.info(
                 "[ItemEditor/RichText] {} handled={} x={} y={} widget=({},{} {}x{}) inner=({},{} w={}) local=({},{} line={}) target={} scroll={} cursor={} selection={} focused={}",
                 phase,
                 handled,
-                event.x(),
-                event.y(),
+                mouseX,
+                mouseY,
                 this.getX(),
                 this.getY(),
                 this.getWidth(),
