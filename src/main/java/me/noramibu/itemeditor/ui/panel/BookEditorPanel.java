@@ -71,20 +71,25 @@ public final class BookEditorPanel implements EditorPanel {
                 ItemEditorText.tr("book.editing.title"),
                 Component.empty()
         );
-        if (canConvertWritable) {
-            overview.child(UiFactory.checkbox(
-                    ItemEditorText.tr("book.output_written"),
-                    book.writtenBook,
-                    PanelBindings.value(this.screen, value -> {
-                        book.writtenBook = value;
-                        if (value && book.author.isBlank() && this.screen.session().minecraft().player != null) {
-                            book.author = this.screen.session().minecraft().player.getName().getString();
-                        }
-                    }, this.screen::refreshCurrentPanel)
-            ));
-        }
+        var writtenOutputToggle = UiFactory.checkbox(
+                ItemEditorText.tr("book.output_written"),
+                book.writtenBook,
+                PanelBindings.value(this.screen, value -> {
+                    if (!canConvertWritable) {
+                        return;
+                    }
+                    book.writtenBook = value;
+                    if (value && book.author.isBlank() && this.screen.session().minecraft().player != null) {
+                        book.author = this.screen.session().minecraft().player.getName().getString();
+                    }
+                }, this.screen::refreshCurrentPanel)
+        );
+        overview.child(writtenOutputToggle);
         if (!this.screen.session().state().customName.isBlank()) {
             overview.child(UiFactory.message(ItemEditorText.tr("book.title_hidden_by_name"), 0xFF8A8A));
+        }
+        if (!book.writtenBook) {
+            overview.child(UiFactory.message(ItemEditorText.tr("book.writable_format_notice"), 0xF2C26B));
         }
         root.child(overview);
 
@@ -158,12 +163,12 @@ public final class BookEditorPanel implements EditorPanel {
                 Sizing.fixed(PAGE_EDITOR_WIDTH),
                 Sizing.fixed(PAGE_EDITOR_HEIGHT),
                 ItemEditorText.str("book.pages.blank"),
-                StyledTextFieldSection.StylePreset.bookPage(),
+                book.writtenBook ? StyledTextFieldSection.StylePreset.bookPage() : StyledTextFieldSection.StylePreset.writableBookPage(),
                 ItemEditorText.str("book.pages.color_title"),
                 ItemEditorText.str("book.pages.gradient_title"),
                 "",
                 "",
-                () -> this.enableWrittenOutput(book, refreshStats),
+                null,
                 document -> this.validatePage(document, book.writtenBook),
                 document -> {
                     PanelBindings.mutate(this.screen, () -> {
@@ -463,20 +468,6 @@ public final class BookEditorPanel implements EditorPanel {
                 .findFirst()
                 .orElse(GENERATION_OPTIONS.getFirst())
                 .labelKey());
-    }
-
-    private void enableWrittenOutput(ItemEditorState.BookData book, Runnable refreshStats) {
-        if (book.writtenBook) {
-            return;
-        }
-
-        PanelBindings.mutate(this.screen, () -> {
-            book.writtenBook = true;
-            if (book.author.isBlank() && this.screen.session().minecraft().player != null) {
-                book.author = this.screen.session().minecraft().player.getName().getString();
-            }
-            refreshStats.run();
-        });
     }
 
     private int guiWidth() {

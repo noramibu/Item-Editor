@@ -26,12 +26,10 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
         }
 
         if (context.previewStack().is(Items.WRITTEN_BOOK)) {
-            if (context.state().book.title.isBlank()) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.book_title_required")));
-                return;
-            }
-            if (context.state().book.title.length() > WrittenBookContent.TITLE_MAX_LENGTH) {
+            String resolvedTitle = this.resolveWrittenBookTitle(context);
+            if (resolvedTitle.length() > WrittenBookContent.TITLE_MAX_LENGTH) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.book_title_length", WrittenBookContent.TITLE_MAX_LENGTH)));
+                resolvedTitle = resolvedTitle.substring(0, WrittenBookContent.TITLE_MAX_LENGTH);
             }
 
             List<Filterable<net.minecraft.network.chat.Component>> pages = new ArrayList<>();
@@ -51,7 +49,7 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
             }
 
             context.previewStack().set(DataComponents.WRITTEN_BOOK_CONTENT, new WrittenBookContent(
-                    Filterable.passThrough(context.state().book.title),
+                    Filterable.passThrough(resolvedTitle),
                     context.state().book.author.isBlank() ? ItemEditorText.str("screen.title") : context.state().book.author,
                     generation,
                     pages,
@@ -83,5 +81,26 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
                 && Objects.equals(current.author, baseline.author)
                 && Objects.equals(current.generation, baseline.generation)
                 && current.pages.equals(baseline.pages);
+    }
+
+    private String resolveWrittenBookTitle(ItemPreviewApplyContext context) {
+        String explicitTitle = context.state().book.title.strip();
+        if (!explicitTitle.isBlank()) {
+            return explicitTitle;
+        }
+
+        for (String page : context.state().book.pages) {
+            String plain = TextComponentUtil.parseMarkup(page).getString().strip();
+            if (!plain.isBlank()) {
+                return plain;
+            }
+        }
+
+        String fallbackName = context.originalStack().getHoverName().getString().strip();
+        if (!fallbackName.isBlank()) {
+            return fallbackName;
+        }
+
+        return ItemEditorText.str("book.metadata.title_field");
     }
 }
