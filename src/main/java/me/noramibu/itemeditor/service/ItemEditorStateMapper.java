@@ -140,7 +140,7 @@ public final class ItemEditorStateMapper {
 
         ItemContainerContents containerContents = stack.get(DataComponents.CONTAINER);
         if (containerContents != null) {
-            var containerStacks = containerContents.stream().toList();
+            var containerStacks = containerContents.allItemsCopyStream().toList();
             for (int slot = 0; slot < containerStacks.size(); slot++) {
                 ItemStack entryStack = containerStacks.get(slot);
                 if (!entryStack.isEmpty()) {
@@ -179,7 +179,7 @@ public final class ItemEditorStateMapper {
             }
 
             if (!state.special.bundleEntries.isEmpty()) {
-                int preferred = bundleContents.getSelectedItem();
+                int preferred = bundleContents.getSelectedItemIndex();
                 if (preferred == BundleContents.NO_SELECTED_ITEM_INDEX) {
                     preferred = 0;
                 }
@@ -322,12 +322,12 @@ public final class ItemEditorStateMapper {
 
         InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
         if (instrument != null) {
-            instrument.instrument().key().map(key -> key.identifier().toString()).ifPresent(id -> state.special.instrumentId = id);
+            instrument.instrument().unwrapKey().map(key -> key.identifier().toString()).ifPresent(id -> state.special.instrumentId = id);
         }
 
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
-            jukeboxPlayable.song().key().map(key -> key.identifier().toString()).ifPresent(id -> state.special.jukeboxSongId = id);
+            jukeboxPlayable.song().unwrapKey().map(key -> key.identifier().toString()).ifPresent(id -> state.special.jukeboxSongId = id);
         }
 
         MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);

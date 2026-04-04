@@ -10,6 +10,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 
@@ -31,7 +32,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
             return;
         }
 
-        List<ItemStack> bundleStacks = new ArrayList<>();
+        List<ItemStackTemplate> bundleStacks = new ArrayList<>();
         for (int index = 0; index < context.special().bundleEntries.size(); index++) {
             ItemEditorState.ContainerEntryDraft draft = context.special().bundleEntries.get(index);
             ItemStack entryStack = this.buildEntryStack(draft, index, context.messages());
@@ -42,7 +43,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
                 context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.bundle_item_not_allowed", draft.itemId)));
                 continue;
             }
-            bundleStacks.add(entryStack.copy());
+            bundleStacks.add(ItemStackTemplate.fromNonEmptyStack(entryStack));
         }
 
         if (bundleStacks.isEmpty()) {
