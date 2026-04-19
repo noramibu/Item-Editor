@@ -5,7 +5,6 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -21,15 +20,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.level.block.BarrelBlock;
-import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DispenserBlock;
-import net.minecraft.world.level.block.DropperBlock;
 import net.minecraft.world.level.block.HopperBlock;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
-import net.minecraft.world.level.block.TrappedChestBlock;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -40,17 +33,39 @@ public final class ContainerSpecialDataSection {
 
     private static final int GRID_COLUMNS = 9;
     private static final int MAX_VISUAL_SLOTS = 54;
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int MIN_SLOT = 0;
     private static final int MAX_SLOT = 255;
 
     private static final int SLOT_SIZE = 66;
     private static final int SLOT_SELECT_BUTTON_HEIGHT = 12;
     private static final int AUTOCOMPLETE_LIMIT = 7;
-    private static final Surface SLOT_DEFAULT_SURFACE = Surface.flat(0xAA1A222C).and(Surface.outline(0xFF425063));
-    private static final Surface SLOT_SELECTED_SURFACE = Surface.flat(0xAA1A222C).and(Surface.outline(0xFF74D39C));
-    private static final Surface SLOT_DRAG_SURFACE = Surface.flat(0xAA2A243A).and(Surface.outline(0xFFB28AFF));
-    private static final Surface SLOT_INVALID_SURFACE = Surface.flat(0xAA3A1E1E).and(Surface.outline(0xFFE36D6D));
-    private static final Surface SLOT_EDITED_SURFACE = Surface.flat(0xAA1A222C).and(Surface.outline(0xFFE7B766));
+    private static final int SLOT_FIELD_WIDTH = 120;
+    private static final int COUNT_FIELD_WIDTH = 110;
+    private static final int HIDDEN_SLOTS_HINT_WIDTH = 280;
+    private static final int DETAILS_SELECTED_SLOT_HINT_WIDTH = 240;
+    private static final int DETAILS_EMPTY_HINT_WIDTH = 260;
+    private static final int DETAILS_ITEM_ID_HINT_WIDTH = 280;
+    private static final int DETAILS_MAX_STACK_HINT_WIDTH = 200;
+    private static final int SLOT_OVERLAY_HINT_WIDTH = 70;
+    private static final int AUTOCOMPLETE_HINT_WIDTH = 260;
+    private static final int AUTOCOMPLETE_SUGGESTION_FIT_WIDTH = 250;
+    private static final int ACTION_BUTTON_WIDTH_MIN = 72;
+    private static final int ACTION_BUTTON_WIDTH_MAX = 136;
+    private static final int ACTION_BUTTON_ROW_RESERVE = 12;
+    private static final int COUNT_STEP_BUTTON_WIDTH_MIN = 56;
+    private static final int COUNT_STEP_BUTTON_WIDTH_MAX = 116;
+    private static final int COUNT_STEP_BUTTON_ROW_RESERVE = 16;
+    private static final String SLOT_MARKER_DRAG = "↕";
+    private static final String SLOT_MARKER_EDITED = "•";
+    private static final String SLOT_MARKER_EMPTY = " ";
+    private static final String SLOT_MARKER_INVALID = "!";
+    private static final int COLOR_SLOT_MARKER_DRAG = 0xC8A0FF;
+    private static final int COLOR_SLOT_MARKER_EDITED = 0xE7B766;
+    private static final int COLOR_SLOT_MARKER_INVALID = 0xFF8A8A;
+    private static final int COLOR_SLOT_INDEX_SELECTED = 0x6DFF8D;
+    private static final int COLOR_SLOT_INDEX_DRAG_SOURCE = 0xC8A0FF;
 
     private ContainerSpecialDataSection() {
     }
@@ -86,15 +101,19 @@ public final class ContainerSpecialDataSection {
 
         int hiddenEntries = countHiddenEntries(special.containerEntries, visualSlots);
         if (hiddenEntries > 0) {
-            section.child(UiFactory.muted(ItemEditorText.tr("special.container.hidden_slots", hiddenEntries), 280));
+            section.child(UiFactory.muted(ItemEditorText.tr("special.container.hidden_slots", hiddenEntries), HIDDEN_SLOTS_HINT_WIDTH));
         }
 
         return section;
     }
 
     private static FlowLayout buildActionRow(SpecialDataPanelContext context, ItemEditorState.SpecialData special, int selectedSlot) {
-        FlowLayout row = UiFactory.row();
-        row.child(UiFactory.button(ItemEditorText.tr("special.container.add"), button ->
+        boolean compactLayout = isCompactLayout(context);
+        int contentWidth = context.panelWidthHint();
+        int actionButtonCount = special.draggingContainerSlot >= 0 ? 3 : 2;
+        int actionButtonWidth = resolveActionButtonWidth(contentWidth, actionButtonCount);
+        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
+        ButtonComponent addButton = UiFactory.button(ItemEditorText.tr("special.container.add"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     int nextSlot = nextFreeSlot(special.containerEntries);
                     ItemEditorState.ContainerEntryDraft draft = ensureEntryForSlot(special.containerEntries, nextSlot);
@@ -104,21 +123,27 @@ public final class ContainerSpecialDataSection {
                     special.selectedContainerSlot = nextSlot;
                     special.draggingContainerSlot = -1;
                 })
-        ).horizontalSizing(Sizing.content()));
+        );
+        addButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth));
+        row.child(addButton);
 
-        row.child(UiFactory.button(ItemEditorText.tr("special.container.clear_slot"), button ->
+        ButtonComponent clearButton = UiFactory.button(ItemEditorText.tr("special.container.clear_slot"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     removeEntryForSlot(special.containerEntries, selectedSlot);
                     if (special.draggingContainerSlot == selectedSlot) {
                         special.draggingContainerSlot = -1;
                     }
                 })
-        ).horizontalSizing(Sizing.content()));
+        );
+        clearButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth));
+        row.child(clearButton);
 
         if (special.draggingContainerSlot >= 0) {
-            row.child(UiFactory.button(ItemEditorText.tr("special.container.drag_cancel"), button ->
+            ButtonComponent cancelDragButton = UiFactory.button(ItemEditorText.tr("special.container.drag_cancel"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.draggingContainerSlot = -1)
-            ).horizontalSizing(Sizing.content()));
+            );
+            cancelDragButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth));
+            row.child(cancelDragButton);
         }
 
         return row;
@@ -166,50 +191,48 @@ public final class ContainerSpecialDataSection {
         ItemStack slotStack = stackForDraft(draft);
 
         boolean invalidItem = isInvalidItemDraft(draft);
-        boolean edited = isEditedSlot(slotStack, originalSlotStack);
-        String countOverlay = stackOverlayText(draft, slotStack);
+        boolean edited = ContainerSlotVisuals.isEditedSlot(slotStack, originalSlotStack);
+        String countOverlay = ContainerSlotVisuals.stackOverlayText(draft, slotStack);
 
         FlowLayout cell = UiFactory.subCard();
         cell.padding(Insets.of(4));
-        cell.horizontalSizing(Sizing.fixed(SLOT_SIZE));
-        cell.verticalSizing(Sizing.fixed(SLOT_SIZE));
+        cell.horizontalSizing(UiFactory.fixed(SLOT_SIZE));
+        cell.verticalSizing(UiFactory.fixed(SLOT_SIZE));
         cell.gap(1);
-        cell.surface(slotSurface(selected, dragSource, invalidItem, edited));
+        cell.surface(ContainerSlotVisuals.slotSurface(selected, dragSource, invalidItem, edited));
 
         FlowLayout topMarkers = UiFactory.row();
-        topMarkers.horizontalSizing(Sizing.fill(100));
         if (dragSource) {
-            topMarkers.child(UIComponents.label(Component.literal("↕").withColor(0xC8A0FF)));
+            topMarkers.child(UiFactory.bodyLabel(Component.literal(SLOT_MARKER_DRAG).withColor(COLOR_SLOT_MARKER_DRAG)));
         } else if (edited) {
-            topMarkers.child(UIComponents.label(Component.literal("•").withColor(0xE7B766)));
+            topMarkers.child(UiFactory.bodyLabel(Component.literal(SLOT_MARKER_EDITED).withColor(COLOR_SLOT_MARKER_EDITED)));
         } else {
-            topMarkers.child(UIComponents.label(Component.literal(" ")));
+            topMarkers.child(UiFactory.bodyLabel(Component.literal(SLOT_MARKER_EMPTY)));
         }
         if (invalidItem) {
-            topMarkers.child(UIComponents.label(Component.literal("!").withColor(0xFF8A8A)));
+            topMarkers.child(UiFactory.bodyLabel(Component.literal(SLOT_MARKER_INVALID).withColor(COLOR_SLOT_MARKER_INVALID)));
         }
         cell.child(topMarkers);
 
         cell.child(UIComponents.item(slotStack).showOverlay(true));
 
         FlowLayout footer = UiFactory.row();
-        footer.horizontalSizing(Sizing.fill(100));
-        footer.child(UiFactory.muted(Component.literal(countOverlay), 70));
+        footer.child(UiFactory.muted(Component.literal(countOverlay), SLOT_OVERLAY_HINT_WIDTH));
         cell.child(footer);
 
         Component buttonLabel = Component.literal(Integer.toString(slot));
         if (selected) {
-            buttonLabel = buttonLabel.copy().withColor(0x6DFF8D);
+            buttonLabel = buttonLabel.copy().withColor(COLOR_SLOT_INDEX_SELECTED);
         } else if (dragSource) {
-            buttonLabel = buttonLabel.copy().withColor(0xC8A0FF);
+            buttonLabel = buttonLabel.copy().withColor(COLOR_SLOT_INDEX_DRAG_SOURCE);
         }
 
-        ButtonComponent selectButton = UiFactory.button(buttonLabel, button ->
+        ButtonComponent selectButton = UiFactory.button(buttonLabel, UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> handleSlotClick(special, slot))
         );
         selectButton.horizontalSizing(Sizing.fill(100));
-        selectButton.verticalSizing(Sizing.fixed(SLOT_SELECT_BUTTON_HEIGHT));
-        selectButton.tooltip(buildSlotTooltip(slot, draft, slotStack, invalidItem, edited, countOverlay));
+        selectButton.verticalSizing(UiFactory.fixed(SLOT_SELECT_BUTTON_HEIGHT));
+        selectButton.tooltip(ContainerSlotVisuals.buildSlotTooltip(slot, draft, slotStack, invalidItem, edited, countOverlay));
         cell.child(selectButton);
 
         return cell;
@@ -227,23 +250,23 @@ public final class ContainerSpecialDataSection {
         ItemEditorState.ContainerEntryDraft selectedDraft = findEntryForSlot(special.containerEntries, selectedSlot);
         ItemStack selectedStack = stackForDraft(selectedDraft);
         boolean invalidItem = isInvalidItemDraft(selectedDraft);
+        String selectedItemId = selectedDraft == null ? "" : selectedDraft.itemId;
+        boolean compactLayout = isCompactLayout(context);
 
-        FlowLayout top = UiFactory.row();
+        FlowLayout top = compactLayout ? UiFactory.column() : UiFactory.row();
         top.child(UIComponents.item(selectedStack).showOverlay(true).margins(Insets.right(6)));
-        top.child(UiFactory.muted(ItemEditorText.tr("special.container.selected_slot", selectedSlot), 240));
+        top.child(UiFactory.muted(ItemEditorText.tr("special.container.selected_slot", selectedSlot), DETAILS_SELECTED_SLOT_HINT_WIDTH));
         card.child(top);
 
         if (selectedStack.isEmpty()) {
-            card.child(UiFactory.muted(ItemEditorText.tr("special.container.slot_tooltip.empty"), 260));
+            card.child(UiFactory.muted(ItemEditorText.tr("special.container.slot_tooltip.empty"), DETAILS_EMPTY_HINT_WIDTH));
         } else {
             card.child(UiFactory.title(selectedStack.getHoverName()).shadow(false));
-            if (selectedDraft != null) {
-                card.child(UiFactory.muted(ItemEditorText.tr("special.container.item_id_value", selectedDraft.itemId), 280));
-            }
-            card.child(UiFactory.muted(ItemEditorText.tr("special.container.max_stack", selectedStack.getMaxStackSize()), 200));
+            card.child(UiFactory.muted(ItemEditorText.tr("special.container.item_id_value", selectedItemId), DETAILS_ITEM_ID_HINT_WIDTH));
+            card.child(UiFactory.muted(ItemEditorText.tr("special.container.max_stack", selectedStack.getMaxStackSize()), DETAILS_MAX_STACK_HINT_WIDTH));
         }
-        if (invalidItem && selectedDraft != null) {
-            card.child(UiFactory.message(ItemEditorText.tr("special.container.invalid_item", selectedDraft.itemId), 0xFF8A8A));
+        if (invalidItem) {
+            card.child(UiFactory.message(ItemEditorText.tr("special.container.invalid_item", selectedItemId), 0xFF8A8A));
         }
 
         Component pickerLabel = selectedDraft == null || selectedDraft.itemId.isBlank()
@@ -273,39 +296,28 @@ public final class ContainerSpecialDataSection {
                 ItemEditorText.tr("special.container.slot_index"),
                 Component.empty(),
                 UiFactory.textBox(slotFieldValue, value -> context.mutateRefresh(() -> updateSlotField(special, selectedSlot, value)))
-                        .horizontalSizing(Sizing.fixed(120))
+                        .horizontalSizing(UiFactory.fixed(SLOT_FIELD_WIDTH))
         ));
 
         if (selectedDraft != null) {
-            FlowLayout countRow = UiFactory.row();
-            countRow.child(UiFactory.button(ItemEditorText.tr("special.container.count_decrease"), button ->
+            FlowLayout countRow = compactLayout ? UiFactory.column() : UiFactory.row();
+            int countStepButtonWidth = resolveCountStepButtonWidth(context.panelWidthHint());
+            ButtonComponent decreaseButton = UiFactory.button(ItemEditorText.tr("special.container.count_decrease"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> stepCount(selectedDraft, -1))
-            ).horizontalSizing(Sizing.content()));
+            );
+            decreaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth));
+            countRow.child(decreaseButton);
             countRow.child(UiFactory.textBox(selectedDraft.count, value -> context.mutateRefresh(() -> selectedDraft.count = value))
-                    .horizontalSizing(Sizing.fixed(110)));
-            countRow.child(UiFactory.button(ItemEditorText.tr("special.container.count_increase"), button ->
+                    .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COUNT_FIELD_WIDTH)));
+            ButtonComponent increaseButton = UiFactory.button(ItemEditorText.tr("special.container.count_increase"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> stepCount(selectedDraft, 1))
-            ).horizontalSizing(Sizing.content()));
+            );
+            increaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth));
+            countRow.child(increaseButton);
             card.child(UiFactory.field(ItemEditorText.tr("special.container.count"), Component.empty(), countRow));
         }
 
         return card;
-    }
-
-    private static Surface slotSurface(boolean selected, boolean dragSource, boolean invalid, boolean edited) {
-        if (invalid) {
-            return SLOT_INVALID_SURFACE;
-        }
-        if (dragSource) {
-            return SLOT_DRAG_SURFACE;
-        }
-        if (selected) {
-            return SLOT_SELECTED_SURFACE;
-        }
-        if (edited) {
-            return SLOT_EDITED_SURFACE;
-        }
-        return SLOT_DEFAULT_SURFACE;
     }
 
     private static boolean isInvalidItemDraft(ItemEditorState.ContainerEntryDraft draft) {
@@ -316,56 +328,14 @@ public final class ContainerSpecialDataSection {
         return item == null || item == Items.AIR;
     }
 
-    private static String stackOverlayText(ItemEditorState.ContainerEntryDraft draft, ItemStack slotStack) {
-        if (draft == null || draft.itemId.isBlank()) {
-            return "-";
-        }
-
-        Item resolvedItem = ContainerEntryDraftUtil.resolveItem(draft.itemId);
-        int requestedCount = parseIntOrDefault(draft.count, slotStack.isEmpty() ? 1 : slotStack.getCount());
-        if (resolvedItem == null || resolvedItem == Items.AIR) {
-            return Integer.toString(Math.max(1, requestedCount));
-        }
-
-        int max = Math.max(1, new ItemStack(resolvedItem).getMaxStackSize());
-        return requestedCount + "/" + max;
-    }
-
-    private static List<Component> buildSlotTooltip(
-            int slot,
-            ItemEditorState.ContainerEntryDraft draft,
-            ItemStack stack,
-            boolean invalidItem,
-            boolean edited,
-            String countOverlay
-    ) {
-        List<Component> tooltip = new ArrayList<>();
-        tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.slot", slot));
-        if (stack.isEmpty() || draft == null) {
-            tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.empty"));
-            return tooltip;
-        }
-
-        tooltip.add(stack.getHoverName());
-        tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.item", draft.itemId));
-        tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.count", countOverlay));
-        if (edited) {
-            tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.edited").copy().withColor(0xE7B766));
-        }
-        if (invalidItem) {
-            tooltip.add(ItemEditorText.tr("special.container.slot_tooltip.invalid").copy().withColor(0xFF8A8A));
-        }
-        return tooltip;
-    }
-
     private static void handleSlotClick(ItemEditorState.SpecialData special, int clickedSlot) {
         int dragSource = special.draggingContainerSlot;
+        if (dragSource == clickedSlot) {
+            special.draggingContainerSlot = -1;
+            special.selectedContainerSlot = clickedSlot;
+            return;
+        }
         if (dragSource >= 0) {
-            if (dragSource == clickedSlot) {
-                special.draggingContainerSlot = -1;
-                special.selectedContainerSlot = clickedSlot;
-                return;
-            }
             moveOrSwapEntries(special.containerEntries, dragSource, clickedSlot);
             special.selectedContainerSlot = clickedSlot;
             special.draggingContainerSlot = -1;
@@ -419,7 +389,7 @@ public final class ContainerSpecialDataSection {
         }
 
         int maxStack = Math.max(1, new ItemStack(item).getMaxStackSize());
-        int count = parseIntOrDefault(draft.count, 1);
+        int count = ContainerEntryDraftUtil.parseIntOrDefault(draft.count, 1);
         count = Math.clamp(count, 1, maxStack);
         draft.count = Integer.toString(count);
         ContainerEntryDraftUtil.syncTemplateStack(draft, item, count);
@@ -468,10 +438,10 @@ public final class ContainerSpecialDataSection {
     private static void stepCount(ItemEditorState.ContainerEntryDraft draft, int delta) {
         Item item = ContainerEntryDraftUtil.resolveItem(draft.itemId);
         int maxStack = item == null || item == Items.AIR ? 99 : Math.max(1, new ItemStack(item).getMaxStackSize());
-        int current = parseIntOrDefault(draft.count, 1);
+        int current = ContainerEntryDraftUtil.parseIntOrDefault(draft.count, 1);
         draft.count = Integer.toString(Math.clamp(current + delta, 1, maxStack));
         if (draft.templateStack != null && !draft.templateStack.isEmpty()) {
-            draft.templateStack = draft.templateStack.copyWithCount(parseIntOrDefault(draft.count, 1));
+            draft.templateStack = draft.templateStack.copyWithCount(ContainerEntryDraftUtil.parseIntOrDefault(draft.count, 1));
         }
     }
 
@@ -513,12 +483,12 @@ public final class ContainerSpecialDataSection {
         Item item = ContainerEntryDraftUtil.resolveItem(draft.itemId);
         if (item == null || item == Items.AIR) {
             if (draft.templateStack != null && !draft.templateStack.isEmpty()) {
-                return draft.templateStack.copyWithCount(Math.max(1, parseIntOrDefault(draft.count, draft.templateStack.getCount())));
+                return draft.templateStack.copyWithCount(Math.max(1, ContainerEntryDraftUtil.parseIntOrDefault(draft.count, draft.templateStack.getCount())));
             }
             return ItemStack.EMPTY;
         }
 
-        int count = parseIntOrDefault(draft.count, 1);
+        int count = ContainerEntryDraftUtil.parseIntOrDefault(draft.count, 1);
         int maxStack = Math.max(1, new ItemStack(item).getMaxStackSize());
         count = Math.clamp(count, 1, maxStack);
 
@@ -539,7 +509,7 @@ public final class ContainerSpecialDataSection {
         FlowLayout suggestions = UiFactory.column().gap(1);
         String query = IdFieldNormalizer.normalize(rawInput);
         if (query.isBlank()) {
-            suggestions.child(UiFactory.muted(fallbackLabel, 260));
+            suggestions.child(UiFactory.muted(fallbackLabel, AUTOCOMPLETE_HINT_WIDTH));
             return suggestions;
         }
 
@@ -549,13 +519,13 @@ public final class ContainerSpecialDataSection {
                 .toList();
 
         if (matches.isEmpty()) {
-            suggestions.child(UiFactory.muted(ItemEditorText.tr("special.container.autocomplete.none"), 260));
+            suggestions.child(UiFactory.muted(ItemEditorText.tr("special.container.autocomplete.none"), AUTOCOMPLETE_HINT_WIDTH));
             return suggestions;
         }
 
         for (String match : matches) {
             ButtonComponent suggestion = UiFactory.button(
-                    UiFactory.fitToWidth(Component.literal(match), 250),
+                    UiFactory.fitToWidth(Component.literal(match), AUTOCOMPLETE_SUGGESTION_FIT_WIDTH), UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> assignItemToSelectedSlot(special, selectedSlot, match))
             );
             suggestion.horizontalSizing(Sizing.fill(100));
@@ -564,6 +534,11 @@ public final class ContainerSpecialDataSection {
         }
 
         return suggestions;
+    }
+
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static int normalizeSelectedSlot(ItemEditorState.SpecialData special) {
@@ -604,11 +579,8 @@ public final class ContainerSpecialDataSection {
         if (block instanceof HopperBlock) {
             return 5;
         }
-        if (block instanceof DispenserBlock || block instanceof DropperBlock) {
+        if (block instanceof DispenserBlock) {
             return 9;
-        }
-        if (block instanceof ChestBlock || block instanceof TrappedChestBlock || block instanceof BarrelBlock || block instanceof ShulkerBoxBlock) {
-            return 27;
         }
         return 27;
     }
@@ -657,34 +629,12 @@ public final class ContainerSpecialDataSection {
         return slots;
     }
 
-    private static boolean isEditedSlot(ItemStack current, ItemStack original) {
-        if (current.isEmpty() && original.isEmpty()) {
-            return false;
-        }
-        if (current.isEmpty() != original.isEmpty()) {
-            return true;
-        }
-        return !ItemStack.isSameItemSameComponents(current, original) || current.getCount() != original.getCount();
-    }
-
     private static Integer parseSlotIndex(String rawSlot) {
-        try {
-            int parsed = Integer.parseInt(rawSlot.trim());
-            if (parsed < MIN_SLOT || parsed > MAX_SLOT) {
-                return null;
-            }
-            return parsed;
-        } catch (Exception ignored) {
+        int parsed = ContainerEntryDraftUtil.parseIntOrDefault(rawSlot, Integer.MIN_VALUE);
+        if (parsed < MIN_SLOT || parsed > MAX_SLOT) {
             return null;
         }
-    }
-
-    private static int parseIntOrDefault(String raw, int fallback) {
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (Exception ignored) {
-            return fallback;
-        }
+        return parsed;
     }
 
     private static Integer entrySlotOrNull(ItemEditorState.ContainerEntryDraft draft) {
@@ -694,5 +644,24 @@ public final class ContainerSpecialDataSection {
     private static int entrySlotOrMax(ItemEditorState.ContainerEntryDraft draft) {
         Integer slot = parseSlotIndex(draft.slot);
         return slot == null ? Integer.MAX_VALUE : slot;
+    }
+
+    private static int resolveActionButtonWidth(int contentWidth, int buttonCount) {
+        int preferred = Math.max(
+                ACTION_BUTTON_WIDTH_MIN,
+                Math.min(
+                        ACTION_BUTTON_WIDTH_MAX,
+                        (contentWidth - UiFactory.scaledPixels(ACTION_BUTTON_ROW_RESERVE)) / Math.max(1, buttonCount)
+                )
+        );
+        return Math.max(1, Math.min(contentWidth, preferred));
+    }
+
+    private static int resolveCountStepButtonWidth(int panelWidthHint) {
+        int contentWidth = Math.max(1, panelWidthHint);
+        int available = contentWidth - COUNT_FIELD_WIDTH - UiFactory.scaledPixels(COUNT_STEP_BUTTON_ROW_RESERVE);
+        int perButton = available / 2;
+        int preferred = Math.max(COUNT_STEP_BUTTON_WIDTH_MIN, Math.min(COUNT_STEP_BUTTON_WIDTH_MAX, perButton));
+        return Math.max(1, Math.min(contentWidth, preferred));
     }
 }

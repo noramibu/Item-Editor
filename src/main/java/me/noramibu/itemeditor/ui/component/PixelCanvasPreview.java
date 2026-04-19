@@ -3,10 +3,8 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
-import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 
 import java.util.ArrayList;
@@ -49,15 +47,18 @@ public final class PixelCanvasPreview {
         canvas.gap(gap);
         canvas.padding(padding);
         canvas.surface(surface);
-        canvas.horizontalSizing(Sizing.content());
+        int rowWidth = Math.max(1, width * pixelSize + Math.max(0, width - 1) * gap);
+        canvas.horizontalSizing(UiFactory.fixed(rowWidth + padding.left() + padding.right()));
 
         List<List<BoxComponent>> grid = new ArrayList<>(height);
         for (int y = 0; y < height; y++) {
-            FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(pixelSize));
+            FlowLayout row = UiFactory.row();
+            row.horizontalSizing(UiFactory.fixed(rowWidth));
+            row.verticalSizing(UiFactory.fixed(pixelSize));
             row.gap(gap);
             List<BoxComponent> rowPixels = new ArrayList<>(width);
             for (int x = 0; x < width; x++) {
-                BoxComponent pixel = UIComponents.box(Sizing.fixed(pixelSize), Sizing.fixed(pixelSize))
+                BoxComponent pixel = UIComponents.box(UiFactory.fixed(pixelSize), UiFactory.fixed(pixelSize))
                         .fill(true)
                         .color(Color.ofArgb(0x00000000));
                 rowPixels.add(pixel);

@@ -10,6 +10,7 @@ public final class PanelBindings {
     }
 
     public static void mutate(ItemEditorScreen screen, Runnable mutation) {
+        screen.session().state().rawEditorEdited = false;
         mutation.run();
         screen.session().rebuildPreview();
     }
@@ -21,6 +22,12 @@ public final class PanelBindings {
 
     public static void mutateRefresh(ItemEditorScreen screen, Runnable mutation) {
         mutate(screen, mutation, screen::refreshCurrentPanel);
+    }
+
+    public static void mutateRaw(ItemEditorScreen screen, Runnable mutation) {
+        mutation.run();
+        screen.session().state().rawEditorEdited = true;
+        screen.session().rebuildPreview();
     }
 
     static Consumer<String> text(ItemEditorScreen screen, Consumer<String> updater) {

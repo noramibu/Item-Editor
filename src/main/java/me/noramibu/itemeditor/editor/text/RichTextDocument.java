@@ -205,16 +205,23 @@ public final class RichTextDocument {
 
         int colorIndex = 0;
         for (Segment segment : selectedSegments) {
-            for (int index = 0; index < segment.text().length(); index++) {
-                char character = segment.text().charAt(index);
-                if (character == '\n') {
-                    updated.add(new Segment("\n", segment.style()));
+            String text = segment.text();
+            for (int index = 0; index < text.length();) {
+                int codePoint = text.codePointAt(index);
+                if (codePoint == '\n') {
+                    int charCount = Character.charCount(codePoint);
+                    updated.add(new Segment(text.substring(index, index + charCount), segment.style()));
+                    index += charCount;
                     continue;
                 }
 
                 float progress = gradientSteps == 1 ? 0f : (float) colorIndex / (gradientSteps - 1);
-                updated.add(new Segment(Character.toString(character), segment.style().withColor(ColorInterpolationUtil.interpolateRgb(startColor, endColor, progress))));
+                updated.add(new Segment(
+                        Character.toString(codePoint),
+                        segment.style().withColor(ColorInterpolationUtil.interpolateRgb(startColor, endColor, progress))
+                ));
                 colorIndex++;
+                index += Character.charCount(codePoint);
             }
         }
 
@@ -362,10 +369,13 @@ public final class RichTextDocument {
     private int gradientCharacterCount(List<Segment> segments) {
         int count = 0;
         for (Segment segment : segments) {
-            for (int index = 0; index < segment.text().length(); index++) {
-                if (segment.text().charAt(index) != '\n') {
+            String text = segment.text();
+            for (int index = 0; index < text.length();) {
+                int codePoint = text.codePointAt(index);
+                if (codePoint != '\n') {
                     count++;
                 }
+                index += Character.charCount(codePoint);
             }
         }
         return count;

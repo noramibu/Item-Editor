@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
@@ -10,6 +9,7 @@ import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
@@ -30,6 +30,30 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class AttributeEditorPanel implements EditorPanel {
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 560;
+    private static final int AMOUNT_STEP_BUTTON_MIN = 24;
+    private static final int AMOUNT_STEP_BUTTON_BASE = 30;
+    private static final int BUILT_IN_NOTE_HINT_WIDTH = 220;
+    private static final int AMOUNT_FIELD_WIDTH = 100;
+    private static final int OPERATION_PICKER_WIDTH = 160;
+    private static final int SLOT_PICKER_WIDTH = 140;
+    private static final int MODIFIER_ID_FIELD_WIDTH = 220;
+    private static final int NOTE_HINT_WIDTH_WIDE = 520;
+    private static final int NOTE_HINT_WIDTH_MEDIUM = 320;
+    private static final int PREVIEW_LINE_MAX_WIDTH = 520;
+    private static final int INTRO_ACTION_BUTTON_WIDTH_MIN = 64;
+    private static final int INTRO_ACTION_BUTTON_WIDTH_MAX = 132;
+    private static final int INTRO_ACTION_BUTTON_ROW_RESERVE = 12;
+    private static final int INTRO_ACTION_BUTTON_TEXT_MIN = 18;
+    private static final int INTRO_ACTION_BUTTON_TEXT_RESERVE = 10;
+    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
+    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    private static final String SYMBOL_STEP_DECREMENT = "-";
+    private static final String SYMBOL_STEP_INCREMENT = "+";
+    private static final String TOOLTIP_EXPAND_ALL = "Expand all";
+    private static final String TOOLTIP_COLLAPSE_ALL = "Collapse all";
 
     private final ItemEditorScreen screen;
 
@@ -40,12 +64,14 @@ public final class AttributeEditorPanel implements EditorPanel {
     @Override
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
+        boolean compactLayout = this.isCompactLayout();
         Registry<Attribute> attributeRegistry = this.screen.session().registryAccess().lookupOrThrow(Registries.ATTRIBUTE);
         List<String> attributeIds = RegistryUtil.ids(attributeRegistry);
         ItemAttributeModifiers prototypeModifiers = this.screen.session().originalStack().getPrototype().get(DataComponents.ATTRIBUTE_MODIFIERS);
         Set<String> prototypeKeys = prototypeModifiers == null
                 ? Set.of()
                 : prototypeModifiers.modifiers().stream().map(this::entryKey).collect(Collectors.toSet());
+        int contentWidth = this.availableContentWidth();
 
         FlowLayout root = UiFactory.column();
         root.child(this.buildEffectiveAttributesSection());
@@ -54,12 +80,39 @@ public final class AttributeEditorPanel implements EditorPanel {
                 ItemEditorText.tr("attributes.modifiers.title"),
                 Component.empty()
         );
-        intro.child(UiFactory.button(ItemEditorText.tr("attributes.modifiers.reset"), button -> {
+        FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
+        int introActionButtonCount = state.attributeModifiers.isEmpty() ? 2 : 4;
+        int introActionButtonWidth = this.resolveIntroActionButtonWidth(contentWidth, introActionButtonCount);
+        Component resetText = ItemEditorText.tr("attributes.modifiers.reset");
+        ButtonComponent resetButton = this.introActionButton(resetText, compactLayout, introActionButtonWidth, button -> {
             PanelBindings.mutateRefresh(this.screen, () -> this.resetAttributeModifiersFromOriginal(state));
-        }).horizontalSizing(Sizing.content()));
-        intro.child(UiFactory.button(ItemEditorText.tr("attributes.modifiers.add"), button -> {
-            PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.add(new ItemEditorState.AttributeModifierDraft()));
-        }).horizontalSizing(Sizing.content()));
+        });
+        actions.child(resetButton);
+        Component addText = ItemEditorText.tr("attributes.modifiers.add");
+        ButtonComponent addButton = this.introActionButton(addText, compactLayout, introActionButtonWidth, button -> {
+            PanelBindings.mutateRefresh(this.screen, () -> {
+                ItemEditorState.AttributeModifierDraft draft = new ItemEditorState.AttributeModifierDraft();
+                draft.uiCollapsed = false;
+                state.attributeModifiers.add(draft);
+            });
+        });
+        actions.child(addButton);
+        if (!state.attributeModifiers.isEmpty()) {
+            Component expandText = Component.literal(SYMBOL_SECTION_COLLAPSED);
+            ButtonComponent expandAll = this.introActionButton(expandText, compactLayout, introActionButtonWidth, button ->
+                    PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = false))
+            );
+            expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
+            actions.child(expandAll);
+
+            Component collapseText = Component.literal(SYMBOL_SECTION_EXPANDED);
+            ButtonComponent collapseAll = this.introActionButton(collapseText, compactLayout, introActionButtonWidth, button ->
+                    PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = true))
+            );
+            collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL)));
+            actions.child(collapseAll);
+        }
+        intro.child(actions);
         root.child(intro);
 
         for (int index = 0; index < state.attributeModifiers.size(); index++) {
@@ -75,11 +128,23 @@ public final class AttributeEditorPanel implements EditorPanel {
             );
 
             if (prototypeKeys.contains(this.draftKey(draft))) {
-                card.child(UiFactory.muted(ItemEditorText.tr("attributes.modifier.built_in"), 220));
+                card.child(UiFactory.muted(ItemEditorText.tr("attributes.modifier.built_in"), BUILT_IN_NOTE_HINT_WIDTH));
+            }
+
+            card.child(UiFactory.collapsibleSummaryRow(
+                    Component.literal(this.attributeSummary(draft)),
+                    NOTE_HINT_WIDTH_WIDE,
+                    draft.uiCollapsed,
+                    () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed)
+            ));
+
+            if (draft.uiCollapsed) {
+                root.child(card);
+                continue;
             }
 
             ButtonComponent attributeButton = UiFactory.button(
-                    draft.attributeId.isBlank() ? ItemEditorText.str("attributes.modifier.select_attribute") : draft.attributeId,
+                    draft.attributeId.isBlank() ? ItemEditorText.str("attributes.modifier.select_attribute") : draft.attributeId, UiFactory.ButtonTextPreset.STANDARD, 
                     button -> this.screen.openSearchablePickerDialog(
                             ItemEditorText.str("attributes.modifier.attribute"),
                             "",
@@ -91,39 +156,53 @@ public final class AttributeEditorPanel implements EditorPanel {
             attributeButton.horizontalSizing(Sizing.fill(100));
             card.child(UiFactory.field(ItemEditorText.tr("attributes.modifier.attribute"), Component.empty(), attributeButton));
 
-            FlowLayout rowOne = UiFactory.row();
-            rowOne.child(UiFactory.field(
+            FlowLayout rowOne = compactLayout ? UiFactory.column() : UiFactory.row();
+
+            FlowLayout amountRow = UiFactory.row();
+            amountRow.child(UiFactory.field(
                     ItemEditorText.tr("attributes.modifier.amount"),
                     Component.empty(),
-                    UiFactory.textBox(draft.amount, PanelBindings.text(this.screen, value -> draft.amount = value)).horizontalSizing(Sizing.fixed(110))
+                    UiFactory.textBox(draft.amount, PanelBindings.text(this.screen, value -> draft.amount = value)).horizontalSizing(UiFactory.fixed(AMOUNT_FIELD_WIDTH))
             ));
+            ButtonComponent minusAmount = UiFactory.button(Component.literal(SYMBOL_STEP_DECREMENT), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                    PanelBindings.mutateRefresh(this.screen, () -> draft.amount = this.adjustAmount(draft.amount, -1.0))
+            );
+            int stepButtonWidth = Math.max(AMOUNT_STEP_BUTTON_MIN, UiFactory.scaledPixels(AMOUNT_STEP_BUTTON_BASE));
+            minusAmount.horizontalSizing(Sizing.fixed(stepButtonWidth));
+            amountRow.child(minusAmount);
+            ButtonComponent plusAmount = UiFactory.button(Component.literal(SYMBOL_STEP_INCREMENT), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                    PanelBindings.mutateRefresh(this.screen, () -> draft.amount = this.adjustAmount(draft.amount, 1.0))
+            );
+            plusAmount.horizontalSizing(Sizing.fixed(stepButtonWidth));
+            amountRow.child(plusAmount);
+            rowOne.child(amountRow);
 
-            var operationButton = UiFactory.button(draft.operation, button -> this.screen.openDropdown(
+            var operationButton = UiFactory.button(draft.operation, UiFactory.ButtonTextPreset.STANDARD,  button -> this.screen.openDropdown(
                     button,
                     Arrays.asList(AttributeModifier.Operation.values()),
                     AttributeModifier.Operation::name,
                     operation -> PanelBindings.mutate(this.screen, () -> draft.operation = operation.name())
             ));
-            rowOne.child(UiFactory.field(ItemEditorText.tr("attributes.modifier.operation"), Component.empty(), operationButton.horizontalSizing(Sizing.fixed(180))));
+            rowOne.child(UiFactory.field(ItemEditorText.tr("attributes.modifier.operation"), Component.empty(), operationButton.horizontalSizing(UiFactory.fixed(OPERATION_PICKER_WIDTH))));
 
-            var slotButton = UiFactory.button(draft.slotGroup, button -> this.screen.openDropdown(
+            var slotButton = UiFactory.button(draft.slotGroup, UiFactory.ButtonTextPreset.STANDARD,  button -> this.screen.openDropdown(
                     button,
                     Arrays.asList(EquipmentSlotGroup.values()),
                     EquipmentSlotGroup::name,
                     slot -> PanelBindings.mutate(this.screen, () -> draft.slotGroup = slot.name())
             ));
-            rowOne.child(UiFactory.field(ItemEditorText.tr("attributes.modifier.slot"), Component.empty(), slotButton.horizontalSizing(Sizing.fixed(160))));
+            rowOne.child(UiFactory.field(ItemEditorText.tr("attributes.modifier.slot"), Component.empty(), slotButton.horizontalSizing(UiFactory.fixed(SLOT_PICKER_WIDTH))));
             card.child(rowOne);
 
             card.child(UiFactory.field(
                     ItemEditorText.tr("attributes.modifier.id"),
                     Component.empty(),
-                    UiFactory.textBox(draft.modifierId, PanelBindings.text(this.screen, value -> draft.modifierId = value)).horizontalSizing(Sizing.fixed(220))
+                    UiFactory.textBox(draft.modifierId, PanelBindings.text(this.screen, value -> draft.modifierId = value)).horizontalSizing(UiFactory.fixed(MODIFIER_ID_FIELD_WIDTH))
             ));
 
             String vanillaTooltipNote = this.vanillaTooltipNote(draft);
             if (vanillaTooltipNote != null) {
-                card.child(UiFactory.muted(vanillaTooltipNote, 520));
+                card.child(UiFactory.muted(vanillaTooltipNote, NOTE_HINT_WIDTH_WIDE));
             }
 
             root.child(card);
@@ -160,6 +239,24 @@ public final class AttributeEditorPanel implements EditorPanel {
         }
 
         return section;
+    }
+
+    private String attributeSummary(ItemEditorState.AttributeModifierDraft draft) {
+        String attribute = draft.attributeId == null || draft.attributeId.isBlank() ? "-" : draft.attributeId;
+        String operation = draft.operation == null || draft.operation.isBlank() ? AttributeModifier.Operation.ADD_VALUE.name() : draft.operation;
+        String slot = draft.slotGroup == null || draft.slotGroup.isBlank() ? EquipmentSlotGroup.ANY.name() : draft.slotGroup;
+        String amount = draft.amount == null || draft.amount.isBlank() ? "0" : draft.amount;
+        return attribute + " | " + operation + " | " + slot + " | " + amount;
+    }
+
+    private String adjustAmount(String raw, double delta) {
+        double value;
+        try {
+            value = Double.parseDouble(raw == null || raw.isBlank() ? "0" : raw.trim());
+        } catch (NumberFormatException ignored) {
+            value = 0.0;
+        }
+        return this.formatAmount(value + delta);
     }
 
     private void resetAttributeModifiersFromOriginal(ItemEditorState state) {
@@ -199,11 +296,11 @@ public final class AttributeEditorPanel implements EditorPanel {
         }
 
         for (Component line : previewLines) {
-            card.child(UIComponents.label(line).maxWidth(520));
+            card.child(UiFactory.bodyLabel(line).maxWidth(PREVIEW_LINE_MAX_WIDTH));
         }
 
         String attributeId = entry.attribute().unwrapKey().map(key -> key.identifier().toString()).orElse(ItemEditorText.str("attributes.preview.unbound"));
-        card.child(UiFactory.muted(
+            card.child(UiFactory.muted(
                 ItemEditorText.str(
                         "attributes.preview.source_line",
                         sourceLabel,
@@ -211,9 +308,9 @@ public final class AttributeEditorPanel implements EditorPanel {
                         entry.modifier().operation().name(),
                         this.formatAmount(entry.modifier().amount())
                 ),
-                320
+                NOTE_HINT_WIDTH_MEDIUM
         ));
-        card.child(UiFactory.muted(attributeId, 320));
+        card.child(UiFactory.muted(attributeId, NOTE_HINT_WIDTH_MEDIUM));
         return card;
     }
 
@@ -257,5 +354,46 @@ public final class AttributeEditorPanel implements EditorPanel {
             return Integer.toString((int) amount);
         }
         return String.format(Locale.ROOT, "%.2f", amount);
+    }
+
+    private boolean isCompactLayout() {
+        int contentWidth = this.availableContentWidth();
+        var window = Minecraft.getInstance().getWindow();
+        return window.getGuiScaledWidth() <= COMPACT_LAYOUT_WIDTH_THRESHOLD
+                || window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || contentWidth < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+    }
+
+    private ButtonComponent introActionButton(
+            Component fullText,
+            boolean compactLayout,
+            int nonCompactWidth,
+            java.util.function.Consumer<ButtonComponent> onPress
+    ) {
+        Component fitted = UiFactory.fitToWidth(
+                fullText,
+                Math.max(INTRO_ACTION_BUTTON_TEXT_MIN, nonCompactWidth - UiFactory.scaledPixels(INTRO_ACTION_BUTTON_TEXT_RESERVE))
+        );
+        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
+        button.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(nonCompactWidth));
+        if (!fitted.getString().equals(fullText.getString())) {
+            button.tooltip(List.of(fullText));
+        }
+        return button;
+    }
+
+    private int resolveIntroActionButtonWidth(int contentWidth, int buttonCount) {
+        int preferred = Math.max(
+                INTRO_ACTION_BUTTON_WIDTH_MIN,
+                Math.min(
+                        INTRO_ACTION_BUTTON_WIDTH_MAX,
+                        (contentWidth - UiFactory.scaledPixels(INTRO_ACTION_BUTTON_ROW_RESERVE)) / Math.max(1, buttonCount)
+                )
+        );
+        return Math.max(1, Math.min(contentWidth, preferred));
+    }
+
+    private int availableContentWidth() {
+        return Math.max(1, this.screen.editorContentWidthHint());
     }
 }

@@ -1,44 +1,55 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
-import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.StackLayout;
-import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
-import me.noramibu.itemeditor.ui.component.PixelCanvasPreview;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.Direction;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.HangingSignItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.TypedEntityData;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class SignSpecialDataSection {
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
+    private static final int BOARD_STYLE_PICKER_WIDTH = 180;
+    private static final int SIGN_EDITOR_VERTICAL_PADDING_BASE = 24;
+    private static final int SIGN_PREVIEW_SIZE_MIN = 84;
+    private static final int SIGN_PREVIEW_SIZE_MAX = 180;
+    private static final int SIGN_PREVIEW_HINT_WIDTH = 220;
+    private static final int SIGN_LINE_NUMBER_WIDTH = 18;
+    private static final int SIGN_LINE_NUMBER_TOP_OFFSET = 6;
+    private static final int SIGN_LINE_SLOT_HEIGHT = 9;
 
     private static final int SIGN_LINE_COUNT = 4;
-    private static final int BOARD_PIXEL_SIZE = 2;
-    private static final SignPreviewLayout STANDING_LAYOUT = new SignPreviewLayout(90, 10, 49, 26, 5, 3, 5, 3);
-    private static final SignPreviewLayout HANGING_LAYOUT = new SignPreviewLayout(60, 9, 37, 30, 10, 6, 10, 6);
 
     private SignSpecialDataSection() {
     }
@@ -49,7 +60,8 @@ public final class SignSpecialDataSection {
 
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SignData signData = context.special().sign;
-        SignPreviewLayout layout = resolveLayout(context.originalStack());
+        boolean hangingSign = isHangingSign(context.originalStack());
+        boolean compactLayout = isCompactLayout(context);
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.sign.title"), Component.empty());
         section.child(UiFactory.checkbox(ItemEditorText.tr("special.sign.waxed"), signData.waxed, context.bindToggle(value -> signData.waxed = value)));
 
@@ -59,14 +71,14 @@ public final class SignSpecialDataSection {
                 ItemEditorText.tr("special.sign.board_style"),
                 Component.empty(),
                 ItemEditorText.tr(activeStyle.labelKey()),
-                180,
+                compactLayout ? -1 : BOARD_STYLE_PICKER_WIDTH,
                 Arrays.asList(SignBoardStyle.values()),
                 style -> ItemEditorText.str(style.labelKey()),
                 style -> context.mutateRefresh(() -> signData.boardStyle = style.id())
         ));
 
-        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.front"), signData.front, activeStyle, layout));
-        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.back"), signData.back, activeStyle, layout));
+        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.front"), signData.front, activeStyle, hangingSign));
+        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.back"), signData.back, activeStyle, hangingSign));
         return section;
     }
 
@@ -75,8 +87,9 @@ public final class SignSpecialDataSection {
             Component title,
             ItemEditorState.SignSideDraft sideDraft,
             SignBoardStyle boardStyle,
-            SignPreviewLayout layout
+            boolean hangingSign
     ) {
+        boolean compactLayout = isCompactLayout(context);
         ensureSignLineCount(sideDraft);
 
         FlowLayout card = UiFactory.subCard();
@@ -88,7 +101,7 @@ public final class SignSpecialDataSection {
                 Component.empty(),
                 ItemEditorText.tr("special.sign.color"),
                 sideDraft.color,
-                180,
+                compactLayout ? -1 : BOARD_STYLE_PICKER_WIDTH,
                 null,
                 color -> sideDraft.color = color.name()
         ));
@@ -98,12 +111,14 @@ public final class SignSpecialDataSection {
                 value -> context.mutateRefresh(() -> sideDraft.glowing = value)
         ));
 
-        SignPreviewWidgets preview = buildPreviewWidgets(sideDraft, boardStyle, layout);
+        SignPreviewWidgets preview = buildPreviewWidgets(sideDraft, boardStyle, hangingSign);
+        AtomicBoolean normalizingDocument = new AtomicBoolean(false);
+        AtomicReference<StyledTextFieldSection.BoundEditor> editorRef = new AtomicReference<>();
         StyledTextFieldSection.BoundEditor editorSection = StyledTextFieldSection.create(
                 context.screen(),
                 documentFromSideDraft(sideDraft),
                 Sizing.fill(100),
-                Sizing.fixed(92),
+                Sizing.fixed(signEditorHeight()),
                 ItemEditorText.str("special.sign.placeholder"),
                 StyledTextFieldSection.StylePreset.bookMetadata(false),
                 ItemEditorText.str("special.sign.color_dialog"),
@@ -111,18 +126,38 @@ public final class SignSpecialDataSection {
                 "",
                 "",
                 null,
-                document -> validateSignDocument(document, sideDraft, layout),
+                SignSpecialDataSection::validateSignDocument,
                 document -> {
+                    if (normalizingDocument.get()) {
+                        return;
+                    }
+                    RichTextDocument normalized = normalizeSignDocument(document);
+                    if (normalized.logicalLineCount() != document.logicalLineCount()) {
+                        StyledTextFieldSection.BoundEditor editor = editorRef.get();
+                        if (editor != null) {
+                            normalizingDocument.set(true);
+                            editor.editor().document(normalized);
+                            normalizingDocument.set(false);
+                        }
+                    }
                     context.mutate(() -> {
-                        applyDocumentToSideDraft(sideDraft, document);
+                        applyDocumentToSideDraft(sideDraft, normalized);
+                        double panelScrollOffset = context.screen().panelScrollOffset();
                         refreshPreview(preview, sideDraft);
+                        context.screen().restorePanelScroll(panelScrollOffset);
                     });
                 }
         );
+        editorRef.set(editorSection);
 
         FlowLayout editorFrame = UiFactory.framedEditorCard();
         editorFrame.child(editorSection.toolbar());
-        editorFrame.child(editorSection.editor());
+        FlowLayout editorRow = UiFactory.row();
+        editorRow.horizontalSizing(Sizing.fill(100));
+        editorRow.verticalAlignment(VerticalAlignment.TOP);
+        editorRow.child(buildLineNumberGutter());
+        editorRow.child(editorSection.editor().horizontalSizing(Sizing.fill(100)));
+        editorFrame.child(editorRow);
         editorFrame.child(editorSection.validation());
 
         card.child(UiFactory.field(ItemEditorText.tr("special.sign.editor"), Component.empty(), editorFrame));
@@ -131,36 +166,32 @@ public final class SignSpecialDataSection {
         return card;
     }
 
-    private static String validateSignDocument(
-            RichTextDocument document,
-            ItemEditorState.SignSideDraft currentDraft,
-            SignPreviewLayout layout
-    ) {
-        RichTextDocument baseline = documentFromSideDraft(currentDraft);
-        int baselineLineCount = baseline.logicalLineCount();
+    private static String validateSignDocument(RichTextDocument document) {
         int candidateLineCount = document.logicalLineCount();
-
-        if (candidateLineCount > SIGN_LINE_COUNT && candidateLineCount > baselineLineCount) {
-            return ItemEditorText.str("special.sign.lines_limit", SIGN_LINE_COUNT);
+        if (candidateLineCount <= SIGN_LINE_COUNT) {
+            return null;
         }
 
-        Minecraft minecraft = Minecraft.getInstance();
-        List<Component> candidateLines = document.toLineComponents();
-        List<Component> baselineLines = baseline.toLineComponents();
-
-        for (int index = 0; index < candidateLines.size(); index++) {
-            int width = minecraft.font.width(candidateLines.get(index));
-            if (width <= layout.maxTextLineWidth()) {
-                continue;
-            }
-
-            int baselineWidth = index < baselineLines.size() ? minecraft.font.width(baselineLines.get(index)) : 0;
-            if (width > baselineWidth) {
-                return ItemEditorText.str("special.sign.line_width_limit", index + 1, layout.maxTextLineWidth());
+        List<Component> lines = document.toLineComponents();
+        for (int index = SIGN_LINE_COUNT; index < lines.size(); index++) {
+            Component overflow = lines.get(index);
+            if (overflow != null && !overflow.getString().isBlank()) {
+                return ItemEditorText.str("special.sign.lines_limit", SIGN_LINE_COUNT);
             }
         }
 
         return null;
+    }
+
+    private static RichTextDocument normalizeSignDocument(RichTextDocument document) {
+        List<Component> lines = new ArrayList<>(document.toLineComponents());
+        if (lines.size() > SIGN_LINE_COUNT) {
+            lines = new ArrayList<>(lines.subList(0, SIGN_LINE_COUNT));
+        }
+        while (lines.size() < SIGN_LINE_COUNT) {
+            lines.add(Component.empty());
+        }
+        return RichTextDocument.fromLines(lines);
     }
 
     private static RichTextDocument documentFromSideDraft(ItemEditorState.SignSideDraft sideDraft) {
@@ -181,68 +212,68 @@ public final class SignSpecialDataSection {
         }
     }
 
-    private static SignPreviewWidgets buildPreviewWidgets(ItemEditorState.SignSideDraft sideDraft, SignBoardStyle boardStyle, SignPreviewLayout layout) {
+    private static SignPreviewWidgets buildPreviewWidgets(
+            ItemEditorState.SignSideDraft sideDraft,
+            SignBoardStyle boardStyle,
+            boolean hangingSign
+    ) {
         FlowLayout previewCard = UiFactory.subCard();
         previewCard.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
-
-        StackLayout signFace = UIContainers.stack(Sizing.content(), Sizing.content());
-        signFace.child(buildBoardTexture(boardStyle, layout));
-
-        FlowLayout textLayer = UiFactory.column();
-        textLayer.gap(Math.max(0, layout.lineHeight() - Minecraft.getInstance().font.lineHeight));
-        textLayer.horizontalSizing(Sizing.fixed(layout.boardWidth()));
-        textLayer.verticalSizing(Sizing.fixed(layout.boardHeight()));
-        textLayer.padding(Insets.of(layout.paddingTop(), layout.paddingRight(), layout.paddingBottom(), layout.paddingLeft()));
-
-        List<LabelComponent> lines = new ArrayList<>(SIGN_LINE_COUNT);
-        for (int index = 0; index < SIGN_LINE_COUNT; index++) {
-            LabelComponent line = UIComponents.label(Component.literal(" "))
-                    .maxWidth(layout.maxTextLineWidth());
-            textLayer.child(line);
-            lines.add(line);
-        }
-
-        signFace.child(textLayer);
-        previewCard.child(signFace);
-        SignPreviewWidgets widgets = new SignPreviewWidgets(previewCard, lines);
-        refreshPreview(widgets, sideDraft);
-        return widgets;
+        FlowLayout previewRow = UiFactory.row();
+        previewRow.child(buildRealSignPreview(sideDraft, boardStyle, hangingSign));
+        previewRow.child(UiFactory.muted(ItemEditorText.tr("special.sign.preview_hint"), SIGN_PREVIEW_HINT_WIDTH));
+        previewCard.child(previewRow);
+        return new SignPreviewWidgets(previewCard, previewRow, boardStyle, hangingSign);
     }
 
-    private static FlowLayout buildBoardTexture(SignBoardStyle style, SignPreviewLayout layout) {
-        int[][] pixels = PixelCanvasPreview.fill(layout.boardGridWidth(), layout.boardGridHeight(), style.baseColor());
-        for (int y = 0; y < layout.boardGridHeight(); y++) {
-            int grainColor = style.grainColors()[y % style.grainColors().length];
-            for (int x = 0; x < layout.boardGridWidth(); x++) {
-                pixels[y][x] = grainColor;
-            }
+    private static FlowLayout buildRealSignPreview(
+            ItemEditorState.SignSideDraft sideDraft,
+            SignBoardStyle boardStyle,
+            boolean hangingSign
+    ) {
+        int previewSize = UiFactory.responsiveSquareSize(0.13, 0.24, SIGN_PREVIEW_SIZE_MIN, SIGN_PREVIEW_SIZE_MAX);
+        Block previewBlock = boardStyle.previewBlock(hangingSign);
+        BlockState previewState = orientedPreviewState(previewBlock.defaultBlockState());
+        CompoundTag signTag = new CompoundTag();
+        SignText sideText = buildSignText(sideDraft);
+        // Mirror both sides for preview reliability regardless of the model side currently facing the camera.
+        signTag.store("front_text", SignText.DIRECT_CODEC, sideText);
+        signTag.store("back_text", SignText.DIRECT_CODEC, sideText);
+        signTag.putBoolean("is_waxed", false);
+        return UiFactory.row().child(UIComponents.block(previewState, signTag)
+                .horizontalSizing(UiFactory.fixed(previewSize))
+                .verticalSizing(UiFactory.fixed(previewSize)));
+    }
+
+    private static BlockState orientedPreviewState(BlockState state) {
+        if (state.hasProperty(BlockStateProperties.FACING)) {
+            state = state.setValue(BlockStateProperties.FACING, Direction.SOUTH);
         }
-        return PixelCanvasPreview.fromColors(
-                pixels,
-                BOARD_PIXEL_SIZE,
-                0,
-                Insets.none(),
-                Surface.flat(style.baseColor()).and(Surface.outline(style.outlineColor()))
-        );
+        if (state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            state = state.setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.SOUTH);
+        }
+        if (state.hasProperty(BlockStateProperties.ROTATION_16)) {
+            state = state.setValue(BlockStateProperties.ROTATION_16, 8);
+        }
+        return state;
     }
 
     private static void refreshPreview(SignPreviewWidgets preview, ItemEditorState.SignSideDraft sideDraft) {
         ensureSignLineCount(sideDraft);
-        DyeColor color = resolveSignColor(sideDraft.color);
-        int textColor = color.getTextColor();
+        preview.previewRow().clearChildren();
+        preview.previewRow().child(buildRealSignPreview(sideDraft, preview.boardStyle(), preview.hangingSign()));
+        preview.previewRow().child(UiFactory.muted(ItemEditorText.tr("special.sign.preview_hint"), SIGN_PREVIEW_HINT_WIDTH));
+    }
 
+    private static SignText buildSignText(ItemEditorState.SignSideDraft sideDraft) {
+        SignText signText = new SignText()
+                .setColor(resolveSignColor(sideDraft.color))
+                .setHasGlowingText(sideDraft.glowing);
         for (int index = 0; index < SIGN_LINE_COUNT; index++) {
             String raw = Objects.toString(sideDraft.lines.get(index), "");
-            Component line = TextComponentUtil.parseMarkup(raw);
-            line = line.copy().withStyle(line.getStyle().withColor(textColor).withItalic(false));
-            if (line.getString().isBlank()) {
-                line = Component.literal(" ");
-            }
-
-            LabelComponent label = preview.lines().get(index);
-            label.text(line);
-            label.shadow(sideDraft.glowing);
+            signText = signText.setMessage(index, TextComponentUtil.parseMarkup(raw));
         }
+        return signText;
     }
 
     private static DyeColor resolveSignColor(String colorName) {
@@ -269,10 +300,6 @@ public final class SignSpecialDataSection {
         return SignBoardStyle.OAK;
     }
 
-    private static SignPreviewLayout resolveLayout(ItemStack stack) {
-        return isHangingSign(stack) ? HANGING_LAYOUT : STANDING_LAYOUT;
-    }
-
     private static boolean isHangingSign(ItemStack stack) {
         if (stack.getItem() instanceof HangingSignItem) {
             return true;
@@ -290,59 +317,63 @@ public final class SignSpecialDataSection {
         }
     }
 
-    private record SignPreviewWidgets(
-            FlowLayout card,
-            List<LabelComponent> lines
-    ) {
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
-    private record SignPreviewLayout(
-            int maxTextLineWidth,
-            int lineHeight,
-            int boardGridWidth,
-            int boardGridHeight,
-            int paddingTop,
-            int paddingRight,
-            int paddingBottom,
-            int paddingLeft
-    ) {
-        int boardWidth() {
-            return this.boardGridWidth * BOARD_PIXEL_SIZE;
+    private static FlowLayout buildLineNumberGutter() {
+        FlowLayout gutter = UiFactory.column();
+        gutter.horizontalSizing(UiFactory.fixed(SIGN_LINE_NUMBER_WIDTH));
+        gutter.gap(0);
+        for (int line = 1; line <= SIGN_LINE_COUNT; line++) {
+            FlowLayout lineSlot = UiFactory.row();
+            lineSlot.horizontalSizing(Sizing.fill(100));
+            lineSlot.verticalSizing(UiFactory.fixed(SIGN_LINE_SLOT_HEIGHT));
+            lineSlot.verticalAlignment(VerticalAlignment.TOP);
+            lineSlot.child(UiFactory.muted(Component.literal(Integer.toString(line)), SIGN_LINE_NUMBER_WIDTH).shadow(false));
+            gutter.child(lineSlot);
         }
+        gutter.margins(Insets.top(UiFactory.scaledPixels(SIGN_LINE_NUMBER_TOP_OFFSET)));
+        return gutter;
+    }
 
-        int boardHeight() {
-            return this.boardGridHeight * BOARD_PIXEL_SIZE;
-        }
+    private static int signEditorHeight() {
+        return (SIGN_LINE_COUNT * SIGN_LINE_SLOT_HEIGHT) + UiFactory.scaledPixels(SIGN_EDITOR_VERTICAL_PADDING_BASE);
+    }
+
+    private record SignPreviewWidgets(
+            FlowLayout card,
+            FlowLayout previewRow,
+            SignBoardStyle boardStyle,
+            boolean hangingSign
+    ) {
     }
 
     private enum SignBoardStyle {
         OAK(
                 "oak",
                 "special.sign.board_style.oak",
-                0x8A663B,
-                0x4A3219,
-                new int[]{0x9E7747, 0x8E693E, 0xA57A4A, 0x86613A}
+                Blocks.OAK_WALL_SIGN,
+                Blocks.OAK_WALL_HANGING_SIGN
         ),
         SPRUCE(
                 "spruce",
                 "special.sign.board_style.spruce",
-                0x6F5532,
-                0x3A2B18,
-                new int[]{0x7C5F39, 0x6A502E, 0x735732, 0x5F472A}
+                Blocks.SPRUCE_WALL_SIGN,
+                Blocks.SPRUCE_WALL_HANGING_SIGN
         );
 
         private final String id;
         private final String labelKey;
-        private final int baseColor;
-        private final int outlineColor;
-        private final int[] grainColors;
+        private final Block standingBlock;
+        private final Block hangingBlock;
 
-        SignBoardStyle(String id, String labelKey, int baseColor, int outlineColor, int[] grainColors) {
+        SignBoardStyle(String id, String labelKey, Block standingBlock, Block hangingBlock) {
             this.id = id;
             this.labelKey = labelKey;
-            this.baseColor = baseColor;
-            this.outlineColor = outlineColor;
-            this.grainColors = grainColors;
+            this.standingBlock = standingBlock;
+            this.hangingBlock = hangingBlock;
         }
 
         public String id() {
@@ -353,16 +384,8 @@ public final class SignSpecialDataSection {
             return this.labelKey;
         }
 
-        public int baseColor() {
-            return this.baseColor;
-        }
-
-        public int outlineColor() {
-            return this.outlineColor;
-        }
-
-        public int[] grainColors() {
-            return this.grainColors;
+        public Block previewBlock(boolean hangingSign) {
+            return hangingSign ? this.hangingBlock : this.standingBlock;
         }
     }
 }

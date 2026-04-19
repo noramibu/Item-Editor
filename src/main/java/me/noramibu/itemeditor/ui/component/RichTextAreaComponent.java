@@ -1,6 +1,5 @@
 package me.noramibu.itemeditor.ui.component;
 
-import com.mojang.logging.LogUtils;
 import io.wispforest.owo.mixin.ui.access.MultilineTextFieldAccessor;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
@@ -20,8 +19,8 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
-import org.slf4j.Logger;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -34,11 +33,9 @@ import java.util.function.UnaryOperator;
 
 public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputUIComponent {
 
-    private static final Logger LOGGER = LogUtils.getLogger();
     private static final int LINE_HEIGHT = 9;
-    private static final int SCROLLBAR_GUTTER = 9;
+    private static final int SCROLLBAR_BASE_THICKNESS = 7;
     private static final int HISTORY_LIMIT = 128;
-    private static final boolean DEBUG_MOUSE_SYNC = Boolean.getBoolean("itemeditor.richtext.debugMouse");
     private static String richClipboardPlain = "";
     private static String richClipboardMarkup = "";
 
@@ -222,7 +219,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
+    public boolean mouseClicked(@NotNull MouseButtonEvent click, boolean doubled) {
         if (!this.active || !this.visible || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.isMouseOver(click.x(), click.y())) {
             if (!this.isMouseOver(click.x(), click.y())) {
                 this.setFocused(false);
@@ -238,7 +235,6 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         double preservedScroll = this.scrollAmount();
         int beforeCursor = this.editBox.cursor();
         int beforeSelection = this.selectionCursor();
-        this.debugMouse("click:before", click, preservedScroll, beforeCursor, beforeSelection, false);
         this.suppressFocusSyncOnce = !wasFocused;
         this.setFocused(true);
         if (!wasFocused) {
@@ -267,30 +263,27 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         if (moved) {
             this.afterCursorMove();
         }
-        this.debugMouse("click:after", click, this.scrollAmount(), afterCursor, afterSelection, true);
         return true;
     }
 
     @Override
-    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
+    public boolean mouseDragged(@NotNull MouseButtonEvent click, double deltaX, double deltaY) {
         if (!this.visible || !this.isFocused() || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             return false;
         }
         int beforeCursor = this.editBox.cursor();
         int beforeSelection = this.selectionCursor();
-        double beforeScroll = this.scrollAmount();
         boolean handled = super.mouseDragged(click, deltaX, deltaY);
         int afterCursor = this.editBox.cursor();
         int afterSelection = this.selectionCursor();
         if (handled && (beforeCursor != afterCursor || beforeSelection != afterSelection)) {
             this.afterCursorMove();
         }
-        this.debugMouse("drag", click, beforeScroll, afterCursor, afterSelection, handled);
         return handled;
     }
 
     @Override
-    public boolean keyPressed(KeyEvent input) {
+    public boolean keyPressed(@NotNull KeyEvent input) {
         if (!this.visible || !this.isFocused()) {
             return false;
         }
@@ -345,7 +338,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    public boolean charTyped(CharacterEvent input) {
+    public boolean charTyped(@NotNull CharacterEvent input) {
         if (!this.visible || !this.isFocused() || !input.isAllowedChatCharacter()) {
             return false;
         }
@@ -357,10 +350,9 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+    protected void extractContents(@NotNull GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         int baseX = this.getInnerLeft();
         int baseY = this.getInnerTop();
-        int innerWidth = this.innerContentWidth();
         RichTextSelectionModel selection = this.currentSelection();
 
         if (this.document.isEmpty() && !this.isFocused() && !this.placeholder.isBlank()) {
@@ -424,7 +416,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    protected void extractBackground(GuiGraphicsExtractor context) {
+    protected void extractBackground(@NotNull GuiGraphicsExtractor context) {
         int baseX = this.getInnerLeft();
         int baseY = this.getInnerTop();
         int innerWidth = this.innerContentWidth();
@@ -433,7 +425,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     @Override
-    public void inflate(io.wispforest.owo.ui.core.Size space) {
+    public void inflate(@NotNull io.wispforest.owo.ui.core.Size space) {
         super.inflate(space);
         this.refreshLayout();
         this.afterCursorMove();
@@ -639,7 +631,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     private int innerContentWidth() {
-        return Math.max(1, this.getWidth() - this.totalInnerPadding() - SCROLLBAR_GUTTER);
+        return Math.max(1, this.getWidth() - this.totalInnerPadding() - UiFactory.scrollContentInset(SCROLLBAR_BASE_THICKNESS));
     }
 
     private void clampScrollAmount() {
@@ -669,38 +661,6 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     private int ensureVisibleAlpha(int color) {
         return (color & 0xFF000000) == 0 ? color | 0xFF000000 : color;
-    }
-
-    private void debugMouse(String phase, MouseButtonEvent event, double scroll, int cursor, int selection, boolean handled) {
-        if (!DEBUG_MOUSE_SYNC) {
-            return;
-        }
-        int localX = (int) Math.floor(event.x() - this.getInnerLeft());
-        int localY = (int) Math.floor(event.y() - this.getInnerTop() + scroll);
-        int lineIndex = this.layoutLines.isEmpty() ? 0 : Math.clamp(localY / LINE_HEIGHT, 0, this.layoutLines.size() - 1);
-        int targetCursor = this.layoutLines.isEmpty() ? 0 : this.layoutLines.get(lineIndex).positionForX(localX);
-        LOGGER.info(
-                "[ItemEditor/RichText] {} handled={} x={} y={} widget=({},{} {}x{}) inner=({},{} w={}) local=({},{} line={}) target={} scroll={} cursor={} selection={} focused={}",
-                phase,
-                handled,
-                event.x(),
-                event.y(),
-                this.getX(),
-                this.getY(),
-                this.getWidth(),
-                this.getHeight(),
-                this.getInnerLeft(),
-                this.getInnerTop(),
-                this.innerContentWidth(),
-                localX,
-                localY,
-                lineIndex,
-                targetCursor,
-                scroll,
-                cursor,
-                selection,
-                this.isFocused()
-        );
     }
 
     private boolean copySelectionToClipboard(boolean cutSelection) {

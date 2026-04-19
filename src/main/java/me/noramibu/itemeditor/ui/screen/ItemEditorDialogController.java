@@ -1,6 +1,7 @@
 package me.noramibu.itemeditor.ui.screen;
 
 import io.wispforest.owo.ui.container.FlowLayout;
+import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.ui.component.ColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.ConfirmationDialog;
 import me.noramibu.itemeditor.ui.component.GradientPickerDialog;
@@ -18,13 +19,39 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
+import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
+import java.util.regex.Pattern;
 
 final class ItemEditorDialogController {
+    private static final Pattern INVALID_EXPORT_NAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
+    private static final DateTimeFormatter EXPORT_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+    private static final String EXPORT_DIRECTORY = "itemeditor/exports";
+    private static final String DEFAULT_EXPORT_BASENAME = "item-data";
+    private static final String UNKNOWN_ERROR_MESSAGE = "unknown error";
+    private static final String EXPORT_PREFIX_CURRENT_ITEM = "current-item";
+    private static final String EXPORT_PREFIX_ORIGINAL_ITEM = "original-item";
+    private static final String EXPORT_EXTENSION_NBT = "nbt";
+    private static final String EXPORT_EXTENSION_JSON = "json";
+    private static final String RAW_DIFF_HELP_TEXT = "Green background = added/changed, Red background = removed";
+    private static final String DIFF_LINE_UPDATED_PREFIX = "~ ";
+    private static final String DIFF_LINE_UNCHANGED_PREFIX = "  ";
+    private static final String DIFF_LINE_REMOVED_PREFIX = "- ";
+    private static final String DIFF_LINE_ADDED_PREFIX = "+ ";
+    private static final int RAW_DIFF_BG_UNCHANGED = 0x00000000;
+    private static final int RAW_DIFF_BG_ADDED_OR_CHANGED = 0x33276735;
+    private static final int RAW_DIFF_BG_REMOVED = 0x334C1F2A;
 
     private final ItemEditorScreen screen;
     private Runnable dialogConfirmShortcut;
@@ -40,7 +67,7 @@ final class ItemEditorDialogController {
                 ItemEditorText.str("common.reset"),
                 () -> {
                     this.clearDialog();
-                    this.screen.session().reset();
+                    this.session().reset();
                     this.screen.refreshCurrentPanel();
                 },
                 ItemEditorText.str("common.keep_editing"),
@@ -49,45 +76,31 @@ final class ItemEditorDialogController {
     }
 
     void requestApply() {
-        if (this.screen.session().hasErrors()) {
+        if (this.session().hasErrors()) {
             return;
         }
 
-        ItemStack original = this.screen.session().originalStack();
-        ItemStack preview = this.screen.session().previewStack();
-        ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(
-                original,
-                preview,
-                this.screen.session().registryAccess()
-        );
-
+        ItemStack original = this.session().originalStack();
+        ItemStack preview = this.session().previewStack();
+        ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(original, preview, this.session().registryAccess());
         if (diff.error() != null) {
-            this.showDialog(
-                    ItemEditorText.str("dialog.apply.title"),
-                    ItemEditorText.str("dialog.apply.diff_failed", diff.error()),
-                    ItemEditorText.str("common.save_apply"),
-                    () -> this.performApply(preview),
-                    ItemEditorText.str("common.cancel"),
-                    this::clearDialog,
-                    () -> this.performApply(preview)
+            this.showInfoDialog(
+                    ItemEditorText.str("dialog.apply_blocked.title"),
+                    ItemEditorText.str("dialog.apply.diff_failed", diff.error())
             );
             return;
         }
-
-        this.showDialog(
-                ItemDiffDialog.create(
+        this.showDialog(ItemDiffDialog.create(
                 ItemEditorText.str("dialog.apply.title"),
                 this.screen.applyModeText(),
                 diff.entries(),
-                () -> this.performApply(preview),
+                () -> this.performApply(preview.copy()),
                 this::clearDialog
-        ),
-                () -> this.performApply(preview)
-        );
+        ), () -> this.performApply(preview.copy()));
     }
 
     void requestClose() {
-        if (this.screen.session().dirty()) {
+        if (this.shouldConfirmDiscardOnClose()) {
             this.showDialog(
                     ItemEditorText.str("dialog.discard.title"),
                     "",
@@ -101,12 +114,17 @@ final class ItemEditorDialogController {
         }
     }
 
+    private boolean shouldConfirmDiscardOnClose() {
+        ItemEditorSession session = this.session();
+        return session.dirty() || session.hasErrors();
+    }
+
     boolean shouldCloseOnEsc() {
-        return !this.screen.hasActiveDialog();
+        return this.screen.isDialogClosed();
     }
 
     boolean handleDialogShortcut(KeyEvent input) {
-        if (!this.screen.hasActiveDialog()) {
+        if (this.screen.isDialogClosed()) {
             return false;
         }
         if (!input.hasControlDownWithQuirk() || input.key() != GLFW.GLFW_KEY_S) {
@@ -123,10 +141,7 @@ final class ItemEditorDialogController {
         this.showDialog(ColorPickerDialog.create(
                 title,
                 initialRgb,
-                color -> {
-                    this.clearDialog();
-                    onApply.accept(color);
-                },
+                color -> this.clearThen(() -> onApply.accept(color)),
                 this::clearDialog
         ));
     }
@@ -136,29 +151,209 @@ final class ItemEditorDialogController {
                 title,
                 initialStartRgb,
                 initialEndRgb,
-                (startColor, endColor) -> {
-                    this.clearDialog();
-                    onApply.accept(startColor, endColor);
-                },
+                (startColor, endColor) -> this.clearThen(() -> onApply.accept(startColor, endColor)),
                 this::clearDialog
         ));
     }
 
     void openRawItemDataDialog(String title, boolean previewData) {
-        String rawData = previewData
-                ? RawItemDataUtil.serialize(this.screen.session().previewStack(), this.screen.session().registryAccess())
-                : RawItemDataUtil.serialize(this.screen.session().originalStack(), this.screen.session().registryAccess());
+        ItemEditorSession session = this.session();
+        ItemStack originalStack = session.originalStack();
+        String originalRaw = RawItemDataUtil.serialize(originalStack, session.registryAccess());
+        String currentRaw = this.currentRawForDialog(session);
+        String rawData = previewData ? currentRaw : originalRaw;
+        String jsonData = previewData
+                ? this.currentJsonForDialog(session, currentRaw)
+                : RawItemDataUtil.serializeJson(originalStack, session.registryAccess());
+        String exportPrefix = previewData ? EXPORT_PREFIX_CURRENT_ITEM : EXPORT_PREFIX_ORIGINAL_ITEM;
+        List<RawItemDataDialog.Line> lines = previewData
+                ? this.buildRawDiffLines(originalRaw, currentRaw)
+                : this.toNeutralRawLines(rawData);
+        String body = previewData ? RAW_DIFF_HELP_TEXT : "";
         this.showDialog(RawItemDataDialog.create(
                 title,
-                "",
-                rawData,
+                body,
+                lines,
                 () -> {
-                    if (this.screen.session().minecraft() != null) {
-                        this.screen.session().minecraft().keyboardHandler.setClipboard(rawData);
+                    Minecraft minecraft = this.minecraft();
+                    if (minecraft != null) {
+                        minecraft.keyboardHandler.setClipboard(rawData);
                     }
                 },
+                () -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_NBT, rawData),
+                () -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_JSON, jsonData),
                 this::clearDialog
         ));
+    }
+
+    private String currentRawForDialog(ItemEditorSession session) {
+        if (session.state().rawEditorEdited) {
+            String raw = session.state().rawEditorText;
+            if (raw != null && !raw.isBlank()) {
+                return raw;
+            }
+        }
+        return RawItemDataUtil.serialize(session.previewStack(), session.registryAccess());
+    }
+
+    private String currentJsonForDialog(ItemEditorSession session, String currentRaw) {
+        if (session.state().rawEditorEdited) {
+            RawItemDataUtil.ParseResult parsed = RawItemDataUtil.parse(currentRaw, session.registryAccess());
+            if (parsed.success()) {
+                return RawItemDataUtil.serializeJson(parsed.stack(), session.registryAccess());
+            }
+            // Keep user edits even when invalid instead of silently exporting last successful parse.
+            return currentRaw;
+        }
+        return RawItemDataUtil.serializeJson(session.previewStack(), session.registryAccess());
+    }
+
+    private List<RawItemDataDialog.Line> toNeutralRawLines(String rawData) {
+        List<RawItemDataDialog.Line> lines = new ArrayList<>();
+        for (String line : rawData.split("\\R", -1)) {
+            lines.add(new RawItemDataDialog.Line(line, RAW_DIFF_BG_UNCHANGED));
+        }
+        return lines;
+    }
+
+    private List<RawItemDataDialog.Line> buildRawDiffLines(String originalRaw, String currentRaw) {
+        String[] original = originalRaw.split("\\R", -1);
+        String[] current = currentRaw.split("\\R", -1);
+        int n = original.length;
+        int m = current.length;
+
+        int[][] lcs = new int[n + 1][m + 1];
+        for (int i = n - 1; i >= 0; i--) {
+            for (int j = m - 1; j >= 0; j--) {
+                if (original[i].equals(current[j])) {
+                    lcs[i][j] = lcs[i + 1][j + 1] + 1;
+                } else {
+                    lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+                }
+            }
+        }
+
+        List<DiffOp> ops = new ArrayList<>();
+        int i = 0;
+        int j = 0;
+        while (i < n && j < m) {
+            if (original[i].equals(current[j])) {
+                ops.add(new DiffOp(DiffType.UNCHANGED, current[j]));
+                i++;
+                j++;
+            } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+                ops.add(new DiffOp(DiffType.REMOVED, original[i]));
+                i++;
+            } else {
+                ops.add(new DiffOp(DiffType.ADDED, current[j]));
+                j++;
+            }
+        }
+
+        while (i < n) {
+            ops.add(new DiffOp(DiffType.REMOVED, original[i]));
+            i++;
+        }
+        while (j < m) {
+            ops.add(new DiffOp(DiffType.ADDED, current[j]));
+            j++;
+        }
+
+        List<RawItemDataDialog.Line> lines = new ArrayList<>();
+        for (int index = 0; index < ops.size(); index++) {
+            DiffOp op = ops.get(index);
+            if ((op.type == DiffType.REMOVED || op.type == DiffType.ADDED) && index + 1 < ops.size()) {
+                DiffOp next = ops.get(index + 1);
+                if (this.isRemovalAdditionPair(op.type, next.type)) {
+                    String updatedText = op.type == DiffType.ADDED ? op.text : next.text;
+                    lines.add(new RawItemDataDialog.Line(DIFF_LINE_UPDATED_PREFIX + updatedText, RAW_DIFF_BG_ADDED_OR_CHANGED));
+                    index++;
+                    continue;
+                }
+            }
+            lines.add(this.toRawDiffLine(op));
+        }
+        return lines;
+    }
+
+    private boolean isRemovalAdditionPair(DiffType first, DiffType second) {
+        return (first == DiffType.REMOVED && second == DiffType.ADDED)
+                || (first == DiffType.ADDED && second == DiffType.REMOVED);
+    }
+
+    private RawItemDataDialog.Line toRawDiffLine(DiffOp op) {
+        if (op.type == DiffType.UNCHANGED) {
+            return new RawItemDataDialog.Line(DIFF_LINE_UNCHANGED_PREFIX + op.text, RAW_DIFF_BG_UNCHANGED);
+        }
+        if (op.type == DiffType.REMOVED) {
+            return new RawItemDataDialog.Line(DIFF_LINE_REMOVED_PREFIX + op.text, RAW_DIFF_BG_REMOVED);
+        }
+        return new RawItemDataDialog.Line(DIFF_LINE_ADDED_PREFIX + op.text, RAW_DIFF_BG_ADDED_OR_CHANGED);
+    }
+
+    private enum DiffType {
+        UNCHANGED,
+        ADDED,
+        REMOVED
+    }
+
+    private record DiffOp(DiffType type, String text) {
+        private DiffOp {
+            Objects.requireNonNull(type, "type");
+            text = text == null ? "" : text;
+        }
+    }
+
+    private void exportRawData(String baseName, String extension, String content) {
+        Minecraft minecraft = this.minecraft();
+        if (minecraft == null) {
+            return;
+        }
+
+        try {
+            Path exportDir = minecraft.gameDirectory.toPath().resolve(EXPORT_DIRECTORY);
+            Files.createDirectories(exportDir);
+
+            String safeBase = this.sanitizeFileName(baseName);
+            String timestamp = EXPORT_TIMESTAMP_FORMATTER.format(LocalDateTime.now());
+            Path file = exportDir.resolve(safeBase + "-" + timestamp + "." + extension);
+            Files.writeString(file, content, StandardCharsets.UTF_8);
+
+            this.sendSystemMessage(
+                    minecraft,
+                    ItemEditorText.str("dialog.raw_data.export_success", file.toString()),
+                    ChatFormatting.GREEN
+            );
+        } catch (IOException | RuntimeException exception) {
+            this.sendSystemMessage(
+                    minecraft,
+                    ItemEditorText.str("dialog.raw_data.export_failed", this.errorMessage(exception)),
+                    ChatFormatting.RED
+            );
+        }
+    }
+
+    private String sanitizeFileName(String value) {
+        if (value == null || value.isBlank()) {
+            return DEFAULT_EXPORT_BASENAME;
+        }
+        String sanitized = INVALID_EXPORT_NAME_CHARS.matcher(value).replaceAll("-");
+        if (sanitized.isBlank()) {
+            return DEFAULT_EXPORT_BASENAME;
+        }
+        return sanitized;
+    }
+
+    private String errorMessage(Throwable exception) {
+        String message = exception.getMessage();
+        return message == null ? UNKNOWN_ERROR_MESSAGE : message;
+    }
+
+    private void sendSystemMessage(Minecraft minecraft, String message, ChatFormatting color) {
+        if (minecraft.player == null) {
+            return;
+        }
+        minecraft.player.sendSystemMessage(Component.literal(message).withStyle(color));
     }
 
     void openSearchablePickerDialog(
@@ -173,30 +368,17 @@ final class ItemEditorDialogController {
                 body,
                 values,
                 labelMapper,
-                value -> {
-                    this.clearDialog();
+                value -> this.clearThen(() -> {
                     onSelect.accept(value);
                     this.screen.refreshCurrentPanel();
                     this.screen.refreshPreview();
-                },
+                }),
                 this::clearDialog
         ));
     }
 
     private void showDialog(String title, String body, String confirmText, Runnable onConfirm, String cancelText, Runnable onCancel) {
-        this.showDialog(title, body, confirmText, onConfirm, cancelText, onCancel, null);
-    }
-
-    private void showDialog(
-            String title,
-            String body,
-            String confirmText,
-            Runnable onConfirm,
-            String cancelText,
-            Runnable onCancel,
-            Runnable confirmShortcut
-    ) {
-        this.showDialog(ConfirmationDialog.create(title, body, confirmText, onConfirm, cancelText, onCancel), confirmShortcut);
+        this.showDialog(ConfirmationDialog.create(title, body, confirmText, onConfirm, cancelText, onCancel));
     }
 
     private void showDialog(FlowLayout dialog) {
@@ -216,9 +398,9 @@ final class ItemEditorDialogController {
     private void performApply(ItemStack expectedPreview) {
         this.clearDialog();
 
-        Minecraft minecraft = this.screen.session().minecraft();
+        Minecraft minecraft = this.minecraft();
         int selectedSlot = minecraft.player != null ? minecraft.player.getInventory().getSelectedSlot() : -1;
-        var result = this.screen.session().apply();
+        var result = this.session().apply();
 
         if (minecraft.player != null) {
             minecraft.player.sendOverlayMessage(
@@ -250,6 +432,22 @@ final class ItemEditorDialogController {
 
     private void closeWithoutPrompt() {
         this.clearDialog();
-        Minecraft.getInstance().setScreen(null);
+        Minecraft minecraft = this.minecraft();
+        if (minecraft != null) {
+            minecraft.setScreen(null);
+        }
+    }
+
+    private void clearThen(Runnable action) {
+        this.clearDialog();
+        action.run();
+    }
+
+    private ItemEditorSession session() {
+        return this.screen.session();
+    }
+
+    private Minecraft minecraft() {
+        return this.session().minecraft();
     }
 }

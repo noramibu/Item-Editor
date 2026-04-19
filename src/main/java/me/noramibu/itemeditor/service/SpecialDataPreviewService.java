@@ -14,6 +14,9 @@ public final class SpecialDataPreviewService {
             new BundleSpecialDataApplier(),
             new SignSpecialDataApplier(),
             new SpawnerSpecialDataApplier(),
+            new ArmorStandSpecialDataApplier(),
+            new ItemFrameSpecialDataApplier(),
+            new SpawnEggSpecialDataApplier(),
             new PotionSpecialDataApplier(),
             new StewSpecialDataApplier(),
             new FireworkSpecialDataApplier(),
@@ -24,7 +27,8 @@ public final class SpecialDataPreviewService {
             new ProfileSpecialDataApplier(),
             new InstrumentSpecialDataApplier(),
             new JukeboxSpecialDataApplier(),
-            new MapSpecialDataApplier()
+            new MapSpecialDataApplier(),
+            new AdvancedItemSpecialDataApplier()
     );
 
     public void applySpecialData(

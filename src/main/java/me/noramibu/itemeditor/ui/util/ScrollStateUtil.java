@@ -6,16 +6,19 @@ import java.lang.reflect.Field;
 
 public final class ScrollStateUtil {
 
+    private static final Field SCROLL_OFFSET_FIELD = findField("scrollOffset");
+    private static final Field CURRENT_SCROLL_POSITION_FIELD = findField("currentScrollPosition");
+    private static final Field LAST_SCROLL_POSITION_FIELD = findField("lastScrollPosition");
+    private static final Field MAX_SCROLL_FIELD = findField("maxScroll");
+
     private ScrollStateUtil() {
     }
 
     public static double offset(ScrollContainer<?> scroll) {
-        if (scroll == null) return 0;
+        if (scroll == null || SCROLL_OFFSET_FIELD == null) return 0;
         try {
-            Field field = ScrollContainer.class.getDeclaredField("scrollOffset");
-            field.setAccessible(true);
-            return field.getDouble(scroll);
-        } catch (ReflectiveOperationException ignored) {
+            return SCROLL_OFFSET_FIELD.getDouble(scroll);
+        } catch (IllegalAccessException ignored) {
             return 0;
         }
     }
@@ -35,25 +38,45 @@ public final class ScrollStateUtil {
 
     private static int max(ScrollContainer<?> scroll) {
         if (scroll == null) return 0;
+        if (MAX_SCROLL_FIELD == null) return 0;
         try {
-            Field field = ScrollContainer.class.getDeclaredField("maxScroll");
-            field.setAccessible(true);
-            return field.getInt(scroll);
-        } catch (ReflectiveOperationException ignored) {
+            return MAX_SCROLL_FIELD.getInt(scroll);
+        } catch (IllegalAccessException ignored) {
             return 0;
         }
     }
 
     private static void setField(ScrollContainer<?> scroll, String fieldName, double value) {
+        Field field;
+        if ("scrollOffset".equals(fieldName)) {
+            field = SCROLL_OFFSET_FIELD;
+        } else if ("currentScrollPosition".equals(fieldName)) {
+            field = CURRENT_SCROLL_POSITION_FIELD;
+        } else if ("lastScrollPosition".equals(fieldName)) {
+            field = LAST_SCROLL_POSITION_FIELD;
+        } else {
+            return;
+        }
+        if (field == null) {
+            return;
+        }
         try {
-            Field field = ScrollContainer.class.getDeclaredField(fieldName);
-            field.setAccessible(true);
             if (field.getType() == int.class) {
                 field.setInt(scroll, (int) Math.round(value));
             } else if (field.getType() == double.class) {
                 field.setDouble(scroll, value);
             }
+        } catch (IllegalAccessException ignored) {
+        }
+    }
+
+    private static Field findField(String name) {
+        try {
+            Field field = ScrollContainer.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
         } catch (ReflectiveOperationException ignored) {
+            return null;
         }
     }
 }

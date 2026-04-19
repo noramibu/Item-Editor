@@ -25,6 +25,19 @@ public final class SpawnerSpecialDataSection {
 
     private static final int AUTOCOMPLETE_LIMIT = 8;
     private static final int CHIP_LIMIT = 6;
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
+    private static final int INT_FIELD_WIDTH = 100;
+    private static final int POTENTIAL_WEIGHT_FIELD_WIDTH = 120;
+    private static final int PICKER_BUTTON_WIDTH = 70;
+    private static final int CHIP_LABEL_FIT_WIDTH = 86;
+    private static final int AUTOCOMPLETE_SUGGESTION_FIT_WIDTH = 320;
+    private static final int ACTION_BUTTON_WIDTH_MIN = 92;
+    private static final int ACTION_BUTTON_WIDTH_MAX = 170;
+    private static final int ACTION_BUTTON_ROW_RESERVE = 10;
+    private static final int CHIP_BUTTON_WIDTH_MIN = 68;
+    private static final int CHIP_BUTTON_WIDTH_MAX = 108;
+    private static final int CHIP_BUTTON_ROW_RESERVE = 12;
 
     private SpawnerSpecialDataSection() {
     }
@@ -37,6 +50,7 @@ public final class SpawnerSpecialDataSection {
         ItemEditorState.SpecialData special = context.special();
         Registry<EntityType<?>> entityRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.ENTITY_TYPE);
         List<String> entityIds = RegistryUtil.ids(entityRegistry);
+        boolean compactLayout = isCompactLayout(context);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.spawner.title"), Component.empty());
         section.child(UiFactory.field(
@@ -51,13 +65,13 @@ public final class SpawnerSpecialDataSection {
                 )
         ));
 
-        FlowLayout delayRow = UiFactory.row();
+        FlowLayout delayRow = compactLayout ? UiFactory.column() : UiFactory.row();
         delayRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.delay"), special.spawnerDelay, value -> special.spawnerDelay = value));
         delayRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.min_spawn_delay"), special.spawnerMinSpawnDelay, value -> special.spawnerMinSpawnDelay = value));
         delayRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.max_spawn_delay"), special.spawnerMaxSpawnDelay, value -> special.spawnerMaxSpawnDelay = value));
         section.child(delayRow);
 
-        FlowLayout countRow = UiFactory.row();
+        FlowLayout countRow = compactLayout ? UiFactory.column() : UiFactory.row();
         countRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.spawn_count"), special.spawnerSpawnCount, value -> special.spawnerSpawnCount = value));
         countRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.max_nearby_entities"), special.spawnerMaxNearbyEntities, value -> special.spawnerMaxNearbyEntities = value));
         countRow.child(buildIntField(context, ItemEditorText.tr("special.spawner.required_player_range"), special.spawnerRequiredPlayerRange, value -> special.spawnerRequiredPlayerRange = value));
@@ -81,10 +95,14 @@ public final class SpawnerSpecialDataSection {
             return section;
         }
 
-        section.child(UiFactory.button(
-                ItemEditorText.tr("special.spawner.add_potential"),
+        int contentWidth = Math.max(1, context.panelWidthHint());
+        int addPotentialButtonWidth = resolveButtonWidth(contentWidth, 1, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        ButtonComponent addPotentialButton = UiFactory.button(
+                ItemEditorText.tr("special.spawner.add_potential"), UiFactory.ButtonTextPreset.STANDARD, 
                 button -> context.mutateRefresh(() -> special.spawnerPotentials.add(new ItemEditorState.SpawnerPotentialDraft()))
-        ).horizontalSizing(Sizing.content()));
+        );
+        addPotentialButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(addPotentialButtonWidth));
+        section.child(addPotentialButton);
 
         for (int index = 0; index < special.spawnerPotentials.size(); index++) {
             section.child(buildPotentialCard(context, entityIds, special, index));
@@ -113,11 +131,11 @@ public final class SpawnerSpecialDataSection {
         card.child(UiFactory.field(
                 ItemEditorText.tr("special.spawner.entity_id"),
                 Component.empty(),
-                buildEntityInput(
-                        context,
-                        entityIds,
-                        draft.entityId,
-                        value -> draft.entityId = value,
+                        buildEntityInput(
+                                context,
+                                entityIds,
+                                draft.entityId,
+                                value -> draft.entityId = value,
                         () -> draft.entityId
                 )
         ));
@@ -125,7 +143,10 @@ public final class SpawnerSpecialDataSection {
         card.child(UiFactory.field(
                 ItemEditorText.tr("special.spawner.potential_weight"),
                 Component.empty(),
-                UiFactory.textBox(draft.weight, context.bindText(value -> draft.weight = value)).horizontalSizing(Sizing.fixed(120))
+                UiFactory.textBox(
+                        draft.weight,
+                        context.bindText(value -> draft.weight = value)
+                ).horizontalSizing(isCompactLayout(context) ? Sizing.fill(100) : UiFactory.fixed(POTENTIAL_WEIGHT_FIELD_WIDTH))
         ));
 
         return card;
@@ -135,12 +156,12 @@ public final class SpawnerSpecialDataSection {
             SpecialDataPanelContext context,
             Component label,
             String value,
-            java.util.function.Consumer<String> setter
+            Consumer<String> setter
     ) {
         return UiFactory.field(
                 label,
                 Component.empty(),
-                UiFactory.textBox(value, context.bindText(setter)).horizontalSizing(Sizing.fixed(100))
+        UiFactory.textBox(value, context.bindText(setter)).horizontalSizing(UiFactory.fixed(INT_FIELD_WIDTH))
         ).horizontalSizing(Sizing.fill(100));
     }
 
@@ -160,13 +181,14 @@ public final class SpawnerSpecialDataSection {
             Supplier<String> currentValueSupplier
     ) {
         FlowLayout input = UiFactory.column().gap(2);
+        boolean compactLayout = isCompactLayout(context);
 
-        FlowLayout inputRow = UiFactory.row();
+        FlowLayout inputRow = compactLayout ? UiFactory.column() : UiFactory.row();
         inputRow.child(UiFactory.textBox(
                 rawInput,
                 value -> context.mutateRefresh(() -> setter.accept(IdFieldNormalizer.normalize(value)))
         ));
-        inputRow.child(buildPickerButton(context, entityIds, currentValueSupplier, setter));
+        inputRow.child(buildPickerButton(context, entityIds, currentValueSupplier, setter, compactLayout));
         input.child(inputRow);
 
         FlowLayout chips = buildEntityChips(context, entityIds, rawInput, setter);
@@ -186,9 +208,10 @@ public final class SpawnerSpecialDataSection {
             SpecialDataPanelContext context,
             List<String> entityIds,
             Supplier<String> currentValueSupplier,
-            Consumer<String> setter
+            Consumer<String> setter,
+            boolean compactLayout
     ) {
-        ButtonComponent button = UiFactory.button(ItemEditorText.tr("common.pick"), component ->
+        ButtonComponent button = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,  component ->
                 context.openSearchablePicker(
                         ItemEditorText.str("special.spawner.entity_picker_title"),
                         "",
@@ -197,7 +220,7 @@ public final class SpawnerSpecialDataSection {
                         id -> context.mutateRefresh(() -> setter.accept(id))
                 )
         );
-        button.horizontalSizing(Sizing.fixed(70));
+        button.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(PICKER_BUTTON_WIDTH));
         String current = currentValueSupplier.get();
         if (current != null && !current.isBlank()) {
             button.tooltip(List.of(Component.literal(current)));
@@ -216,14 +239,17 @@ public final class SpawnerSpecialDataSection {
                 ? defaultEntityChips(entityIds)
                 : entityIds.stream().filter(id -> id.contains(normalized)).limit(CHIP_LIMIT).toList();
 
-        FlowLayout row = UiFactory.row();
+        boolean compactLayout = isCompactLayout(context);
+        int contentWidth = Math.max(1, context.panelWidthHint());
+        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.gap(2);
+        int chipWidth = resolveButtonWidth(contentWidth, Math.max(1, chips.size()), CHIP_BUTTON_WIDTH_MIN, CHIP_BUTTON_WIDTH_MAX, CHIP_BUTTON_ROW_RESERVE);
         for (String entityId : chips) {
-            Component label = UiFactory.fitToWidth(Component.literal(shortEntityId(entityId)), 86);
-            ButtonComponent chip = UiFactory.button(label, button ->
+            Component label = UiFactory.fitToWidth(Component.literal(shortEntityId(entityId)), CHIP_LABEL_FIT_WIDTH);
+            ButtonComponent chip = UiFactory.button(label, UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> setter.accept(entityId))
             );
-            chip.horizontalSizing(Sizing.content());
+            chip.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(chipWidth));
             chip.tooltip(List.of(Component.literal(entityId)));
             row.child(chip);
         }
@@ -248,7 +274,7 @@ public final class SpawnerSpecialDataSection {
                 .toList();
         for (String match : matches) {
             ButtonComponent suggestion = UiFactory.button(
-                    UiFactory.fitToWidth(Component.literal(match), 320),
+                    UiFactory.fitToWidth(Component.literal(match), AUTOCOMPLETE_SUGGESTION_FIT_WIDTH), UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> setter.accept(match))
             );
             suggestion.horizontalSizing(Sizing.fill(100));
@@ -287,8 +313,30 @@ public final class SpawnerSpecialDataSection {
         return chips;
     }
 
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+    }
+
     private static String shortEntityId(String entityId) {
         int separator = entityId.indexOf(':');
         return separator >= 0 && separator + 1 < entityId.length() ? entityId.substring(separator + 1) : entityId;
+    }
+
+    private static int resolveButtonWidth(
+            int contentWidth,
+            int buttonCount,
+            int minWidth,
+            int maxWidth,
+            int rowReserve
+    ) {
+        int preferred = Math.max(
+                minWidth,
+                Math.min(
+                        maxWidth,
+                        (contentWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount)
+                )
+        );
+        return Math.max(1, Math.min(contentWidth, preferred));
     }
 }

@@ -24,10 +24,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public final class BundleSpecialDataSection {
 
     private static final int SEARCH_PICKER_BUTTON_WIDTH = 132;
+    private static final int COUNT_FIELD_WIDTH = 104;
+    private static final int EMPTY_HINT_WIDTH = 280;
+    private static final int METRICS_HINT_WIDTH = 280;
+    private static final int ENTRY_PREVIEW_HINT_WIDTH = 240;
+    private static final int ENTRY_SELECTED_HINT_WIDTH = 160;
+    private static final int ACTION_BUTTON_WIDTH_MIN = 72;
+    private static final int ACTION_BUTTON_WIDTH_MAX = 136;
+    private static final int ACTION_BUTTON_ROW_RESERVE = 12;
+    private static final int COUNT_STEP_BUTTON_WIDTH_MIN = 58;
+    private static final int COUNT_STEP_BUTTON_WIDTH_MAX = 118;
+    private static final int COUNT_STEP_BUTTON_ROW_RESERVE = 16;
+    private static final int ACTION_BUTTON_TEXT_MIN = 18;
+    private static final int ACTION_BUTTON_TEXT_RESERVE = 10;
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 600;
 
     private BundleSpecialDataSection() {
     }
@@ -38,6 +54,7 @@ public final class BundleSpecialDataSection {
 
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
+        boolean compactLayout = isCompactLayout(context);
         normalizeSelection(special);
         syncSlots(special.bundleEntries);
 
@@ -48,10 +65,10 @@ public final class BundleSpecialDataSection {
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.bundle.title"), Component.empty());
         section.child(buildMetricsCard(special));
-        section.child(buildActions(context, special));
+        section.child(buildActions(context, special, compactLayout));
 
         if (special.bundleEntries.isEmpty()) {
-            section.child(UiFactory.muted(ItemEditorText.tr("special.bundle.empty"), 280));
+            section.child(UiFactory.muted(ItemEditorText.tr("special.bundle.empty"), EMPTY_HINT_WIDTH));
             return section;
         }
 
@@ -86,7 +103,7 @@ public final class BundleSpecialDataSection {
                 weight.getNumerator(),
                 weight.getDenominator(),
                 formatPercent(fillPercent)
-        ), 280));
+        ), METRICS_HINT_WIDTH));
 
         if (fillPercent > 100d) {
             card.child(UiFactory.message(ItemEditorText.tr("special.bundle.metrics.overfilled"), 0xFF8A8A));
@@ -95,9 +112,11 @@ public final class BundleSpecialDataSection {
         return card;
     }
 
-    private static FlowLayout buildActions(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        FlowLayout row = UiFactory.row();
-        row.child(UiFactory.button(ItemEditorText.tr("special.bundle.add"), button ->
+    private static FlowLayout buildActions(SpecialDataPanelContext context, ItemEditorState.SpecialData special, boolean compactLayout) {
+        int contentWidth = Math.max(1, context.panelWidthHint());
+        int actionButtonWidth = resolveActionButtonWidth(contentWidth);
+        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
+        ButtonComponent addButton = boundedActionButton(ItemEditorText.tr("special.bundle.add"), actionButtonWidth, button ->
                 context.mutateRefresh(() -> {
                     int insertAt = special.selectedBundleIndex < 0
                             ? special.bundleEntries.size()
@@ -108,9 +127,11 @@ public final class BundleSpecialDataSection {
                     syncSlots(special.bundleEntries);
                     special.selectedBundleIndex = insertAt;
                 })
-        ).horizontalSizing(Sizing.content()));
+        );
+        addButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth));
+        row.child(addButton);
 
-        ButtonComponent remove = UiFactory.button(ItemEditorText.tr("special.bundle.remove_selected"), button ->
+        ButtonComponent remove = boundedActionButton(ItemEditorText.tr("special.bundle.remove_selected"), actionButtonWidth, button ->
                 context.mutateRefresh(() -> {
                     if (special.selectedBundleIndex >= 0 && special.selectedBundleIndex < special.bundleEntries.size()) {
                         special.bundleEntries.remove(special.selectedBundleIndex);
@@ -124,7 +145,7 @@ public final class BundleSpecialDataSection {
                 })
         );
         remove.active(special.selectedBundleIndex >= 0 && special.selectedBundleIndex < special.bundleEntries.size());
-        row.child(remove.horizontalSizing(Sizing.content()));
+        row.child(remove.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth)));
         return row;
     }
 
@@ -132,8 +153,10 @@ public final class BundleSpecialDataSection {
             SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
             List<String> itemIds,
-            int index
+        int index
     ) {
+        boolean compactLayout = isCompactLayout(context);
+        int contentWidth = Math.max(1, context.panelWidthHint());
         ItemEditorState.ContainerEntryDraft entry = special.bundleEntries.get(index);
         ItemStack stack = stackForEntry(entry);
         boolean invalidId = isInvalidItemId(entry.itemId);
@@ -148,16 +171,16 @@ public final class BundleSpecialDataSection {
                 () -> removeEntry(special, index)
         );
 
-        FlowLayout preview = UiFactory.row();
+        FlowLayout preview = compactLayout ? UiFactory.column() : UiFactory.row();
         preview.child(UIComponents.item(stack).showOverlay(true));
         preview.child(UiFactory.muted(stack.isEmpty()
                 ? ItemEditorText.tr("special.bundle.entry.empty")
-                : ItemEditorText.tr("special.bundle.entry.stack", stack.getHoverName(), stack.getCount()), 240));
+                : ItemEditorText.tr("special.bundle.entry.stack", stack.getHoverName(), stack.getCount()), ENTRY_PREVIEW_HINT_WIDTH));
         card.child(preview);
 
-        FlowLayout itemInput = UiFactory.row();
+        FlowLayout itemInput = compactLayout ? UiFactory.column() : UiFactory.row();
         itemInput.child(UiFactory.textBox(entry.itemId, value -> context.mutateRefresh(() -> updateItemId(entry, value))));
-        itemInput.child(UiFactory.button(ItemEditorText.tr("special.bundle.select_item"), button ->
+        itemInput.child(UiFactory.button(ItemEditorText.tr("special.bundle.select_item"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.openSearchablePicker(
                         ItemEditorText.str("special.bundle.item_picker_title"),
                         "",
@@ -165,17 +188,25 @@ public final class BundleSpecialDataSection {
                         value -> value,
                         selected -> context.mutateRefresh(() -> updateItemId(entry, selected))
                 )
-        ).horizontalSizing(Sizing.fixed(SEARCH_PICKER_BUTTON_WIDTH)));
+                ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(SEARCH_PICKER_BUTTON_WIDTH)));
         card.child(UiFactory.field(ItemEditorText.tr("special.container.item"), Component.empty(), itemInput));
 
-        FlowLayout countRow = UiFactory.row();
-        countRow.child(UiFactory.button(ItemEditorText.tr("special.container.count_decrease"), button ->
-                context.mutateRefresh(() -> stepCount(entry, -1))
-        ).horizontalSizing(Sizing.content()));
-        countRow.child(UiFactory.textBox(entry.count, value -> context.mutate(() -> entry.count = value)).horizontalSizing(Sizing.fixed(104)));
-        countRow.child(UiFactory.button(ItemEditorText.tr("special.container.count_increase"), button ->
-                context.mutateRefresh(() -> stepCount(entry, 1))
-        ).horizontalSizing(Sizing.content()));
+        FlowLayout countRow = compactLayout ? UiFactory.column() : UiFactory.row();
+        int countStepButtonWidth = resolveCountStepButtonWidth(contentWidth);
+        ButtonComponent decreaseButton = boundedActionButton(
+                ItemEditorText.tr("special.container.count_decrease"),
+                countStepButtonWidth,
+                button -> context.mutateRefresh(() -> stepCount(entry, -1))
+        );
+        countRow.child(decreaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth)));
+        countRow.child(UiFactory.textBox(entry.count, value -> context.mutate(() -> entry.count = value))
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COUNT_FIELD_WIDTH)));
+        ButtonComponent increaseButton = boundedActionButton(
+                ItemEditorText.tr("special.container.count_increase"),
+                countStepButtonWidth,
+                button -> context.mutateRefresh(() -> stepCount(entry, 1))
+        );
+        countRow.child(increaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth)));
         card.child(UiFactory.field(ItemEditorText.tr("special.container.count"), Component.empty(), countRow));
 
         if (invalidId) {
@@ -185,11 +216,15 @@ public final class BundleSpecialDataSection {
         }
 
         if (special.selectedBundleIndex != index) {
-            card.child(UiFactory.button(ItemEditorText.tr("special.bundle.select_entry"), button ->
-                    context.mutateRefresh(() -> special.selectedBundleIndex = index)
-            ).horizontalSizing(Sizing.content()));
+            int selectWidth = resolveActionButtonWidth(contentWidth);
+            ButtonComponent selectEntry = boundedActionButton(
+                    ItemEditorText.tr("special.bundle.select_entry"),
+                    selectWidth,
+                    button -> context.mutateRefresh(() -> special.selectedBundleIndex = index)
+            );
+            card.child(selectEntry.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(selectWidth)));
         } else {
-            card.child(UiFactory.muted(ItemEditorText.tr("special.bundle.selected"), 160));
+            card.child(UiFactory.muted(ItemEditorText.tr("special.bundle.selected"), ENTRY_SELECTED_HINT_WIDTH));
         }
 
         return card;
@@ -218,14 +253,14 @@ public final class BundleSpecialDataSection {
         Item item = ContainerEntryDraftUtil.resolveItem(entry.itemId);
         if (item == null || item == Items.AIR) {
             if (entry.templateStack != null && !entry.templateStack.isEmpty()) {
-                int fallbackCount = parseCount(entry.count, entry.templateStack.getCount());
+                int fallbackCount = ContainerEntryDraftUtil.parseIntOrDefault(entry.count, entry.templateStack.getCount());
                 return entry.templateStack.copyWithCount(Math.max(1, fallbackCount));
             }
             return ItemStack.EMPTY;
         }
 
         int max = Math.max(1, new ItemStack(item).getMaxStackSize());
-        int count = Math.clamp(parseCount(entry.count, 1), 1, max);
+        int count = Math.clamp(ContainerEntryDraftUtil.parseIntOrDefault(entry.count, 1), 1, max);
         if (entry.templateStack != null && !entry.templateStack.isEmpty() && entry.templateStack.is(item)) {
             return entry.templateStack.copyWithCount(count);
         }
@@ -249,7 +284,7 @@ public final class BundleSpecialDataSection {
         }
 
         int max = Math.max(1, new ItemStack(item).getMaxStackSize());
-        int count = Math.clamp(parseCount(entry.count, 1), 1, max);
+        int count = Math.clamp(ContainerEntryDraftUtil.parseIntOrDefault(entry.count, 1), 1, max);
         entry.count = Integer.toString(count);
         ContainerEntryDraftUtil.syncTemplateStack(entry, item, count);
     }
@@ -257,7 +292,7 @@ public final class BundleSpecialDataSection {
     private static void stepCount(ItemEditorState.ContainerEntryDraft entry, int delta) {
         Item item = ContainerEntryDraftUtil.resolveItem(entry.itemId);
         int max = item == null || item == Items.AIR ? 99 : Math.max(1, new ItemStack(item).getMaxStackSize());
-        int count = Math.clamp(parseCount(entry.count, 1) + delta, 1, max);
+        int count = Math.clamp(ContainerEntryDraftUtil.parseIntOrDefault(entry.count, 1) + delta, 1, max);
         entry.count = Integer.toString(count);
         if (entry.templateStack != null && !entry.templateStack.isEmpty()) {
             entry.templateStack = entry.templateStack.copyWithCount(count);
@@ -301,15 +336,47 @@ public final class BundleSpecialDataSection {
         }
     }
 
-    private static int parseCount(String raw, int fallback) {
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (RuntimeException ignored) {
-            return fallback;
-        }
-    }
-
     private static String formatPercent(double value) {
         return String.format(Locale.ROOT, "%.1f%%", value);
+    }
+
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+    }
+
+    private static ButtonComponent boundedActionButton(
+            Component fullText,
+            int width,
+            Consumer<ButtonComponent> onPress
+    ) {
+        Component fitted = UiFactory.fitToWidth(
+                fullText,
+                Math.max(ACTION_BUTTON_TEXT_MIN, width - UiFactory.scaledPixels(ACTION_BUTTON_TEXT_RESERVE))
+        );
+        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
+        button.horizontalSizing(Sizing.fixed(width));
+        if (!fitted.getString().equals(fullText.getString())) {
+            button.tooltip(List.of(fullText));
+        }
+        return button;
+    }
+
+    private static int resolveActionButtonWidth(int contentWidth) {
+        int preferred = Math.max(
+                ACTION_BUTTON_WIDTH_MIN,
+                Math.min(
+                        ACTION_BUTTON_WIDTH_MAX,
+                        (contentWidth - UiFactory.scaledPixels(ACTION_BUTTON_ROW_RESERVE)) / 2
+                )
+        );
+        return Math.max(1, Math.min(contentWidth, preferred));
+    }
+
+    private static int resolveCountStepButtonWidth(int contentWidth) {
+        int available = contentWidth - COUNT_FIELD_WIDTH - UiFactory.scaledPixels(COUNT_STEP_BUTTON_ROW_RESERVE);
+        int perButton = available / 2;
+        int preferred = Math.max(COUNT_STEP_BUTTON_WIDTH_MIN, Math.min(COUNT_STEP_BUTTON_WIDTH_MAX, perButton));
+        return Math.max(1, Math.min(contentWidth, preferred));
     }
 }

@@ -4,7 +4,6 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
@@ -18,6 +17,27 @@ public final class SearchablePickerDialog {
 
     private static final int DIALOG_WIDTH = 640;
     private static final int RESULTS_HEIGHT = 340;
+    private static final int DIALOG_GAP = 8;
+    private static final int RESULTS_GAP = 4;
+    private static final int BODY_TEXT_MARGIN = 32;
+    private static final int LINE_TEXT_MARGIN = 48;
+    private static final int BUTTON_RESERVE_EXTRA = 16;
+    private static final int COMPACT_BUTTON_WIDTH_THRESHOLD = 360;
+    private static final int HEADER_RESERVE_EMPTY_BODY = 96;
+    private static final int HEADER_RESERVE_WITH_BODY = 116;
+    private static final int FOOTER_ROWS = 1;
+    private static final int RESULTS_MIN_HEIGHT = 136;
+    private static final int DIALOG_MIN_HEIGHT = 240;
+    private static final int LABEL_WIDTH_MIN = 160;
+    private static final int LABEL_WIDTH_RESERVE = 24;
+    private static final int LABEL_SCROLLBAR_INSET_BASE = 8;
+    private static final int RESULTS_SCROLL_STEP = 12;
+    private static final int FOOTER_BUTTON_MIN_WIDTH = 72;
+    private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
+    private static final int FOOTER_BUTTON_DIVISOR = 4;
+    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
+    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
+    private static final String EMPTY_TEXT = "";
 
     private SearchablePickerDialog() {
     }
@@ -32,18 +52,25 @@ public final class SearchablePickerDialog {
     ) {
         FlowLayout overlay = DialogUiUtil.overlay();
         int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
-        int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 32);
-        int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, 48);
-        int resultsHeight = DialogUiUtil.scrollHeight(RESULTS_HEIGHT);
+        boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
+        int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN);
+        int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, LINE_TEXT_MARGIN);
+        int controlHeight = UiFactory.scaleProfile().controlHeight();
+        int footerReserve = DialogUiUtil.buttonRowReserve(compactButtons, FOOTER_ROWS, BUTTON_RESERVE_EXTRA, BUTTON_RESERVE_EXTRA);
+        int headerReserve = UiFactory.scaledPixels(body.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY) + controlHeight + footerReserve;
+        int resultsHeight = Math.min(
+                DialogUiUtil.scrollHeight(RESULTS_HEIGHT),
+                DialogUiUtil.availableDialogContentHeight(headerReserve, RESULTS_MIN_HEIGHT)
+        );
+        int dialogHeight = DialogUiUtil.dialogHeight(headerReserve + resultsHeight, DIALOG_MIN_HEIGHT);
 
-        FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(8);
+        FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
         dialog.child(UiFactory.title(title));
         if (!body.isBlank()) {
             dialog.child(UiFactory.muted(body, bodyTextWidth));
         }
 
-        TextBoxComponent search = UiFactory.textBox("", value -> {});
-        search.horizontalSizing(Sizing.fill(100));
+        TextBoxComponent search = UiFactory.textBox(EMPTY_TEXT, value -> {});
         dialog.child(UiFactory.field(
                 ItemEditorText.tr("dialog.searchable_picker.search"),
                 Component.empty(),
@@ -53,18 +80,27 @@ public final class SearchablePickerDialog {
         LabelComponent resultsCount = UiFactory.muted("", bodyTextWidth);
         dialog.child(resultsCount);
 
+        int preferredLabelWidth = Math.max(
+                LABEL_WIDTH_MIN,
+                lineTextWidth - LABEL_WIDTH_RESERVE - UiFactory.scrollContentInset(LABEL_SCROLLBAR_INSET_BASE)
+        );
+        int maxLabelWidth = Math.max(1, Math.min(lineTextWidth, preferredLabelWidth));
         FlowLayout results = UiFactory.column();
-        ScrollContainer<FlowLayout> resultScroll = DialogUiUtil.vanillaScroll(
-                UIContainers.verticalScroll(
-                        Sizing.fill(100),
-                        Sizing.fixed(resultsHeight),
-                        results
-                ),
-                12
+        results.gap(RESULTS_GAP);
+
+        InputSafeScrollContainer<FlowLayout> modalScroll = InputSafeScrollContainer.vertical(
+                Sizing.fill(100),
+                UiFactory.fixed(resultsHeight),
+                results
+        ).consumeScrollWhenHovered(true);
+
+        ScrollContainer<FlowLayout> verticalScroll = DialogUiUtil.vanillaScroll(
+                modalScroll,
+                RESULTS_SCROLL_STEP
         );
 
         FlowLayout resultCard = UiFactory.subCard();
-        resultCard.child(resultScroll);
+        resultCard.child(verticalScroll);
         dialog.child(resultCard);
 
         Runnable refresh = () -> {
@@ -73,36 +109,63 @@ public final class SearchablePickerDialog {
             int matches = 0;
 
             for (String value : values) {
-                String label = labelMapper.apply(value);
-                String normalizedLabel = label.toLowerCase(Locale.ROOT);
-                String normalizedValue = value.toLowerCase(Locale.ROOT);
-                if (!query.isBlank() && !normalizedLabel.contains(query) && !normalizedValue.contains(query)) {
+                String label = normalizedLabel(value, labelMapper);
+                String rawValue = normalizedValue(value);
+                String lowerLabel = label.toLowerCase(Locale.ROOT);
+                String lowerValue = rawValue.toLowerCase(Locale.ROOT);
+                if (!query.isBlank() && !lowerLabel.contains(query) && !lowerValue.contains(query)) {
                     continue;
                 }
 
                 matches++;
-                var button = UiFactory.button(Component.literal(label), component -> onSelect.accept(value));
+                Component fitted = UiFactory.fitToWidth(Component.literal(label), maxLabelWidth);
+                var button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD,  component -> onSelect.accept(value));
                 button.horizontalSizing(Sizing.fill(100));
-                if (!label.equals(value)) {
-                    button.tooltip(List.of(Component.literal(value)));
+                if (!label.equals(rawValue) || !fitted.getString().equals(label)) {
+                    button.tooltip(List.of(Component.literal(label), Component.literal(rawValue)));
                 }
                 results.child(button);
             }
 
             resultsCount.text(ItemEditorText.tr("dialog.searchable_picker.results", matches, values.size()));
             if (matches == 0) {
-                results.child(UiFactory.muted(ItemEditorText.tr("dialog.searchable_picker.none"), lineTextWidth));
+                results.child(UiFactory.muted(ItemEditorText.tr("dialog.searchable_picker.none"), maxLabelWidth));
             }
         };
 
         search.onChanged().subscribe(value -> refresh.run());
         refresh.run();
 
-        FlowLayout buttonRow = DialogUiUtil.rightAlignedButtonRow();
-        buttonRow.child(UiFactory.button(ItemEditorText.tr("common.cancel"), button -> onCancel.run()).horizontalSizing(Sizing.content()));
+        FlowLayout buttonRow = compactButtons ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
+        Component cancelText = ItemEditorText.tr("common.cancel");
+        var cancelButton = DialogUiUtil.footerButtonByDivisor(
+                cancelText,
+                dialogWidth,
+                compactButtons,
+                FOOTER_BUTTON_MIN_WIDTH,
+                FOOTER_BUTTON_MAX_WIDTH,
+                FOOTER_BUTTON_DIVISOR,
+                FOOTER_BUTTON_TEXT_MIN_WIDTH,
+                FOOTER_BUTTON_TEXT_RESERVE,
+                button -> onCancel.run()
+        );
+        buttonRow.child(cancelButton);
         dialog.child(buttonRow);
 
         overlay.child(dialog);
         return overlay;
+    }
+
+    private static String normalizedLabel(String value, Function<String, String> labelMapper) {
+        String normalized = normalizedValue(value);
+        if (labelMapper == null) {
+            return normalized;
+        }
+        String mapped = labelMapper.apply(normalized);
+        return mapped == null ? EMPTY_TEXT : mapped;
+    }
+
+    private static String normalizedValue(String value) {
+        return value == null ? EMPTY_TEXT : value;
     }
 }

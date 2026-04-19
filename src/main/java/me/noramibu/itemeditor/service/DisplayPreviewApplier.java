@@ -14,7 +14,13 @@ final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implemen
 
     @Override
     public void apply(ItemPreviewApplyContext context) {
-        if (this.sameLore(context.state().loreLines, context.baselineState().loreLines)) {
+        if (this.sameList(context.state().loreLines, context.baselineState().loreLines, (left, right) -> Objects.equals(left.rawText, right.rawText)
+                && Objects.equals(left.style.colorHex, right.style.colorHex)
+                && left.style.bold == right.style.bold
+                && left.style.italic == right.style.italic
+                && left.style.underlined == right.style.underlined
+                && left.style.strikethrough == right.style.strikethrough
+                && left.style.obfuscated == right.style.obfuscated)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.LORE);
             return;
         }
@@ -30,15 +36,5 @@ final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implemen
             lore.add(this.withPlainBaseline(component));
         }
         context.previewStack().set(DataComponents.LORE, new ItemLore(lore));
-    }
-
-    private boolean sameLore(List<ItemEditorState.LoreLineDraft> current, List<ItemEditorState.LoreLineDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.rawText, right.rawText)
-                && Objects.equals(left.style.colorHex, right.style.colorHex)
-                && left.style.bold == right.style.bold
-                && left.style.italic == right.style.italic
-                && left.style.underlined == right.style.underlined
-                && left.style.strikethrough == right.style.strikethrough
-                && left.style.obfuscated == right.style.obfuscated);
     }
 }
