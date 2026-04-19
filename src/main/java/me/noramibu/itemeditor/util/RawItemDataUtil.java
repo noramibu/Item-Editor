@@ -103,7 +103,7 @@ public final class RawItemDataUtil {
 
         Tag parsedTag;
         try {
-            parsedTag = TagParser.create(NbtOps.INSTANCE).parseFully(rawData);
+            parsedTag = parseWithNegativeSpecialLiteralFallback(rawData);
             parsedTag = normalizeSpecialFloatingLiterals(parsedTag, null);
         } catch (CommandSyntaxException exception) {
             int cursor = Math.clamp(exception.getCursor(), 0, rawData.length());
@@ -140,6 +140,101 @@ public final class RawItemDataUtil {
                         -1,
                         -1
                 ));
+    }
+
+    private static Tag parseWithNegativeSpecialLiteralFallback(String rawData) throws CommandSyntaxException {
+        try {
+            return TagParser.create(NbtOps.INSTANCE).parseFully(rawData);
+        } catch (CommandSyntaxException firstFailure) {
+            String adjusted = quoteNegativeSpecialFloatingLiterals(rawData);
+            if (adjusted.equals(rawData)) {
+                throw firstFailure;
+            }
+            try {
+                return TagParser.create(NbtOps.INSTANCE).parseFully(adjusted);
+            } catch (CommandSyntaxException ignored) {
+                throw firstFailure;
+            }
+        }
+    }
+
+    private static String quoteNegativeSpecialFloatingLiterals(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+
+        StringBuilder output = new StringBuilder(input.length() + 16);
+        boolean inString = false;
+        boolean escaping = false;
+        char quote = 0;
+
+        for (int index = 0; index < input.length(); ) {
+            char value = input.charAt(index);
+            if (inString) {
+                output.append(value);
+                if (escaping) {
+                    escaping = false;
+                } else if (value == '\\') {
+                    escaping = true;
+                } else if (value == quote) {
+                    inString = false;
+                }
+                index++;
+                continue;
+            }
+
+            if (value == '"' || value == '\'') {
+                inString = true;
+                quote = value;
+                output.append(value);
+                index++;
+                continue;
+            }
+
+            int end = scanNegativeSpecialFloatingLiteral(input, index);
+            if (end > index
+                    && (index == 0 || !isIdentifierLikeCharacter(input.charAt(index - 1)))
+                    && (end >= input.length() || !isIdentifierLikeCharacter(input.charAt(end)))) {
+                output.append('"').append(input, index, end).append('"');
+                index = end;
+                continue;
+            }
+
+            output.append(value);
+            index++;
+        }
+        return output.toString();
+    }
+
+    private static int scanNegativeSpecialFloatingLiteral(String input, int index) {
+        if (index < 0 || index >= input.length() || input.charAt(index) != '-') {
+            return -1;
+        }
+        int cursor = index + 1;
+        if (cursor + 8 <= input.length() && input.regionMatches(true, cursor, "infinity", 0, 8)) {
+            cursor += 8;
+        } else if (cursor + 3 <= input.length() && input.regionMatches(true, cursor, "nan", 0, 3)) {
+            cursor += 3;
+        } else {
+            return -1;
+        }
+        if (cursor < input.length()) {
+            char suffix = Character.toLowerCase(input.charAt(cursor));
+            if (suffix == 'd' || suffix == 'f') {
+                cursor++;
+            }
+        }
+        return cursor;
+    }
+
+    private static boolean isIdentifierLikeCharacter(char value) {
+        return Character.isLetterOrDigit(value)
+                || value == '_'
+                || value == '-'
+                || value == '.'
+                || value == '/'
+                || value == ':'
+                || value == '#';
     }
 
     private static Tag normalizeSpecialFloatingLiterals(Tag tag, String keyHint) {

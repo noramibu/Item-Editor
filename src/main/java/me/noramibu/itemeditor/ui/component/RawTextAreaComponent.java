@@ -44,7 +44,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private static final int MAX_RENDER_LINE_CHARS = 2048;
     private static final int MAX_SYNTAX_RENDER_BUDGET_CHARS = 24_000;
     private static final int MAX_SYNTAX_DEPTH_SCAN_TOTAL_CHARS = 320_000;
-    private static final int MAX_FOLD_SCAN_TOTAL_CHARS = 250000;
+    // I didn't notice any lag with 8M char NBTs so i assume it's safe to get rid of this for now.
+    // private static final int MAX_FOLD_SCAN_TOTAL_CHARS = 250000;
 
     private static final int COLOR_BACKGROUND = 0xCC0A0F18;
     private static final int COLOR_BACKGROUND_SOLID = 0xFF0A0F18;
@@ -3204,12 +3205,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void rebuildFoldLayout() {
+        /* see LINE:47 (MAX_FOLD_SCAN_TOTAL_CHARS)
         if (this.text.length() > MAX_FOLD_SCAN_TOTAL_CHARS) {
             this.foldRegions = List.of();
             this.applyFoldVisibility();
             return;
         }
-
+        */
         Map<Long, Boolean> collapsedByKey = new HashMap<>();
         for (FoldRegion region : this.foldRegions) {
             collapsedByKey.put(region.key(), region.collapsed);
