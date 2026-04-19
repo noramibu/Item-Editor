@@ -2,11 +2,11 @@ package me.noramibu.itemeditor.service;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
+import com.mojang.authlib.properties.PropertyMap;
+import com.google.common.collect.LinkedHashMultimap;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.HeadTextureUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.util.Util;
 import net.minecraft.world.item.component.ResolvableProfile;
@@ -38,7 +38,7 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
         UUID profileUuid = null;
         if (!profileUuidRaw.isBlank()) {
-            profileUuid = ValidationUtil.parseUuid(profileUuidRaw, ItemEditorText.str("special.misc.profile.uuid"), context.messages());
+            profileUuid = tryParseUuid(profileUuidRaw);
         }
 
         String textureValue = "";
@@ -51,16 +51,14 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         if (!textureValue.isBlank()) {
-            UUID resolvedId = profileUuid;
-            if (resolvedId == null) {
-                resolvedId = profileName.isBlank() ? Util.NIL_UUID : UUIDUtil.createOfflinePlayerUUID(profileName);
-            }
-
-            GameProfile profile = new GameProfile(resolvedId, profileName);
+            UUID resolvedId = profileUuid == null ? Util.NIL_UUID : profileUuid;
             Property texturesProperty = textureSignature.isBlank()
                     ? new Property("textures", textureValue)
                     : new Property("textures", textureValue, textureSignature);
-            profile.properties().put("textures", texturesProperty);
+            var mutableProperties = LinkedHashMultimap.<String, Property>create();
+            mutableProperties.put("textures", texturesProperty);
+            PropertyMap properties = new PropertyMap(mutableProperties);
+            GameProfile profile = new GameProfile(resolvedId, profileName, properties);
             context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createResolved(profile));
             return;
         }
@@ -76,6 +74,14 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
         if (profileUuid != null) {
             context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createUnresolved(profileUuid));
+        }
+    }
+
+    private static UUID tryParseUuid(String raw) {
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException exception) {
+            return null;
         }
     }
 }

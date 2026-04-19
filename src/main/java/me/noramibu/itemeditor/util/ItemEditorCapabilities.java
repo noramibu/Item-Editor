@@ -113,6 +113,7 @@ public final class ItemEditorCapabilities {
             case POTION -> ItemEditorText.tr("category.special_data.potion.title");
             case FIREWORK -> ItemEditorText.tr("category.special_data.firework.title");
             case BANNER -> ItemEditorText.tr("category.special_data.banner.title");
+            case PROFILE -> ItemEditorText.tr("category.special_data.profile.title");
             case INSTRUMENT -> ItemEditorText.tr("category.special_data.instrument.title");
             default -> ItemEditorText.tr("category.special_data.title");
         };
@@ -265,6 +266,9 @@ public final class ItemEditorCapabilities {
         if (isBannerRelated(stack)) {
             return SpecialDataFocus.BANNER;
         }
+        if (isProfileRelated(stack)) {
+            return SpecialDataFocus.PROFILE;
+        }
         if (isInstrumentRelated(stack)) {
             return SpecialDataFocus.INSTRUMENT;
         }
@@ -303,6 +307,16 @@ public final class ItemEditorCapabilities {
                 || isMusicDisc(stack);
     }
 
+    private static boolean isProfileRelated(ItemStack stack) {
+        return stack.has(DataComponents.PROFILE) || isHeadItem(stack);
+    }
+
+    private static boolean isHeadItem(ItemStack stack) {
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        String path = id.getPath();
+        return path.endsWith("_head");
+    }
+
     private static boolean isMusicDisc(ItemStack stack) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         return id.getPath().startsWith("music_disc_");
@@ -339,6 +353,7 @@ public final class ItemEditorCapabilities {
         POTION,
         FIREWORK,
         BANNER,
+        PROFILE,
         INSTRUMENT
     }
 }
