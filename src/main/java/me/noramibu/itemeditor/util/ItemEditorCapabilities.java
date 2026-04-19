@@ -2,25 +2,31 @@ package me.noramibu.itemeditor.util;
 
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.network.chat.Component;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BannerItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.PlayerHeadItem;
 import net.minecraft.world.item.SignItem;
+import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DispenserBlock;
-import net.minecraft.world.level.block.DropperBlock;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
-import net.minecraft.world.level.block.TrappedChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
+import java.util.List;
+import java.util.Locale;
+
 public final class ItemEditorCapabilities {
+
+    private static final RawRuntimeSuggestionProvider RUNTIME_SUGGESTIONS = new RawRuntimeSuggestionProvider();
+    private static final RawAutocompleteSchema AUTOCOMPLETE_SCHEMA = RawAutocompleteSchema.load();
 
     private ItemEditorCapabilities() {
     }
@@ -57,6 +63,24 @@ public final class ItemEditorCapabilities {
                 || (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER);
     }
 
+    public static boolean supportsArmorStandData(ItemStack stack) {
+        TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
+        return stack.is(Items.ARMOR_STAND)
+                || (entityData != null && entityData.type() == EntityType.ARMOR_STAND);
+    }
+
+    public static boolean supportsItemFrameData(ItemStack stack) {
+        TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
+        return stack.is(Items.ITEM_FRAME)
+                || stack.is(Items.GLOW_ITEM_FRAME)
+                || (entityData != null
+                && (entityData.type() == EntityType.ITEM_FRAME || entityData.type() == EntityType.GLOW_ITEM_FRAME));
+    }
+
+    public static boolean supportsSpawnEggData(ItemStack stack) {
+        return stack.getItem() instanceof SpawnEggItem;
+    }
+
     public static boolean supportsBucketCreature(ItemStack stack) {
         return stack.has(DataComponents.BUCKET_ENTITY_DATA)
                 || stack.has(DataComponents.AXOLOTL_VARIANT)
@@ -82,14 +106,13 @@ public final class ItemEditorCapabilities {
             case BUNDLE -> ItemEditorText.tr("category.special_data.bundle.title");
             case SIGN -> ItemEditorText.tr("category.special_data.sign.title");
             case SPAWNER -> ItemEditorText.tr("category.special_data.spawner.title");
+            case ARMOR_STAND -> ItemEditorText.tr("category.special_data.armor_stand.title");
+            case ITEM_FRAME -> ItemEditorText.tr("category.special_data.item_frame.title");
+            case SPAWN_EGG -> ItemEditorText.tr("category.special_data.spawn_egg.title");
             case BUCKET_CREATURE -> ItemEditorText.tr("category.special_data.bucket.title");
             case POTION -> ItemEditorText.tr("category.special_data.potion.title");
             case FIREWORK -> ItemEditorText.tr("category.special_data.firework.title");
             case BANNER -> ItemEditorText.tr("category.special_data.banner.title");
-            case MAP -> ItemEditorText.tr("category.special_data.map.title");
-            case DYED -> ItemEditorText.tr("category.special_data.dyed.title");
-            case TRIM -> ItemEditorText.tr("category.special_data.trim.title");
-            case PROFILE -> ItemEditorText.tr("category.special_data.profile.title");
             case INSTRUMENT -> ItemEditorText.tr("category.special_data.instrument.title");
             default -> ItemEditorText.tr("category.special_data.title");
         };
@@ -100,44 +123,93 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsSpecialData(ItemStack stack) {
-        return stack.has(DataComponents.POTION_CONTENTS)
-                || stack.has(DataComponents.SUSPICIOUS_STEW_EFFECTS)
-                || stack.has(DataComponents.FIREWORKS)
-                || stack.has(DataComponents.FIREWORK_EXPLOSION)
-                || supportsBucketCreature(stack)
-                || stack.has(DataComponents.DYED_COLOR)
-                || stack.has(DataComponents.TRIM)
-                || stack.has(DataComponents.PROFILE)
-                || stack.has(DataComponents.INSTRUMENT)
-                || stack.has(DataComponents.JUKEBOX_PLAYABLE)
-                || stack.has(DataComponents.MAP_COLOR)
-                || stack.has(DataComponents.MAP_POST_PROCESSING)
-                || stack.has(DataComponents.BANNER_PATTERNS)
-                || stack.getItem() instanceof BannerItem
-                || stack.is(Items.SHIELD)
-                || stack.getItem() instanceof PlayerHeadItem
-                || stack.is(Items.POTION)
-                || stack.is(Items.SPLASH_POTION)
-                || stack.is(Items.LINGERING_POTION)
-                || stack.is(Items.TIPPED_ARROW)
-                || stack.is(Items.SUSPICIOUS_STEW)
-                || stack.is(Items.FIREWORK_ROCKET)
-                || stack.is(Items.FIREWORK_STAR)
-                || stack.is(Items.FILLED_MAP)
-                || stack.is(Items.GOAT_HORN)
-                || stack.is(Items.JUKEBOX)
-                || isMusicDisc(stack)
-                || stack.is(ItemTags.TRIMMABLE_ARMOR)
-                || stack.is(Items.LEATHER_HELMET)
-                || stack.is(Items.LEATHER_CHESTPLATE)
-                || stack.is(Items.LEATHER_LEGGINGS)
-                || stack.is(Items.LEATHER_BOOTS)
-                || stack.is(Items.LEATHER_HORSE_ARMOR)
-                || stack.is(Items.WOLF_ARMOR)
-                || supportsContainerData(stack)
-                || supportsBundleData(stack)
-                || supportsSignData(stack)
-                || supportsSpawnerData(stack);
+        return detectSpecialDataFocus(stack) != SpecialDataFocus.GENERAL;
+    }
+
+    public static boolean supportsComponents(ItemStack stack, RegistryAccess registryAccess) {
+        return supportsAnyComponent(
+                stack,
+                registryAccess,
+                "minecraft:food",
+                "minecraft:consumable",
+                "minecraft:use_effects",
+                "minecraft:use_remainder",
+                "minecraft:use_cooldown",
+                "minecraft:lock",
+                "minecraft:container_loot",
+                "minecraft:bees",
+                "minecraft:pot_decorations",
+                "minecraft:charged_projectiles",
+                "minecraft:map_color",
+                "minecraft:map_post_processing",
+                "minecraft:map_id",
+                "minecraft:map_decorations",
+                "minecraft:lodestone_tracker",
+                "minecraft:equippable",
+                "minecraft:weapon",
+                "minecraft:tool",
+                "minecraft:repairable",
+                "minecraft:attack_range",
+                "minecraft:item_name",
+                "minecraft:minimum_attack_charge",
+                "minecraft:enchantable",
+                "minecraft:ominous_bottle_amplifier",
+                "minecraft:tooltip_style",
+                "minecraft:glider",
+                "minecraft:intangible_projectile",
+                "minecraft:death_protection",
+                "minecraft:damage_type",
+                "minecraft:damage_resistant",
+                "minecraft:note_block_sound",
+                "minecraft:break_sound",
+                "minecraft:painting_variant",
+                "minecraft:block_state",
+                "minecraft:blocks_attacks",
+                "minecraft:swing_animation",
+                "minecraft:piercing_weapon",
+                "minecraft:kinetic_weapon"
+        );
+    }
+
+    public static boolean supportsAnyComponent(ItemStack stack, RegistryAccess registryAccess, String... componentIds) {
+        if (componentIds == null) {
+            return false;
+        }
+
+        for (String componentId : componentIds) {
+            if (supportsComponent(stack, registryAccess, componentId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean supportsComponent(ItemStack stack, RegistryAccess registryAccess, String componentId) {
+        if (componentId == null || componentId.isBlank()) {
+            return false;
+        }
+
+        String normalizedComponentId = normalizeComponentId(componentId);
+        Identifier componentIdentifier = Identifier.tryParse(normalizedComponentId);
+        if (componentIdentifier == null) {
+            return false;
+        }
+
+        var builtInType = BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(componentIdentifier).orElse(null);
+        if (builtInType != null && stack.has(builtInType)) {
+            return true;
+        }
+
+        List<String> allowed = allowedComponents(stack, registryAccess);
+        if (allowed.isEmpty()) {
+            return true;
+        }
+        for (String allowedComponentId : allowed) {
+            if (normalizeComponentId(allowedComponentId).equals(normalizedComponentId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isContainerBlockItem(ItemStack stack) {
@@ -147,12 +219,10 @@ public final class ItemEditorCapabilities {
 
         var block = blockItem.getBlock();
         return block instanceof ChestBlock
-                || block instanceof TrappedChestBlock
                 || block instanceof BarrelBlock
                 || block instanceof ShulkerBoxBlock
                 || block instanceof HopperBlock
-                || block instanceof DispenserBlock
-                || block instanceof DropperBlock;
+                || block instanceof DispenserBlock;
     }
 
     private static boolean hasSignBlockEntityData(ItemStack stack) {
@@ -174,7 +244,16 @@ public final class ItemEditorCapabilities {
         if (supportsSpawnerData(stack)) {
             return SpecialDataFocus.SPAWNER;
         }
-        if (isBucketCreatureRelated(stack)) {
+        if (supportsArmorStandData(stack)) {
+            return SpecialDataFocus.ARMOR_STAND;
+        }
+        if (supportsItemFrameData(stack)) {
+            return SpecialDataFocus.ITEM_FRAME;
+        }
+        if (supportsSpawnEggData(stack)) {
+            return SpecialDataFocus.SPAWN_EGG;
+        }
+        if (supportsBucketCreature(stack)) {
             return SpecialDataFocus.BUCKET_CREATURE;
         }
         if (isPotionRelated(stack)) {
@@ -185,18 +264,6 @@ public final class ItemEditorCapabilities {
         }
         if (isBannerRelated(stack)) {
             return SpecialDataFocus.BANNER;
-        }
-        if (isMapRelated(stack)) {
-            return SpecialDataFocus.MAP;
-        }
-        if (isDyedRelated(stack)) {
-            return SpecialDataFocus.DYED;
-        }
-        if (isTrimRelated(stack)) {
-            return SpecialDataFocus.TRIM;
-        }
-        if (isProfileRelated(stack)) {
-            return SpecialDataFocus.PROFILE;
         }
         if (isInstrumentRelated(stack)) {
             return SpecialDataFocus.INSTRUMENT;
@@ -214,10 +281,6 @@ public final class ItemEditorCapabilities {
                 || stack.is(Items.SUSPICIOUS_STEW);
     }
 
-    private static boolean isBucketCreatureRelated(ItemStack stack) {
-        return supportsBucketCreature(stack);
-    }
-
     private static boolean isFireworkRelated(ItemStack stack) {
         return stack.has(DataComponents.FIREWORKS)
                 || stack.has(DataComponents.FIREWORK_EXPLOSION)
@@ -232,30 +295,6 @@ public final class ItemEditorCapabilities {
                 || stack.is(Items.WHITE_BANNER);
     }
 
-    private static boolean isMapRelated(ItemStack stack) {
-        return stack.has(DataComponents.MAP_COLOR)
-                || stack.has(DataComponents.MAP_POST_PROCESSING)
-                || stack.is(Items.FILLED_MAP);
-    }
-
-    private static boolean isDyedRelated(ItemStack stack) {
-        return stack.has(DataComponents.DYED_COLOR)
-                || stack.is(Items.LEATHER_HELMET)
-                || stack.is(Items.LEATHER_CHESTPLATE)
-                || stack.is(Items.LEATHER_LEGGINGS)
-                || stack.is(Items.LEATHER_BOOTS)
-                || stack.is(Items.LEATHER_HORSE_ARMOR)
-                || stack.is(Items.WOLF_ARMOR);
-    }
-
-    private static boolean isTrimRelated(ItemStack stack) {
-        return stack.has(DataComponents.TRIM) || stack.is(ItemTags.TRIMMABLE_ARMOR);
-    }
-
-    private static boolean isProfileRelated(ItemStack stack) {
-        return stack.has(DataComponents.PROFILE) || stack.getItem() instanceof PlayerHeadItem;
-    }
-
     private static boolean isInstrumentRelated(ItemStack stack) {
         return stack.has(DataComponents.INSTRUMENT)
                 || stack.has(DataComponents.JUKEBOX_PLAYABLE)
@@ -266,7 +305,25 @@ public final class ItemEditorCapabilities {
 
     private static boolean isMusicDisc(ItemStack stack) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return id != null && id.getPath().startsWith("music_disc_");
+        return id.getPath().startsWith("music_disc_");
+    }
+
+    private static List<String> allowedComponents(ItemStack stack, RegistryAccess registryAccess) {
+        RegistryAccess effectiveRegistryAccess = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        List<String> profiles = RUNTIME_SUGGESTIONS.itemProfiles(itemId, effectiveRegistryAccess);
+        return AUTOCOMPLETE_SCHEMA.componentsForProfiles(profiles);
+    }
+
+    private static String normalizeComponentId(String componentId) {
+        String normalized = componentId.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        if (normalized.contains(":")) {
+            return normalized;
+        }
+        return "minecraft:" + normalized;
     }
 
     private enum SpecialDataFocus {
@@ -275,14 +332,13 @@ public final class ItemEditorCapabilities {
         BUNDLE,
         SIGN,
         SPAWNER,
+        ARMOR_STAND,
+        ITEM_FRAME,
+        SPAWN_EGG,
         BUCKET_CREATURE,
         POTION,
         FIREWORK,
         BANNER,
-        MAP,
-        DYED,
-        TRIM,
-        PROFILE,
         INSTRUMENT
     }
 }

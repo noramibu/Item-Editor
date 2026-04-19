@@ -34,3 +34,9 @@ Thumbs.db
 # Misc
 *.tmp
 *.temp
+
+# Standalone subprojects tooling artifacts, used for gathering NBT/Component data which is in resources
+subprojects/**/.cache/
+subprojects/**/__pycache__/
+subprojects/**/.venv/
+examples/

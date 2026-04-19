@@ -4,17 +4,28 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Unit;
+import net.minecraft.world.item.AdventureModePredicate;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.level.block.Block;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
@@ -130,6 +141,21 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 context.previewStack().set(DataComponents.CUSTOM_MODEL_DATA, merged);
             }
         }
+
+        this.applyAdventurePredicate(
+                context,
+                state.canBreakBlockIds,
+                baselineState.canBreakBlockIds,
+                DataComponents.CAN_BREAK,
+                ItemEditorText.str("general.adventure.can_break")
+        );
+        this.applyAdventurePredicate(
+                context,
+                state.canPlaceOnBlockIds,
+                baselineState.canPlaceOnBlockIds,
+                DataComponents.CAN_PLACE_ON,
+                ItemEditorText.str("general.adventure.can_place_on")
+        );
     }
 
     private boolean sameCustomModel(ItemEditorState state, ItemEditorState baselineState) {
@@ -180,9 +206,156 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
     }
 
     private <T> void setFirstValue(List<T> values, T value) {
-        while (values.isEmpty()) {
+        if (values.isEmpty()) {
             values.add(value);
         }
         values.set(0, value);
+    }
+
+    private void applyAdventurePredicate(
+            ItemPreviewApplyContext context,
+            List<String> stateBlocks,
+            List<String> baselineBlocks,
+            DataComponentType<AdventureModePredicate> componentType,
+            String fieldLabel
+    ) {
+        if (Objects.equals(stateBlocks, baselineBlocks)) {
+            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), componentType);
+            return;
+        }
+
+        if (stateBlocks.isEmpty()) {
+            this.clearToPrototype(context.previewStack(), componentType);
+            return;
+        }
+
+        AdventureModePredicate predicate = this.buildAdventurePredicate(context, stateBlocks, fieldLabel);
+        if (predicate != null) {
+            context.previewStack().set(componentType, predicate);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private AdventureModePredicate buildAdventurePredicate(
+            ItemPreviewApplyContext context,
+            List<String> blockIds,
+            String fieldLabel
+    ) {
+        Registry<Block> blockRegistry;
+        try {
+            blockRegistry = context.registryAccess().lookupOrThrow(Registries.BLOCK);
+        } catch (RuntimeException exception) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
+            return null;
+        }
+
+        List<Object> predicates = new ArrayList<>();
+        for (String blockId : blockIds) {
+            var blockHolder = RegistryUtil.resolveHolder(blockRegistry, blockId);
+            if (blockHolder == null) {
+                context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.registry_missing", fieldLabel, blockId)));
+                continue;
+            }
+            Object predicate = this.instantiateBlockPredicate(HolderSet.direct(blockHolder));
+            if (predicate == null) {
+                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
+                continue;
+            }
+            predicates.add(predicate);
+        }
+
+        if (predicates.isEmpty()) {
+            return null;
+        }
+        return new AdventureModePredicate(castList(predicates));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> castList(List<?> values) {
+        return (List<T>) values;
+    }
+
+    private Object instantiateBlockPredicate(HolderSet<Block> holderSet) {
+        Class<?> predicateClass = this.resolveBlockPredicateClass();
+        if (predicateClass == null) {
+            return null;
+        }
+
+        try {
+            for (Constructor<?> constructor : predicateClass.getConstructors()) {
+                Class<?>[] parameterTypes = constructor.getParameterTypes();
+                if (parameterTypes.length < 3 || parameterTypes.length > 4) {
+                    continue;
+                }
+                if (parameterTypes[0] != Optional.class
+                        || parameterTypes[1] != Optional.class
+                        || parameterTypes[2] != Optional.class) {
+                    continue;
+                }
+
+                if (parameterTypes.length == 3) {
+                    return constructor.newInstance(Optional.of(holderSet), Optional.empty(), Optional.empty());
+                }
+
+                Object componentsMatcher = this.resolveAnyComponentsMatcher(parameterTypes[3]);
+                if (componentsMatcher == null) {
+                    continue;
+                }
+                return constructor.newInstance(
+                        Optional.of(holderSet),
+                        Optional.empty(),
+                        Optional.empty(),
+                        componentsMatcher
+                );
+            }
+        } catch (ReflectiveOperationException ignored) {
+        }
+        return null;
+    }
+
+    private Object resolveAnyComponentsMatcher(Class<?> matcherClass) {
+        try {
+            return matcherClass.getField("ANY").get(null);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private Class<?> resolveBlockPredicateClass() {
+        for (var constructor : AdventureModePredicate.class.getConstructors()) {
+            Type[] parameters = constructor.getGenericParameterTypes();
+            if (parameters.length == 0 || !(parameters[0] instanceof ParameterizedType listType)) {
+                continue;
+            }
+            Type rawType = listType.getRawType();
+            if (!(rawType instanceof Class<?> rawClass) || !List.class.isAssignableFrom(rawClass)) {
+                continue;
+            }
+
+            Type[] args = listType.getActualTypeArguments();
+            if (args.length == 0) {
+                continue;
+            }
+
+            Type arg = args[0];
+            if (arg instanceof Class<?> classArg) {
+                return classArg;
+            }
+            if (arg instanceof ParameterizedType parameterizedArg && parameterizedArg.getRawType() instanceof Class<?> rawArgClass) {
+                return rawArgClass;
+            }
+        }
+
+        String[] legacyNames = {
+                "net.minecraft.advancements.critereon.BlockPredicate",
+                "net.minecraft.advancements.criterion.BlockPredicate"
+        };
+        for (String className : legacyNames) {
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        return null;
     }
 }

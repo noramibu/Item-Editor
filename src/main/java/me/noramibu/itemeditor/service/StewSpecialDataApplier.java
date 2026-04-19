@@ -1,8 +1,6 @@
 package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.editor.ItemEditorState;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -29,15 +27,14 @@ final class StewSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         for (ItemEditorState.SuspiciousStewEffectDraft draft : context.special().stewEffects) {
             if (draft.effectId.isBlank()) continue;
 
-            Holder<MobEffect> effect = this.resolveEffectOrReport(
+            Holder<MobEffect> effect = this.resolvePotionEffectOrReport(
                     effectRegistry,
                     draft.effectId,
-                    "special.potion.effect_id",
                     context.messages()
             );
             if (effect == null) continue;
 
-            Integer duration = ValidationUtil.parseInt(draft.duration, ItemEditorText.str("special.potion.duration"), 1, Integer.MAX_VALUE, context.messages());
+            Integer duration = this.parsePotionDuration(draft.duration, context.messages());
             if (duration == null) continue;
 
             entries.add(new SuspiciousStewEffects.Entry(effect, duration));

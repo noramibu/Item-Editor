@@ -109,6 +109,14 @@ public final class ValidationUtil {
         return HEX_PATTERN.matcher(raw).matches();
     }
 
+    public static String trimTrailingZeros(float value) {
+        return trimTrailingZeros(Float.toString(value));
+    }
+
+    public static String trimTrailingZeros(double value) {
+        return trimTrailingZeros(Double.toString(value));
+    }
+
     public static String joinHexColors(IntList colors) {
         StringBuilder builder = new StringBuilder();
         for (int index = 0; index < colors.size(); index++) {
@@ -126,5 +134,19 @@ public final class ValidationUtil {
             normalized = normalized.substring(2);
         }
         return normalized;
+    }
+
+    private static String trimTrailingZeros(String raw) {
+        if (!raw.contains(".")) {
+            return raw;
+        }
+        int end = raw.length() - 1;
+        while (end > 0 && raw.charAt(end) == '0') {
+            end--;
+        }
+        if (raw.charAt(end) == '.') {
+            end--;
+        }
+        return raw.substring(0, end + 1);
     }
 }

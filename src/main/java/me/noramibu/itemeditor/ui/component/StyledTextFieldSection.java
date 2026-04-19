@@ -15,6 +15,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 public final class StyledTextFieldSection {
+    private static final double COMPACT_TOOLBAR_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD = 560;
 
     private StyledTextFieldSection() {
     }
@@ -46,6 +48,67 @@ public final class StyledTextFieldSection {
             Function<RichTextDocument, String> validator,
             Consumer<RichTextDocument> onDocumentChanged
     ) {
+        return create(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
+                defaultStyle,
+                displayCharCount,
+                initialColor,
+                palettePrimary,
+                paletteSecondary,
+                paletteSelection,
+                paletteCursor,
+                palettePlaceholder,
+                chromeFill,
+                chromeOutline,
+                actions,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                includeColorPicker,
+                includeGradient,
+                validator,
+                onDocumentChanged,
+                false
+        );
+    }
+
+    public static BoundEditor create(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            RichTextStyle defaultStyle,
+            boolean displayCharCount,
+            int initialColor,
+            int palettePrimary,
+            int paletteSecondary,
+            int paletteSelection,
+            int paletteCursor,
+            int palettePlaceholder,
+            int chromeFill,
+            int chromeOutline,
+            List<RichTextToolbarUtil.ToolAction> actions,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            boolean includeColorPicker,
+            boolean includeGradient,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar
+    ) {
+        boolean effectiveCompactToolbar = compactToolbar
+                || screen.session().minecraft().getWindow().getGuiScale() >= COMPACT_TOOLBAR_SCALE_THRESHOLD
+                || screen.editorContentWidthHint() < UiFactory.scaledPixels(COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD);
         RichTextAreaComponent editor = new RichTextAreaComponent(width, height, initialDocument);
         editor.placeholder(placeholder);
         editor.displayCharCount(displayCharCount);
@@ -68,7 +131,8 @@ public final class StyledTextFieldSection {
                 gradientTooltip,
                 prepareStyledApply,
                 includeColorPicker,
-                includeGradient
+                includeGradient,
+                effectiveCompactToolbar
         );
 
         TextStylingController.bindValidatedDocument(
@@ -102,6 +166,40 @@ public final class StyledTextFieldSection {
                 width,
                 height,
                 placeholder,
+                preset,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                validator,
+                onDocumentChanged,
+                false
+        );
+    }
+
+    public static BoundEditor create(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            StylePreset preset,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar
+    ) {
+        return create(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
                 preset.defaultStyle(),
                 preset.displayCharCount(),
                 preset.initialColor(),
@@ -121,7 +219,8 @@ public final class StyledTextFieldSection {
                 preset.includeColorPicker(),
                 preset.includeGradient(),
                 validator,
-                onDocumentChanged
+                onDocumentChanged,
+                compactToolbar
         );
     }
 

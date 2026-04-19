@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.component.ButtonComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -24,8 +25,27 @@ import net.minecraft.world.item.equipment.trim.TrimPattern;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class MiscSpecialDataSections {
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
+    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
+    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 26;
+    private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 34;
+    private static final int PROFILE_NAME_FIELD_WIDTH = 220;
+    private static final int PROFILE_UUID_FIELD_WIDTH = 260;
+    private static final int MAP_POST_PICKER_WIDTH = 190;
+    private static final int JUKEBOX_AUTOCOMPLETE_HINT_WIDTH = 280;
+    private static final int JUKEBOX_AUTOCOMPLETE_FIT_WIDTH = 280;
+    private static final int PROFILE_ACTION_BUTTON_WIDTH_MIN = 86;
+    private static final int PROFILE_ACTION_BUTTON_WIDTH_MAX = 168;
+    private static final int PROFILE_ACTION_BUTTON_ROW_RESERVE = 12;
+    private static final int PROFILE_ACTION_BUTTON_TEXT_MIN = 20;
+    private static final int PROFILE_ACTION_BUTTON_TEXT_RESERVE = 10;
+    private static final int PROFILE_IDENTITY_ROW_RESERVE = 12;
 
     private MiscSpecialDataSections() {
     }
@@ -121,18 +141,22 @@ public final class MiscSpecialDataSections {
     public static FlowLayout buildProfile(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.profile.title"), Component.empty());
+        boolean compactLayout = isCompactLayout(context);
 
-        FlowLayout identityRow = UiFactory.row();
+        FlowLayout identityRow = compactLayout ? UiFactory.column() : UiFactory.row();
+        int identityWidth = context.panelWidthHint() - UiFactory.scaledPixels(PROFILE_IDENTITY_ROW_RESERVE);
+        int profileNameWidth = Math.min(identityWidth, PROFILE_NAME_FIELD_WIDTH);
+        int profileUuidWidth = Math.min(identityWidth, PROFILE_UUID_FIELD_WIDTH);
         identityRow.child(UiFactory.field(
                 ItemEditorText.tr("special.misc.profile.name"),
                 Component.empty(),
-                UiFactory.textBox(special.profileName, context.bindText(value -> special.profileName = value)).horizontalSizing(Sizing.fixed(200))
-        ).horizontalSizing(Sizing.fixed(220)));
+                UiFactory.textBox(special.profileName, context.bindText(value -> special.profileName = value)).horizontalSizing(Sizing.fill(100))
+        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileNameWidth)));
         identityRow.child(UiFactory.field(
                 ItemEditorText.tr("special.misc.profile.uuid"),
                 Component.empty(),
-                UiFactory.textBox(special.profileUuid, context.bindText(value -> special.profileUuid = value)).horizontalSizing(Sizing.fixed(240))
-        ).horizontalSizing(Sizing.fixed(260)));
+                UiFactory.textBox(special.profileUuid, context.bindText(value -> special.profileUuid = value)).horizontalSizing(Sizing.fill(100))
+        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileUuidWidth)));
         section.child(identityRow);
 
         section.child(UiFactory.field(
@@ -146,8 +170,11 @@ public final class MiscSpecialDataSections {
                 UiFactory.textBox(special.profileTextureSignature, context.bindText(value -> special.profileTextureSignature = value))
         ));
 
-        FlowLayout actions = UiFactory.row();
-        var useLocalSkinButton = UiFactory.button(ItemEditorText.tr("special.misc.profile.use_local_skin"), button -> {
+        FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
+        int contentWidth = context.panelWidthHint();
+        int profileActionButtonWidth = resolveProfileActionButtonWidth(contentWidth);
+        Component useLocalSkinText = ItemEditorText.tr("special.misc.profile.use_local_skin");
+        var useLocalSkinButton = boundedProfileActionButton(useLocalSkinText, profileActionButtonWidth, button -> {
             var player = context.screen().session().minecraft().player;
             if (player == null) {
                 return;
@@ -165,16 +192,17 @@ public final class MiscSpecialDataSections {
                 special.profileTextureSignature = textures.signature() == null ? "" : textures.signature();
             });
         });
-        useLocalSkinButton.horizontalSizing(Sizing.content());
+        useLocalSkinButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(profileActionButtonWidth));
         actions.child(useLocalSkinButton);
 
-        var clearSkinButton = UiFactory.button(ItemEditorText.tr("special.misc.profile.clear_skin"), button ->
+        Component clearSkinText = ItemEditorText.tr("special.misc.profile.clear_skin");
+        var clearSkinButton = boundedProfileActionButton(clearSkinText, profileActionButtonWidth, button ->
                 context.mutateRefresh(() -> {
                     special.profileTextureValue = "";
                     special.profileTextureSignature = "";
                 })
         );
-        clearSkinButton.horizontalSizing(Sizing.content());
+        clearSkinButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(profileActionButtonWidth));
         actions.child(clearSkinButton);
 
         section.child(actions);
@@ -204,9 +232,8 @@ public final class MiscSpecialDataSections {
         ));
         input.child(buildJukeboxAutocomplete(context, special, songIds));
 
-        FlowLayout pickerRow = UiFactory.row();
-        pickerRow.child(UiFactory.button(
-                PickerFieldFactory.selectedOrFallback(special.jukeboxSongId, ItemEditorText.tr("special.misc.jukebox.select_song")),
+        input.child(UiFactory.button(
+                PickerFieldFactory.selectedOrFallback(special.jukeboxSongId, ItemEditorText.tr("special.misc.jukebox.select_song")), UiFactory.ButtonTextPreset.STANDARD, 
                 button -> context.openSearchablePicker(
                         ItemEditorText.str("special.misc.jukebox.id"),
                         "",
@@ -214,8 +241,7 @@ public final class MiscSpecialDataSections {
                         id -> id,
                         id -> context.mutateRefresh(() -> special.jukeboxSongId = id)
                 )
-        ).horizontalSizing(Sizing.content()));
-        input.child(pickerRow);
+        ).horizontalSizing(Sizing.fill(100)));
 
         section.child(UiFactory.field(
                 ItemEditorText.tr("special.misc.jukebox.id"),
@@ -228,37 +254,103 @@ public final class MiscSpecialDataSections {
     public static FlowLayout buildMap(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.map.title"), Component.empty());
-
-        FlowLayout row = UiFactory.row();
-        row.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.map.color"),
-                Component.empty(),
-                context.colorInputWithPicker(
-                        special.mapColor,
-                        value -> special.mapColor = value,
-                        () -> special.mapColor,
-                        ItemEditorText.str("special.misc.map.color"),
-                        0x7FB238
-                ).horizontalSizing(Sizing.fill(100))
-        ));
-        row.child(PickerFieldFactory.dropdownField(
+        section.child(collapsibleCard(
                 context,
-                ItemEditorText.tr("special.misc.map.post"),
-                Component.empty(),
-                PickerFieldFactory.selectedOrFallback(special.mapPostProcessing, ItemEditorText.tr("special.misc.map.post.none")),
-                190,
-                Arrays.asList(MapPostProcessing.values()),
-                MapPostProcessing::name,
-                mode -> context.mutate(() -> special.mapPostProcessing = mode.name())
+                ItemEditorText.tr("special.misc.map.title"),
+                special.uiMapBasicCollapsed,
+                value -> special.uiMapBasicCollapsed = value,
+                () -> {
+                    FlowLayout content = UiFactory.column();
+                    FlowLayout row = isCompactLayout(context) ? UiFactory.column() : UiFactory.row();
+                    row.child(UiFactory.field(
+                            ItemEditorText.tr("special.misc.map.color"),
+                            Component.empty(),
+                            context.colorInputWithPicker(
+                                    special.mapColor,
+                                    value -> special.mapColor = value,
+                                    () -> special.mapColor,
+                                    ItemEditorText.str("special.misc.map.color"),
+                                    0x7FB238
+                            ).horizontalSizing(Sizing.fill(100))
+                    ));
+                    row.child(PickerFieldFactory.dropdownField(
+                            context,
+                            ItemEditorText.tr("special.misc.map.post"),
+                            Component.empty(),
+                            PickerFieldFactory.selectedOrFallback(special.mapPostProcessing, ItemEditorText.tr("special.misc.map.post.none")),
+                            isCompactLayout(context) ? -1 : MAP_POST_PICKER_WIDTH,
+                            Arrays.asList(MapPostProcessing.values()),
+                            MapPostProcessing::name,
+                            mode -> context.mutate(() -> special.mapPostProcessing = mode.name())
+                    ));
+                    content.child(row);
+                    return content;
+                }
         ));
-        section.child(row);
 
         return section;
     }
 
+    private static FlowLayout collapsibleCard(
+            SpecialDataPanelContext context,
+            Component title,
+            boolean collapsed,
+            Consumer<Boolean> setter,
+            Supplier<FlowLayout> contentBuilder
+    ) {
+        FlowLayout card = UiFactory.subCard();
+        FlowLayout header = UiFactory.row();
+        header.child(UiFactory.title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
+        ButtonComponent toggle = UiFactory.button(Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button -> {
+            setter.accept(!collapsed);
+            context.screen().refreshCurrentPanel();
+        });
+        int toggleWidth = Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, UiFactory.scaledPixels(COLLAPSE_TOGGLE_WIDTH_BASE));
+        toggle.horizontalSizing(Sizing.fixed(toggleWidth));
+        header.child(toggle);
+        card.child(header);
+        if (!collapsed) {
+            card.child(contentBuilder.get());
+        }
+        return card;
+    }
+
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+    }
+
+    private static ButtonComponent boundedProfileActionButton(
+            Component fullText,
+            int width,
+            Consumer<ButtonComponent> onPress
+    ) {
+        Component fitted = UiFactory.fitToWidth(
+                fullText,
+                Math.max(PROFILE_ACTION_BUTTON_TEXT_MIN, width - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_TEXT_RESERVE))
+        );
+        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
+        button.horizontalSizing(Sizing.fixed(width));
+        if (!fitted.getString().equals(fullText.getString())) {
+            button.tooltip(List.of(fullText));
+        }
+        return button;
+    }
+
+    private static int resolveProfileActionButtonWidth(int contentWidth) {
+        int preferred = Math.max(
+                PROFILE_ACTION_BUTTON_WIDTH_MIN,
+                Math.min(
+                        PROFILE_ACTION_BUTTON_WIDTH_MAX,
+                        (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2
+                )
+        );
+        return Math.max(1, Math.min(contentWidth, preferred));
+    }
+
     private static boolean isMusicDisc(ItemStack stack) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return id != null && id.getPath().startsWith("music_disc_");
+        return id.getPath().startsWith("music_disc_");
     }
 
     private static List<String> availableJukeboxSongIds(SpecialDataPanelContext context, String currentId) {
@@ -266,7 +358,7 @@ public final class MiscSpecialDataSections {
         try {
             Registry<?> songRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG);
             ids.addAll(RegistryUtil.ids(songRegistry));
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
         }
 
         String normalizedCurrent = IdFieldNormalizer.normalize(currentId);
@@ -293,12 +385,12 @@ public final class MiscSpecialDataSections {
                 .limit(JUKEBOX_AUTOCOMPLETE_LIMIT)
                 .toList();
         if (matches.isEmpty()) {
-            suggestions.child(UiFactory.muted(ItemEditorText.tr("special.misc.jukebox.autocomplete.none"), 280));
+            suggestions.child(UiFactory.muted(ItemEditorText.tr("special.misc.jukebox.autocomplete.none"), JUKEBOX_AUTOCOMPLETE_HINT_WIDTH));
             return suggestions;
         }
 
         for (String match : matches) {
-            var suggestion = UiFactory.button(UiFactory.fitToWidth(Component.literal(match), 280), button ->
+            var suggestion = UiFactory.button(UiFactory.fitToWidth(Component.literal(match), JUKEBOX_AUTOCOMPLETE_FIT_WIDTH), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.jukeboxSongId = match)
             );
             suggestion.horizontalSizing(Sizing.fill(100));

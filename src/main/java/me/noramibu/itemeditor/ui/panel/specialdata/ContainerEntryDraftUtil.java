@@ -31,4 +31,15 @@ final class ContainerEntryDraftUtil {
         }
         draft.templateStack = draft.templateStack.copyWithCount(count);
     }
+
+    static int parseIntOrDefault(String raw, int fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
 }

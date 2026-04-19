@@ -17,6 +17,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public record SpecialDataPanelContext(ItemEditorScreen screen) {
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
+    private static final int PICK_BUTTON_WIDTH_MIN = 70;
+    private static final int PICK_BUTTON_WIDTH_MAX = 132;
+    private static final int PICK_BUTTON_TEXT_MIN = 20;
+    private static final int PICK_BUTTON_TEXT_RESERVE = 10;
+    private static final int COLOR_INPUT_FIELD_WIDTH = 140;
 
     public ItemStack originalStack() {
         return this.screen.session().originalStack();
@@ -24,6 +31,14 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
 
     public ItemEditorState.SpecialData special() {
         return this.screen.session().state().special;
+    }
+
+    public int panelWidthHint() {
+        return Math.max(1, this.screen.editorContentWidthHint());
+    }
+
+    public double guiScale() {
+        return this.screen.session().minecraft().getWindow().getGuiScale();
     }
 
     public void rebuildPreview() {
@@ -96,12 +111,14 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
             String pickerTitle,
             int fallbackColor
     ) {
-        FlowLayout row = UiFactory.row();
-        row.child(UiFactory.textBox(initialValue, this.bindText(setter)).horizontalSizing(Sizing.fixed(140)));
+        boolean compactLayout = this.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || this.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
+        row.child(UiFactory.textBox(initialValue, this.bindText(setter)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COLOR_INPUT_FIELD_WIDTH)));
 
         int selectedColor = this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor),
+                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD, 
                 button -> this.screen.openColorPickerDialog(
                         pickerTitle,
                         this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor),
@@ -109,6 +126,22 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
                 )
         );
         pickButton.tooltip(List.of(Component.literal(ValidationUtil.toHex(selectedColor)).withColor(selectedColor)));
+        if (compactLayout) {
+            pickButton.horizontalSizing(Sizing.fill(100));
+        } else {
+            int buttonWidth = Math.max(
+                    PICK_BUTTON_WIDTH_MIN,
+                    Math.min(PICK_BUTTON_WIDTH_MAX, this.panelWidthHint() / 3)
+            );
+            buttonWidth = Math.max(1, Math.min(this.panelWidthHint(), buttonWidth));
+            Component fullText = Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor);
+            Component fitted = UiFactory.fitToWidth(
+                    fullText,
+                    Math.max(PICK_BUTTON_TEXT_MIN, buttonWidth - UiFactory.scaledPixels(PICK_BUTTON_TEXT_RESERVE))
+            );
+            pickButton.setMessage(fitted);
+            pickButton.horizontalSizing(Sizing.fixed(buttonWidth));
+        }
         row.child(pickButton);
         return row;
     }

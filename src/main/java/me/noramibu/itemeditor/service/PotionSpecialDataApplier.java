@@ -13,7 +13,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionContents;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -31,25 +30,12 @@ final class PotionSpecialDataApplier extends AbstractPreviewApplierSupport imple
         Optional<Holder<Potion>> potionHolder = RegistryUtil.resolveOptionalHolder(potionRegistry, context.special().potionId, ItemEditorText.str("special.potion.potion_id"), context.messages());
         Optional<Integer> customColor = ValidationUtil.parseOptionalColor(context.special().potionCustomColor, ItemEditorText.str("special.potion.color"), context.messages());
 
-        List<MobEffectInstance> effects = new ArrayList<>();
         Registry<MobEffect> effectRegistry = context.registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
-        for (ItemEditorState.PotionEffectDraft draft : context.special().potionEffects) {
-            if (draft.effectId.isBlank()) continue;
-
-            Holder<MobEffect> effect = this.resolveEffectOrReport(
-                    effectRegistry,
-                    draft.effectId,
-                    "special.potion.effect_id",
-                    context.messages()
-            );
-            if (effect == null) continue;
-
-            Integer duration = ValidationUtil.parseInt(draft.duration, ItemEditorText.str("special.potion.duration"), 1, Integer.MAX_VALUE, context.messages());
-            Integer amplifier = ValidationUtil.parseInt(draft.amplifier, ItemEditorText.str("special.potion.amplifier"), 0, MobEffectInstance.MAX_AMPLIFIER, context.messages());
-            if (duration == null || amplifier == null) continue;
-
-            effects.add(new MobEffectInstance(effect, duration, amplifier, draft.ambient, draft.visible, draft.showIcon));
-        }
+        List<MobEffectInstance> effects = this.parsePotionEffectInstances(
+                context.special().potionEffects,
+                effectRegistry,
+                context.messages()
+        );
 
         if (potionHolder.isEmpty() && customColor.isEmpty() && effects.isEmpty() && context.special().potionCustomName.isBlank()) {
             this.clearToPrototype(context.previewStack(), DataComponents.POTION_CONTENTS);

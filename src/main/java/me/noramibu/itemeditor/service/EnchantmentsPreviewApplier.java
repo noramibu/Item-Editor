@@ -79,7 +79,8 @@ final class EnchantmentsPreviewApplier extends AbstractPreviewApplierSupport imp
                 continue;
             }
 
-            Integer level = ValidationUtil.parseInt(draft.level, ItemEditorText.str("enchantments.entry.level"), 1, Enchantment.MAX_LEVEL, messages);
+            int maxLevel = unsafeAllowed ? Integer.MAX_VALUE : Enchantment.MAX_LEVEL;
+            Integer level = ValidationUtil.parseInt(draft.level, ItemEditorText.str("enchantments.entry.level"), 1, maxLevel, messages);
             if (level == null) continue;
 
             if (!unsafeAllowed) {

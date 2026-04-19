@@ -26,6 +26,10 @@ public final class BucketCreatureSpecialDataSection {
             new PufferStateOption("1", "special.bucket.puffer.medium"),
             new PufferStateOption("2", "special.bucket.puffer.full")
     );
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
+    private static final int PICKER_BUTTON_WIDTH = 210;
+    private static final int HEALTH_FIELD_WIDTH = 120;
 
     private BucketCreatureSpecialDataSection() {
     }
@@ -38,6 +42,7 @@ public final class BucketCreatureSpecialDataSection {
         ItemStack stack = context.originalStack();
         BucketType bucketType = detectBucketType(stack);
         ItemEditorState.SpecialData special = context.special();
+        boolean compactLayout = isCompactLayout(context);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.bucket.title"), Component.empty());
 
@@ -50,7 +55,7 @@ public final class BucketCreatureSpecialDataSection {
                             special.bucketAxolotlVariant,
                             ItemEditorText.tr("special.bucket.select.axolotl_variant")
                     ),
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     Arrays.asList(Axolotl.Variant.values()),
                     Axolotl.Variant::getSerializedName,
                     variant -> context.mutateRefresh(() -> special.bucketAxolotlVariant = variant.getSerializedName())
@@ -66,7 +71,7 @@ public final class BucketCreatureSpecialDataSection {
                             special.bucketSalmonSize,
                             ItemEditorText.tr("special.bucket.select.salmon_size")
                     ),
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     Arrays.asList(Salmon.Variant.values()),
                     Salmon.Variant::getSerializedName,
                     variant -> context.mutateRefresh(() -> special.bucketSalmonSize = variant.getSerializedName())
@@ -82,7 +87,7 @@ public final class BucketCreatureSpecialDataSection {
                             special.bucketTropicalPattern,
                             ItemEditorText.tr("special.bucket.select.tropical_pattern")
                     ),
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     Arrays.asList(TropicalFish.Pattern.values()),
                     TropicalFish.Pattern::getSerializedName,
                     pattern -> context.mutateRefresh(() -> special.bucketTropicalPattern = pattern.getSerializedName())
@@ -96,7 +101,7 @@ public final class BucketCreatureSpecialDataSection {
                     Component.empty(),
                     ItemEditorText.tr("special.bucket.select.tropical_base_color"),
                     special.bucketTropicalBaseColor,
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     null,
                     color -> special.bucketTropicalBaseColor = color.name()
             ));
@@ -107,7 +112,7 @@ public final class BucketCreatureSpecialDataSection {
                     Component.empty(),
                     ItemEditorText.tr("special.bucket.select.tropical_pattern_color"),
                     special.bucketTropicalPatternColor,
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     null,
                     color -> special.bucketTropicalPatternColor = color.name()
             ));
@@ -119,7 +124,7 @@ public final class BucketCreatureSpecialDataSection {
                     ItemEditorText.tr("special.bucket.puffer_state"),
                     Component.empty(),
                     pufferStateLabel(special.bucketPuffState),
-                    210,
+                    compactLayout ? -1 : PICKER_BUTTON_WIDTH,
                     PUFFER_STATES,
                     option -> ItemEditorText.str(option.labelKey()),
                     option -> context.mutateRefresh(() -> special.bucketPuffState = option.value())
@@ -138,12 +143,20 @@ public final class BucketCreatureSpecialDataSection {
             bucketEntityCard.child(UiFactory.field(
                     ItemEditorText.tr("special.bucket.health"),
                     Component.empty(),
-                    UiFactory.textBox(special.bucketHealth, context.bindText(value -> special.bucketHealth = value)).horizontalSizing(Sizing.fixed(120))
+                    UiFactory.textBox(
+                            special.bucketHealth,
+                            context.bindText(value -> special.bucketHealth = value)
+                    ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))
             ));
             section.child(bucketEntityCard);
         }
 
         return section;
+    }
+
+    private static boolean isCompactLayout(SpecialDataPanelContext context) {
+        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static boolean supportsBucketEntityData(ItemStack stack) {

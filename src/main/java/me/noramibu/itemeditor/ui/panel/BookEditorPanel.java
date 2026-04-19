@@ -3,13 +3,13 @@ package me.noramibu.itemeditor.ui.panel;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
+import me.noramibu.itemeditor.ui.component.InputSafeScrollContainer;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
@@ -37,11 +37,30 @@ import java.util.function.DoubleSupplier;
 public final class BookEditorPanel implements EditorPanel {
 
     private static final int PAGE_MINIMAP_LIST_HEIGHT = 136;
-    private static final int PAGE_EDITOR_WIDTH = 122;
-    private static final int PAGE_EDITOR_HEIGHT = 134;
-    private static final int PAGE_CONTROLS_WIDTH = 174;
+    private static final int PAGE_EDITOR_MIN_WIDTH = 104;
+    private static final int PAGE_EDITOR_MAX_WIDTH = 146;
+    private static final int PAGE_EDITOR_MIN_HEIGHT = 112;
+    private static final int PAGE_EDITOR_MAX_HEIGHT = 164;
     private static final int PAGE_TOOLTIP_MAX_LINES = 4;
     private static final int BOOK_METADATA_WIDE_THRESHOLD = 1380;
+    private static final int BOOK_WORKSPACE_EDITOR_RESERVE = 120;
+    private static final int PAGE_EDITOR_WIDTH_RESERVE = 40;
+    private static final int MINIMAP_SCROLLBAR_BASE_THICKNESS = 8;
+    private static final int MINIMAP_SCROLL_STEP_BASE = 10;
+    private static final int GENERATION_PICKER_WIDTH = 180;
+    private static final int MINIMAP_COUNT_HINT_WIDTH = 50;
+    private static final int METADATA_EDITOR_HEIGHT = 42;
+    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
+    private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 620;
+    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
+    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    private static final String QUICK_ACTION_COPY = "Copy";
+    private static final String QUICK_ACTION_BLANK = "Blank";
+    private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 26;
+    private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 34;
+    private static final int PAGE_FRAME_PADDING = 10;
+    private static final int PAGE_INDEX_BUTTON_SINGLE_INSET = 16;
+    private static final int PAGE_INDEX_BUTTON_DOUBLE_INSET = 20;
 
     private static final List<GenerationOption> GENERATION_OPTIONS = List.of(
             new GenerationOption(0, "book.generation.original"),
@@ -63,6 +82,7 @@ public final class BookEditorPanel implements EditorPanel {
             book.pages.add("");
         }
         book.selectedPage = Math.clamp(book.selectedPage, 0, book.pages.size() - 1);
+        boolean compactLayout = this.isCompactLayout();
 
         FlowLayout root = UiFactory.column();
 
@@ -91,7 +111,7 @@ public final class BookEditorPanel implements EditorPanel {
         if (!book.writtenBook) {
             overview.child(UiFactory.message(ItemEditorText.tr("book.writable_format_notice"), 0xF2C26B));
         }
-        root.child(overview);
+        UiFactory.appendFillChild(root, overview);
 
         if (book.writtenBook) {
             FlowLayout metadata = UiFactory.section(
@@ -113,7 +133,7 @@ public final class BookEditorPanel implements EditorPanel {
                     false,
                     PanelBindings.text(this.screen, value -> book.author = value)
             );
-            var generationButton = UiFactory.button(this.generationLabel(book.generation), button -> this.screen.openDropdown(
+            var generationButton = UiFactory.button(this.generationLabel(book.generation), UiFactory.ButtonTextPreset.STANDARD,  button -> this.screen.openDropdown(
                     button,
                     GENERATION_OPTIONS,
                     option -> ItemEditorText.str(option.labelKey()),
@@ -125,23 +145,27 @@ public final class BookEditorPanel implements EditorPanel {
             FlowLayout generationField = UiFactory.field(
                     ItemEditorText.tr("book.metadata.generation"),
                     Component.empty(),
-                    generationButton.horizontalSizing(Sizing.fixed(180))
+                    generationButton.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(this.nonCompactGenerationPickerWidth()))
             );
 
-            if (this.guiWidth() >= BOOK_METADATA_WIDE_THRESHOLD) {
+            if (!compactLayout && this.guiWidth() >= BOOK_METADATA_WIDE_THRESHOLD) {
                 FlowLayout topRow = UiFactory.row();
-                topRow.child(titleField.horizontalSizing(Sizing.fill(50)));
-                topRow.child(authorField.horizontalSizing(Sizing.fill(50)));
+                topRow.child(titleField.horizontalSizing(Sizing.expand(100)));
+                topRow.child(authorField.horizontalSizing(Sizing.expand(100)));
                 metadata.child(topRow);
                 metadata.child(generationField);
             } else {
                 metadata.child(titleField);
-                FlowLayout row = UiFactory.row();
-                row.child(authorField.horizontalSizing(Sizing.fill(100)));
-                row.child(generationField.horizontalSizing(Sizing.fixed(180)));
+                FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
+                row.child(authorField);
+                if (compactLayout) {
+                    row.child(generationField);
+                } else {
+                    row.child(generationField.horizontalSizing(UiFactory.fixed(this.nonCompactGenerationPickerWidth())));
+                }
                 metadata.child(row);
             }
-            root.child(metadata);
+            UiFactory.appendFillChild(root, metadata);
         }
 
         FlowLayout pages = UiFactory.section(
@@ -157,11 +181,13 @@ public final class BookEditorPanel implements EditorPanel {
             stats.text(Component.literal(this.pageStats(metrics, book.writtenBook)));
         };
 
+        int pageEditorWidth = this.pageEditorWidth();
+        int pageEditorHeight = this.pageEditorHeight();
         StyledTextFieldSection.BoundEditor pageSection = StyledTextFieldSection.create(
                 this.screen,
                 initialDocument,
-                Sizing.fixed(PAGE_EDITOR_WIDTH),
-                Sizing.fixed(PAGE_EDITOR_HEIGHT),
+                UiFactory.fixed(pageEditorWidth),
+                UiFactory.fixed(pageEditorHeight),
                 ItemEditorText.str("book.pages.blank"),
                 book.writtenBook ? StyledTextFieldSection.StylePreset.bookPage() : StyledTextFieldSection.StylePreset.writableBookPage(),
                 ItemEditorText.str("book.pages.color_title"),
@@ -181,15 +207,15 @@ public final class BookEditorPanel implements EditorPanel {
         refreshStats.run();
 
         FlowLayout pageFrame = UiFactory.subCard();
-        pageFrame.horizontalSizing(Sizing.content());
-        pageFrame.padding(Insets.of(10));
-        pageFrame.allowOverflow(false);
+        int pageFrameWidth = pageEditorWidth + (PAGE_FRAME_PADDING * 2);
+        pageFrame.horizontalSizing(UiFactory.fixed(pageFrameWidth));
+        pageFrame.padding(Insets.of(PAGE_FRAME_PADDING));
         pageFrame.surface(Surface.flat(0xFFE7D7B3).and(Surface.outline(0xFF9C8765)));
         pageFrame.child(pageSection.editor());
 
         FlowLayout pageShell = UiFactory.column();
         pageShell.horizontalAlignment(HorizontalAlignment.CENTER);
-        pageShell.horizontalSizing(Sizing.content());
+        pageShell.horizontalSizing(UiFactory.fixed(pageFrameWidth));
         pageShell.child(pageSection.toolbar());
         pageShell.child(pageFrame);
         pageShell.child(stats);
@@ -201,29 +227,41 @@ public final class BookEditorPanel implements EditorPanel {
                 pageShell
         );
 
-        FlowLayout workspace = UiFactory.row();
-        FlowLayout controls = this.buildPageControls(book);
-        FlowLayout miniMap = this.buildPageMiniMap(book);
+        FlowLayout workspace = compactLayout ? UiFactory.column() : UiFactory.row();
+        int controlsWidth = this.pageControlsWidth();
+        FlowLayout controls = this.buildPageControls(book, controlsWidth, compactLayout);
+        FlowLayout miniMap = this.buildPageMiniMap(book, controlsWidth, compactLayout);
         FlowLayout sideColumn = UiFactory.column();
-        sideColumn.horizontalSizing(Sizing.fixed(PAGE_CONTROLS_WIDTH));
+        sideColumn.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(controlsWidth));
         sideColumn.child(controls);
         sideColumn.child(miniMap);
-        workspace.child(editorField.horizontalSizing(Sizing.fill(100)));
+        workspace.child(editorField);
         workspace.child(sideColumn);
 
         pages.child(workspace);
 
-        root.child(pages);
+        UiFactory.appendFillChild(root, pages);
         return root;
     }
 
-    private FlowLayout buildPageControls(ItemEditorState.BookData book) {
+    private FlowLayout buildPageControls(ItemEditorState.BookData book, int controlsWidth, boolean compactLayout) {
         FlowLayout controls = UiFactory.subCard();
-        controls.horizontalSizing(Sizing.fixed(PAGE_CONTROLS_WIDTH));
+        controls.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(controlsWidth));
         controls.gap(2);
-        controls.child(UiFactory.title(ItemEditorText.tr("book.pages.current", book.selectedPage + 1, book.pages.size())).shadow(false));
+        FlowLayout header = UiFactory.row();
+        header.child(UiFactory.title(ItemEditorText.tr("book.pages.current", book.selectedPage + 1, book.pages.size())).shadow(false).horizontalSizing(Sizing.expand(100)));
+        ButtonComponent collapseToggle = UiFactory.button(Component.literal(book.uiPageControlsCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                PanelBindings.mutateRefresh(this.screen, () -> book.uiPageControlsCollapsed = !book.uiPageControlsCollapsed)
+        );
+        collapseToggle.horizontalSizing(Sizing.fixed(this.collapseToggleWidth()));
+        header.child(collapseToggle);
+        controls.child(header);
 
-        FlowLayout navigation = UiFactory.row();
+        if (book.uiPageControlsCollapsed) {
+            return controls;
+        }
+
+        FlowLayout navigation = compactLayout ? UiFactory.column() : UiFactory.row();
         ButtonComponent prev = this.actionButton(ItemEditorText.str("common.prev"), button -> {
             if (book.selectedPage > 0) {
                 book.selectedPage--;
@@ -250,16 +288,16 @@ public final class BookEditorPanel implements EditorPanel {
                 });
             }
         });
-        prev.horizontalSizing(Sizing.fill(25));
-        next.horizontalSizing(Sizing.fill(25));
-        add.horizontalSizing(Sizing.fill(25));
-        remove.horizontalSizing(Sizing.fill(25));
+        prev.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        next.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        add.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        remove.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
         navigation.child(prev);
         navigation.child(next);
         navigation.child(add);
         navigation.child(remove);
 
-        FlowLayout reorder = UiFactory.row();
+        FlowLayout reorder = compactLayout ? UiFactory.column() : UiFactory.row();
         ButtonComponent swapUp = this.actionButton(ItemEditorText.str("book.pages.swap_up"), button -> {
             if (book.selectedPage > 0) {
                 PanelBindings.mutateRefresh(this.screen, () -> {
@@ -276,30 +314,62 @@ public final class BookEditorPanel implements EditorPanel {
                 });
             }
         });
-        swapUp.horizontalSizing(Sizing.fill(50));
-        swapDown.horizontalSizing(Sizing.fill(50));
+        swapUp.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        swapDown.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
         reorder.child(swapUp);
         reorder.child(swapDown);
+
+        FlowLayout quick = compactLayout ? UiFactory.column() : UiFactory.row();
+        ButtonComponent duplicate = this.actionButton(QUICK_ACTION_COPY, button -> {
+            PanelBindings.mutateRefresh(this.screen, () -> {
+                String currentPage = book.pages.get(book.selectedPage);
+                book.pages.add(book.selectedPage + 1, currentPage);
+                book.selectedPage++;
+            });
+        });
+        ButtonComponent blank = this.actionButton(QUICK_ACTION_BLANK, button -> {
+            PanelBindings.mutateRefresh(this.screen, () -> book.pages.set(book.selectedPage, ""));
+        });
+        duplicate.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        blank.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
+        quick.child(duplicate);
+        quick.child(blank);
+
         controls.child(navigation);
         controls.child(reorder);
+        controls.child(quick);
         return controls;
     }
 
-    private FlowLayout buildPageMiniMap(ItemEditorState.BookData book) {
+    private FlowLayout buildPageMiniMap(ItemEditorState.BookData book, int controlsWidth, boolean compactLayout) {
         FlowLayout card = UiFactory.subCard();
-        card.horizontalSizing(Sizing.fixed(PAGE_CONTROLS_WIDTH));
-        card.child(UiFactory.title(ItemEditorText.tr("book.pages.minimap")).shadow(false));
+        card.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(controlsWidth));
+        FlowLayout header = UiFactory.row();
+        header.child(UiFactory.title(ItemEditorText.tr("book.pages.minimap")).shadow(false).horizontalSizing(Sizing.expand(100)));
+        header.child(UiFactory.muted(Component.literal("(" + book.pages.size() + ")"), MINIMAP_COUNT_HINT_WIDTH));
+        ButtonComponent collapseToggle = UiFactory.button(Component.literal(book.uiPageMiniMapCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                PanelBindings.mutateRefresh(this.screen, () -> book.uiPageMiniMapCollapsed = !book.uiPageMiniMapCollapsed)
+        );
+        collapseToggle.horizontalSizing(Sizing.fixed(this.collapseToggleWidth()));
+        header.child(collapseToggle);
+        card.child(header);
+
+        if (book.uiPageMiniMapCollapsed) {
+            return card;
+        }
+
+        int miniMapHeight = this.pageMiniMapHeight();
         AtomicReference<ScrollContainer<FlowLayout>> scrollRef = new AtomicReference<>();
-        FlowLayout pageList = this.buildPageIndexGrid(book, () -> {
+        FlowLayout pageList = this.buildPageIndexGrid(book, controlsWidth, () -> {
             ScrollContainer<FlowLayout> scroll = scrollRef.get();
             return scroll != null ? ScrollStateUtil.offset(scroll) : 0;
         });
 
-        ScrollContainer<FlowLayout> scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(136), pageList);
-        scroll.verticalSizing(Sizing.fixed(PAGE_MINIMAP_LIST_HEIGHT));
+        ScrollContainer<FlowLayout> scroll = InputSafeScrollContainer.vertical(Sizing.fill(100), UiFactory.fixed(miniMapHeight), pageList);
+        scroll.verticalSizing(UiFactory.fixed(miniMapHeight));
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
-        scroll.scrollbarThiccness(8);
-        scroll.scrollStep(10);
+        scroll.scrollbarThiccness(UiFactory.scaledScrollbarThickness(MINIMAP_SCROLLBAR_BASE_THICKNESS));
+        scroll.scrollStep(UiFactory.scaledScrollStep(MINIMAP_SCROLL_STEP_BASE));
         scrollRef.set(scroll);
         card.child(scroll);
         ScrollStateUtil.restore(scroll, book.miniMapScrollOffset);
@@ -307,9 +377,11 @@ public final class BookEditorPanel implements EditorPanel {
         return card;
     }
 
-    private FlowLayout buildPageIndexGrid(ItemEditorState.BookData book, DoubleSupplier miniMapOffsetSupplier) {
-        boolean twoColumns = PAGE_CONTROLS_WIDTH >= 190;
-        int buttonWidth = twoColumns ? (PAGE_CONTROLS_WIDTH - 20) / 2 : PAGE_CONTROLS_WIDTH - 16;
+    private FlowLayout buildPageIndexGrid(ItemEditorState.BookData book, int controlsWidth, DoubleSupplier miniMapOffsetSupplier) {
+        boolean twoColumns = controlsWidth >= 190;
+        int buttonWidth = twoColumns
+                ? Math.max(1, (controlsWidth - PAGE_INDEX_BUTTON_DOUBLE_INSET) / 2)
+                : Math.max(1, controlsWidth - PAGE_INDEX_BUTTON_SINGLE_INSET);
 
         FlowLayout pageList = UiFactory.column().gap(2);
         if (!twoColumns) {
@@ -331,7 +403,7 @@ public final class BookEditorPanel implements EditorPanel {
     }
 
     private ButtonComponent buildPageIndexButton(ItemEditorState.BookData book, int pageIndex, int width, DoubleSupplier miniMapOffsetSupplier) {
-        ButtonComponent button = UiFactory.button(Component.literal(Integer.toString(pageIndex + 1)), component -> {
+        ButtonComponent button = UiFactory.button(Component.literal(Integer.toString(pageIndex + 1)), UiFactory.ButtonTextPreset.STANDARD,  component -> {
             if (book.selectedPage == pageIndex) {
                 return;
             }
@@ -341,7 +413,7 @@ public final class BookEditorPanel implements EditorPanel {
                 book.selectedPage = pageIndex;
             });
         });
-        button.horizontalSizing(Sizing.fixed(width));
+        button.horizontalSizing(UiFactory.fixed(width));
         button.active(pageIndex != book.selectedPage);
         button.tooltip(this.pageTooltip(book, pageIndex));
         return button;
@@ -371,8 +443,8 @@ public final class BookEditorPanel implements EditorPanel {
     }
 
     private ButtonComponent actionButton(String label, Consumer<ButtonComponent> action) {
-        ButtonComponent button = UiFactory.button(label, action);
-        button.horizontalSizing(Sizing.content());
+        ButtonComponent button = UiFactory.button(label, UiFactory.ButtonTextPreset.STANDARD, action);
+        button.horizontalSizing(Sizing.fill(100));
         return button;
     }
 
@@ -391,7 +463,7 @@ public final class BookEditorPanel implements EditorPanel {
                 this.screen,
                 RichTextDocument.fromMarkup(initialValue),
                 Sizing.fill(100),
-                Sizing.fixed(42),
+                UiFactory.fixed(METADATA_EDITOR_HEIGHT),
                 label,
                 StyledTextFieldSection.StylePreset.bookMetadata(paletteOnly),
                 ItemEditorText.str("book.metadata.picker.color", label),
@@ -472,6 +544,52 @@ public final class BookEditorPanel implements EditorPanel {
 
     private int guiWidth() {
         return this.screen.session().minecraft().getWindow().getGuiScaledWidth();
+    }
+
+    private int pageControlsWidth() {
+        int preferred = this.clamp((int) Math.round(this.guiWidth() * 0.15d), 152, 220);
+        int available = this.availableContentWidth();
+        int maxAllowed = Math.max(1, available - UiFactory.scaledPixels(BOOK_WORKSPACE_EDITOR_RESERVE));
+        return Math.max(1, Math.min(preferred, maxAllowed));
+    }
+
+    private boolean isCompactLayout() {
+        return this.screen.session().minecraft().getWindow().getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
+                || this.availableContentWidth() < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+    }
+
+    private int pageMiniMapHeight() {
+        int guiHeight = this.screen.session().minecraft().getWindow().getGuiScaledHeight();
+        int dynamic = (int) Math.round(guiHeight * 0.22d);
+        return this.clamp(dynamic, 96, PAGE_MINIMAP_LIST_HEIGHT);
+    }
+
+    private int pageEditorWidth() {
+        int preferred = this.clamp((int) Math.round(this.guiWidth() * 0.105d), PAGE_EDITOR_MIN_WIDTH, PAGE_EDITOR_MAX_WIDTH);
+        int available = Math.max(1, this.availableContentWidth() - UiFactory.scaledPixels(PAGE_EDITOR_WIDTH_RESERVE));
+        return Math.max(1, Math.min(preferred, available));
+    }
+
+    private int pageEditorHeight() {
+        int guiHeight = this.screen.session().minecraft().getWindow().getGuiScaledHeight();
+        int dynamic = (int) Math.round(guiHeight * 0.19d);
+        return this.clamp(dynamic, PAGE_EDITOR_MIN_HEIGHT, PAGE_EDITOR_MAX_HEIGHT);
+    }
+
+    private int collapseToggleWidth() {
+        return Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, UiFactory.scaledPixels(COLLAPSE_TOGGLE_WIDTH_BASE));
+    }
+
+    private int availableContentWidth() {
+        return Math.max(1, this.screen.editorContentWidthHint());
+    }
+
+    private int nonCompactGenerationPickerWidth() {
+        return Math.max(1, Math.min(this.availableContentWidth(), GENERATION_PICKER_WIDTH));
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private record GenerationOption(int value, String labelKey) {

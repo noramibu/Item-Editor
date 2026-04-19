@@ -9,6 +9,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
@@ -59,16 +60,21 @@ final class BannerSpecialDataApplier extends AbstractPreviewApplierSupport imple
             context.previewStack().set(DataComponents.BANNER_PATTERNS, new BannerPatternLayers(layers));
         }
 
-        if (context.special().bannerBaseColor.isBlank()) {
+        String baseColorId = context.special().bannerBaseColor;
+        if (context.previewStack().is(Items.SHIELD) && baseColorId.isBlank() && !layers.isEmpty()) {
+            baseColorId = DyeColor.WHITE.name();
+        }
+
+        if (baseColorId.isBlank()) {
             this.clearToPrototype(context.previewStack(), DataComponents.BASE_COLOR);
         } else {
             try {
-                context.previewStack().set(DataComponents.BASE_COLOR, DyeColor.valueOf(context.special().bannerBaseColor));
+                context.previewStack().set(DataComponents.BASE_COLOR, DyeColor.valueOf(baseColorId));
             } catch (IllegalArgumentException exception) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str(
                         "validation.registry_missing",
                         ItemEditorText.str("special.banner.base_color"),
-                        context.special().bannerBaseColor
+                        baseColorId
                 )));
             }
         }

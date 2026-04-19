@@ -5,11 +5,13 @@ import net.minecraft.network.chat.Component;
 
 public enum EditorCategory {
     GENERAL("category.general"),
+    COMPONENTS("category.components"),
     DISPLAY("category.display"),
     ATTRIBUTES("category.attributes"),
     ENCHANTMENTS("category.enchantments"),
     FLAGS("category.flags"),
     BOOK("category.book"),
+    RAW_EDITOR("category.raw_editor"),
     SPECIAL_DATA("category.special_data");
 
     private final Component title;
