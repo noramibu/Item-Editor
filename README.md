@@ -141,7 +141,7 @@ Dynamic category. Sections appear only for compatible items.
 </div>
 
 <div align="center">
-  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/40503432cef7f5496b853f236c2c125298743844.png" alt="Banner Editor" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/70b08ab32e1b42552dbaa84bfbcdf1acfca6e760.png" alt="New Banner Editor" width="420" />
 </div>
 
 <div align="center">
@@ -150,4 +150,20 @@ Dynamic category. Sections appear only for compatible items.
 
 <div align="center">
   <img src="https://cdn.modrinth.com/data/FFDotM4D/images/de1f3cca86eaeebc60803064fae60a140e68242c.png" alt="Container Editor" width="420" />
+</div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/770c3541c025a23498118464c8ac9b3650450746.png" alt="Armor Stand Editor" width="420" />
+</div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/92c926e9b14bc10a0dce63616a38a766af53cf6e.png" alt="Raw Editor" width="420" />
+</div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/9a7aa731749755886f99dea535e24d8911469206.png" alt="New Sign Editor" width="420" />
+</div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/1e2e771d9a3f1850d9d54c61f8abd3fa02fee8c7.png" alt="Storage" width="420" />
 </div>
