@@ -3,7 +3,7 @@ plugins {
 	id 'maven-publish'
 }
 
-version = "${project.minecraft_version}-build-${project.build_number}"
+version = "${project.minecraft_version}-b-${project.build_number}"
 group = project.maven_group
 
 base {

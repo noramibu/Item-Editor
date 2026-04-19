@@ -17,7 +17,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.PlayerHeadItem;
 import net.minecraft.world.item.component.MapPostProcessing;
 import net.minecraft.world.item.equipment.trim.TrimMaterial;
 import net.minecraft.world.item.equipment.trim.TrimPattern;
@@ -67,7 +66,7 @@ public final class MiscSpecialDataSections {
     }
 
     public static boolean supportsProfile(ItemStack stack) {
-        return stack.has(DataComponents.PROFILE) || stack.getItem() instanceof PlayerHeadItem;
+        return stack.has(DataComponents.PROFILE) || isHeadItem(stack);
     }
 
     public static boolean supportsInstrument(ItemStack stack) {
@@ -351,6 +350,12 @@ public final class MiscSpecialDataSections {
     private static boolean isMusicDisc(ItemStack stack) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         return id.getPath().startsWith("music_disc_");
+    }
+
+    private static boolean isHeadItem(ItemStack stack) {
+        var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        String path = id.getPath();
+        return path.endsWith("_head");
     }
 
     private static List<String> availableJukeboxSongIds(SpecialDataPanelContext context, String currentId) {
