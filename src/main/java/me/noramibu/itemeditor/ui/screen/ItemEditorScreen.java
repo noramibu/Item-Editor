@@ -385,12 +385,12 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.dialogController.openRichTextSpriteDialog(title, onApply);
     }
 
-    public void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply) {
-        this.dialogController.openRichTextEventDialog(title, includeHoverModes, includeSuggestCommand, onApply);
+    public void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, String initialText, Consumer<String> onApply) {
+        this.dialogController.openRichTextEventDialog(title, includeHoverModes, includeSuggestCommand, initialText, onApply);
     }
 
     public void openRichTextEventDialog(String title, boolean includeHoverModes, Consumer<String> onApply) {
-        this.openRichTextEventDialog(title, includeHoverModes, true, onApply);
+        this.openRichTextEventDialog(title, includeHoverModes, true, "text", onApply);
     }
 
     public void openRawItemDataDialog(String title, boolean previewData) {

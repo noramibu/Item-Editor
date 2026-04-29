@@ -366,11 +366,11 @@ public final class RichTextToolbarUtil {
                 ItemEditorText.str("dialog.rich_text.event.title"),
                 includeHoverModes,
                 includeSuggestCommand,
+                editor.selectedTextOr(TOKEN_PLACEHOLDER),
                 token -> {
-            String closeTemplate = token.startsWith("[ie:hover:") ? HOVER_CLOSE_TEMPLATE : CLICK_CLOSE_TEMPLATE;
-            editor.wrapSelectionWithTemplate(token, closeTemplate, TOKEN_PLACEHOLDER);
-            editor.resumeEditing();
-            editor.collapseUnexpectedSelection(hadSelection);
+                    editor.insertTemplate(token);
+                    editor.resumeEditing();
+                    editor.collapseUnexpectedSelection(hadSelection);
                 }
         );
     }
