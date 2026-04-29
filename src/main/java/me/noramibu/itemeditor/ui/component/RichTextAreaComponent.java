@@ -327,6 +327,14 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         });
     }
 
+    public String selectedTextOr(String fallback) {
+        RichTextSelectionModel selection = this.currentSelection();
+        if (!selection.hasSelection()) {
+            return Objects.requireNonNullElse(fallback, "");
+        }
+        return this.editBox.value().substring(selection.start(), selection.end());
+    }
+
     public void wrapSelectionWithTemplate(String openToken, String closeToken, String placeholder) {
         String open = Objects.requireNonNullElse(openToken, "");
         String close = Objects.requireNonNullElse(closeToken, "");

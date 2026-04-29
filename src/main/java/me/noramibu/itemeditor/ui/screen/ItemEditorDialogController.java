@@ -171,11 +171,12 @@ final class ItemEditorDialogController {
         ));
     }
 
-    void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply) {
+    void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, String initialText, Consumer<String> onApply) {
         this.showDialog(RichTextTokenDialog.createEvent(
                 title,
                 includeHoverModes,
                 includeSuggestCommand,
+                initialText,
                 token -> this.clearThen(() -> onApply.accept(token)),
                 this::clearDialog
         ));

@@ -133,6 +133,7 @@
     "itemeditor.dialog.rich_text.sprite.field.sprite":  "Sprite Id",
     "itemeditor.dialog.rich_text.event.title":  "Insert Event",
     "itemeditor.dialog.rich_text.event.body":  "Select an event type and values. Selected text will be wrapped when applied.",
+    "itemeditor.dialog.rich_text.event.field.text":  "Event Text",
     "itemeditor.dialog.rich_text.click.mode.run_command":  "Run Command",
     "itemeditor.dialog.rich_text.click.mode.suggest_command":  "Suggest Command",
     "itemeditor.dialog.rich_text.click.mode.open_url":  "Open URL",

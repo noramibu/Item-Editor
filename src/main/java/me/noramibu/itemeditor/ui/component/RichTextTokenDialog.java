@@ -48,6 +48,8 @@ public final class RichTextTokenDialog {
     private static final int CONTENT_TEXT_MARGIN_OBJECT_PICKER_EXTRA = 12;
     private static final int ERROR_COLOR = 0xFF8A8A;
     private static final String TOKEN_PLACEHOLDER = "text";
+    private static final String CLICK_CLOSE_TEMPLATE = "[ie:/click]";
+    private static final String HOVER_CLOSE_TEMPLATE = "[ie:/hover]";
     private static final int UNBOUNDED_TEXT_LIMIT = Integer.MAX_VALUE;
     private static final int OBJECT_PICKER_HEIGHT_COMPACT = 72;
     private static final int OBJECT_PICKER_HEIGHT_NORMAL = 86;
@@ -130,15 +132,23 @@ public final class RichTextTokenDialog {
         );
     }
 
-    public static FlowLayout createEvent(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply, Runnable onCancel) {
+    public static FlowLayout createEvent(
+            String title,
+            boolean includeHoverModes,
+            boolean includeSuggestCommand,
+            String initialText,
+            Consumer<String> onApply,
+            Runnable onCancel
+    ) {
+        String defaultText = requiredRaw(initialText) == null ? TOKEN_PLACEHOLDER : initialText;
         List<ModeSpec> modes = new ArrayList<>();
-        modes.add(clickMode("dialog.rich_text.click.mode.run_command", "dialog.rich_text.click.field.command", "/say hi", value ->
+        modes.add(clickMode("dialog.rich_text.click.mode.run_command", "dialog.rich_text.click.field.command", "/say hi", defaultText, value ->
                 "[ie:click:run_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
         if (includeSuggestCommand) {
-            modes.add(clickMode("dialog.rich_text.click.mode.suggest_command", "dialog.rich_text.click.field.command", "/help", value ->
+            modes.add(clickMode("dialog.rich_text.click.mode.suggest_command", "dialog.rich_text.click.field.command", "/help", defaultText, value ->
                     "[ie:click:suggest_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
         }
-        modes.add(clickMode("dialog.rich_text.click.mode.open_url", "dialog.rich_text.click.field.url", "https://minecraft.wiki", value -> {
+        modes.add(clickMode("dialog.rich_text.click.mode.open_url", "dialog.rich_text.click.field.url", "https://minecraft.wiki", defaultText, value -> {
             try {
                 URI uri = URI.create(value);
                 if (uri.getScheme() == null) {
@@ -149,9 +159,9 @@ public final class RichTextTokenDialog {
             }
             return "[ie:click:open_url:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]";
         }));
-        modes.add(clickMode("dialog.rich_text.click.mode.copy_to_clipboard", "dialog.rich_text.click.field.value", TOKEN_PLACEHOLDER, value ->
+        modes.add(clickMode("dialog.rich_text.click.mode.copy_to_clipboard", "dialog.rich_text.click.field.value", TOKEN_PLACEHOLDER, defaultText, value ->
                 "[ie:click:copy_to_clipboard:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
-        modes.add(clickMode("dialog.rich_text.click.mode.change_page", "dialog.rich_text.click.field.page", "1", value -> {
+        modes.add(clickMode("dialog.rich_text.click.mode.change_page", "dialog.rich_text.click.field.page", "1", defaultText, value -> {
             try {
                 int page = Integer.parseInt(value.trim());
                 if (page <= 0) {
@@ -166,7 +176,8 @@ public final class RichTextTokenDialog {
                 ItemEditorText.tr("dialog.rich_text.click.mode.custom"),
                 List.of(
                         new FieldSpec(ItemEditorText.tr("dialog.rich_text.click.field.id"), "namespace:id"),
-                        new FieldSpec(ItemEditorText.tr("dialog.rich_text.click.field.payload"), "payload string")
+                        new FieldSpec(ItemEditorText.tr("dialog.rich_text.click.field.payload"), "payload string"),
+                        eventTextField(defaultText)
                 ),
                 values -> {
                     String id = firstRequiredTrimmed(values);
@@ -179,26 +190,42 @@ public final class RichTextTokenDialog {
                     if (payload != null) {
                         token.append('|').append(escapeEventField(payload));
                     }
-                    return token.append(']').toString();
+                    String eventText = thirdRequiredRaw(values);
+                    if (eventText == null) {
+                        return null;
+                    }
+                    return wrapEventToken(token.append(']').toString(), eventText, CLICK_CLOSE_TEMPLATE);
                 }
         ));
         if (includeHoverModes) {
             modes.add(new ModeSpec(
                     ItemEditorText.tr("dialog.rich_text.hover.mode.show_text"),
-                    List.of(new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.text"), TOKEN_PLACEHOLDER)),
+                    List.of(
+                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.text"), TOKEN_PLACEHOLDER),
+                            eventTextField(defaultText)
+                    ),
                     values -> {
                         String text = firstRequiredRaw(values);
                         if (text == null) {
                             return null;
                         }
-                        return "[ie:hover:show_text:" + TextComponentUtil.escapeStructuredTokenValue(text) + "]";
+                        String eventText = secondRequiredRaw(values);
+                        if (eventText == null) {
+                            return null;
+                        }
+                        return wrapEventToken(
+                                "[ie:hover:show_text:" + TextComponentUtil.escapeStructuredTokenValue(text) + "]",
+                                eventText,
+                                HOVER_CLOSE_TEMPLATE
+                        );
                     }
             ));
             modes.add(new ModeSpec(
                     ItemEditorText.tr("dialog.rich_text.hover.mode.show_item"),
                     List.of(
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.item"), "minecraft:golden_chestplate"),
-                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.count"), "1")
+                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.count"), "1"),
+                            eventTextField(defaultText)
                     ),
                     values -> {
                         String itemId = firstRequiredTrimmed(values);
@@ -223,7 +250,11 @@ public final class RichTextTokenDialog {
                         if (count != null && count != 1) {
                             token.append('|').append(count);
                         }
-                        return token.append(']').toString();
+                        String eventText = thirdRequiredRaw(values);
+                        if (eventText == null) {
+                            return null;
+                        }
+                        return wrapEventToken(token.append(']').toString(), eventText, HOVER_CLOSE_TEMPLATE);
                     }
             ));
             modes.add(new ModeSpec(
@@ -231,7 +262,8 @@ public final class RichTextTokenDialog {
                     List.of(
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.entity"), "minecraft:player"),
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.uuid"), "00000000-0000-0000-0000-000000000000"),
-                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.name"), TOKEN_PLACEHOLDER)
+                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.name"), TOKEN_PLACEHOLDER),
+                            eventTextField(defaultText)
                     ),
                     values -> {
                         String entityId = firstRequiredTrimmed(values);
@@ -255,7 +287,11 @@ public final class RichTextTokenDialog {
                         if (name != null) {
                             token.append('|').append(escapeEventField(name));
                         }
-                        return token.append(']').toString();
+                        String eventText = fourthRequiredRaw(values);
+                        if (eventText == null) {
+                            return null;
+                        }
+                        return wrapEventToken(token.append(']').toString(), eventText, HOVER_CLOSE_TEMPLATE);
                     }
             ));
         }
@@ -273,19 +309,31 @@ public final class RichTextTokenDialog {
             String labelKey,
             String fieldKey,
             String initialValue,
+            String initialText,
             Function<String, String> tokenBuilder
     ) {
         return new ModeSpec(
                 ItemEditorText.tr(labelKey),
-                List.of(new FieldSpec(ItemEditorText.tr(fieldKey), initialValue)),
+                List.of(
+                        new FieldSpec(ItemEditorText.tr(fieldKey), initialValue),
+                        eventTextField(initialText)
+                ),
                 values -> {
                     String value = firstRequiredRaw(values);
                     if (value == null) {
                         return null;
                     }
-                    return tokenBuilder.apply(value);
+                    String eventText = secondRequiredRaw(values);
+                    if (eventText == null) {
+                        return null;
+                    }
+                    return wrapEventToken(tokenBuilder.apply(value), eventText, CLICK_CLOSE_TEMPLATE);
                 }
         );
+    }
+
+    public static FlowLayout createEvent(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply, Runnable onCancel) {
+        return createEvent(title, includeHoverModes, includeSuggestCommand, TOKEN_PLACEHOLDER, onApply, onCancel);
     }
 
     private static FlowLayout create(
@@ -498,6 +546,18 @@ public final class RichTextTokenDialog {
         return requiredRaw(firstValue(values));
     }
 
+    private static String secondRequiredRaw(List<String> values) {
+        return requiredRaw(secondValue(values));
+    }
+
+    private static String thirdRequiredRaw(List<String> values) {
+        return requiredRaw(thirdValue(values));
+    }
+
+    private static String fourthRequiredRaw(List<String> values) {
+        return requiredRaw(fourthValue(values));
+    }
+
     private static String secondOptionalTrimmed(List<String> values) {
         return optionalTrimmed(secondValue(values));
     }
@@ -520,6 +580,10 @@ public final class RichTextTokenDialog {
 
     private static String thirdValue(List<String> values) {
         return values.size() < 3 ? null : values.get(2);
+    }
+
+    private static String fourthValue(List<String> values) {
+        return values.size() < 4 ? null : values.get(3);
     }
 
     private static String requiredTrimmed(String value) {
@@ -554,6 +618,17 @@ public final class RichTextTokenDialog {
                 + "|"
                 + TextComponentUtil.escapeStructuredTokenValue(ValidationUtil.toHex(rgb))
                 + token.substring(closeIndex);
+    }
+
+    private static FieldSpec eventTextField(String initialText) {
+        return new FieldSpec(ItemEditorText.tr("dialog.rich_text.event.field.text"), requiredRaw(initialText) == null ? TOKEN_PLACEHOLDER : initialText);
+    }
+
+    private static String wrapEventToken(String openToken, String eventText, String closeToken) {
+        if (openToken == null || openToken.isBlank() || eventText == null || eventText.trim().isEmpty()) {
+            return null;
+        }
+        return openToken + eventText + closeToken;
     }
 
     private static String escapeEventField(String value) {
