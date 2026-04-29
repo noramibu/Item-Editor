@@ -87,11 +87,11 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             return BuiltInRegistries.ENTITY_TYPE.getOptional(identifier).orElse(null);
         }
 
-        if (context.previewStack().getItem() instanceof SpawnEggItem) {
-            return SpawnEggItem.getType(context.previewStack());
+        if (context.previewStack().getItem() instanceof SpawnEggItem spawnEggItem) {
+            return spawnEggItem.getType(context.previewStack());
         }
-        if (context.originalStack().getItem() instanceof SpawnEggItem) {
-            return SpawnEggItem.getType(context.originalStack());
+        if (context.originalStack().getItem() instanceof SpawnEggItem spawnEggItem) {
+            return spawnEggItem.getType(context.originalStack());
         }
         TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
         if (previewData != null) {
@@ -180,13 +180,8 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             )));
             return false;
         }
-        Identifier profession = IdFieldNormalizer.parse(professionId);
-        if (profession == null || !BuiltInRegistries.VILLAGER_PROFESSION.containsKey(profession)) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.spawn_egg.villager.profession"),
-                    professionId
-            )));
+        Identifier profession = this.parseVillagerProfession(professionId, context);
+        if (profession == null) {
             return false;
         }
 
@@ -227,13 +222,8 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         }
 
         if (!professionId.isBlank()) {
-            Identifier profession = IdFieldNormalizer.parse(professionId);
-            if (profession == null || !BuiltInRegistries.VILLAGER_PROFESSION.containsKey(profession)) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.spawn_egg.villager.profession"),
-                        professionId
-                )));
+            Identifier profession = this.parseVillagerProfession(professionId, context);
+            if (profession == null) {
                 return false;
             }
             villagerDataTag.putString("profession", profession.toString());
@@ -259,6 +249,19 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             entityTag.put("VillagerData", villagerDataTag);
         }
         return true;
+    }
+
+    private Identifier parseVillagerProfession(String professionId, SpecialDataApplyContext context) {
+        Identifier profession = IdFieldNormalizer.parse(professionId);
+        if (profession != null && BuiltInRegistries.VILLAGER_PROFESSION.containsKey(profession)) {
+            return profession;
+        }
+        context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                "validation.registry_missing",
+                ItemEditorText.str("special.spawn_egg.villager.profession"),
+                professionId
+        )));
+        return null;
     }
 
     private boolean applyVillagerTrades(CompoundTag entityTag, SpecialDataApplyContext context) {

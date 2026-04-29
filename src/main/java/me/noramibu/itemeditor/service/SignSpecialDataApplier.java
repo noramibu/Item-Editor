@@ -43,7 +43,6 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
 
         blockEntityTag.store("front_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.front, context.messages()));
         blockEntityTag.store("back_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.back, context.messages()));
-        blockEntityTag.putBoolean("is_waxed", context.special().sign.waxed);
 
         context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(signType, blockEntityTag));
     }

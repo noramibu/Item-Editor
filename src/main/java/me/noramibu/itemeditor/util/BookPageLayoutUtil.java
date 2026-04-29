@@ -3,7 +3,8 @@ package me.noramibu.itemeditor.util;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import net.minecraft.client.gui.Font;
-import net.minecraft.network.chat.FormattedText;
+
+import java.util.List;
 
 public final class BookPageLayoutUtil {
 
@@ -13,14 +14,21 @@ public final class BookPageLayoutUtil {
     private BookPageLayoutUtil() {
     }
 
-    public static PageMetrics measure(RichTextDocument document, Font font) {
-        var lines = RichTextLayoutUtil.layout(document, font, TEXT_WIDTH);
+    public static PageMetrics measure(RichTextDocument document, Font font, boolean collapseStructuredTokens) {
+        var lines = layoutLines(document, font, collapseStructuredTokens);
         int totalLines = lines.size();
-        int visibleLines = Math.min(totalLines, MAX_VISIBLE_LINES);
         boolean overflow = totalLines > MAX_VISIBLE_LINES;
-        return new PageMetrics(document.toComponent(), document.plainText().length(), totalLines, visibleLines, overflow);
+        return new PageMetrics(document.plainText().length(), totalLines, overflow);
     }
 
-    public record PageMetrics(FormattedText text, int rawLength, int totalLines, int visibleLines, boolean overflow) {
+    private static List<RichTextLayoutUtil.LineLayout> layoutLines(
+            RichTextDocument document,
+            Font font,
+            boolean collapseStructuredTokens
+    ) {
+        return RichTextLayoutUtil.layout(document, font, TEXT_WIDTH, collapseStructuredTokens);
+    }
+
+    public record PageMetrics(int rawLength, int totalLines, boolean overflow) {
     }
 }

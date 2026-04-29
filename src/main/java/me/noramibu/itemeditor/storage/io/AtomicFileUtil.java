@@ -77,18 +77,15 @@ public final class AtomicFileUtil {
             return fallbackSupplier.get();
         }
         try (BufferedInputStream stream = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ))) {
-            CompoundTag tag = NbtIo.read(new DataInputStream(stream));
-            return tag == null ? fallbackSupplier.get() : tag;
+            return NbtIo.read(new DataInputStream(stream));
         } catch (Exception primaryFailure) {
             Path backup = backupPath(file);
             if (Files.exists(backup)) {
                 try (BufferedInputStream stream = new BufferedInputStream(Files.newInputStream(backup, StandardOpenOption.READ))) {
                     CompoundTag recovered = NbtIo.read(new DataInputStream(stream));
-                    if (recovered != null) {
-                        writeNbt(file, recovered);
-                        LOGGER.warn("Recovered NBT '{}' from backup '{}'", file, backup);
-                        return recovered;
-                    }
+                    writeNbt(file, recovered);
+                    LOGGER.warn("Recovered NBT '{}' from backup '{}'", file, backup);
+                    return recovered;
                 } catch (Exception backupFailure) {
                     LOGGER.warn("Failed backup NBT recovery for '{}'", file, backupFailure);
                 }
@@ -186,6 +183,6 @@ public final class AtomicFileUtil {
 
     @FunctionalInterface
     private interface WriterAction {
-        void write(Writer writer) throws IOException;
+        void write(Writer writer);
     }
 }

@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Registry;
@@ -21,7 +22,6 @@ import net.minecraft.world.item.alchemy.Potion;
 import java.util.List;
 
 public final class PotionSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int EFFECT_PICKER_WIDTH = 220;
     private static final int EFFECT_NUMERIC_FIELD_WIDTH = 90;
@@ -44,7 +44,7 @@ public final class PotionSpecialDataSection {
         Registry<MobEffect> effectRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         List<String> potionIds = RegistryUtil.ids(potionRegistry);
         List<String> effectIds = RegistryUtil.ids(effectRegistry);
-        boolean compactLayout = isCompactLayout(context);
+        boolean compactLayout = LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.potion.title"), Component.empty());
 
@@ -98,30 +98,19 @@ public final class PotionSpecialDataSection {
                     () -> special.potionEffects.remove(currentIndex)
             );
 
-            FlowLayout inputs = compactLayout ? UiFactory.column() : UiFactory.row();
-            inputs.child(PickerFieldFactory.searchableField(
+            card.child(EffectFieldLayoutUtil.buildEffectFields(
                     context,
-                    ItemEditorText.tr("special.potion.effect_id"),
-                    Component.empty(),
-                    PickerFieldFactory.selectedOrFallback(draft.effectId, ItemEditorText.tr("special.potion.select_effect")),
-                    compactLayout ? -1 : EFFECT_PICKER_WIDTH,
-                    ItemEditorText.str("special.potion.effect_id"),
-                    "",
+                    compactLayout,
                     effectIds,
-                    id -> id,
-                    id -> context.mutateRefresh(() -> draft.effectId = id)
+                    draft.effectId,
+                    id -> context.mutateRefresh(() -> draft.effectId = id),
+                    draft.duration,
+                    context.bindText(value -> draft.duration = value),
+                    draft.amplifier,
+                    context.bindText(value -> draft.amplifier = value),
+                    EFFECT_PICKER_WIDTH,
+                    EFFECT_NUMERIC_FIELD_WIDTH
             ));
-            inputs.child(UiFactory.field(
-                    ItemEditorText.tr("special.potion.duration"),
-                    Component.empty(),
-                    UiFactory.textBox(draft.duration, context.bindText(value -> draft.duration = value)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(EFFECT_NUMERIC_FIELD_WIDTH))
-            ));
-            inputs.child(UiFactory.field(
-                    ItemEditorText.tr("special.potion.amplifier"),
-                    Component.empty(),
-                    UiFactory.textBox(draft.amplifier, context.bindText(value -> draft.amplifier = value)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(EFFECT_NUMERIC_FIELD_WIDTH))
-            ));
-            card.child(inputs);
 
             FlowLayout toggles = compactLayout ? UiFactory.column() : UiFactory.row();
             toggles.child(UiFactory.checkbox(ItemEditorText.tr("special.potion.ambient"), draft.ambient, context.bindToggle(value -> draft.ambient = value)));
@@ -161,8 +150,4 @@ public final class PotionSpecialDataSection {
         return card;
     }
 
-    private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
 }

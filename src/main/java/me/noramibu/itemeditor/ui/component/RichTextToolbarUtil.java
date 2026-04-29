@@ -14,6 +14,7 @@ import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public final class RichTextToolbarUtil {
@@ -23,68 +24,97 @@ public final class RichTextToolbarUtil {
     private static final int COMPACT_BUTTON_ROW_HALF_MIN = 88;
     private static final int REGULAR_BUTTON_ROW_HALF_MIN = 112;
     private static final int TOOLBAR_CONTENT_WIDTH_MIN = 140;
+    private static final String CLICK_CLOSE_TEMPLATE = "[ie:/click]";
+    private static final String HOVER_CLOSE_TEMPLATE = "[ie:/hover]";
+    private static final String TOKEN_PLACEHOLDER = "text";
 
     public static final List<ToolAction> BASIC_ACTIONS = List.of(
-            new ToolAction(styled("toolbar.short.bold", ChatFormatting.BOLD), Component.empty(), RichTextAreaComponent::toggleBold, false),
-            new ToolAction(styled("toolbar.short.italic", ChatFormatting.ITALIC), Component.empty(), RichTextAreaComponent::toggleItalic, false),
-            new ToolAction(styled("toolbar.short.underline", ChatFormatting.UNDERLINE), Component.empty(), RichTextAreaComponent::toggleUnderline, false),
-            new ToolAction(styled("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH), Component.empty(), RichTextAreaComponent::toggleStrikethrough, false),
-            new ToolAction(ItemEditorText.tr("toolbar.cap"), Component.empty(), RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
+            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
+            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
+            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
+            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
+            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
+            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
+            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false),
+            deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
+            deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog)
     );
 
     public static final List<ToolAction> EXTENDED_ACTIONS = List.of(
-            new ToolAction(styled("toolbar.short.bold", ChatFormatting.BOLD), Component.empty(), RichTextAreaComponent::toggleBold, false),
-            new ToolAction(styled("toolbar.short.italic", ChatFormatting.ITALIC), Component.empty(), RichTextAreaComponent::toggleItalic, false),
-            new ToolAction(styled("toolbar.short.underline", ChatFormatting.UNDERLINE), Component.empty(), RichTextAreaComponent::toggleUnderline, false),
-            new ToolAction(styled("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH), Component.empty(), RichTextAreaComponent::toggleStrikethrough, false),
-            new ToolAction(ItemEditorText.tr("toolbar.obf"), Component.empty(), RichTextAreaComponent::toggleObfuscated, false),
-            new ToolAction(ItemEditorText.tr("toolbar.cap"), Component.empty(), RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
+            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
+            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
+            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
+            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
+            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, false),
+            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
+            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
+            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false),
+            deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
+            deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog)
     );
 
-    public static final List<ToolAction> WRITTEN_OUTPUT_ACTIONS = List.of(
-            new ToolAction(styled("toolbar.short.bold", ChatFormatting.BOLD), Component.empty(), RichTextAreaComponent::toggleBold, true),
-            new ToolAction(styled("toolbar.short.italic", ChatFormatting.ITALIC), Component.empty(), RichTextAreaComponent::toggleItalic, true),
-            new ToolAction(styled("toolbar.short.underline", ChatFormatting.UNDERLINE), Component.empty(), RichTextAreaComponent::toggleUnderline, true),
-            new ToolAction(styled("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH), Component.empty(), RichTextAreaComponent::toggleStrikethrough, true),
-            new ToolAction(ItemEditorText.tr("toolbar.obf"), Component.empty(), RichTextAreaComponent::toggleObfuscated, true),
-            new ToolAction(ItemEditorText.tr("toolbar.cap"), Component.empty(), RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            new ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
+    public static final List<ToolAction> BOOK_METADATA_ACTIONS = List.of(
+            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
+            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
+            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
+            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
+            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, false),
+            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
+            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
+            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
     );
+
+    public static final List<ToolAction> BOOK_OUTPUT_ACTIONS = outputActions(true, false);
+
+    public static final List<ToolAction> SIGN_OUTPUT_ACTIONS = outputActions(false, true);
+
+    private static List<ToolAction> outputActions(boolean includeHoverModes, boolean includeSuggestCommand) {
+        return List.of(
+            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, true),
+            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, true),
+            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, true),
+            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, true),
+            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, true),
+            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
+            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
+            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false),
+            deferredAction("toolbar.event", (screen, editor) -> openEventTokenDialog(screen, editor, includeHoverModes, includeSuggestCommand)),
+            deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
+            deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog)
+        );
+    }
 
     private RichTextToolbarUtil() {
     }
 
-    public static FlowLayout buildToolbar(
-            ItemEditorScreen screen,
-            RichTextAreaComponent editor,
-            AtomicInteger selectedColor,
-            List<ToolAction> actions,
-            String colorDialogTitle,
-            String gradientDialogTitle,
-            String colorTooltip,
-            String gradientTooltip,
-            Runnable prepareStyledApply,
-            boolean includeColorPicker,
-            boolean includeGradient
+    private static ToolAction formatAction(
+            String labelKey,
+            ChatFormatting formatting,
+            Consumer<RichTextAreaComponent> action,
+            boolean requiresPreparation
     ) {
-        return buildToolbar(
-                screen,
-                editor,
-                selectedColor,
-                actions,
-                colorDialogTitle,
-                gradientDialogTitle,
-                colorTooltip,
-                gradientTooltip,
-                prepareStyledApply,
-                includeColorPicker,
-                includeGradient,
-                false
+        return new ToolAction(styled(labelKey, formatting), Component.empty(), action, requiresPreparation);
+    }
+
+    private static ToolAction textAction(
+            String labelKey,
+            Consumer<RichTextAreaComponent> action,
+            boolean requiresPreparation
+    ) {
+        return new ToolAction(ItemEditorText.tr(labelKey), Component.empty(), action, requiresPreparation);
+    }
+
+    private static ToolAction deferredAction(
+            String labelKey,
+            BiConsumer<ItemEditorScreen, RichTextAreaComponent> action
+    ) {
+        return new ToolAction(
+                ItemEditorText.tr(labelKey),
+                Component.empty(),
+                action,
+                false,
+                true,
+                ToolActionPlacement.AFTER_COLORS
         );
     }
 
@@ -100,40 +130,27 @@ public final class RichTextToolbarUtil {
             Runnable prepareStyledApply,
             boolean includeColorPicker,
             boolean includeGradient,
-            boolean compactToolbar
+            boolean compactToolbar,
+            int toolbarWidthHint
     ) {
         FlowLayout tools = UiFactory.column();
         tools.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
         AtomicInteger gradientEndColor = new AtomicInteger(TextColorPresets.gradientEndFor(selectedColor.get()));
         Runnable preparation = prepareStyledApply == null ? () -> {} : prepareStyledApply;
         List<ToolbarItem> toolbarItems = new ArrayList<>();
-        int maxRowWidth = toolbarAvailableWidth(screen, compactToolbar);
+        int maxRowWidth = toolbarAvailableWidth(screen, compactToolbar, toolbarWidthHint);
 
-        for (ToolAction action : actions) {
-            ButtonComponent button = UiFactory.button(action.label(), UiFactory.ButtonTextPreset.STANDARD,  component -> {
-                if (action.requiresPreparation()) {
-                    preparation.run();
-                }
-                action.action().accept(editor);
-                editor.resumeEditing();
-            });
-            if (!action.tooltip().getString().isBlank()) {
-                button.tooltip(List.of(action.tooltip()));
-            }
-            toolbarItems.add(toolbarItem(button, compactToolbar, maxRowWidth));
-        }
+        appendActionButtons(toolbarItems, actions, ToolActionPlacement.BEFORE_COLORS, screen, editor, preparation, compactToolbar, maxRowWidth);
 
         ButtonComponent pickColor = null;
         if (includeColorPicker) {
             pickColor = UiFactory.button(
                     TextColorPresets.colorLabel(selectedColor.get()), UiFactory.ButtonTextPreset.STANDARD, 
-                    button -> screen.openColorPickerDialog(colorDialogTitle, selectedColor.get(), color -> {
-                        preparation.run();
-                        selectedColor.set(color);
-                        editor.applyColor(color);
-                        button.setMessage(TextColorPresets.colorLabel(color));
-                        editor.resumeEditing();
-                    })
+                    button -> screen.openColorPickerDialog(
+                            colorDialogTitle,
+                            selectedColor.get(),
+                            color -> applySolidColor(editor, preparation, selectedColor, color, button)
+                    )
             );
             if (!colorTooltip.isBlank()) {
                 pickColor.tooltip(List.of(Component.literal(colorTooltip)));
@@ -146,6 +163,7 @@ public final class RichTextToolbarUtil {
             ButtonComponent gradientButton = UiFactory.button(
                     TextColorPresets.gradientLabel(ItemEditorText.str("toolbar.gradient"), selectedColor.get(), gradientEndColor.get()), UiFactory.ButtonTextPreset.STANDARD, 
                     button -> screen.openGradientPickerDialog(gradientDialogTitle, selectedColor.get(), gradientEndColor.get(), (startColor, endColor) -> {
+                        boolean hadSelection = editor.hasSelection();
                         preparation.run();
                         selectedColor.set(startColor);
                         gradientEndColor.set(endColor);
@@ -155,6 +173,7 @@ public final class RichTextToolbarUtil {
                         }
                         button.setMessage(TextColorPresets.gradientLabel(ItemEditorText.str("toolbar.gradient"), startColor, endColor));
                         editor.resumeEditing();
+                        editor.collapseUnexpectedSelection(hadSelection);
                     })
             );
             if (!gradientTooltip.isBlank()) {
@@ -167,18 +186,12 @@ public final class RichTextToolbarUtil {
         for (TextColorPresets.Preset preset : TextColorPresets.STANDARD) {
             ButtonComponent presetButton = UiFactory.button(
                     Component.literal(preset.label()).withColor(preset.rgb()), UiFactory.ButtonTextPreset.STANDARD, 
-                    button -> {
-                        preparation.run();
-                        selectedColor.set(preset.rgb());
-                        editor.applyColor(preset.rgb());
-                        if (finalPickColor != null) {
-                            finalPickColor.setMessage(TextColorPresets.colorLabel(preset.rgb()));
-                        }
-                        editor.resumeEditing();
-                    }
+                    button -> applySolidColor(editor, preparation, selectedColor, preset.rgb(), finalPickColor)
             );
             toolbarItems.add(toolbarItem(presetButton, compactToolbar, maxRowWidth));
         }
+
+        appendActionButtons(toolbarItems, actions, ToolActionPlacement.AFTER_COLORS, screen, editor, preparation, compactToolbar, maxRowWidth);
 
         appendWrappedRows(tools, toolbarItems, maxRowWidth);
         return tools;
@@ -222,11 +235,31 @@ public final class RichTextToolbarUtil {
         return row;
     }
 
-    private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar) {
+    private static void applySolidColor(
+            RichTextAreaComponent editor,
+            Runnable preparation,
+            AtomicInteger selectedColor,
+            int color,
+            ButtonComponent pickColorButton
+    ) {
+        boolean hadSelection = editor.hasSelection();
+        preparation.run();
+        selectedColor.set(color);
+        editor.applyColor(color);
+        if (pickColorButton != null) {
+            pickColorButton.setMessage(TextColorPresets.colorLabel(color));
+        }
+        editor.resumeEditing();
+        editor.collapseUnexpectedSelection(hadSelection);
+    }
+
+    private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {
         double guiScale = screen.session().minecraft().getWindow().getGuiScale();
         boolean forcedCompact = compactToolbar || guiScale >= FORCED_COMPACT_SCALE_THRESHOLD;
         int viewportFallback = (int) Math.round(screen.session().minecraft().getWindow().getGuiScaledWidth() * (forcedCompact ? 0.34d : 0.42d));
-        int hintedWidth = Math.max(1, screen.editorContentWidthHint());
+        int hintedWidth = toolbarWidthHint > 1
+                ? toolbarWidthHint
+                : Math.max(1, screen.editorContentWidthHint());
         int fallbackWidth = Math.max(TOOLBAR_CONTENT_WIDTH_MIN, viewportFallback);
         int contentWidth = hintedWidth > 1 ? hintedWidth : fallbackWidth;
         int sideInsets = UiFactory.scaledPixels(forcedCompact ? 10 : 14);
@@ -267,9 +300,110 @@ public final class RichTextToolbarUtil {
         return ItemEditorText.tr(key).copy().withStyle(formatting);
     }
 
+    private static void appendActionButtons(
+            List<ToolbarItem> toolbarItems,
+            List<ToolAction> actions,
+            ToolActionPlacement placement,
+            ItemEditorScreen screen,
+            RichTextAreaComponent editor,
+            Runnable preparation,
+            boolean compactToolbar,
+            int maxRowWidth
+    ) {
+        for (ToolAction action : actions) {
+            if (action.placement() != placement) {
+                continue;
+            }
+            ButtonComponent button = UiFactory.button(action.label(), UiFactory.ButtonTextPreset.STANDARD, component ->
+                    applyToolbarAction(screen, editor, action, preparation)
+            );
+            if (!action.tooltip().getString().isBlank()) {
+                button.tooltip(List.of(action.tooltip()));
+            }
+            toolbarItems.add(toolbarItem(button, compactToolbar, maxRowWidth));
+        }
+    }
+
+    private static void applyToolbarAction(ItemEditorScreen screen, RichTextAreaComponent editor, ToolAction action, Runnable preparation) {
+        boolean hadSelection = editor.hasSelection();
+        if (action.requiresPreparation()) {
+            preparation.run();
+        }
+        action.action().accept(screen, editor);
+        if (action.deferredMutation()) {
+            return;
+        }
+        editor.resumeEditing();
+        editor.collapseUnexpectedSelection(hadSelection);
+    }
+
+    private static void openHeadTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
+        boolean hadSelection = editor.hasSelection();
+        screen.openRichTextHeadDialog(ItemEditorText.str("dialog.rich_text.head.title"), token -> {
+            editor.insertTemplate(token);
+            editor.resumeEditing();
+            editor.collapseUnexpectedSelection(hadSelection);
+        });
+    }
+
+    private static void openSpriteTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
+        boolean hadSelection = editor.hasSelection();
+        screen.openRichTextSpriteDialog(ItemEditorText.str("dialog.rich_text.sprite.title"), token -> {
+            editor.insertTemplate(token);
+            editor.resumeEditing();
+            editor.collapseUnexpectedSelection(hadSelection);
+        });
+    }
+
+    private static void openEventTokenDialog(
+            ItemEditorScreen screen,
+            RichTextAreaComponent editor,
+            boolean includeHoverModes,
+            boolean includeSuggestCommand
+    ) {
+        boolean hadSelection = editor.hasSelection();
+        screen.openRichTextEventDialog(
+                ItemEditorText.str("dialog.rich_text.event.title"),
+                includeHoverModes,
+                includeSuggestCommand,
+                token -> {
+            String closeTemplate = token.startsWith("[ie:hover:") ? HOVER_CLOSE_TEMPLATE : CLICK_CLOSE_TEMPLATE;
+            editor.wrapSelectionWithTemplate(token, closeTemplate, TOKEN_PLACEHOLDER);
+            editor.resumeEditing();
+            editor.collapseUnexpectedSelection(hadSelection);
+                }
+        );
+    }
+
     private record ToolbarItem(UIComponent component, int layoutWidth) {
     }
 
-    public record ToolAction(Component label, Component tooltip, Consumer<RichTextAreaComponent> action, boolean requiresPreparation) {
+    public record ToolAction(
+            Component label,
+            Component tooltip,
+            BiConsumer<ItemEditorScreen, RichTextAreaComponent> action,
+            boolean requiresPreparation,
+            boolean deferredMutation,
+            ToolActionPlacement placement
+    ) {
+        public ToolAction(
+                Component label,
+                Component tooltip,
+                Consumer<RichTextAreaComponent> action,
+                boolean requiresPreparation,
+                ToolActionPlacement placement
+        ) {
+            this(label, tooltip, (screen, editor) -> action.accept(editor), requiresPreparation, false, placement);
+        }
+
+        public ToolAction(Component label, Component tooltip, Consumer<RichTextAreaComponent> action, boolean requiresPreparation) {
+            this(label, tooltip, action, requiresPreparation, ToolActionPlacement.BEFORE_COLORS);
+        }
+
+    }
+
+    public enum ToolActionPlacement {
+        BEFORE_COLORS,
+        AFTER_COLORS
     }
 }

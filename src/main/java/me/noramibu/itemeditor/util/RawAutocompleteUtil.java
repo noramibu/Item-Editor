@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
@@ -243,6 +244,51 @@ public final class RawAutocompleteUtil {
             "minecraft:map_decorations", "{decorations: []}",
             "minecraft:lodestone_tracker", "{tracked: true, target: {dimension: \"minecraft:overworld\", pos: [0, 64, 0]}}"
     );
+    private static final List<List<String>> BOOLEAN_PATH_SUFFIXES = List.of(
+            List.of("components", "minecraft:food", "can_always_eat"),
+            List.of("components", "minecraft:consumable", "has_consume_particles"),
+            List.of("effects", "show_icon"),
+            List.of("effects", "show_particles"),
+            List.of("effects", "ambient"),
+            List.of("unbreakable")
+    );
+    private static final List<List<String>> NUMERIC_PATH_SUFFIXES = List.of(
+            List.of("components", "minecraft:food", "nutrition"),
+            List.of("components", "minecraft:food", "saturation"),
+            List.of("components", "minecraft:consumable", "consume_seconds"),
+            List.of("components", "minecraft:use_cooldown", "seconds"),
+            List.of("on_consume_effects", "probability"),
+            List.of("effects", "duration"),
+            List.of("effects", "amplifier"),
+            List.of("attributemodifiers", "amount"),
+            List.of("attributemodifiers", "operation"),
+            List.of("enchantments", "lvl"),
+            List.of("custompotioneffects", "amplifier"),
+            List.of("custompotioneffects", "duration"),
+            List.of("custom_potion_effects", "amplifier"),
+            List.of("custom_potion_effects", "duration"),
+            List.of("patterns", "color"),
+            List.of("blockentitytag", "base"),
+            List.of("fireworks", "flight")
+    );
+    private static final List<List<String>> NUMERIC_MODE_ONLY_PATH_SUFFIXES = List.of(
+            List.of("custompotioneffects", "id")
+    );
+    private static final List<List<String>> STRING_PATH_SUFFIXES = List.of(
+            List.of("components", "minecraft:consumable", "animation"),
+            List.of("components", "minecraft:consumable", "sound"),
+            List.of("on_consume_effects", "type"),
+            List.of("on_consume_effects", "sound"),
+            List.of("effects", "id"),
+            List.of("attributemodifiers", "attributename"),
+            List.of("attributemodifiers", "name"),
+            List.of("attributemodifiers", "slot"),
+            List.of("enchantments", "id"),
+            List.of("custom_potion_effects", "id"),
+            List.of("display", "name"),
+            List.of("display", "lore"),
+            List.of("patterns", "pattern")
+    );
     private static final RawAutocompleteSchema SCHEMA = RawAutocompleteSchema.load();
     private static final int RUNTIME_PROBE_MAX_TEXT_LENGTH = 20000;
     private static final int RUNTIME_PROBE_CACHE_LIMIT = 256;
@@ -288,7 +334,7 @@ public final class RawAutocompleteUtil {
             RawAutocompleteIndex index,
             String fallbackItemId
     ) {
-        String text = rawText == null ? "" : rawText;
+        String text = Objects.requireNonNullElse(rawText, "");
         int cursor = Math.clamp(caretIndex, 0, text.length());
         RawAutocompleteIndex effectiveIndex = index == null || !index.matches(text)
                 ? RawAutocompleteIndex.create(text)
@@ -300,8 +346,9 @@ public final class RawAutocompleteUtil {
         String currentKey = effectiveIndex.lastObjectKeyAt(cursor);
         RawAutocompleteIndex.Context context = effectiveIndex.contextAt(cursor);
         String topLevelItemId = detectTopLevelItemId(text);
-        if (topLevelItemId.isBlank() && fallbackItemId != null && !fallbackItemId.isBlank()) {
-            topLevelItemId = fallbackItemId;
+        String fallbackId = Objects.requireNonNullElse(fallbackItemId, "");
+        if (topLevelItemId.isBlank() && !fallbackId.isBlank()) {
+            topLevelItemId = fallbackId;
         }
         List<String> activeProfiles = inferItemProfiles(topLevelItemId, registryAccess);
         List<String> profileComponents = SCHEMA.componentsForProfiles(activeProfiles);
@@ -481,15 +528,21 @@ public final class RawAutocompleteUtil {
         List<String> typedSchemaValueHints = filterValuesByModes(schemaValueHints, expectedModes);
         List<String> typedRegistryHints = filterValuesByModes(registryHints, expectedModes);
         BooleanInsertStyle booleanInsertStyle = detectBooleanInsertStyle(text, replaceStart, context.containerPath(), currentKey);
-        if (slotType == SlotType.VALUE_INT) {
-            typedSchemaValueHints = filterNumericHintsForCurrentKey(typedSchemaValueHints, currentKey, context.containerPath());
-            typedRegistryHints = filterNumericHintsForCurrentKey(typedRegistryHints, currentKey, context.containerPath());
-        } else if (slotType == SlotType.VALUE_FLOAT) {
-            typedSchemaValueHints = filterFloatHints(typedSchemaValueHints);
-            typedRegistryHints = filterFloatHints(typedRegistryHints);
-        } else if (expectedModes.contains(ValueMode.NUMBER)) {
-            typedSchemaValueHints = filterNumericHintsForCurrentKey(typedSchemaValueHints, currentKey, context.containerPath());
-            typedRegistryHints = filterNumericHintsForCurrentKey(typedRegistryHints, currentKey, context.containerPath());
+        switch (slotType) {
+            case VALUE_INT -> {
+                typedSchemaValueHints = filterNumericHintsForCurrentKey(typedSchemaValueHints, currentKey, context.containerPath());
+                typedRegistryHints = filterNumericHintsForCurrentKey(typedRegistryHints, currentKey, context.containerPath());
+            }
+            case VALUE_FLOAT -> {
+                typedSchemaValueHints = filterFloatHints(typedSchemaValueHints);
+                typedRegistryHints = filterFloatHints(typedRegistryHints);
+            }
+            default -> {
+                if (expectedModes.contains(ValueMode.NUMBER)) {
+                    typedSchemaValueHints = filterNumericHintsForCurrentKey(typedSchemaValueHints, currentKey, context.containerPath());
+                    typedRegistryHints = filterNumericHintsForCurrentKey(typedRegistryHints, currentKey, context.containerPath());
+                }
+            }
         }
 
         if (insideQuote) {
@@ -563,17 +616,14 @@ public final class RawAutocompleteUtil {
     }
 
     private static boolean isPrimitiveOnlyMode(EnumSet<ValueMode> expectedModes) {
-        if (expectedModes == null || expectedModes.isEmpty()) {
-            return false;
-        }
-        if (expectedModes.contains(ValueMode.NONE) || expectedModes.contains(ValueMode.STRING)) {
-            return false;
-        }
-        return true;
+        return expectedModes != null
+                && !expectedModes.isEmpty()
+                && !expectedModes.contains(ValueMode.NONE)
+                && !expectedModes.contains(ValueMode.STRING);
     }
 
     private static List<String> numberSuggestionsForCurrentKey(String currentKey, String containerPath) {
-        String key = currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
         String path = buildFullPath(containerPath, key);
         if (isLikelyIntegerNumberKey(key, path)) {
             return INTEGER_NUMBER_VALUES;
@@ -585,7 +635,7 @@ public final class RawAutocompleteUtil {
         if (values == null || values.isEmpty()) {
             return List.of();
         }
-        String key = currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
         String path = buildFullPath(containerPath, key);
         if (!isLikelyIntegerNumberKey(key, path)) {
             return values;
@@ -657,13 +707,11 @@ public final class RawAutocompleteUtil {
             return null;
         }
         char beforeQuote = text.charAt(previous);
-        if (beforeQuote == ':') {
-            return false;
-        }
-        if (beforeQuote == '{' || beforeQuote == ',') {
-            return true;
-        }
-        return null;
+        return switch (beforeQuote) {
+            case ':' -> false;
+            case '{', ',' -> true;
+            default -> null;
+        };
     }
 
     private static boolean isLikelyValuePositionOutsideString(String text, int cursor) {
@@ -673,25 +721,29 @@ public final class RawAutocompleteUtil {
         }
 
         char value = text.charAt(current);
-        if (value == ':') {
-            return true;
-        }
-        if (value == '{' || value == '[' || value == ',') {
-            return false;
-        }
-        if (value == '"' || isTokenCharacter(value) || Character.isDigit(value) || value == ']' || value == '}') {
-            while (current >= 0) {
-                char candidate = text.charAt(current);
-                if (candidate == '"' || isTokenCharacter(candidate) || Character.isDigit(candidate)) {
-                    current--;
-                    continue;
+        switch (value) {
+            case ':':
+                return true;
+            case '{', '[', ',':
+                return false;
+            case '"', ']', '}':
+                break;
+            default:
+                if (!isTokenCharacter(value) && !Character.isDigit(value)) {
+                    return false;
                 }
                 break;
-            }
-            current = skipWhitespaceBackward(text, current);
-            return current >= 0 && text.charAt(current) == ':';
         }
-        return false;
+        while (current >= 0) {
+            char candidate = text.charAt(current);
+            if (candidate == '"' || isTokenCharacter(candidate) || Character.isDigit(candidate)) {
+                current--;
+                continue;
+            }
+            break;
+        }
+        current = skipWhitespaceBackward(text, current);
+        return current >= 0 && text.charAt(current) == ':';
     }
 
     private static List<Suggestion> limit(
@@ -867,9 +919,9 @@ public final class RawAutocompleteUtil {
 
     private static int parserScore(ParseFilteredSuggestion parseCandidate) {
         return switch (parseCandidate.parseRank()) {
-            case 0 -> 3; // fully parses
-            case 1 -> 2; // error moved forward near caret
-            default -> 1; // parse-filter skipped
+            case 0 -> 3;
+            case 1 -> 2;
+            default -> 1;
         };
     }
 
@@ -996,7 +1048,7 @@ public final class RawAutocompleteUtil {
             String containerPath,
             String currentKey
     ) {
-        String path = buildFullPath(containerPath, currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT));
+        String path = buildFullPath(containerPath, Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT));
         if (isBooleanPath(path)) {
             return BooleanInsertStyle.NBT_BYTE;
         }
@@ -1154,7 +1206,7 @@ public final class RawAutocompleteUtil {
         char previousChar = text.charAt(previous);
         if (previousChar == '{' || previousChar == ',') {
             upsertSuggestion(output, new Suggestion("\"id\": \"minecraft:stone\"", "\"id\": \"minecraft:stone\"", SuggestionKind.SNIPPET, 1, 1));
-            if (containerKey == null || containerKey.isBlank()) {
+            if (Objects.requireNonNullElse(containerKey, "").isBlank()) {
                 upsertSuggestion(output, new Suggestion("\"components\": {}", "\"components\": {}", SuggestionKind.SNIPPET, 0, 0));
             }
         }
@@ -1169,13 +1221,13 @@ public final class RawAutocompleteUtil {
         if (insideQuote) {
             return;
         }
-        if (currentKey == null || currentKey.isBlank()) {
+        if (Objects.requireNonNullElse(currentKey, "").isBlank()) {
             return;
         }
 
         String normalizedKey = currentKey.toLowerCase(Locale.ROOT);
-        String snippet = VALUE_SNIPPETS.get(normalizedKey);
-        if (snippet == null) {
+        String snippet = Objects.requireNonNullElse(VALUE_SNIPPETS.get(normalizedKey), "");
+        if (snippet.isEmpty()) {
             return;
         }
 
@@ -1430,7 +1482,7 @@ public final class RawAutocompleteUtil {
         if (insideQuote) {
             return true;
         }
-        if (prefix != null && !prefix.isBlank()) {
+        if (!Objects.requireNonNullElse(prefix, "").isBlank()) {
             return true;
         }
 
@@ -1443,21 +1495,15 @@ public final class RawAutocompleteUtil {
         }
         char previousChar = text.charAt(previous);
         if (keyPosition) {
-            return previousChar == '{'
-                    || previousChar == ','
-                    || previousChar == '"'
-                    || isTokenCharacter(previousChar)
-                    || Character.isDigit(previousChar);
+            return switch (previousChar) {
+                case '{', ',', '"' -> true;
+                default -> isTokenCharacter(previousChar) || Character.isDigit(previousChar);
+            };
         }
-        return previousChar == '{'
-                || previousChar == '['
-                || previousChar == ':'
-                || previousChar == ','
-                || previousChar == '"'
-                || previousChar == ']'
-                || previousChar == '}'
-                || isTokenCharacter(previousChar)
-                || Character.isDigit(previousChar);
+        return switch (previousChar) {
+            case '{', '[', ':', ',', '"', ']', '}' -> true;
+            default -> isTokenCharacter(previousChar) || Character.isDigit(previousChar);
+        };
     }
 
     private static void addKeyStructuralSuggestions(
@@ -1800,7 +1846,7 @@ public final class RawAutocompleteUtil {
             return List.of();
         }
         String key = currentKey.toLowerCase(Locale.ROOT);
-        String container = containerKey == null ? "" : containerKey.toLowerCase(Locale.ROOT);
+        String container = Objects.requireNonNullElse(containerKey, "").toLowerCase(Locale.ROOT);
         String path = buildFullPath(containerPath, key);
 
         if (pathEndsWith(path, "effects", "id") || path.contains("/on_consume_effects/effects/")) {
@@ -1893,8 +1939,8 @@ public final class RawAutocompleteUtil {
             boolean insideQuote,
             List<String> activeProfiles
     ) {
-        String key = currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT);
-        String container = containerKey == null ? "" : containerKey.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
+        String container = Objects.requireNonNullElse(containerKey, "").toLowerCase(Locale.ROOT);
         String path = buildFullPath(containerPath, key);
 
         SlotType idSlot = classifyIdSlot(key, container, path);
@@ -1922,15 +1968,13 @@ public final class RawAutocompleteUtil {
 
         EnumSet<ValueMode> pathModes = inferModesFromPath(path);
         if (pathModes.size() == 1) {
-            if (pathModes.contains(ValueMode.BOOLEAN)) {
-                return SlotType.VALUE_BOOLEAN;
-            }
-            if (pathModes.contains(ValueMode.NUMBER)) {
-                return isLikelyIntegerNumberKey(key, path) ? SlotType.VALUE_INT : SlotType.VALUE_FLOAT;
-            }
-            if (pathModes.contains(ValueMode.STRING)) {
-                return SlotType.VALUE_STRING;
-            }
+            ValueMode mode = pathModes.iterator().next();
+            return switch (mode) {
+                case BOOLEAN -> SlotType.VALUE_BOOLEAN;
+                case NUMBER -> isLikelyIntegerNumberKey(key, path) ? SlotType.VALUE_INT : SlotType.VALUE_FLOAT;
+                case STRING -> SlotType.VALUE_STRING;
+                default -> SlotType.VALUE_UNKNOWN;
+            };
         }
 
         return SlotType.VALUE_UNKNOWN;
@@ -2136,48 +2180,15 @@ public final class RawAutocompleteUtil {
     }
 
     private static boolean isBooleanPath(String path) {
-        return pathEndsWith(path, "components", "minecraft:food", "can_always_eat")
-                || pathEndsWith(path, "components", "minecraft:consumable", "has_consume_particles")
-                || pathEndsWith(path, "effects", "show_icon")
-                || pathEndsWith(path, "effects", "show_particles")
-                || pathEndsWith(path, "effects", "ambient")
-                || pathEndsWith(path, "unbreakable");
+        return pathEndsWithAny(path, BOOLEAN_PATH_SUFFIXES);
     }
 
     private static boolean isNumericPath(String path) {
-        return pathEndsWith(path, "components", "minecraft:food", "nutrition")
-                || pathEndsWith(path, "components", "minecraft:food", "saturation")
-                || pathEndsWith(path, "components", "minecraft:consumable", "consume_seconds")
-                || pathEndsWith(path, "components", "minecraft:use_cooldown", "seconds")
-                || pathEndsWith(path, "on_consume_effects", "probability")
-                || pathEndsWith(path, "effects", "duration")
-                || pathEndsWith(path, "effects", "amplifier")
-                || pathEndsWith(path, "attributemodifiers", "amount")
-                || pathEndsWith(path, "attributemodifiers", "operation")
-                || pathEndsWith(path, "enchantments", "lvl")
-                || pathEndsWith(path, "custompotioneffects", "amplifier")
-                || pathEndsWith(path, "custompotioneffects", "duration")
-                || pathEndsWith(path, "custom_potion_effects", "amplifier")
-                || pathEndsWith(path, "custom_potion_effects", "duration")
-                || pathEndsWith(path, "patterns", "color")
-                || pathEndsWith(path, "blockentitytag", "base")
-                || pathEndsWith(path, "fireworks", "flight");
+        return pathEndsWithAny(path, NUMERIC_PATH_SUFFIXES);
     }
 
     private static boolean isStringPath(String path) {
-        return pathEndsWith(path, "components", "minecraft:consumable", "animation")
-                || pathEndsWith(path, "components", "minecraft:consumable", "sound")
-                || pathEndsWith(path, "on_consume_effects", "type")
-                || pathEndsWith(path, "on_consume_effects", "sound")
-                || pathEndsWith(path, "effects", "id")
-                || pathEndsWith(path, "attributemodifiers", "attributename")
-                || pathEndsWith(path, "attributemodifiers", "name")
-                || pathEndsWith(path, "attributemodifiers", "slot")
-                || pathEndsWith(path, "enchantments", "id")
-                || pathEndsWith(path, "custom_potion_effects", "id")
-                || pathEndsWith(path, "display", "name")
-                || pathEndsWith(path, "display", "lore")
-                || pathEndsWith(path, "patterns", "pattern");
+        return pathEndsWithAny(path, STRING_PATH_SUFFIXES);
     }
 
     private static List<String> semanticIdsFromText(
@@ -2211,70 +2222,44 @@ public final class RawAutocompleteUtil {
     }
 
     private static List<String> contextualKeyHints(String containerKey, String containerPath) {
-        if (containerKey == null || containerKey.isBlank()) {
+        String container = Objects.requireNonNullElse(containerKey, "").toLowerCase(Locale.ROOT);
+        if (container.isBlank()) {
             return List.of();
         }
 
-        String container = containerKey.toLowerCase(Locale.ROOT);
-        String path = containerPath == null ? "" : containerPath.toLowerCase(Locale.ROOT);
-        if ("minecraft:enchantments".equals(container) || "minecraft:stored_enchantments".equals(container)) {
-            return List.of();
-        }
+        String path = Objects.requireNonNullElse(containerPath, "").toLowerCase(Locale.ROOT);
         if ("entity".equals(container) && (path.contains("/spawndata/entity") || path.contains("/spawnpotentials/data/entity"))) {
             return mergeUnique(ENTITY_COMMON_KEYS, SPAWNER_ENTITY_KEYS);
         }
         if (container.contains("block_entity_data")) {
             return SPAWNER_BLOCK_ENTITY_KEYS;
         }
-        if ("spawndata".equals(container)) {
-            return List.of("entity", "equipment");
-        }
-        if ("spawnpotentials".equals(container)) {
-            return List.of("data", "weight");
-        }
-        if ("custom_spawn_rules".equals(container)) {
-            return List.of("block_light_limit", "sky_light_limit");
-        }
-        if ("block_light_limit".equals(container) || "sky_light_limit".equals(container)) {
-            return List.of("min_inclusive", "max_inclusive");
-        }
-        if ("minecraft:food".equals(container)) {
-            return FOOD_COMPONENT_KEYS;
-        }
-        if ("minecraft:consumable".equals(container)) {
-            return CONSUMABLE_COMPONENT_KEYS;
-        }
-        if ("on_consume_effects".equals(container)) {
-            return ON_CONSUME_EFFECT_ENTRY_KEYS;
-        }
-        if ("effects".equals(container)) {
-            return EFFECT_INSTANCE_KEYS;
-        }
-        if ("attributemodifiers".equals(container)) {
-            return LEGACY_ATTRIBUTE_MODIFIER_KEYS;
-        }
-        if ("enchantments".equals(container) || "storedenchantments".equals(container) || "stored_enchantments".equals(container)) {
-            return LEGACY_ENCHANTMENT_KEYS;
-        }
-        if ("display".equals(container)) {
-            return LEGACY_DISPLAY_KEYS;
-        }
-        if ("custompotioneffects".equals(container) || "custom_potion_effects".equals(container)) {
-            return LEGACY_CUSTOM_POTION_EFFECT_KEYS;
-        }
-        if ("fireworks".equals(container)) {
-            return LEGACY_FIREWORK_KEYS;
-        }
-        if ("patterns".equals(container)) {
-            return LEGACY_BANNER_PATTERN_KEYS;
-        }
-        if (container.contains("entity")) {
-            return ENTITY_COMMON_KEYS;
-        }
-        if (container.contains("name") || container.contains("text")) {
-            return List.of("text", "color", "translate", "with", "extra", "bold", "italic", "underlined", "strikethrough", "obfuscated");
-        }
-        return List.of();
+        return switch (container) {
+            case "minecraft:enchantments", "minecraft:stored_enchantments" -> List.of();
+            case "spawndata" -> List.of("entity", "equipment");
+            case "spawnpotentials" -> List.of("data", "weight");
+            case "custom_spawn_rules" -> List.of("block_light_limit", "sky_light_limit");
+            case "block_light_limit", "sky_light_limit" -> List.of("min_inclusive", "max_inclusive");
+            case "minecraft:food" -> FOOD_COMPONENT_KEYS;
+            case "minecraft:consumable" -> CONSUMABLE_COMPONENT_KEYS;
+            case "on_consume_effects" -> ON_CONSUME_EFFECT_ENTRY_KEYS;
+            case "effects" -> EFFECT_INSTANCE_KEYS;
+            case "attributemodifiers" -> LEGACY_ATTRIBUTE_MODIFIER_KEYS;
+            case "enchantments", "storedenchantments", "stored_enchantments" -> LEGACY_ENCHANTMENT_KEYS;
+            case "display" -> LEGACY_DISPLAY_KEYS;
+            case "custompotioneffects", "custom_potion_effects" -> LEGACY_CUSTOM_POTION_EFFECT_KEYS;
+            case "fireworks" -> LEGACY_FIREWORK_KEYS;
+            case "patterns" -> LEGACY_BANNER_PATTERN_KEYS;
+            default -> {
+                if (container.contains("entity")) {
+                    yield ENTITY_COMMON_KEYS;
+                }
+                if (container.contains("name") || container.contains("text")) {
+                    yield List.of("text", "color", "translate", "with", "extra", "bold", "italic", "underlined", "strikethrough", "obfuscated");
+                }
+                yield List.of();
+            }
+        };
     }
 
     private static boolean shouldUseStrictContextKeySuggestions(
@@ -2312,8 +2297,8 @@ public final class RawAutocompleteUtil {
         if (registryAccess == null) {
             return List.of();
         }
-        String key = containerKey == null ? "" : containerKey.toLowerCase(Locale.ROOT);
-        String path = containerPath == null ? "" : containerPath.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(containerKey, "").toLowerCase(Locale.ROOT);
+        String path = Objects.requireNonNullElse(containerPath, "").toLowerCase(Locale.ROOT);
         if (key.endsWith("enchantments")
                 || key.endsWith("stored_enchantments")
                 || path.endsWith("/minecraft:enchantments")
@@ -2327,8 +2312,8 @@ public final class RawAutocompleteUtil {
         if (registryAccess == null) {
             return List.of();
         }
-        String key = containerKey == null ? "" : containerKey.toLowerCase(Locale.ROOT);
-        String path = containerPath == null ? "" : containerPath.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(containerKey, "").toLowerCase(Locale.ROOT);
+        String path = Objects.requireNonNullElse(containerPath, "").toLowerCase(Locale.ROOT);
         if ("minecraft:stored_enchantments".equals(key)
                 || "minecraft:enchantments".equals(key)
                 || path.endsWith("/minecraft:stored_enchantments")
@@ -2339,11 +2324,9 @@ public final class RawAutocompleteUtil {
     }
 
     private static List<String> schemaValueHints(String currentKey, String containerKey) {
-        if (currentKey != null) {
-            String normalized = currentKey.toLowerCase(Locale.ROOT);
-            if ("id".equals(normalized) || normalized.endsWith("_id")) {
-                return List.of();
-            }
+        String normalized = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
+        if ("id".equals(normalized) || normalized.endsWith("_id")) {
+            return List.of();
         }
 
         List<String> keyHints = SCHEMA.valueHints(currentKey);
@@ -2383,7 +2366,7 @@ public final class RawAutocompleteUtil {
 
     private static List<String> mergeUnique(List<String> primary, List<String> secondary) {
         if (primary == null || primary.isEmpty()) {
-            return secondary == null ? List.of() : secondary;
+            return Objects.requireNonNullElse(secondary, List.of());
         }
         if (secondary == null || secondary.isEmpty()) {
             return primary;
@@ -2411,7 +2394,7 @@ public final class RawAutocompleteUtil {
         }
 
         EnumSet<ValueMode> modes = EnumSet.noneOf(ValueMode.class);
-        String key = currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
         String path = buildFullPath(containerPath, key);
         EnumSet<ValueMode> pathModes = inferModesFromPath(path);
         if (!pathModes.isEmpty()) {
@@ -2539,49 +2522,15 @@ public final class RawAutocompleteUtil {
             return EnumSet.noneOf(ValueMode.class);
         }
 
-        if (pathEndsWith(path, "components", "minecraft:food", "nutrition")
-                || pathEndsWith(path, "components", "minecraft:food", "saturation")
-                || pathEndsWith(path, "components", "minecraft:consumable", "consume_seconds")
-                || pathEndsWith(path, "components", "minecraft:use_cooldown", "seconds")
-                || pathEndsWith(path, "on_consume_effects", "probability")
-                || pathEndsWith(path, "effects", "duration")
-                || pathEndsWith(path, "effects", "amplifier")
-                || pathEndsWith(path, "attributemodifiers", "amount")
-                || pathEndsWith(path, "attributemodifiers", "operation")
-                || pathEndsWith(path, "enchantments", "lvl")
-                || pathEndsWith(path, "custompotioneffects", "amplifier")
-                || pathEndsWith(path, "custompotioneffects", "duration")
-                || pathEndsWith(path, "custompotioneffects", "id")
-                || pathEndsWith(path, "custom_potion_effects", "amplifier")
-                || pathEndsWith(path, "custom_potion_effects", "duration")
-                || pathEndsWith(path, "patterns", "color")
-                || pathEndsWith(path, "blockentitytag", "base")
-                || pathEndsWith(path, "fireworks", "flight")) {
+        if (isNumericPath(path) || pathEndsWithAny(path, NUMERIC_MODE_ONLY_PATH_SUFFIXES)) {
             return EnumSet.of(ValueMode.NUMBER);
         }
 
-        if (pathEndsWith(path, "components", "minecraft:food", "can_always_eat")
-                || pathEndsWith(path, "components", "minecraft:consumable", "has_consume_particles")
-                || pathEndsWith(path, "effects", "show_icon")
-                || pathEndsWith(path, "effects", "show_particles")
-                || pathEndsWith(path, "effects", "ambient")
-                || pathEndsWith(path, "unbreakable")) {
+        if (isBooleanPath(path)) {
             return EnumSet.of(ValueMode.BOOLEAN);
         }
 
-        if (pathEndsWith(path, "components", "minecraft:consumable", "animation")
-                || pathEndsWith(path, "components", "minecraft:consumable", "sound")
-                || pathEndsWith(path, "on_consume_effects", "type")
-                || pathEndsWith(path, "on_consume_effects", "sound")
-                || pathEndsWith(path, "effects", "id")
-                || pathEndsWith(path, "attributemodifiers", "attributename")
-                || pathEndsWith(path, "attributemodifiers", "name")
-                || pathEndsWith(path, "attributemodifiers", "slot")
-                || pathEndsWith(path, "enchantments", "id")
-                || pathEndsWith(path, "custom_potion_effects", "id")
-                || pathEndsWith(path, "display", "name")
-                || pathEndsWith(path, "display", "lore")
-                || pathEndsWith(path, "patterns", "pattern")) {
+        if (isStringPath(path)) {
             return EnumSet.of(ValueMode.STRING);
         }
 
@@ -2622,8 +2571,8 @@ public final class RawAutocompleteUtil {
     }
 
     private static String buildFullPath(String containerPath, String currentKey) {
-        String container = containerPath == null ? "" : containerPath.toLowerCase(Locale.ROOT);
-        String key = currentKey == null ? "" : currentKey.toLowerCase(Locale.ROOT);
+        String container = Objects.requireNonNullElse(containerPath, "").toLowerCase(Locale.ROOT);
+        String key = Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT);
         if (container.isBlank()) {
             return key;
         }
@@ -2643,12 +2592,24 @@ public final class RawAutocompleteUtil {
         }
         int offset = pathSegments.length - segments.length;
         for (int index = 0; index < segments.length; index++) {
-            String expected = segments[index] == null ? "" : segments[index].toLowerCase(Locale.ROOT);
+            String expected = Objects.requireNonNullElse(segments[index], "").toLowerCase(Locale.ROOT);
             if (!expected.equals(pathSegments[offset + index])) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean pathEndsWithAny(String path, List<List<String>> suffixes) {
+        if (suffixes == null || suffixes.isEmpty()) {
+            return false;
+        }
+        for (List<String> suffix : suffixes) {
+            if (pathEndsWith(path, suffix.toArray(String[]::new))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ValueMode classifyValueMode(String value) {

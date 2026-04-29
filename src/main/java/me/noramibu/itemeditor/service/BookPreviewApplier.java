@@ -53,7 +53,7 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
                     context.state().book.author.isBlank() ? ItemEditorText.str("screen.title") : context.state().book.author,
                     generation,
                     pages,
-                    false
+                    true
             ));
             this.clearToPrototype(context.previewStack(), DataComponents.WRITABLE_BOOK_CONTENT);
         } else if (context.previewStack().is(Items.WRITABLE_BOOK)) {

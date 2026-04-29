@@ -25,6 +25,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Unit;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.damagesource.DamageType;
@@ -34,9 +35,9 @@ import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwingAnimationType;
@@ -73,7 +74,6 @@ import net.minecraft.world.level.block.entity.PotDecorations;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.saveddata.maps.MapDecorationType;
 import net.minecraft.world.level.saveddata.maps.MapId;
-import org.jetbrains.annotations.Nullable;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import java.util.ArrayList;
@@ -289,7 +289,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        context.previewStack().set(DataComponents.USE_REMAINDER, new UseRemainder(new ItemStackTemplate(item, count)));
+        context.previewStack().set(DataComponents.USE_REMAINDER, new UseRemainder(new ItemStack(item, count)));
     }
 
     private void applyUseCooldown(SpecialDataApplyContext context) {
@@ -364,7 +364,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack().set(DataComponents.LOCK, new LockCode(predicate));
     }
 
-    private @Nullable ItemPredicate parseLockPredicate(String raw, SpecialDataApplyContext context) {
+    private ItemPredicate parseLockPredicate(String raw, SpecialDataApplyContext context) {
         try {
             var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             var parsedTag = TagParser.create(ops).parseFully(raw);
@@ -546,7 +546,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        context.previewStack().set(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.ofNonEmpty(projectiles));
+        context.previewStack().set(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.of(projectiles));
     }
 
     private void applyMapId(SpecialDataApplyContext context) {
@@ -822,10 +822,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         AttackRange original = context.originalStack().get(DataComponents.ATTACK_RANGE);
-        Float minReach = this.readRangeField(context.special().attackRangeMinReach, original == null ? 0.0F : original.minReach(), ItemEditorText.str("special.advanced.combat.range_min_reach"), context.messages());
-        Float maxReach = this.readRangeField(context.special().attackRangeMaxReach, original == null ? 0.0F : original.maxReach(), ItemEditorText.str("special.advanced.combat.range_max_reach"), context.messages());
-        Float minCreative = this.readRangeField(context.special().attackRangeMinCreativeReach, original == null ? 0.0F : original.minCreativeReach(), ItemEditorText.str("special.advanced.combat.range_min_creative"), context.messages());
-        Float maxCreative = this.readRangeField(context.special().attackRangeMaxCreativeReach, original == null ? 0.0F : original.maxCreativeReach(), ItemEditorText.str("special.advanced.combat.range_max_creative"), context.messages());
+        Float minReach = this.readRangeField(context.special().attackRangeMinReach, original == null ? 0.0F : original.minRange(), ItemEditorText.str("special.advanced.combat.range_min_reach"), context.messages());
+        Float maxReach = this.readRangeField(context.special().attackRangeMaxReach, original == null ? 0.0F : original.maxRange(), ItemEditorText.str("special.advanced.combat.range_max_reach"), context.messages());
+        Float minCreative = this.readRangeField(context.special().attackRangeMinCreativeReach, original == null ? 0.0F : original.minCreativeRange(), ItemEditorText.str("special.advanced.combat.range_min_creative"), context.messages());
+        Float maxCreative = this.readRangeField(context.special().attackRangeMaxCreativeReach, original == null ? 0.0F : original.maxCreativeRange(), ItemEditorText.str("special.advanced.combat.range_max_creative"), context.messages());
         Float hitboxMargin = this.readRangeField(context.special().attackRangeHitboxMargin, original == null ? 0.0F : original.hitboxMargin(), ItemEditorText.str("special.advanced.combat.range_hitbox"), context.messages());
         Float mobFactor = this.readRangeField(context.special().attackRangeMobFactor, original == null ? 0.0F : original.mobFactor(), ItemEditorText.str("special.advanced.combat.range_mob_factor"), context.messages());
         if (minReach == null || maxReach == null || minCreative == null || maxCreative == null || hitboxMargin == null || mobFactor == null) {
@@ -985,7 +985,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        context.previewStack().set(DataComponents.DAMAGE_TYPE, damageType);
+        context.previewStack().set(DataComponents.DAMAGE_TYPE, new EitherHolder<>(damageType));
     }
 
     private void applyDamageResistant(SpecialDataApplyContext context) {
@@ -998,31 +998,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        Registry<DamageType> damageTypeRegistry = context.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
-        List<Holder<DamageType>> types = new ArrayList<>();
-        boolean hasInvalidEntry = false;
-        for (String id : this.splitIdentifierList(context.special().damageResistantTypeIds)) {
-            Holder<DamageType> holder = RegistryUtil.resolveHolder(damageTypeRegistry, id);
-            if (holder == null) {
-                hasInvalidEntry = true;
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.advanced.component_tweaks.damage_resistant_types"),
-                        id
-                )));
-                continue;
-            }
-            types.add(holder);
-        }
-
-        if (types.isEmpty()) {
-            if (!hasInvalidEntry) {
-                this.clearToPrototype(context.previewStack(), DataComponents.DAMAGE_RESISTANT);
-            }
+        Identifier damageTypeTagId = IdFieldNormalizer.parse(this.splitIdentifierList(context.special().damageResistantTypeIds).stream().findFirst().orElse(""));
+        if (damageTypeTagId == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.advanced.component_tweaks.damage_resistant_types")
+            )));
             return;
         }
 
-        context.previewStack().set(DataComponents.DAMAGE_RESISTANT, new DamageResistant(HolderSet.direct(types)));
+        context.previewStack().set(DataComponents.DAMAGE_RESISTANT, new DamageResistant(TagKey.create(Registries.DAMAGE_TYPE, damageTypeTagId)));
     }
 
     private void applyNoteBlockSound(SpecialDataApplyContext context) {
@@ -1219,7 +1204,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         List<BlocksAttacks.DamageReduction> damageReductions = this.valueFromOriginal(original, BlocksAttacks::damageReductions, List.of());
         BlocksAttacks.ItemDamageFunction itemDamage = this.valueFromOriginal(original, BlocksAttacks::itemDamage, BlocksAttacks.ItemDamageFunction.DEFAULT);
-        Optional<HolderSet<DamageType>> bypassedBy = this.optionalFromOriginal(original, BlocksAttacks::bypassedBy);
+        Optional<TagKey<DamageType>> bypassedBy = this.optionalFromOriginal(original, BlocksAttacks::bypassedBy);
         context.previewStack().set(
                 DataComponents.BLOCKS_ATTACKS,
                 new BlocksAttacks(blockDelay, disableCooldownScale, damageReductions, itemDamage, bypassedBy, blockSound, disableSound)
@@ -1556,10 +1541,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
     }
 
-    private @Nullable Holder<SoundEvent> resolveSoundHolder(
+    private Holder<SoundEvent> resolveSoundHolder(
             Registry<SoundEvent> registry,
             String rawId,
-            @Nullable Holder<SoundEvent> fallback,
+            Holder<SoundEvent> fallback,
             String label,
             List<ValidationMessage> messages
     ) {

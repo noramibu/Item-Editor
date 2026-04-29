@@ -2289,12 +2289,12 @@ public final class AdvancedItemSpecialDataSection {
         return registryIds(context, Registries.ENTITY_TYPE);
     }
 
-    private static List<String> registryIds(
+    private static <T> List<String> registryIds(
             SpecialDataPanelContext context,
-            ResourceKey<? extends Registry<?>> registryKey
+            ResourceKey<? extends Registry<T>> registryKey
     ) {
         try {
-            Registry<?> registry = context.screen().session().registryAccess().lookupOrThrow(registryKey);
+            Registry<T> registry = context.screen().session().registryAccess().lookupOrThrow(registryKey);
             return RegistryUtil.ids(registry);
         } catch (RuntimeException ignored) {
             return List.of();

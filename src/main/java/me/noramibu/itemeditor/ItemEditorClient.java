@@ -7,7 +7,6 @@ import me.noramibu.itemeditor.storage.StorageServices;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.Minecraft;
 
-@SuppressWarnings("unused")
 public final class ItemEditorClient implements ClientModInitializer {
 
     public static final String MOD_ID = "itemeditor";

@@ -7,7 +7,6 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -26,7 +25,6 @@ public final class RawItemDataDialog {
     private static final int ROW_PADDING_TOP_BOTTOM = 1;
     private static final int ROW_PADDING_LEFT_RIGHT = 4;
     private static final int LINE_NUMBER_MIN_DIGITS = 2;
-    private static final int EMPTY_LINE_BACKGROUND = 0x00000000;
     private static final int COLOR_TEXT = 0xA9B5C0;
     private static final int COLOR_LINE_NUMBER = 0x738194;
     private static final int COLOR_KEY = 0x7EC8F8;
@@ -60,28 +58,52 @@ public final class RawItemDataDialog {
     public static FlowLayout create(
             String title,
             String body,
-            String rawData,
-            Runnable onCopy,
-            Runnable onExportNbt,
-            Runnable onExportJson,
-            Runnable onClose
-    ) {
-        String safeRawData = safeText(rawData);
-        List<Line> lines = new ArrayList<>();
-        for (String line : safeRawData.split("\\R", -1)) {
-            lines.add(new Line(line, EMPTY_LINE_BACKGROUND));
-        }
-        return create(title, body, lines, onCopy, onExportNbt, onExportJson, onClose);
-    }
-
-    public static FlowLayout create(
-            String title,
-            String body,
             List<Line> rawLines,
             Runnable onCopy,
             Runnable onExportNbt,
             Runnable onExportJson,
             Runnable onClose
+    ) {
+        return create(
+                title,
+                body,
+                rawLines,
+                COMPACT_BUTTON_ROWS,
+                FOOTER_BUTTON_COUNT,
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.copy"), button -> onCopy.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_nbt"), button -> onExportNbt.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_json"), button -> onExportJson.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.close"), button -> onClose.run())
+        );
+    }
+
+    public static FlowLayout createConfirmation(
+            String title,
+            String body,
+            List<Line> rawLines,
+            Component confirmText,
+            Runnable onConfirm,
+            Component cancelText,
+            Runnable onCancel
+    ) {
+        return create(
+                title,
+                body,
+                rawLines,
+                2,
+                2,
+                new DialogUiUtil.FooterAction(cancelText, button -> onCancel.run()),
+                new DialogUiUtil.FooterAction(confirmText, button -> onConfirm.run())
+        );
+    }
+
+    private static FlowLayout create(
+            String title,
+            String body,
+            List<Line> rawLines,
+            int compactButtonRows,
+            int footerButtonCount,
+            DialogUiUtil.FooterAction... footerActions
     ) {
         String safeTitle = safeText(title);
         String safeBody = safeText(body);
@@ -92,18 +114,19 @@ public final class RawItemDataDialog {
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
         int buttonReserve = DialogUiUtil.buttonRowReserve(
                 compactButtons,
-                COMPACT_BUTTON_ROWS,
+                compactButtonRows,
                 COMPACT_BUTTON_EXTRA,
                 REGULAR_BUTTON_EXTRA
         );
         int headerReserve = UiFactory.scaledPixels(safeBody.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY);
-        int dataHeight = Math.min(
-                DialogUiUtil.scrollHeight(DATA_HEIGHT),
-                DialogUiUtil.availableDialogContentHeight(headerReserve + buttonReserve, DATA_MIN_HEIGHT)
+        DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
+                DATA_HEIGHT,
+                headerReserve + buttonReserve,
+                DATA_MIN_HEIGHT,
+                DIALOG_MIN_HEIGHT
         );
-        int dialogHeight = DialogUiUtil.dialogHeight(headerReserve + buttonReserve + dataHeight, DIALOG_MIN_HEIGHT);
 
-        FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
+        FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         dialog.child(UiFactory.title(safeTitle));
         dialog.child(UiFactory.muted(safeBody, bodyTextWidth));
 
@@ -119,57 +142,19 @@ public final class RawItemDataDialog {
             lineIndex++;
         }
 
-        dialog.child(DialogUiUtil.scrollCard(lines, dataHeight));
+        dialog.child(DialogUiUtil.scrollCard(lines, sizing.contentHeight()));
 
-        FlowLayout buttonRow = compactButtons ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
-        buttonRow.child(DialogUiUtil.footerButtonByCount(
-                ItemEditorText.tr("common.copy"),
+        FlowLayout buttonRow = DialogUiUtil.footerRowByCount(
                 dialogWidth,
                 compactButtons,
                 FOOTER_BUTTON_MIN_WIDTH,
                 FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_COUNT,
+                Math.max(1, footerButtonCount),
                 FOOTER_BUTTON_ROW_RESERVE,
                 FOOTER_BUTTON_TEXT_MIN_WIDTH,
                 FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onCopy.run()
-        ));
-        buttonRow.child(DialogUiUtil.footerButtonByCount(
-                ItemEditorText.tr("dialog.raw_data.export_nbt"),
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_COUNT,
-                FOOTER_BUTTON_ROW_RESERVE,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onExportNbt.run()
-        ));
-        buttonRow.child(DialogUiUtil.footerButtonByCount(
-                ItemEditorText.tr("dialog.raw_data.export_json"),
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_COUNT,
-                FOOTER_BUTTON_ROW_RESERVE,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onExportJson.run()
-        ));
-        buttonRow.child(DialogUiUtil.footerButtonByCount(
-                ItemEditorText.tr("common.close"),
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_COUNT,
-                FOOTER_BUTTON_ROW_RESERVE,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onClose.run()
-        ));
+                footerActions
+        );
 
         dialog.child(buttonRow);
         overlay.child(dialog);

@@ -1,11 +1,9 @@
 package me.noramibu.itemeditor.ui.component;
 
-import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.ColorPickerComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Sizing;
@@ -168,7 +166,7 @@ public final class GradientPickerDialog {
         saveCurrentButton.horizontalSizing(compactButtons ? Sizing.fill(100) : UiFactory.fixed(Math.max(SAVE_ACTION_BUTTON_MIN_WIDTH, dialogWidth / 4)));
         presetActions.child(saveCurrentButton);
 
-        refreshSaved.set(() -> rebuildSavedGradients(savedList, compactLayout, startRgb, endRgb, refreshPreview, onApply, refreshSaved.get()));
+        refreshSaved.set(() -> rebuildSavedGradients(savedList, startRgb, endRgb, refreshPreview, onApply, refreshSaved.get()));
         refreshSaved.get().run();
         content.child(presetActions);
         content.child(savedCard);
@@ -176,9 +174,7 @@ public final class GradientPickerDialog {
         content.child(errorLabel);
         dialog.child(DialogUiUtil.scrollCard(content, contentHeight));
 
-        FlowLayout buttonRow = compactButtons ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
-        ButtonComponent cancelButton = DialogUiUtil.footerButtonByDivisor(
-                ItemEditorText.tr("common.cancel"),
+        FlowLayout buttonRow = DialogUiUtil.footerRowByDivisor(
                 dialogWidth,
                 compactButtons,
                 FOOTER_BUTTON_MIN_WIDTH,
@@ -186,21 +182,9 @@ public final class GradientPickerDialog {
                 FOOTER_BUTTON_DIVISOR,
                 FOOTER_BUTTON_TEXT_MIN_WIDTH,
                 FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onCancel.run()
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.gradient_picker.apply"), button -> onApply.accept(startRgb.get(), endRgb.get()))
         );
-        ButtonComponent applyButton = DialogUiUtil.footerButtonByDivisor(
-                ItemEditorText.tr("dialog.gradient_picker.apply"),
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onApply.accept(startRgb.get(), endRgb.get())
-        );
-        buttonRow.child(cancelButton);
-        buttonRow.child(applyButton);
         dialog.child(buttonRow);
 
         overlay.child(dialog);
@@ -209,7 +193,6 @@ public final class GradientPickerDialog {
 
     private static void rebuildSavedGradients(
             FlowLayout savedList,
-            boolean compactLayout,
             AtomicInteger startRgb,
             AtomicInteger endRgb,
             Runnable onApplied,
@@ -224,33 +207,21 @@ public final class GradientPickerDialog {
         }
 
         for (TextColorPresets.CustomGradientPreset preset : presets) {
-            FlowLayout row = UiFactory.row();
-            row.horizontalSizing(Sizing.fill(100));
-            ButtonComponent applyButton = UiFactory.button(
+            savedList.child(ColorPickerUiUtil.savedPresetRow(
                     TextColorPresets.gradientLabel(preset.name(), preset.startRgb(), preset.endRgb()),
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    button -> {
+                    () -> {
                         startRgb.set(preset.startRgb());
                         endRgb.set(preset.endRgb());
                         onApplied.run();
                         onApply.accept(preset.startRgb(), preset.endRgb());
-                    }
-            );
-            applyButton.horizontalSizing(Sizing.expand(100));
-            row.child(applyButton);
-
-            ButtonComponent removeButton = UiFactory.button(
-                    ItemEditorText.tr("common.remove"),
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    button -> {
+                    },
+                    () -> {
                         TextColorPresets.removeGradientPreset(preset.id());
                         onChanged.run();
-                    }
-            );
-            removeButton.tooltip(List.of(ItemEditorText.tr("dialog.gradient_picker.saved_remove_hint")));
-            removeButton.horizontalSizing(UiFactory.fixed(SAVED_REMOVE_BUTTON_WIDTH));
-            row.child(removeButton);
-            savedList.child(row);
+                    },
+                    SAVED_REMOVE_BUTTON_WIDTH,
+                    ItemEditorText.tr("dialog.gradient_picker.saved_remove_hint")
+            ));
         }
     }
 
@@ -275,12 +246,9 @@ public final class GradientPickerDialog {
                 .selectorPadding(PICKER_SELECTOR_PADDING);
         int preferredPickerWidth = Math.max(PICKER_WIDTH_MIN, columnWidth - UiFactory.scaledPixels(PICKER_WIDTH_RESERVE));
         int pickerWidth = Math.max(1, Math.min(columnWidth, preferredPickerWidth));
-        picker.sizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(pickerWidth), UiFactory.fixed(pickerHeight));
+        ColorPickerUiUtil.applyPickerSizing(picker, compactLayout, pickerWidth, pickerHeight);
 
-        BoxComponent swatch = UIComponents.box(UiFactory.fixed(SWATCH_SIZE), UiFactory.fixed(SWATCH_SIZE))
-                .fill(true)
-                .color(Color.ofRgb(colorRef.get()));
-        LabelComponent swatchLabel = UiFactory.title(ValidationUtil.toHex(colorRef.get())).shadow(false);
+        ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(colorRef.get(), SWATCH_SIZE);
 
         TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(colorRef.get()), value -> {});
         hexInput.horizontalSizing(UiFactory.fixed(HEX_INPUT_WIDTH));
@@ -295,16 +263,10 @@ public final class GradientPickerDialog {
                 syncing,
                 colorRef::get,
                 picker,
-                swatch,
-                swatchLabel,
+                swatch.swatch(),
+                swatch.label(),
                 hexInput,
-                () -> {
-                    int rgb = colorRef.get();
-                    redInput.text(Integer.toString((rgb >> 16) & 0xFF));
-                    greenInput.text(Integer.toString((rgb >> 8) & 0xFF));
-                    blueInput.text(Integer.toString(rgb & 0xFF));
-                    errorLabel.text(Component.empty());
-                }
+                ColorPickerUiUtil.rgbPostSync(colorRef::get, redInput, greenInput, blueInput, errorLabel)
         );
 
         AtomicReference<Runnable> changeListener = new AtomicReference<>(() -> {});
@@ -315,60 +277,32 @@ public final class GradientPickerDialog {
             changeListener.get().run();
         };
 
-        picker.onChanged().subscribe(color -> {
-            if (syncing.get()) return;
-            setSelectedRgb.accept(color.rgb());
-        });
-
-        ColorPickerUiUtil.bindHexInput(hexInput, syncing, errorLabel, setSelectedRgb);
-        redInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
-        greenInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
-        blueInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
+        ColorPickerUiUtil.bindPickerAndRgbInputs(
+                picker,
+                syncing,
+                hexInput,
+                redInput,
+                greenInput,
+                blueInput,
+                errorLabel,
+                setSelectedRgb
+        );
 
         FlowLayout sampleRow = UiFactory.row();
-        sampleRow.child(swatch);
-        sampleRow.child(swatchLabel);
+        sampleRow.child(swatch.swatch());
+        sampleRow.child(swatch.label());
         FlowLayout hexRow = UiFactory.row();
-        hexRow.child(compactInputField(ItemEditorText.tr("common.hex"), hexInput, HEX_INPUT_WIDTH));
+        hexRow.child(ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.hex"), hexInput, HEX_INPUT_WIDTH, false));
         hexRow.child(sampleRow);
         FlowLayout rgbRow = UiFactory.row();
-        rgbRow.child(compactInputField(ItemEditorText.tr("common.rgb.red"), redInput, RGB_INPUT_WIDTH));
-        rgbRow.child(compactInputField(ItemEditorText.tr("common.rgb.green"), greenInput, RGB_INPUT_WIDTH));
-        rgbRow.child(compactInputField(ItemEditorText.tr("common.rgb.blue"), blueInput, RGB_INPUT_WIDTH));
+        rgbRow.child(ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.red"), redInput, RGB_INPUT_WIDTH, false));
+        rgbRow.child(ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.green"), greenInput, RGB_INPUT_WIDTH, false));
+        rgbRow.child(ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.blue"), blueInput, RGB_INPUT_WIDTH, false));
 
         column.child(picker);
         column.child(hexRow);
         column.child(rgbRow);
         return new PickerColumn(column, changeListener::set);
-    }
-
-    private static FlowLayout compactInputField(Component label, TextBoxComponent input, int width) {
-        FlowLayout field = UiFactory.column();
-        field.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 2));
-        field.horizontalSizing(UiFactory.fixed(width));
-        field.child(UiFactory.muted(label, width));
-        input.horizontalSizing(UiFactory.fixed(width));
-        field.child(input);
-        return field;
-    }
-
-    private static void updateFromRgb(
-            AtomicBoolean syncing,
-            LabelComponent errorLabel,
-            TextBoxComponent redInput,
-            TextBoxComponent greenInput,
-            TextBoxComponent blueInput,
-            IntConsumer setSelectedRgb
-    ) {
-        if (syncing.get()) return;
-        Integer red = ValidationUtil.tryParseByteChannel(redInput.getValue());
-        Integer green = ValidationUtil.tryParseByteChannel(greenInput.getValue());
-        Integer blue = ValidationUtil.tryParseByteChannel(blueInput.getValue());
-        if (red == null || green == null || blue == null) {
-            errorLabel.text(ItemEditorText.tr("dialog.color_picker.rgb_error"));
-            return;
-        }
-        setSelectedRgb.accept((red << 16) | (green << 8) | blue);
     }
 
     private static FlowLayout buildGradientPreview(int startRgb, int endRgb) {

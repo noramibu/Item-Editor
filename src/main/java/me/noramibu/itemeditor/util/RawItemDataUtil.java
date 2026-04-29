@@ -59,7 +59,7 @@ public final class RawItemDataUtil {
                 .map(tag -> printTag(withKnownDefaults(tag, showKnownDefaults)))
                 .orElseGet(() -> ItemEditorText.str(
                         "raw.serialize_failed",
-                        result.error().map(error -> error.message()).orElse(ItemEditorText.str("raw.unknown_error"))
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))
                 ));
     }
 
@@ -76,7 +76,7 @@ public final class RawItemDataUtil {
         if (nbtResult.result().isEmpty()) {
             return ItemEditorText.str(
                     "raw.serialize_failed",
-                    nbtResult.error().map(error -> error.message()).orElse(ItemEditorText.str("raw.unknown_error"))
+                    nbtResult.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))
             );
         }
 
@@ -136,7 +136,7 @@ public final class RawItemDataUtil {
                 .map(stack -> new ParseResult(stack, null, -1, -1))
                 .orElseGet(() -> new ParseResult(
                         null,
-                        result.error().map(error -> error.message()).orElse(ItemEditorText.str("raw.unknown_error")),
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")),
                         -1,
                         -1
                 ));
@@ -193,8 +193,8 @@ public final class RawItemDataUtil {
 
             int end = scanNegativeSpecialFloatingLiteral(input, index);
             if (end > index
-                    && (index == 0 || !isIdentifierLikeCharacter(input.charAt(index - 1)))
-                    && (end >= input.length() || !isIdentifierLikeCharacter(input.charAt(end)))) {
+                    && (index == 0 || isIdentifierBoundaryCharacter(input.charAt(index - 1)))
+                    && (end >= input.length() || isIdentifierBoundaryCharacter(input.charAt(end)))) {
                 output.append('"').append(input, index, end).append('"');
                 index = end;
                 continue;
@@ -227,44 +227,54 @@ public final class RawItemDataUtil {
         return cursor;
     }
 
-    private static boolean isIdentifierLikeCharacter(char value) {
-        return Character.isLetterOrDigit(value)
+    private static boolean isIdentifierBoundaryCharacter(char value) {
+        return !(Character.isLetterOrDigit(value)
                 || value == '_'
                 || value == '-'
                 || value == '.'
                 || value == '/'
                 || value == ':'
-                || value == '#';
+                || value == '#');
     }
 
     private static Tag normalizeSpecialFloatingLiterals(Tag tag, String keyHint) {
-        if (tag instanceof CompoundTag compoundTag) {
-            for (String key : new ArrayList<>(compoundTag.keySet())) {
-                Tag child = compoundTag.get(key);
-                Tag normalized = normalizeSpecialFloatingLiterals(child, key);
-                if (normalized != child) {
-                    compoundTag.put(key, normalized);
+        switch (tag) {
+            case CompoundTag compoundTag -> {
+                for (String key : new ArrayList<>(compoundTag.keySet())) {
+                    Tag child = compoundTag.get(key);
+                    if (child == null) {
+                        continue;
+                    }
+                    Tag normalized = normalizeSpecialFloatingLiterals(child, key);
+                    if (normalized != child) {
+                        compoundTag.put(key, normalized);
+                    }
                 }
+                return compoundTag;
             }
-            return compoundTag;
-        }
-        if (tag instanceof ListTag listTag) {
-            for (int index = 0; index < listTag.size(); index++) {
-                Tag child = listTag.get(index);
-                Tag normalized = normalizeSpecialFloatingLiterals(child, keyHint);
-                if (normalized != child) {
-                    listTag.setTag(index, normalized);
+            case ListTag listTag -> {
+                for (int index = 0; index < listTag.size(); index++) {
+                    Tag child = listTag.get(index);
+                    Tag normalized = normalizeSpecialFloatingLiterals(child, keyHint);
+                    if (normalized != child) {
+                        listTag.setTag(index, normalized);
+                    }
                 }
+                return listTag;
             }
-            return listTag;
-        }
-        if (tag instanceof StringTag stringTag && shouldTreatAsNumericSlot(keyHint)) {
-            Double parsed = parseSpecialFloatingLiteral(stringTag.value());
-            if (parsed != null) {
-                return DoubleTag.valueOf(parsed);
+            case StringTag stringTag -> {
+                if (shouldTreatAsNumericSlot(keyHint)) {
+                    Double parsed = parseSpecialFloatingLiteral(stringTag.value());
+                    if (parsed != null) {
+                        return DoubleTag.valueOf(parsed);
+                    }
+                }
+                return tag;
+            }
+            default -> {
+                return tag;
             }
         }
-        return tag;
     }
 
     private static Double parseSpecialFloatingLiteral(String value) {
@@ -329,7 +339,7 @@ public final class RawItemDataUtil {
             boolean includePacketRoundTrip
     ) {
         List<ValidationMessage> messages = new ArrayList<>();
-        boolean runtimeValid = validateRuntimeReferences(preview, messages);
+        boolean runtimeValid = validateSpawnerEntityReferences(preview, messages);
         if (!runtimeValid) {
             return messages;
         }
@@ -455,10 +465,6 @@ public final class RawItemDataUtil {
         if (!consumable.contains("on_consume_effects")) {
             consumable.put("on_consume_effects", new ListTag());
         }
-    }
-
-    private static boolean validateRuntimeReferences(ItemStack preview, List<ValidationMessage> messages) {
-        return validateSpawnerEntityReferences(preview, messages);
     }
 
     private static boolean validateSpawnerEntityReferences(ItemStack preview, List<ValidationMessage> messages) {

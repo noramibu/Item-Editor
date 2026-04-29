@@ -7,7 +7,6 @@ import me.noramibu.itemeditor.editor.ValidationMessage;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 public final class ValidationUtil {
@@ -73,15 +72,6 @@ public final class ValidationUtil {
             }
         }
         return colors;
-    }
-
-    public static UUID parseUuid(String raw, String field, List<ValidationMessage> messages) {
-        try {
-            return UUID.fromString(raw.trim());
-        } catch (IllegalArgumentException exception) {
-            messages.add(ValidationMessage.error(ItemEditorText.str("validation.uuid", field)));
-            return null;
-        }
     }
 
     public static String toHex(int color) {

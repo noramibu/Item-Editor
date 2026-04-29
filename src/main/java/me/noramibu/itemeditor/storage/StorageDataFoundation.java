@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public final class StorageDataFoundation {
@@ -122,24 +123,7 @@ public final class StorageDataFoundation {
 
         ListTag items = root.getListOrEmpty("items");
         for (int index = 0; index < items.size(); index++) {
-            CompoundTag entryTag = items.getCompoundOrEmpty(index);
-            SavedIndexItemEntry entry = new SavedIndexItemEntry();
-            entry.id = entryTag.getStringOr("id", "");
-            entry.chunkId = entryTag.getStringOr("chunkId", "");
-            entry.slotInChunk = entryTag.getIntOr("slotInChunk", -1);
-            entry.page = entryTag.getIntOr("page", 1);
-            entry.slotInPage = entryTag.getIntOr("slotInPage", entry.slotInChunk);
-            entry.savedAt = entryTag.getLongOr("savedAt", 0L);
-            entry.updatedAt = entryTag.getLongOr("updatedAt", 0L);
-            entry.itemRegistryKey = entryTag.getStringOr("itemRegistryKey", "");
-            entry.stackCount = entryTag.getIntOr("stackCount", 1);
-            entry.nbtBytes = Math.max(0, entryTag.getIntOr("nbtBytes", 0));
-            entry.customNamePlain = entryTag.getStringOr("customNamePlain", "");
-            entry.lorePlain = new ArrayList<>();
-            ListTag lore = entryTag.getListOrEmpty("lorePlain");
-            for (int loreIndex = 0; loreIndex < lore.size(); loreIndex++) {
-                entry.lorePlain.add(lore.getStringOr(loreIndex, ""));
-            }
+            SavedIndexItemEntry entry = savedIndexEntryFromTag(items.getCompoundOrEmpty(index));
             model.items.add(entry);
         }
         return model;
@@ -156,29 +140,71 @@ public final class StorageDataFoundation {
             if (entry == null || entry.id == null || entry.id.isBlank()) {
                 continue;
             }
-            CompoundTag entryTag = new CompoundTag();
-            entryTag.putString("id", entry.id);
-            entryTag.putString("chunkId", entry.chunkId == null ? "" : entry.chunkId);
-            entryTag.putInt("slotInChunk", entry.slotInChunk);
-            entryTag.putInt("page", entry.page);
-            entryTag.putInt("slotInPage", entry.slotInPage);
-            entryTag.putLong("savedAt", entry.savedAt);
-            entryTag.putLong("updatedAt", entry.updatedAt);
-            entryTag.putString("itemRegistryKey", entry.itemRegistryKey == null ? "" : entry.itemRegistryKey);
-            entryTag.putInt("stackCount", Math.max(1, entry.stackCount));
-            entryTag.putInt("nbtBytes", Math.max(0, entry.nbtBytes));
-            entryTag.putString("customNamePlain", entry.customNamePlain == null ? "" : entry.customNamePlain);
-            ListTag lore = new ListTag();
-            if (entry.lorePlain != null) {
-                for (String line : entry.lorePlain) {
-                    lore.add(StringTag.valueOf(line == null ? "" : line));
-                }
-            }
-            entryTag.put("lorePlain", lore);
-            items.add(entryTag);
+            items.add(savedIndexEntryToTag(entry));
         }
         root.put("items", items);
         return root;
+    }
+
+    private static SavedIndexItemEntry savedIndexEntryFromTag(CompoundTag entryTag) {
+        SavedIndexItemEntry entry = new SavedIndexItemEntry();
+        populateSavedIndexEntryScalars(entry, entryTag);
+        entry.lorePlain = loreLinesFromTag(entryTag.getListOrEmpty("lorePlain"));
+        return entry;
+    }
+
+    private static CompoundTag savedIndexEntryToTag(SavedIndexItemEntry entry) {
+        CompoundTag entryTag = new CompoundTag();
+        writeSavedIndexEntryScalars(entryTag, entry);
+        entryTag.put("lorePlain", loreTagFromLines(entry.lorePlain));
+        return entryTag;
+    }
+
+    private static void populateSavedIndexEntryScalars(SavedIndexItemEntry entry, CompoundTag entryTag) {
+        entry.id = entryTag.getStringOr("id", "");
+        entry.chunkId = entryTag.getStringOr("chunkId", "");
+        entry.slotInChunk = entryTag.getIntOr("slotInChunk", -1);
+        entry.page = entryTag.getIntOr("page", 1);
+        entry.slotInPage = entryTag.getIntOr("slotInPage", entry.slotInChunk);
+        entry.savedAt = entryTag.getLongOr("savedAt", 0L);
+        entry.updatedAt = entryTag.getLongOr("updatedAt", 0L);
+        entry.itemRegistryKey = entryTag.getStringOr("itemRegistryKey", "");
+        entry.stackCount = entryTag.getIntOr("stackCount", 1);
+        entry.nbtBytes = Math.max(0, entryTag.getIntOr("nbtBytes", 0));
+        entry.customNamePlain = entryTag.getStringOr("customNamePlain", "");
+    }
+
+    private static void writeSavedIndexEntryScalars(CompoundTag entryTag, SavedIndexItemEntry entry) {
+        entryTag.putString("id", entry.id);
+        entryTag.putString("chunkId", entry.chunkId == null ? "" : entry.chunkId);
+        entryTag.putInt("slotInChunk", entry.slotInChunk);
+        entryTag.putInt("page", entry.page);
+        entryTag.putInt("slotInPage", entry.slotInPage);
+        entryTag.putLong("savedAt", entry.savedAt);
+        entryTag.putLong("updatedAt", entry.updatedAt);
+        entryTag.putString("itemRegistryKey", entry.itemRegistryKey == null ? "" : entry.itemRegistryKey);
+        entryTag.putInt("stackCount", Math.max(1, entry.stackCount));
+        entryTag.putInt("nbtBytes", Math.max(0, entry.nbtBytes));
+        entryTag.putString("customNamePlain", entry.customNamePlain == null ? "" : entry.customNamePlain);
+    }
+
+    private static List<String> loreLinesFromTag(ListTag loreTag) {
+        List<String> lines = new ArrayList<>();
+        for (int loreIndex = 0; loreIndex < loreTag.size(); loreIndex++) {
+            lines.add(loreTag.getStringOr(loreIndex, ""));
+        }
+        return lines;
+    }
+
+    private static ListTag loreTagFromLines(List<String> loreLines) {
+        ListTag lore = new ListTag();
+        if (loreLines == null) {
+            return lore;
+        }
+        for (String line : loreLines) {
+            lore.add(StringTag.valueOf(line == null ? "" : line));
+        }
+        return lore;
     }
 
     private static ColorsFileModel sanitizeColors(ColorsFileModel source) {

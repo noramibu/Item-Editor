@@ -1,12 +1,14 @@
 package me.noramibu.itemeditor.storage.search;
 
 import me.noramibu.itemeditor.storage.StorageSortMode;
+import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToIntFunction;
 
 public final class StorageSearchEngine {
 
@@ -26,7 +28,7 @@ public final class StorageSearchEngine {
                 continue;
             }
             if (matchesQuery(entry, query, now)) {
-                matches.add(copy(entry));
+                matches.add(SavedIndexEntryUtil.copy(entry));
             }
         }
         matches.sort(bySortMode(sortMode, reverseSort));
@@ -97,15 +99,17 @@ public final class StorageSearchEngine {
         }
         int stackCount = normalizedStackCount(entry);
         for (StorageSearchQuery.NumericFilter amountFilter : query.amountFilters) {
-            if (amountFilter == null || !amountFilter.matches(stackCount)) {
-                return false;
+            if (amountFilter == null || amountFilter.matches(stackCount)) {
+                continue;
             }
+            return false;
         }
         int nbtBytes = normalizedNbtBytes(entry);
         for (StorageSearchQuery.NumericFilter sizeFilter : query.nbtSizeFilters) {
-            if (sizeFilter == null || !sizeFilter.matches(nbtBytes)) {
-                return false;
+            if (sizeFilter == null || sizeFilter.matches(nbtBytes)) {
+                continue;
             }
+            return false;
         }
         for (String free : query.freeTokens) {
             boolean matched = matchesItemToken(itemKey, free)
@@ -160,29 +164,16 @@ public final class StorageSearchEngine {
         return patternIndex == pattern.length();
     }
 
-    private static SavedIndexItemEntry copy(SavedIndexItemEntry source) {
-        SavedIndexItemEntry copy = new SavedIndexItemEntry();
-        copy.id = source.id;
-        copy.chunkId = source.chunkId;
-        copy.slotInChunk = source.slotInChunk;
-        copy.page = source.page;
-        copy.slotInPage = source.slotInPage;
-        copy.savedAt = source.savedAt;
-        copy.updatedAt = source.updatedAt;
-        copy.itemRegistryKey = source.itemRegistryKey;
-        copy.stackCount = Math.max(1, source.stackCount);
-        copy.nbtBytes = Math.max(0, source.nbtBytes);
-        copy.customNamePlain = source.customNamePlain;
-        copy.lorePlain = source.lorePlain == null ? new ArrayList<>() : new ArrayList<>(source.lorePlain);
-        return copy;
-    }
-
     private static int normalizedStackCount(SavedIndexItemEntry entry) {
-        return Math.max(1, entry == null ? 1 : entry.stackCount);
+        return normalizedPositive(entry, value -> value.stackCount);
     }
 
     private static int normalizedNbtBytes(SavedIndexItemEntry entry) {
-        return Math.max(1, entry == null ? 1 : entry.nbtBytes);
+        return normalizedPositive(entry, value -> value.nbtBytes);
+    }
+
+    private static int normalizedPositive(SavedIndexItemEntry entry, ToIntFunction<SavedIndexItemEntry> value) {
+        return Math.max(1, entry == null ? 1 : value.applyAsInt(entry));
     }
 
     private static String safeLower(String value) {

@@ -27,7 +27,6 @@ final class ItemEditorCategoryController {
     private static final int TABS_MAX_WIDTH = 140;
     private static final double CATEGORY_INSET_RATIO = 0.03d;
     private static final double TAB_WIDTH_RATIO = 0.058d;
-    private static final int BUTTON_HEIGHT_MIN = 14;
     private static final int CATEGORY_TEXT_WIDTH_MIN = 18;
     private static final int ESTIMATED_BODY_GAP_BASE = 8;
     private static final double GUI_SCALE_THRESHOLD_HIGH = 3.0d;
@@ -100,27 +99,29 @@ final class ItemEditorCategoryController {
         if (this.tabs == null) return;
 
         this.tabs.clearChildren();
-        this.tabs.gap(Math.max(1, UiFactory.scaledPixels(CATEGORY_BUTTON_VERTICAL_GAP_BASE)));
+        this.tabs.gap(UiFactory.scaledPixels(CATEGORY_BUTTON_VERTICAL_GAP_BASE));
         int tabsWidth = this.currentTabsWidth();
         double guiScale = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
         int horizontalInset = Math.max(1, (int) Math.round(tabsWidth * CATEGORY_INSET_RATIO));
-        int rightInset = horizontalInset;
         int buttonTextWidth = this.categoryButtonTextWidthHint();
         float textScale = this.categoryButtonTextScale(buttonTextWidth, guiScale);
-        int buttonHeight = Math.max(BUTTON_HEIGHT_MIN, UiFactory.scaleProfile().controlHeight());
+        int buttonHeight = UiFactory.scaleProfile().controlHeight();
         EditorModule selected = this.screen.selectedModule();
         for (EditorModule module : this.modules) {
             Component fullTitle = this.screen.categoryTitle(module);
             Component description = this.screen.categoryDescription(module);
             Component fittedTitle = UiFactory.fitToWidth(fullTitle, buttonTextWidth);
-            ButtonComponent button = UiFactory.scaledTextButton(fittedTitle, textScale, UiFactory.ButtonTextPreset.STANDARD, component -> {
-                this.switchModule(module);
-            });
+            ButtonComponent button = UiFactory.scaledTextButton(
+                    fittedTitle,
+                    textScale,
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    component -> this.switchModule(module)
+            );
             button.active(module != selected);
             button.tooltip(this.categoryTooltip(fullTitle, description));
             button.horizontalSizing(Sizing.fill(100));
             button.verticalSizing(Sizing.fixed(buttonHeight));
-            button.margins(Insets.of(0, 0, horizontalInset, rightInset));
+            button.margins(Insets.of(0, 0, horizontalInset, horizontalInset));
             this.tabs.child(button);
         }
     }
@@ -183,8 +184,7 @@ final class ItemEditorCategoryController {
             return Math.max(CATEGORY_TEXT_WIDTH_MIN, panelHint - headerReserve);
         }
 
-        int fallback = Math.max(CATEGORY_HEADER_FALLBACK_MIN, this.screen.screenWidth() / 3);
-        return fallback;
+        return Math.max(CATEGORY_HEADER_FALLBACK_MIN, this.screen.screenWidth() / 3);
     }
 
     private int currentTabsWidth() {
@@ -194,26 +194,25 @@ final class ItemEditorCategoryController {
                 return tabsWidth;
             }
         }
-        double guiScale = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
         int shellWidth = this.screen.estimatedShellWidth();
         int estimatedBodyGap = UiFactory.scaledPixels(ESTIMATED_BODY_GAP_BASE);
         int available = Math.max(1, shellWidth - (estimatedBodyGap * 2));
         int base = (int) Math.round(available * TAB_WIDTH_RATIO);
-        int preferred = Math.max(TABS_MIN_WIDTH, Math.min(TABS_MAX_WIDTH, base));
-        return Math.max(1, Math.min(available, preferred));
+        int preferred = Math.clamp(base, TABS_MIN_WIDTH, TABS_MAX_WIDTH);
+        return Math.min(available, preferred);
     }
 
     private float categoryButtonTextScale(int buttonTextWidth, double guiScale) {
-        float scale;
-        if (guiScale >= GUI_SCALE_THRESHOLD_EXTREME) {
-            scale = BUTTON_TEXT_SCALE_GS5;
-        } else if (guiScale >= GUI_SCALE_THRESHOLD_VERY_HIGH) {
-            scale = BUTTON_TEXT_SCALE_GS4;
-        } else if (guiScale >= GUI_SCALE_THRESHOLD_HIGH) {
-            scale = BUTTON_TEXT_SCALE_GS3;
-        } else {
-            scale = BUTTON_TEXT_SCALE_DEFAULT;
-        }
+        int scaleTier = guiScale >= GUI_SCALE_THRESHOLD_EXTREME ? 3
+                : guiScale >= GUI_SCALE_THRESHOLD_VERY_HIGH ? 2
+                : guiScale >= GUI_SCALE_THRESHOLD_HIGH ? 1
+                : 0;
+        float scale = switch (scaleTier) {
+            case 3 -> BUTTON_TEXT_SCALE_GS5;
+            case 2 -> BUTTON_TEXT_SCALE_GS4;
+            case 1 -> BUTTON_TEXT_SCALE_GS3;
+            default -> BUTTON_TEXT_SCALE_DEFAULT;
+        };
         if (buttonTextWidth >= BUTTON_TEXT_WIDTH_WIDE) {
             scale += BUTTON_TEXT_SCALE_WIDE_BONUS;
         } else if (buttonTextWidth >= BUTTON_TEXT_WIDTH_MEDIUM) {
@@ -221,7 +220,7 @@ final class ItemEditorCategoryController {
         } else if (buttonTextWidth <= BUTTON_TEXT_WIDTH_NARROW) {
             scale -= BUTTON_TEXT_SCALE_NARROW_PENALTY;
         }
-        return Math.max(BUTTON_TEXT_SCALE_MIN, Math.min(BUTTON_TEXT_SCALE_MAX, scale));
+        return Math.clamp(scale, BUTTON_TEXT_SCALE_MIN, BUTTON_TEXT_SCALE_MAX);
     }
 
     private List<Component> categoryTooltip(Component title, Component description) {

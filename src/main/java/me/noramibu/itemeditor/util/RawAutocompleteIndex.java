@@ -141,8 +141,6 @@ public final class RawAutocompleteIndex {
                     token.setLength(0);
                 }
                 case ':' -> {
-                    // Keep the pending object key attached until the first value token
-                    // (or nested object/array opener) is consumed.
                 }
                 case '{' -> stack.add(new Frame(true, resolveParentKeyRef(stack)));
                 case '[' -> stack.add(new Frame(false, resolveParentKeyRef(stack)));

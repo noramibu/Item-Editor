@@ -3,16 +3,20 @@ package me.noramibu.itemeditor.editor.text;
 import me.noramibu.itemeditor.util.ColorInterpolationUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.contents.ObjectContents;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 public final class RichTextDocument {
 
+    private static final String OBJECT_LAYOUT_PLACEHOLDER = "■";
     private final List<Segment> segments = new ArrayList<>();
 
     public static RichTextDocument empty() {
@@ -21,31 +25,46 @@ public final class RichTextDocument {
 
     public static RichTextDocument fromPlainText(String text) {
         RichTextDocument document = new RichTextDocument();
-        if (!text.isEmpty()) {
-            document.segments.add(new Segment(text, RichTextStyle.EMPTY));
+        String normalized = normalizeLineBreaks(text);
+        if (!normalized.isEmpty()) {
+            document.segments.add(new Segment(normalized, RichTextStyle.EMPTY));
         }
         return document;
     }
 
     public static RichTextDocument fromMarkup(String markup) {
-        return fromComponent(TextComponentUtil.parseMarkup(markup));
+        String normalized = normalizeLineBreaks(markup);
+        if (TextComponentUtil.containsEventToken(normalized)) {
+            return fromPlainText(normalized);
+        }
+        return fromComponent(TextComponentUtil.parseMarkup(normalized));
     }
 
     public static RichTextDocument fromComponent(Component component) {
+        return fromComponent(component, ObjectContentMode.TOKEN_TEXT);
+    }
+
+    public static RichTextDocument fromComponentForLayout(Component component) {
+        return fromComponent(component, ObjectContentMode.LAYOUT_PLACEHOLDER);
+    }
+
+    private static RichTextDocument fromComponent(Component component, ObjectContentMode mode) {
         RichTextDocument document = new RichTextDocument();
         if (component == null) {
             return document;
         }
 
-        for (Component flatComponent : component.toFlatList(Style.EMPTY)) {
-            String text = flatComponent.getString();
-            if (!text.isEmpty()) {
-                document.segments.add(new Segment(text, RichTextStyle.fromStyle(flatComponent.getStyle())));
-            }
-        }
+        collectSegments(component, Style.EMPTY, document.segments, mode);
 
         document.normalize();
         return document;
+    }
+
+    private static String normalizeLineBreaks(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        return input.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     public static RichTextDocument fromLines(List<Component> lines) {
@@ -207,6 +226,13 @@ public final class RichTextDocument {
         for (Segment segment : selectedSegments) {
             String text = segment.text();
             for (int index = 0; index < text.length();) {
+                int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
+                if (tokenLength > 0) {
+                    updated.add(new Segment(text.substring(index, index + tokenLength), segment.style()));
+                    index += tokenLength;
+                    continue;
+                }
+
                 int codePoint = text.codePointAt(index);
                 if (codePoint == '\n') {
                     int charCount = Character.charCount(codePoint);
@@ -271,6 +297,17 @@ public final class RichTextDocument {
             root.append(Component.literal(segment.text()).withStyle(segment.style().toStyle()));
         }
         return root;
+    }
+
+    public RichTextDocument slice(int start, int end) {
+        IntRange range = this.clampRange(start, end);
+        RichTextDocument document = new RichTextDocument();
+        if (range.start() >= range.end()) {
+            return document;
+        }
+        document.segments.addAll(this.sliceSegments(range.start(), range.end()));
+        document.normalize();
+        return document;
     }
 
     public String toMarkup() {
@@ -371,6 +408,12 @@ public final class RichTextDocument {
         for (Segment segment : segments) {
             String text = segment.text();
             for (int index = 0; index < text.length();) {
+                int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
+                if (tokenLength > 0) {
+                    index += tokenLength;
+                    continue;
+                }
+
                 int codePoint = text.codePointAt(index);
                 if (codePoint != '\n') {
                     count++;
@@ -387,9 +430,46 @@ public final class RichTextDocument {
         return new IntRange(clampedStart, clampedEnd);
     }
 
+    private static void collectSegments(Component component, Style parentStyle, List<Segment> out, ObjectContentMode mode) {
+        ComponentContents contents = component.getContents();
+        Style effectiveStyle = component.getStyle().applyTo(parentStyle);
+        String text = textFromContents(contents, mode, effectiveStyle);
+        if (!text.isEmpty()) {
+            Style segmentStyle = effectiveStyle;
+            if (mode == ObjectContentMode.TOKEN_TEXT && contents instanceof ObjectContents) {
+                segmentStyle = Style.EMPTY;
+            }
+            out.add(new Segment(text, RichTextStyle.fromStyle(segmentStyle)));
+        }
+        for (Component sibling : component.getSiblings()) {
+            collectSegments(sibling, effectiveStyle, out, mode);
+        }
+    }
+
+    private static String textFromContents(ComponentContents contents, ObjectContentMode mode, Style effectiveStyle) {
+        if (contents instanceof ObjectContents(var object)) {
+            if (mode == ObjectContentMode.LAYOUT_PLACEHOLDER) {
+                return OBJECT_LAYOUT_PLACEHOLDER;
+            }
+            Component objectComponent = Component.object(object).withStyle(style -> style.withColor(effectiveStyle.getColor()));
+            return TextComponentUtil.toMarkup(objectComponent);
+        }
+        StringBuilder plain = new StringBuilder();
+        contents.visit((String chunk) -> {
+            plain.append(chunk);
+            return Optional.empty();
+        });
+        return plain.toString();
+    }
+
     public record Segment(String text, RichTextStyle style) {
     }
 
     private record IntRange(int start, int end) {
+    }
+
+    private enum ObjectContentMode {
+        TOKEN_TEXT,
+        LAYOUT_PLACEHOLDER
     }
 }

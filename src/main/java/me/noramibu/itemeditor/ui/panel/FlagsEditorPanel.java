@@ -42,7 +42,7 @@ public final class FlagsEditorPanel implements EditorPanel {
     @Override
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
-        int contentWidth = this.availableContentWidth();
+        int contentWidth = Math.max(1, this.screen.editorContentWidthHint());
         boolean compactLayout = this.useCompactLayout(contentWidth);
         FlowLayout root = UiFactory.column();
 
@@ -117,10 +117,6 @@ public final class FlagsEditorPanel implements EditorPanel {
         return scaledWidth < COMPACT_LAYOUT_WIDTH_THRESHOLD
                 || contentWidth < COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
                 || guiScale >= COMPACT_LAYOUT_SCALE_THRESHOLD;
-    }
-
-    private int availableContentWidth() {
-        return Math.max(1, this.screen.editorContentWidthHint());
     }
 
     private int clampLabelWidth(int contentWidth) {

@@ -6,6 +6,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.world.item.ItemStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -15,6 +17,7 @@ import java.util.function.Consumer;
 public final class PostApplyVerificationService {
 
     private static final int DEFAULT_VERIFY_DELAY_TICKS = 12;
+    private static final Logger LOGGER = LoggerFactory.getLogger(PostApplyVerificationService.class);
     private static final List<PendingVerification> PENDING = new ArrayList<>();
     private static boolean initialized;
 
@@ -75,14 +78,54 @@ public final class PostApplyVerificationService {
         RegistryAccess registryAccess = client.level != null ? client.level.registryAccess() : RegistryAccess.EMPTY;
         ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(pending.expectedStack, current, registryAccess);
         if (diff.error() != null) {
+            LOGGER.warn("Post-apply verification failed to compute diff for slot {}: {}", pending.slot, diff.error());
             return new VerificationResult(false, ItemEditorText.str("apply.verify.error"), List.of());
         }
 
+        logDetailedDiff(pending, diff);
+
         return new VerificationResult(
                 false,
-                ItemEditorText.str("apply.verify.warning", diff.entries().size()),
+                ItemEditorText.str("apply.verify.warning", firstFieldLabel(diff.entries())),
                 diff.entries()
         );
+    }
+
+    private static String firstFieldLabel(List<ItemComponentDiffUtil.Entry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return "field unknown";
+        }
+        return "field " + entries.getFirst().key();
+    }
+
+    private static void logDetailedDiff(PendingVerification pending, ItemComponentDiffUtil.Result diff) {
+        LOGGER.warn(
+                "Post-apply verification mismatch: slot={}, differences={}",
+                pending.slot,
+                diff.entries().size()
+        );
+        for (ItemComponentDiffUtil.Entry entry : diff.entries()) {
+            LOGGER.warn(
+                    " - key='{}', type={}, expectedLength={}, serverLength={}\n   expected:\n{}\n   server:\n{}",
+                    entry.key(),
+                    entry.type(),
+                    safeLength(entry.originalValue()),
+                    safeLength(entry.previewValue()),
+                    printable(entry.originalValue()),
+                    printable(entry.previewValue())
+            );
+        }
+    }
+
+    private static int safeLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
+    private static String printable(String value) {
+        if (value == null || value.isBlank()) {
+            return "<empty>";
+        }
+        return value;
     }
 
     public record VerificationResult(boolean matchesExpected, String message, List<ItemComponentDiffUtil.Entry> entries) {

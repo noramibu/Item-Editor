@@ -28,9 +28,9 @@ import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.AdventureModePredicate;
+import net.minecraft.world.item.EitherHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.JukeboxPlayable;
@@ -110,6 +110,7 @@ public final class ItemEditorStateMapper {
 
         state.customName = Optional.ofNullable(stack.get(DataComponents.CUSTOM_NAME))
                 .map(TextComponentUtil::toMarkup)
+                .map(markup -> TextComponentUtil.ensureObjectTokenColors(markup, 0xFFFFFF))
                 .orElse("");
         state.count = Integer.toString(stack.getCount());
 
@@ -178,9 +179,9 @@ public final class ItemEditorStateMapper {
 
         UseRemainder useRemainder = stack.get(DataComponents.USE_REMAINDER);
         if (useRemainder != null) {
-            var template = useRemainder.convertInto();
-            setIdFromHolder(template.item(), id -> state.special.useRemainderItemId = id);
-            state.special.useRemainderCount = Integer.toString(template.count());
+            ItemStack remainder = useRemainder.convertInto();
+            state.special.useRemainderItemId = identifierOrEmpty(BuiltInRegistries.ITEM.getKey(remainder.getItem()));
+            state.special.useRemainderCount = Integer.toString(remainder.getCount());
         }
 
         UseCooldown useCooldown = stack.get(DataComponents.USE_COOLDOWN);
@@ -225,17 +226,17 @@ public final class ItemEditorStateMapper {
 
         AttackRange attackRange = stack.get(DataComponents.ATTACK_RANGE);
         if (attackRange != null) {
-            state.special.attackRangeMinReach = trimTrailingZeros(attackRange.minReach());
-            state.special.attackRangeMaxReach = trimTrailingZeros(attackRange.maxReach());
-            state.special.attackRangeMinCreativeReach = trimTrailingZeros(attackRange.minCreativeReach());
-            state.special.attackRangeMaxCreativeReach = trimTrailingZeros(attackRange.maxCreativeReach());
+            state.special.attackRangeMinReach = trimTrailingZeros(attackRange.minRange());
+            state.special.attackRangeMaxReach = trimTrailingZeros(attackRange.maxRange());
+            state.special.attackRangeMinCreativeReach = trimTrailingZeros(attackRange.minCreativeRange());
+            state.special.attackRangeMaxCreativeReach = trimTrailingZeros(attackRange.maxCreativeRange());
             state.special.attackRangeHitboxMargin = trimTrailingZeros(attackRange.hitboxMargin());
             state.special.attackRangeMobFactor = trimTrailingZeros(attackRange.mobFactor());
         }
 
         ChargedProjectiles chargedProjectiles = stack.get(DataComponents.CHARGED_PROJECTILES);
         if (chargedProjectiles != null) {
-            chargedProjectiles.itemCopies().stream()
+            chargedProjectiles.getItems().stream()
                     .filter(projectile -> !projectile.isEmpty())
                     .map(ItemEditorState.ChargedProjectileDraft::fromStack)
                     .forEach(state.special.chargedProjectiles::add);
@@ -275,14 +276,14 @@ public final class ItemEditorStateMapper {
         state.special.intangibleProjectile = stack.has(DataComponents.INTANGIBLE_PROJECTILE);
         state.special.deathProtection = stack.has(DataComponents.DEATH_PROTECTION);
 
-        Holder<DamageType> damageType = stack.get(DataComponents.DAMAGE_TYPE);
+        EitherHolder<DamageType> damageType = stack.get(DataComponents.DAMAGE_TYPE);
         if (damageType != null) {
-            setIdFromHolder(damageType, id -> state.special.damageTypeId = id);
+            setIdFromEitherHolder(damageType, id -> state.special.damageTypeId = id);
         }
 
         DamageResistant damageResistant = stack.get(DataComponents.DAMAGE_RESISTANT);
         if (damageResistant != null) {
-            state.special.damageResistantTypeIds = joinHolderSetIds(damageResistant.types());
+            state.special.damageResistantTypeIds = damageResistant.types().location().toString();
         }
 
         Identifier noteBlockSound = stack.get(DataComponents.NOTE_BLOCK_SOUND);
@@ -391,7 +392,7 @@ public final class ItemEditorStateMapper {
             state.book.title = content.title().raw();
             state.book.author = content.author();
             state.book.generation = Integer.toString(content.generation());
-            content.pages().stream().map(Filterable::raw).map(TextComponentUtil::toMarkup).forEach(state.book.pages::add);
+            content.pages().stream().map(this::pageMarkup).forEach(state.book.pages::add);
         } else if (stack.is(Items.WRITABLE_BOOK)) {
             WritableBookContent content = stack.getOrDefault(DataComponents.WRITABLE_BOOK_CONTENT, WritableBookContent.EMPTY);
             content.pages().stream().map(Filterable::raw).forEach(state.book.pages::add);
@@ -451,12 +452,12 @@ public final class ItemEditorStateMapper {
         BundleContents bundleContents = stack.get(DataComponents.BUNDLE_CONTENTS);
         if (bundleContents != null) {
             int index = 0;
-            for (ItemStackTemplate template : bundleContents.items()) {
-                Item entryItem = template.item().value();
+            for (ItemStack entryStack : bundleContents.items()) {
+                Item entryItem = entryStack.getItem();
                 if (entryItem == Items.AIR) {
                     continue;
                 }
-                int templateCount = Math.max(1, template.count());
+                int templateCount = Math.max(1, entryStack.getCount());
                 ItemEditorState.ContainerEntryDraft draft = new ItemEditorState.ContainerEntryDraft();
                 draft.slot = Integer.toString(index);
                 draft.itemId = identifierOrEmpty(BuiltInRegistries.ITEM.getKey(entryItem));
@@ -610,12 +611,12 @@ public final class ItemEditorStateMapper {
 
         InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
         if (instrument != null) {
-            setIdFromHolder(instrument.instrument(), id -> state.special.instrumentId = id);
+            setIdFromEitherHolder(instrument.instrument(), id -> state.special.instrumentId = id);
         }
 
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
-            setIdFromHolder(jukeboxPlayable.song(), id -> state.special.jukeboxSongId = id);
+            setIdFromEitherHolder(jukeboxPlayable.song(), id -> state.special.jukeboxSongId = id);
         }
 
         MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);
@@ -674,6 +675,55 @@ public final class ItemEditorStateMapper {
             }
         }
         return blockIds.stream().toList();
+    }
+
+    private String pageMarkup(Filterable<Component> page) {
+        String rawMarkup = TextComponentUtil.toMarkup(page.raw());
+        return page.filtered()
+                .map(TextComponentUtil::toMarkup)
+                .filter(filteredMarkup -> isRicherBookMarkup(filteredMarkup, rawMarkup))
+                .orElse(rawMarkup);
+    }
+
+    private static boolean isRicherBookMarkup(String candidate, String fallback) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        if (fallback == null || fallback.isBlank()) {
+            return true;
+        }
+
+        int candidateScore = bookMarkupScore(candidate);
+        int fallbackScore = bookMarkupScore(fallback);
+        if (candidateScore != fallbackScore) {
+            return candidateScore > fallbackScore;
+        }
+        return candidate.length() > fallback.length();
+    }
+
+    private static int bookMarkupScore(String markup) {
+        int score = 0;
+        score += tokenCount(markup, "[ie:click:") * 5;
+        score += tokenCount(markup, "[ie:hover:") * 5;
+        score += tokenCount(markup, "[ie:head:") * 3;
+        score += tokenCount(markup, "[ie:head_texture:") * 3;
+        score += tokenCount(markup, "[ie:sprite:") * 3;
+        score += tokenCount(markup, "&#");
+        return score;
+    }
+
+    private static int tokenCount(String text, String token) {
+        int count = 0;
+        int from = 0;
+        while (from >= 0 && from < text.length()) {
+            int index = text.indexOf(token, from);
+            if (index < 0) {
+                break;
+            }
+            count++;
+            from = index + token.length();
+        }
+        return count;
     }
 
     private String encodePredicate(AdventureModePredicate predicate, RegistryAccess registryAccess) {
@@ -749,14 +799,15 @@ public final class ItemEditorStateMapper {
     }
 
     private Component stripBaseSignColor(Component line, int baseColor) {
-        MutableComponent rebuilt = Component.empty();
-        for (Component flat : line.toFlatList(Style.EMPTY)) {
-            Style style = flat.getStyle();
-            TextColor color = style.getColor();
-            if (color != null && color.getValue() == baseColor) {
-                style = style.withColor((TextColor) null);
-            }
-            rebuilt.append(Component.literal(flat.getString()).withStyle(style));
+        Style style = line.getStyle();
+        TextColor color = style.getColor();
+        if (color != null && color.getValue() == baseColor) {
+            style = style.withColor((TextColor) null);
+        }
+
+        MutableComponent rebuilt = MutableComponent.create(line.getContents()).withStyle(style);
+        for (Component sibling : line.getSiblings()) {
+            rebuilt.append(this.stripBaseSignColor(sibling, baseColor));
         }
         return rebuilt;
     }
@@ -891,8 +942,8 @@ public final class ItemEditorStateMapper {
         if (entityData != null) {
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(entityData.type());
             special.spawnEggEntityId = identifierOrEmpty(key);
-        } else if (stack.getItem() instanceof SpawnEggItem) {
-            EntityType<?> spawnEggType = SpawnEggItem.getType(stack);
+        } else if (stack.getItem() instanceof SpawnEggItem spawnEggItem) {
+            EntityType<?> spawnEggType = spawnEggItem.getType(stack);
             if (spawnEggType != null) {
                 var key = BuiltInRegistries.ENTITY_TYPE.getKey(spawnEggType);
                 special.spawnEggEntityId = identifierOrEmpty(key);
@@ -1004,6 +1055,16 @@ public final class ItemEditorStateMapper {
 
     private static void setIdFromHolder(Holder<?> holder, Consumer<String> setter) {
         String id = idOrEmpty(holder);
+        if (!id.isEmpty()) {
+            setter.accept(id);
+        }
+    }
+
+    private static void setIdFromEitherHolder(EitherHolder<?> holder, Consumer<String> setter) {
+        if (holder == null) {
+            return;
+        }
+        String id = holder.key().map(key -> key.identifier().toString()).orElse("");
         if (!id.isEmpty()) {
             setter.accept(id);
         }

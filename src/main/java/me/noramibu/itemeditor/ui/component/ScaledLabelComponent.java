@@ -56,9 +56,8 @@ public final class ScaledLabelComponent extends LabelComponent {
     public void drawTooltip(OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         try {
             super.drawTooltip(context, mouseX, mouseY, partialTicks, delta);
-        } catch (NullPointerException exception) {
-            // owo/vanilla can occasionally pass a null hovered style while resolving tooltip
-            // text runs; swallow to keep the editor screen stable.
+        } catch (NullPointerException ignored) {
+            return;
         }
     }
 

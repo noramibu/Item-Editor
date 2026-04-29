@@ -99,11 +99,6 @@ public final class ItemEditorSession {
         return this.dirty;
     }
 
-    public boolean previewMatchesOriginal() {
-        return ItemStack.isSameItemSameComponents(this.originalStack, this.previewStack)
-                && this.originalStack.getCount() == this.previewStack.getCount();
-    }
-
     public void rebuildPreview() {
         boolean rawEdited = this.state.rawEditorEdited;
         String rawText = this.state.rawEditorText;

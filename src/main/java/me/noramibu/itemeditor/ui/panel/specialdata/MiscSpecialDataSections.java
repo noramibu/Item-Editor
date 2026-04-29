@@ -4,8 +4,10 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
@@ -28,10 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class MiscSpecialDataSections {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 26;
     private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 34;
     private static final int PROFILE_NAME_FIELD_WIDTH = 220;
@@ -173,30 +172,41 @@ public final class MiscSpecialDataSections {
         int contentWidth = context.panelWidthHint();
         int profileActionButtonWidth = resolveProfileActionButtonWidth(contentWidth);
         Component useLocalSkinText = ItemEditorText.tr("special.misc.profile.use_local_skin");
-        var useLocalSkinButton = boundedProfileActionButton(useLocalSkinText, profileActionButtonWidth, button -> {
-            var player = context.screen().session().minecraft().player;
-            if (player == null) {
-                return;
-            }
+        var useLocalSkinButton = ButtonFitUtil.fixedWidthFittedButton(
+                useLocalSkinText,
+                UiFactory.ButtonTextPreset.STANDARD,
+                profileActionButtonWidth,
+                PROFILE_ACTION_BUTTON_TEXT_MIN,
+                PROFILE_ACTION_BUTTON_TEXT_RESERVE,
+                button -> {
+                    var player = context.screen().session().minecraft().player;
+                    if (player == null) {
+                        return;
+                    }
 
-            var textures = player.getGameProfile().properties().get("textures").stream().findFirst().orElse(null);
-            if (textures == null) {
-                return;
-            }
+                    var textures = player.getGameProfile().properties().get("textures").stream().findFirst().orElse(null);
+                    if (textures == null) {
+                        return;
+                    }
 
-            context.mutateRefresh(() -> {
-                special.profileName = player.getGameProfile().name();
-                special.profileUuid = player.getGameProfile().id() == null ? "" : player.getGameProfile().id().toString();
-                special.profileTextureValue = textures.value();
-                special.profileTextureSignature = textures.signature() == null ? "" : textures.signature();
-            });
-        });
+                    context.mutateRefresh(() -> {
+                        special.profileName = player.getGameProfile().name();
+                        special.profileUuid = player.getGameProfile().id() == null ? "" : player.getGameProfile().id().toString();
+                        special.profileTextureValue = textures.value();
+                        special.profileTextureSignature = textures.signature() == null ? "" : textures.signature();
+                    });
+                });
         useLocalSkinButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(profileActionButtonWidth));
         actions.child(useLocalSkinButton);
 
         Component clearSkinText = ItemEditorText.tr("special.misc.profile.clear_skin");
-        var clearSkinButton = boundedProfileActionButton(clearSkinText, profileActionButtonWidth, button ->
-                context.mutateRefresh(() -> {
+        var clearSkinButton = ButtonFitUtil.fixedWidthFittedButton(
+                clearSkinText,
+                UiFactory.ButtonTextPreset.STANDARD,
+                profileActionButtonWidth,
+                PROFILE_ACTION_BUTTON_TEXT_MIN,
+                PROFILE_ACTION_BUTTON_TEXT_RESERVE,
+                button -> context.mutateRefresh(() -> {
                     special.profileTextureValue = "";
                     special.profileTextureSignature = "";
                 })
@@ -300,11 +310,11 @@ public final class MiscSpecialDataSections {
         FlowLayout card = UiFactory.subCard();
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
-        ButtonComponent toggle = UiFactory.button(Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button -> {
+        ButtonComponent toggle = UiFactory.button(LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.STANDARD,  button -> {
             setter.accept(!collapsed);
             context.screen().refreshCurrentPanel();
         });
-        int toggleWidth = Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, UiFactory.scaledPixels(COLLAPSE_TOGGLE_WIDTH_BASE));
+        int toggleWidth = LayoutModeUtil.collapseToggleWidth(COLLAPSE_TOGGLE_WIDTH_MIN, COLLAPSE_TOGGLE_WIDTH_BASE);
         toggle.horizontalSizing(Sizing.fixed(toggleWidth));
         header.child(toggle);
         card.child(header);
@@ -315,25 +325,7 @@ public final class MiscSpecialDataSections {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private static ButtonComponent boundedProfileActionButton(
-            Component fullText,
-            int width,
-            Consumer<ButtonComponent> onPress
-    ) {
-        Component fitted = UiFactory.fitToWidth(
-                fullText,
-                Math.max(PROFILE_ACTION_BUTTON_TEXT_MIN, width - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_TEXT_RESERVE))
-        );
-        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
-        button.horizontalSizing(Sizing.fixed(width));
-        if (!fitted.getString().equals(fullText.getString())) {
-            button.tooltip(List.of(fullText));
-        }
-        return button;
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static int resolveProfileActionButtonWidth(int contentWidth) {

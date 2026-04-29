@@ -1,9 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
-import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
@@ -49,25 +47,19 @@ public final class StewSpecialDataSection {
                     () -> special.stewEffects.remove(currentIndex)
             );
 
-            FlowLayout fields = compactLayout ? UiFactory.column() : UiFactory.row();
-            fields.child(PickerFieldFactory.searchableField(
+            row.child(EffectFieldLayoutUtil.buildEffectFields(
                     context,
-                    ItemEditorText.tr("special.potion.effect_id"),
-                    Component.empty(),
-                    PickerFieldFactory.selectedOrFallback(draft.effectId, ItemEditorText.tr("special.potion.select_effect")),
-                    compactLayout ? -1 : EFFECT_PICKER_WIDTH,
-                    ItemEditorText.str("special.potion.effect_id"),
-                    "",
+                    compactLayout,
                     effectIds,
-                    id -> id,
-                    id -> context.mutateRefresh(() -> draft.effectId = id)
+                    draft.effectId,
+                    id -> context.mutateRefresh(() -> draft.effectId = id),
+                    draft.duration,
+                    context.bindText(value -> draft.duration = value),
+                    null,
+                    null,
+                    EFFECT_PICKER_WIDTH,
+                    DURATION_FIELD_WIDTH
             ));
-            fields.child(UiFactory.field(
-                    ItemEditorText.tr("special.potion.duration"),
-                    Component.empty(),
-                    UiFactory.textBox(draft.duration, context.bindText(value -> draft.duration = value)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(DURATION_FIELD_WIDTH))
-            ));
-            row.child(fields);
             section.child(row);
         }
         return section;

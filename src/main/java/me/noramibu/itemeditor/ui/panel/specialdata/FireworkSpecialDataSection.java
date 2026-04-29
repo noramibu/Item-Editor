@@ -4,9 +4,11 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.ColorTokenListEditor;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -15,11 +17,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.FireworkExplosion;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 public final class FireworkSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 600;
     private static final int FLIGHT_DURATION_FIELD_WIDTH = 100;
     private static final int SHAPE_PICKER_BUTTON_WIDTH = 180;
@@ -62,25 +62,20 @@ public final class FireworkSpecialDataSection {
         ButtonComponent addExplosionButton = UiFactory.button(addExplosionText, UiFactory.ButtonTextPreset.STANDARD, button ->
                 context.mutateRefresh(() -> special.rocketExplosions.add(new ItemEditorState.FireworkExplosionDraft()))
         );
-        if (compactLayout) {
-            addExplosionButton.horizontalSizing(Sizing.fill(100));
-        } else {
-            int contentWidth = context.panelWidthHint();
-            int addExplosionWidth = Math.max(
-                    ADD_EXPLOSION_BUTTON_MIN,
-                    Math.min(ADD_EXPLOSION_BUTTON_MAX, contentWidth / 2)
-            );
-            addExplosionWidth = Math.min(contentWidth, addExplosionWidth);
-            Component fitted = UiFactory.fitToWidth(
-                    addExplosionText,
-                    Math.max(ADD_EXPLOSION_BUTTON_TEXT_MIN, addExplosionWidth - UiFactory.scaledPixels(ADD_EXPLOSION_BUTTON_TEXT_RESERVE))
-            );
-            addExplosionButton.setMessage(fitted);
-            if (!fitted.getString().equals(addExplosionText.getString())) {
-                addExplosionButton.tooltip(List.of(addExplosionText));
-            }
-            addExplosionButton.horizontalSizing(Sizing.fixed(addExplosionWidth));
-        }
+        int contentWidth = context.panelWidthHint();
+        int addExplosionWidth = Math.max(
+                ADD_EXPLOSION_BUTTON_MIN,
+                Math.min(ADD_EXPLOSION_BUTTON_MAX, contentWidth / 2)
+        );
+        addExplosionWidth = Math.min(contentWidth, addExplosionWidth);
+        applyResponsiveButtonSizing(
+                addExplosionButton,
+                compactLayout,
+                addExplosionText,
+                addExplosionWidth,
+                ADD_EXPLOSION_BUTTON_TEXT_MIN,
+                ADD_EXPLOSION_BUTTON_TEXT_RESERVE
+        );
         section.child(addExplosionButton);
 
         for (int index = 0; index < special.rocketExplosions.size(); index++) {
@@ -224,22 +219,40 @@ public final class FireworkSpecialDataSection {
     ) {
         ButtonComponent button = UiFactory.button(label, UiFactory.ButtonTextPreset.STANDARD,  component -> context.mutateRefresh(() -> draft.shape = shape.name()));
         button.active(!shape.name().equalsIgnoreCase(draft.shape));
-        if (compactLayout) {
-            button.horizontalSizing(Sizing.fill(100));
-        } else {
-            Component fitted = UiFactory.fitToWidth(label, Math.max(SHAPE_QUICK_PICK_TEXT_MIN, buttonWidth - UiFactory.scaledPixels(SHAPE_QUICK_PICK_TEXT_RESERVE)));
-            button.setMessage(fitted);
-            if (!fitted.getString().equals(label.getString())) {
-                button.tooltip(List.of(label));
-            }
-            button.horizontalSizing(Sizing.fixed(buttonWidth));
-        }
+        applyResponsiveButtonSizing(
+                button,
+                compactLayout,
+                label,
+                buttonWidth,
+                SHAPE_QUICK_PICK_TEXT_MIN,
+                SHAPE_QUICK_PICK_TEXT_RESERVE
+        );
         return button;
     }
 
+    private static void applyResponsiveButtonSizing(
+            ButtonComponent button,
+            boolean compactLayout,
+            Component label,
+            int fixedWidth,
+            int textMinWidth,
+            int textReserve
+    ) {
+        if (compactLayout) {
+            button.horizontalSizing(Sizing.fill(100));
+            return;
+        }
+        ButtonFitUtil.applyFittedFixedLabel(
+                button,
+                label,
+                fixedWidth,
+                textMinWidth,
+                textReserve
+        );
+    }
+
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static String shapeMaterialLabelKey(String shape) {

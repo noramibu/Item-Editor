@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -33,7 +34,6 @@ public final class ContainerSpecialDataSection {
 
     private static final int GRID_COLUMNS = 9;
     private static final int MAX_VISUAL_SLOTS = 54;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int MIN_SLOT = 0;
     private static final int MAX_SLOT = 255;
@@ -342,7 +342,6 @@ public final class ContainerSpecialDataSection {
             return;
         }
 
-        // First click selects; clicking the selected slot again arms drag mode.
         if (special.selectedContainerSlot == clickedSlot) {
             ItemEditorState.ContainerEntryDraft selectedDraft = findEntryForSlot(special.containerEntries, clickedSlot);
             ItemStack selectedStack = stackForDraft(selectedDraft);
@@ -537,8 +536,7 @@ public final class ContainerSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static int normalizeSelectedSlot(ItemEditorState.SpecialData special) {
@@ -647,14 +645,15 @@ public final class ContainerSpecialDataSection {
     }
 
     private static int resolveActionButtonWidth(int contentWidth, int buttonCount) {
+        int safeContentWidth = Math.max(1, contentWidth);
         int preferred = Math.max(
                 ACTION_BUTTON_WIDTH_MIN,
                 Math.min(
                         ACTION_BUTTON_WIDTH_MAX,
-                        (contentWidth - UiFactory.scaledPixels(ACTION_BUTTON_ROW_RESERVE)) / Math.max(1, buttonCount)
+                        (safeContentWidth - UiFactory.scaledPixels(ACTION_BUTTON_ROW_RESERVE)) / Math.max(1, buttonCount)
                 )
         );
-        return Math.max(1, Math.min(contentWidth, preferred));
+        return Math.min(safeContentWidth, preferred);
     }
 
     private static int resolveCountStepButtonWidth(int panelWidthHint) {
@@ -662,6 +661,6 @@ public final class ContainerSpecialDataSection {
         int available = contentWidth - COUNT_FIELD_WIDTH - UiFactory.scaledPixels(COUNT_STEP_BUTTON_ROW_RESERVE);
         int perButton = available / 2;
         int preferred = Math.max(COUNT_STEP_BUTTON_WIDTH_MIN, Math.min(COUNT_STEP_BUTTON_WIDTH_MAX, perButton));
-        return Math.max(1, Math.min(contentWidth, preferred));
+        return Math.min(contentWidth, preferred);
     }
 }

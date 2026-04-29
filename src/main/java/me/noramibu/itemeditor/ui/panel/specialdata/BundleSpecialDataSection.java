@@ -5,7 +5,9 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -23,7 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public final class BundleSpecialDataSection {
 
@@ -41,7 +42,6 @@ public final class BundleSpecialDataSection {
     private static final int COUNT_STEP_BUTTON_ROW_RESERVE = 16;
     private static final int ACTION_BUTTON_TEXT_MIN = 18;
     private static final int ACTION_BUTTON_TEXT_RESERVE = 10;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 600;
 
     private BundleSpecialDataSection() {
@@ -109,7 +109,13 @@ public final class BundleSpecialDataSection {
         int contentWidth = Math.max(1, context.panelWidthHint());
         int actionButtonWidth = resolveActionButtonWidth(contentWidth);
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-        ButtonComponent addButton = boundedActionButton(ItemEditorText.tr("special.bundle.add"), actionButtonWidth, button ->
+        ButtonComponent addButton = ButtonFitUtil.fixedWidthFittedButton(
+                ItemEditorText.tr("special.bundle.add"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                actionButtonWidth,
+                ACTION_BUTTON_TEXT_MIN,
+                ACTION_BUTTON_TEXT_RESERVE,
+                button ->
                 context.mutateRefresh(() -> {
                     int insertAt = special.selectedBundleIndex < 0
                             ? special.bundleEntries.size()
@@ -124,7 +130,13 @@ public final class BundleSpecialDataSection {
         addButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(actionButtonWidth));
         row.child(addButton);
 
-        ButtonComponent remove = boundedActionButton(ItemEditorText.tr("special.bundle.remove_selected"), actionButtonWidth, button ->
+        ButtonComponent remove = ButtonFitUtil.fixedWidthFittedButton(
+                ItemEditorText.tr("special.bundle.remove_selected"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                actionButtonWidth,
+                ACTION_BUTTON_TEXT_MIN,
+                ACTION_BUTTON_TEXT_RESERVE,
+                button ->
                 context.mutateRefresh(() -> {
                     if (special.selectedBundleIndex >= 0 && special.selectedBundleIndex < special.bundleEntries.size()) {
                         special.bundleEntries.remove(special.selectedBundleIndex);
@@ -186,17 +198,23 @@ public final class BundleSpecialDataSection {
 
         FlowLayout countRow = compactLayout ? UiFactory.column() : UiFactory.row();
         int countStepButtonWidth = resolveCountStepButtonWidth(contentWidth);
-        ButtonComponent decreaseButton = boundedActionButton(
+        ButtonComponent decreaseButton = ButtonFitUtil.fixedWidthFittedButton(
                 ItemEditorText.tr("special.container.count_decrease"),
+                UiFactory.ButtonTextPreset.STANDARD,
                 countStepButtonWidth,
+                ACTION_BUTTON_TEXT_MIN,
+                ACTION_BUTTON_TEXT_RESERVE,
                 button -> context.mutateRefresh(() -> stepCount(entry, -1))
         );
         countRow.child(decreaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth)));
         countRow.child(UiFactory.textBox(entry.count, value -> context.mutate(() -> entry.count = value))
                 .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COUNT_FIELD_WIDTH)));
-        ButtonComponent increaseButton = boundedActionButton(
+        ButtonComponent increaseButton = ButtonFitUtil.fixedWidthFittedButton(
                 ItemEditorText.tr("special.container.count_increase"),
+                UiFactory.ButtonTextPreset.STANDARD,
                 countStepButtonWidth,
+                ACTION_BUTTON_TEXT_MIN,
+                ACTION_BUTTON_TEXT_RESERVE,
                 button -> context.mutateRefresh(() -> stepCount(entry, 1))
         );
         countRow.child(increaseButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(countStepButtonWidth)));
@@ -210,9 +228,12 @@ public final class BundleSpecialDataSection {
 
         if (special.selectedBundleIndex != index) {
             int selectWidth = resolveActionButtonWidth(contentWidth);
-            ButtonComponent selectEntry = boundedActionButton(
+            ButtonComponent selectEntry = ButtonFitUtil.fixedWidthFittedButton(
                     ItemEditorText.tr("special.bundle.select_entry"),
+                    UiFactory.ButtonTextPreset.STANDARD,
                     selectWidth,
+                    ACTION_BUTTON_TEXT_MIN,
+                    ACTION_BUTTON_TEXT_RESERVE,
                     button -> context.mutateRefresh(() -> special.selectedBundleIndex = index)
             );
             card.child(selectEntry.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(selectWidth)));
@@ -334,25 +355,7 @@ public final class BundleSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private static ButtonComponent boundedActionButton(
-            Component fullText,
-            int width,
-            Consumer<ButtonComponent> onPress
-    ) {
-        Component fitted = UiFactory.fitToWidth(
-                fullText,
-                Math.max(ACTION_BUTTON_TEXT_MIN, width - UiFactory.scaledPixels(ACTION_BUTTON_TEXT_RESERVE))
-        );
-        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
-        button.horizontalSizing(Sizing.fixed(width));
-        if (!fitted.getString().equals(fullText.getString())) {
-            button.tooltip(List.of(fullText));
-        }
-        return button;
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static int resolveActionButtonWidth(int contentWidth) {

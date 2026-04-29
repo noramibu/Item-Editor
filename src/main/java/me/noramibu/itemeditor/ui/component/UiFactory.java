@@ -21,6 +21,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 public final class UiFactory {
@@ -110,6 +111,17 @@ public final class UiFactory {
             applyFlowContract(flowLayout);
         }
         parent.child(child);
+    }
+
+    public static FlowLayout horizontalScrollbarRow(RichTextAreaComponent editor, int gutterWidth) {
+        FlowLayout scrollbarRow = row();
+        scrollbarRow.horizontalSizing(Sizing.fill(100));
+        scrollbarRow.gap(0);
+        FlowLayout gutterSpacer = row();
+        gutterSpacer.horizontalSizing(fixed(gutterWidth));
+        scrollbarRow.child(gutterSpacer);
+        scrollbarRow.child(new RichTextHorizontalScrollbarComponent(Sizing.fill(100), editor));
+        return scrollbarRow;
     }
 
     private static <T extends FlowLayout> T applyFlowContract(T flowLayout) {
@@ -405,7 +417,7 @@ public final class UiFactory {
         checkbox.checked(checked);
         checkbox.onChanged(onChanged);
         if (text != null && !text.getString().isBlank() && !displayText.getString().equals(text.getString())) {
-            checkbox.tooltip(java.util.List.of(text));
+            checkbox.tooltip(List.of(text));
         }
         return checkbox;
     }
@@ -459,11 +471,6 @@ public final class UiFactory {
         return Sizing.fixed(scaledPixels(basePixels));
     }
 
-    public static Sizing fixedClamped(int basePixels, int minPixels, int maxPixels) {
-        int scaled = scaledPixels(basePixels);
-        return Sizing.fixed(Math.max(minPixels, Math.min(maxPixels, scaled)));
-    }
-
     public static int scaledScrollbarThickness(int baseThickness) {
         int scaled = scaledPixels(baseThickness);
         return Math.max(6, Math.min(14, scaled));
@@ -485,7 +492,6 @@ public final class UiFactory {
 
     public static FlowLayout scrollContentColumn(int scrollbarBaseThickness, int bottomPadding) {
         FlowLayout content = column();
-        // Insets order is (top, bottom, left, right). Keep left flush and reserve space on the right for scrollbar.
         content.padding(Insets.of(0, Math.max(0, bottomPadding), 0, scrollContentInset(scrollbarBaseThickness)));
         return content;
     }
@@ -520,8 +526,6 @@ public final class UiFactory {
         int minWidth = Math.max(16, scaledPixels(preset.minWidth));
         int viewportBound = Math.max(minWidth, (int) Math.round(guiScaledWidth() * 0.28d));
         int maxWidth = Math.max(minWidth, Math.min(scaledPixels(320), viewportBound));
-        // Button labels are rendered by vanilla at native scale in this UI.
-        // Keep adaptive fit based on actual rendered width to avoid tiny/truncated labels.
         float normalizedScale = Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, preferredScale));
         int adaptivePadding = horizontalPadding + (normalizedScale > 1.10F ? scaledPixels(2) : 0);
         String fullLabel = safeText.getString();
@@ -539,7 +543,7 @@ public final class UiFactory {
         button.verticalSizing(Sizing.fixed(controlHeight));
         applyButtonPreset(button, preset);
         if (!displayText.getString().equals(fullLabel)) {
-            button.tooltip(java.util.List.of(safeText));
+            button.tooltip(List.of(safeText));
         }
         return button;
     }
@@ -595,5 +599,4 @@ public final class UiFactory {
         return Minecraft.getInstance().getWindow().getGuiScaledWidth();
     }
 
-    // Note: button text uses vanilla renderer for consistent readability and avoids custom overlay artifacts.
 }

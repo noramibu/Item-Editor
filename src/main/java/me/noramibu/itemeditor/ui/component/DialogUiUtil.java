@@ -50,12 +50,6 @@ final class DialogUiUtil {
         return overlay;
     }
 
-    static FlowLayout rightAlignedButtonRow() {
-        FlowLayout row = UiFactory.row();
-        row.horizontalAlignment(HorizontalAlignment.RIGHT);
-        return row;
-    }
-
     static FlowLayout dialogCard(int dialogWidth, int dialogHeight, int gap) {
         FlowLayout dialog = UiFactory.centeredCard(dialogWidth).gap(gap);
         dialog.verticalSizing(Sizing.fixed(dialogHeight));
@@ -87,7 +81,7 @@ final class DialogUiUtil {
     }
 
     static int dialogWidth(int preferredWidth) {
-        int available = Math.max(VIEWPORT_MIN, availableViewportWidth());
+        int available = Math.max(VIEWPORT_MIN, Math.max(VIEWPORT_MIN, guiWidth()) - overlayInset());
         int minimum = Math.min(Math.max(MIN_DIALOG_WIDTH, VIEWPORT_MIN), available);
         return Math.max(minimum, Math.min(preferredWidth, available));
     }
@@ -123,7 +117,7 @@ final class DialogUiUtil {
     }
 
     static boolean compactButtons(int dialogWidth, int widthThreshold) {
-        return dialogWidth < widthThreshold || guiScale() >= COMPACT_BUTTON_SCALE_THRESHOLD;
+        return dialogWidth < widthThreshold || minecraft().getWindow().getGuiScale() >= COMPACT_BUTTON_SCALE_THRESHOLD;
     }
 
     static int buttonRowReserve(boolean compactButtons, int compactRows, int compactExtra, int regularExtra) {
@@ -134,8 +128,7 @@ final class DialogUiUtil {
         return controlHeight + UiFactory.scaledPixels(regularExtra);
     }
 
-    static ButtonComponent footerButtonByDivisor(
-            Component fullText,
+    static FlowLayout footerRowByDivisor(
             int dialogWidth,
             boolean compactButtons,
             int minWidth,
@@ -143,16 +136,15 @@ final class DialogUiUtil {
             int widthDivisor,
             int textMinWidth,
             int textReserve,
-            Consumer<ButtonComponent> onPress
+            FooterAction... actions
     ) {
-        ButtonComponent button = baseFooterButton(fullText, compactButtons, onPress);
-        if (compactButtons) return button;
-        int buttonWidth = clampFooterButtonWidth(minWidth, maxWidth, dialogWidth / Math.max(1, widthDivisor));
-        return configureFooterButton(button, fullText, buttonWidth, textMinWidth, textReserve);
+        int buttonWidth = compactButtons
+                ? 0
+                : clampFooterButtonWidth(minWidth, maxWidth, dialogWidth / Math.max(1, widthDivisor));
+        return footerRow(compactButtons, buttonWidth, textMinWidth, textReserve, actions);
     }
 
-    static ButtonComponent footerButtonByCount(
-            Component fullText,
+    static FlowLayout footerRowByCount(
             int dialogWidth,
             boolean compactButtons,
             int minWidth,
@@ -161,16 +153,51 @@ final class DialogUiUtil {
             int rowReserve,
             int textMinWidth,
             int textReserve,
-            Consumer<ButtonComponent> onPress
+            FooterAction... actions
     ) {
-        ButtonComponent button = baseFooterButton(fullText, compactButtons, onPress);
-        if (compactButtons) return button;
-        int buttonWidth = clampFooterButtonWidth(
+        int buttonWidth = compactButtons
+                ? 0
+                : clampFooterButtonWidth(
                 minWidth,
                 maxWidth,
                 (dialogWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount)
         );
-        return configureFooterButton(button, fullText, buttonWidth, textMinWidth, textReserve);
+        return footerRow(compactButtons, buttonWidth, textMinWidth, textReserve, actions);
+    }
+
+    private static FlowLayout footerRow(
+            boolean compactButtons,
+            int buttonWidth,
+            int textMinWidth,
+            int textReserve,
+            FooterAction... actions
+    ) {
+        FlowLayout row = compactButtons ? UiFactory.column() : UiFactory.row();
+        if (!compactButtons) {
+            row.horizontalAlignment(HorizontalAlignment.RIGHT);
+        }
+        for (FooterAction action : actions) {
+            ButtonComponent button = baseFooterButton(action.fullText(), compactButtons, action.onPress());
+            if (!compactButtons) {
+                configureFooterButton(button, action.fullText(), buttonWidth, textMinWidth, textReserve);
+            }
+            row.child(button);
+        }
+        return row;
+    }
+
+    static ScrollDialogSizing scrollDialogSizing(
+            int preferredScrollHeight,
+            int reservedHeight,
+            int minContentHeight,
+            int minDialogHeight
+    ) {
+        int contentHeight = Math.min(
+                scrollHeight(preferredScrollHeight),
+                availableDialogContentHeight(reservedHeight, minContentHeight)
+        );
+        int dialogHeight = dialogHeight(reservedHeight + contentHeight, minDialogHeight);
+        return new ScrollDialogSizing(contentHeight, dialogHeight);
     }
 
     private static ButtonComponent baseFooterButton(
@@ -185,7 +212,7 @@ final class DialogUiUtil {
         return button;
     }
 
-    private static ButtonComponent configureFooterButton(
+    private static void configureFooterButton(
             ButtonComponent button,
             Component fullText,
             int buttonWidth,
@@ -198,7 +225,6 @@ final class DialogUiUtil {
         ));
         button.tooltip(List.of(fullText));
         button.horizontalSizing(Sizing.fixed(buttonWidth));
-        return button;
     }
 
     private static int clampFooterButtonWidth(int minWidth, int maxWidth, int candidateWidth) {
@@ -222,20 +248,8 @@ final class DialogUiUtil {
         return minecraft().getWindow().getGuiScaledHeight();
     }
 
-    private static double guiScale() {
-        return minecraft().getWindow().getGuiScale();
-    }
-
-    private static int viewportWidth() {
-        return Math.max(VIEWPORT_MIN, guiWidth());
-    }
-
     private static int viewportHeight() {
         return Math.max(VIEWPORT_MIN, guiHeight());
-    }
-
-    private static int availableViewportWidth() {
-        return Math.max(VIEWPORT_MIN, viewportWidth() - overlayInset());
     }
 
     private static int availableViewportHeight() {
@@ -244,5 +258,11 @@ final class DialogUiUtil {
 
     private static Minecraft minecraft() {
         return Minecraft.getInstance();
+    }
+
+    record FooterAction(Component fullText, Consumer<ButtonComponent> onPress) {
+    }
+
+    record ScrollDialogSizing(int contentHeight, int dialogHeight) {
     }
 }
