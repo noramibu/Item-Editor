@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.client.Minecraft;
@@ -27,11 +28,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public final class AttributeEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 560;
     private static final int AMOUNT_STEP_BUTTON_MIN = 24;
     private static final int AMOUNT_STEP_BUTTON_BASE = 30;
@@ -48,8 +49,6 @@ public final class AttributeEditorPanel implements EditorPanel {
     private static final int INTRO_ACTION_BUTTON_ROW_RESERVE = 12;
     private static final int INTRO_ACTION_BUTTON_TEXT_MIN = 18;
     private static final int INTRO_ACTION_BUTTON_TEXT_RESERVE = 10;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final String SYMBOL_STEP_DECREMENT = "-";
     private static final String SYMBOL_STEP_INCREMENT = "+";
     private static final String TOOLTIP_EXPAND_ALL = "Expand all";
@@ -84,28 +83,34 @@ public final class AttributeEditorPanel implements EditorPanel {
         int introActionButtonCount = state.attributeModifiers.isEmpty() ? 2 : 4;
         int introActionButtonWidth = this.resolveIntroActionButtonWidth(contentWidth, introActionButtonCount);
         Component resetText = ItemEditorText.tr("attributes.modifiers.reset");
-        ButtonComponent resetButton = this.introActionButton(resetText, compactLayout, introActionButtonWidth, button -> {
-            PanelBindings.mutateRefresh(this.screen, () -> this.resetAttributeModifiersFromOriginal(state));
-        });
+        ButtonComponent resetButton = this.introActionButton(
+                resetText,
+                compactLayout,
+                introActionButtonWidth,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> this.resetAttributeModifiersFromOriginal(state))
+        );
         actions.child(resetButton);
         Component addText = ItemEditorText.tr("attributes.modifiers.add");
-        ButtonComponent addButton = this.introActionButton(addText, compactLayout, introActionButtonWidth, button -> {
-            PanelBindings.mutateRefresh(this.screen, () -> {
-                ItemEditorState.AttributeModifierDraft draft = new ItemEditorState.AttributeModifierDraft();
-                draft.uiCollapsed = false;
-                state.attributeModifiers.add(draft);
-            });
-        });
+        ButtonComponent addButton = this.introActionButton(
+                addText,
+                compactLayout,
+                introActionButtonWidth,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> {
+                    ItemEditorState.AttributeModifierDraft draft = new ItemEditorState.AttributeModifierDraft();
+                    draft.uiCollapsed = false;
+                    state.attributeModifiers.add(draft);
+                })
+        );
         actions.child(addButton);
         if (!state.attributeModifiers.isEmpty()) {
-            Component expandText = Component.literal(SYMBOL_SECTION_COLLAPSED);
+            Component expandText = LayoutModeUtil.sectionToggleText(true);
             ButtonComponent expandAll = this.introActionButton(expandText, compactLayout, introActionButtonWidth, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = false))
             );
             expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
             actions.child(expandAll);
 
-            Component collapseText = Component.literal(SYMBOL_SECTION_EXPANDED);
+            Component collapseText = LayoutModeUtil.sectionToggleText(false);
             ButtonComponent collapseAll = this.introActionButton(collapseText, compactLayout, introActionButtonWidth, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = true))
             );
@@ -359,16 +364,20 @@ public final class AttributeEditorPanel implements EditorPanel {
     private boolean isCompactLayout() {
         int contentWidth = this.availableContentWidth();
         var window = Minecraft.getInstance().getWindow();
-        return window.getGuiScaledWidth() <= COMPACT_LAYOUT_WIDTH_THRESHOLD
-                || window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || contentWidth < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactWindowAndContentInclusive(
+                window.getGuiScale(),
+                window.getGuiScaledWidth(),
+                COMPACT_LAYOUT_WIDTH_THRESHOLD,
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
     }
 
     private ButtonComponent introActionButton(
             Component fullText,
             boolean compactLayout,
             int nonCompactWidth,
-            java.util.function.Consumer<ButtonComponent> onPress
+            Consumer<ButtonComponent> onPress
     ) {
         Component fitted = UiFactory.fitToWidth(
                 fullText,

@@ -82,7 +82,7 @@ public final class ItemComponentDiffUtil {
 
         Tag root = encoded.result().orElse(null);
         if (!(root instanceof CompoundTag compound)) {
-            String error = encoded.error().map(result -> result.message()).orElse(ItemEditorText.str("raw.unknown_error"));
+            String error = encoded.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"));
             return new Snapshot("", 0, Map.of(), ItemEditorText.str("raw.serialize_failed", error));
         }
 

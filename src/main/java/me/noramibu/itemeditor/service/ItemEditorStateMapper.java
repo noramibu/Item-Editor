@@ -110,6 +110,7 @@ public final class ItemEditorStateMapper {
 
         state.customName = Optional.ofNullable(stack.get(DataComponents.CUSTOM_NAME))
                 .map(TextComponentUtil::toMarkup)
+                .map(markup -> TextComponentUtil.ensureObjectTokenColors(markup, 0xFFFFFF))
                 .orElse("");
         state.count = Integer.toString(stack.getCount());
 
@@ -391,7 +392,7 @@ public final class ItemEditorStateMapper {
             state.book.title = content.title().raw();
             state.book.author = content.author();
             state.book.generation = Integer.toString(content.generation());
-            content.pages().stream().map(Filterable::raw).map(TextComponentUtil::toMarkup).forEach(state.book.pages::add);
+            content.pages().stream().map(this::pageMarkup).forEach(state.book.pages::add);
         } else if (stack.is(Items.WRITABLE_BOOK)) {
             WritableBookContent content = stack.getOrDefault(DataComponents.WRITABLE_BOOK_CONTENT, WritableBookContent.EMPTY);
             content.pages().stream().map(Filterable::raw).forEach(state.book.pages::add);
@@ -676,6 +677,55 @@ public final class ItemEditorStateMapper {
         return blockIds.stream().toList();
     }
 
+    private String pageMarkup(Filterable<Component> page) {
+        String rawMarkup = TextComponentUtil.toMarkup(page.raw());
+        return page.filtered()
+                .map(TextComponentUtil::toMarkup)
+                .filter(filteredMarkup -> isRicherBookMarkup(filteredMarkup, rawMarkup))
+                .orElse(rawMarkup);
+    }
+
+    private static boolean isRicherBookMarkup(String candidate, String fallback) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        if (fallback == null || fallback.isBlank()) {
+            return true;
+        }
+
+        int candidateScore = bookMarkupScore(candidate);
+        int fallbackScore = bookMarkupScore(fallback);
+        if (candidateScore != fallbackScore) {
+            return candidateScore > fallbackScore;
+        }
+        return candidate.length() > fallback.length();
+    }
+
+    private static int bookMarkupScore(String markup) {
+        int score = 0;
+        score += tokenCount(markup, "[ie:click:") * 5;
+        score += tokenCount(markup, "[ie:hover:") * 5;
+        score += tokenCount(markup, "[ie:head:") * 3;
+        score += tokenCount(markup, "[ie:head_texture:") * 3;
+        score += tokenCount(markup, "[ie:sprite:") * 3;
+        score += tokenCount(markup, "&#");
+        return score;
+    }
+
+    private static int tokenCount(String text, String token) {
+        int count = 0;
+        int from = 0;
+        while (from >= 0 && from < text.length()) {
+            int index = text.indexOf(token, from);
+            if (index < 0) {
+                break;
+            }
+            count++;
+            from = index + token.length();
+        }
+        return count;
+    }
+
     private String encodePredicate(AdventureModePredicate predicate, RegistryAccess registryAccess) {
         try {
             var ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
@@ -749,14 +799,15 @@ public final class ItemEditorStateMapper {
     }
 
     private Component stripBaseSignColor(Component line, int baseColor) {
-        MutableComponent rebuilt = Component.empty();
-        for (Component flat : line.toFlatList(Style.EMPTY)) {
-            Style style = flat.getStyle();
-            TextColor color = style.getColor();
-            if (color != null && color.getValue() == baseColor) {
-                style = style.withColor((TextColor) null);
-            }
-            rebuilt.append(Component.literal(flat.getString()).withStyle(style));
+        Style style = line.getStyle();
+        TextColor color = style.getColor();
+        if (color != null && color.getValue() == baseColor) {
+            style = style.withColor((TextColor) null);
+        }
+
+        MutableComponent rebuilt = MutableComponent.create(line.getContents()).withStyle(style);
+        for (Component sibling : line.getSiblings()) {
+            rebuilt.append(this.stripBaseSignColor(sibling, baseColor));
         }
         return rebuilt;
     }

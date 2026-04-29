@@ -1,11 +1,9 @@
 package me.noramibu.itemeditor.ui.component;
 
-import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.ColorPickerComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
@@ -91,11 +89,11 @@ public final class ColorPickerDialog {
         );
         int contentWidthHint = Math.max(1, dialogWidth - UiFactory.scaledPixels(CONTENT_WIDTH_RESERVE));
         int preferredPickerWidth = Math.max(PICKER_WIDTH_MIN, contentWidthHint - PICKER_WIDTH_RESERVE);
-        int pickerWidth = Math.max(1, Math.min(contentWidthHint, preferredPickerWidth));
+        int pickerWidth = Math.min(contentWidthHint, preferredPickerWidth);
         int pickerHeight = compactLayout ? PICKER_HEIGHT_COMPACT : PICKER_HEIGHT_NORMAL;
         int swatchSize = Math.max(SWATCH_SIZE_MIN, Math.min(SWATCH_SIZE_MAX, dialogWidth / SWATCH_SIZE_DIVISOR));
-        int hexInputWidth = Math.max(1, Math.min(contentWidthHint, Math.max(HEX_INPUT_MIN, Math.min(HEX_INPUT_MAX, contentWidthHint / HEX_INPUT_DIVISOR))));
-        int rgbInputWidth = Math.max(1, Math.min(contentWidthHint, Math.max(RGB_INPUT_MIN, Math.min(RGB_INPUT_MAX, contentWidthHint / RGB_INPUT_DIVISOR))));
+        int hexInputWidth = Math.min(contentWidthHint, Math.max(HEX_INPUT_MIN, Math.min(HEX_INPUT_MAX, contentWidthHint / HEX_INPUT_DIVISOR)));
+        int rgbInputWidth = Math.min(contentWidthHint, Math.max(RGB_INPUT_MIN, Math.min(RGB_INPUT_MAX, contentWidthHint / RGB_INPUT_DIVISOR)));
 
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
         dialog.child(UiFactory.title(title));
@@ -110,18 +108,15 @@ public final class ColorPickerDialog {
                 .showAlpha(false)
                 .selectorWidth(18)
                 .selectorPadding(8);
-        picker.sizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(pickerWidth), UiFactory.fixed(pickerHeight));
+        ColorPickerUiUtil.applyPickerSizing(picker, compactLayout, pickerWidth, pickerHeight);
 
-        BoxComponent swatch = UIComponents.box(UiFactory.fixed(swatchSize), UiFactory.fixed(swatchSize))
-                .fill(true)
-                .color(Color.ofRgb(selectedRgb.get()));
-        LabelComponent swatchLabel = UiFactory.title(ValidationUtil.toHex(selectedRgb.get())).shadow(false);
+        ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(selectedRgb.get(), swatchSize);
         LabelComponent errorLabel = UiFactory.message("", 0xFF8A8A);
 
         FlowLayout sampleRow = UiFactory.row();
         sampleRow.horizontalSizing(Sizing.content());
-        sampleRow.child(swatch);
-        sampleRow.child(swatchLabel);
+        sampleRow.child(swatch.swatch());
+        sampleRow.child(swatch.label());
 
         TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(selectedRgb.get()), value -> {});
         hexInput.horizontalSizing(UiFactory.fixed(hexInputWidth));
@@ -133,16 +128,10 @@ public final class ColorPickerDialog {
                 syncing,
                 selectedRgb::get,
                 picker,
-                swatch,
-                swatchLabel,
+                swatch.swatch(),
+                swatch.label(),
                 hexInput,
-                () -> {
-                    int rgb = selectedRgb.get();
-                    redInput.text(Integer.toString((rgb >> 16) & 0xFF));
-                    greenInput.text(Integer.toString((rgb >> 8) & 0xFF));
-                    blueInput.text(Integer.toString(rgb & 0xFF));
-                    errorLabel.text(Component.empty());
-                }
+                ColorPickerUiUtil.rgbPostSync(selectedRgb::get, redInput, greenInput, blueInput, errorLabel)
         );
 
         IntConsumer setSelectedRgb = rgb -> {
@@ -150,21 +139,21 @@ public final class ColorPickerDialog {
             syncInputs.run();
         };
 
-        picker.onChanged().subscribe(color -> {
-            if (syncing.get()) return;
-            setSelectedRgb.accept(color.rgb());
-        });
+        ColorPickerUiUtil.bindPickerAndRgbInputs(
+                picker,
+                syncing,
+                hexInput,
+                redInput,
+                greenInput,
+                blueInput,
+                errorLabel,
+                setSelectedRgb
+        );
 
-        ColorPickerUiUtil.bindHexInput(hexInput, syncing, errorLabel, setSelectedRgb);
-
-        redInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
-        greenInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
-        blueInput.onChanged().subscribe(value -> updateFromRgb(syncing, errorLabel, redInput, greenInput, blueInput, setSelectedRgb));
-
-        FlowLayout hexField = compactInputField(ItemEditorText.tr("common.hex"), hexInput, hexInputWidth, false);
-        FlowLayout redField = compactInputField(ItemEditorText.tr("common.rgb.red"), redInput, rgbInputWidth, true);
-        FlowLayout greenField = compactInputField(ItemEditorText.tr("common.rgb.green"), greenInput, rgbInputWidth, true);
-        FlowLayout blueField = compactInputField(ItemEditorText.tr("common.rgb.blue"), blueInput, rgbInputWidth, true);
+        FlowLayout hexField = ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.hex"), hexInput, hexInputWidth, false);
+        FlowLayout redField = ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.red"), redInput, rgbInputWidth, true);
+        FlowLayout greenField = ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.green"), greenInput, rgbInputWidth, true);
+        FlowLayout blueField = ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.rgb.blue"), blueInput, rgbInputWidth, true);
         redField.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fill(33));
         greenField.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fill(33));
         blueField.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fill(33));
@@ -220,16 +209,14 @@ public final class ColorPickerDialog {
         saveCurrentButton.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(Math.max(SAVE_ACTION_BUTTON_MIN_WIDTH, dialogWidth / 4)));
         presetActions.child(saveCurrentButton);
 
-        refreshSaved.set(() -> rebuildSavedColors(savedList, compactLayout, setSelectedRgb, onApply, refreshSaved.get()));
+        refreshSaved.set(() -> rebuildSavedColors(savedList, setSelectedRgb, onApply, refreshSaved.get()));
         refreshSaved.get().run();
         content.child(presetActions);
         content.child(savedCard);
         content.child(errorLabel);
         dialog.child(DialogUiUtil.scrollCard(content, contentHeight));
 
-        FlowLayout buttonRow = compactLayout ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
-        ButtonComponent cancelButton = DialogUiUtil.footerButtonByDivisor(
-                ItemEditorText.tr("common.cancel"),
+        FlowLayout buttonRow = DialogUiUtil.footerRowByDivisor(
                 dialogWidth,
                 compactLayout,
                 FOOTER_BUTTON_MIN_WIDTH,
@@ -237,21 +224,9 @@ public final class ColorPickerDialog {
                 FOOTER_BUTTON_DIVISOR,
                 FOOTER_BUTTON_TEXT_MIN_WIDTH,
                 FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onCancel.run()
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.color_picker.apply"), button -> onApply.accept(selectedRgb.get()))
         );
-        ButtonComponent applyButton = DialogUiUtil.footerButtonByDivisor(
-                ItemEditorText.tr("dialog.color_picker.apply"),
-                dialogWidth,
-                compactLayout,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onApply.accept(selectedRgb.get())
-        );
-        buttonRow.child(cancelButton);
-        buttonRow.child(applyButton);
         dialog.child(buttonRow);
 
         overlay.child(dialog);
@@ -260,7 +235,6 @@ public final class ColorPickerDialog {
 
     private static void rebuildSavedColors(
             FlowLayout savedList,
-            boolean compactLayout,
             IntConsumer applyColor,
             IntConsumer onApply,
             Runnable onChanged
@@ -273,63 +247,20 @@ public final class ColorPickerDialog {
         }
 
         for (TextColorPresets.CustomColorPreset preset : presets) {
-            FlowLayout row = UiFactory.row();
-            row.horizontalSizing(Sizing.fill(100));
-            ButtonComponent applyButton = UiFactory.button(
+            savedList.child(ColorPickerUiUtil.savedPresetRow(
                     Component.literal(preset.name()).withColor(preset.rgb()),
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    button -> {
+                    () -> {
                         applyColor.accept(preset.rgb());
                         onApply.accept(preset.rgb());
-                    }
-            );
-            applyButton.horizontalSizing(Sizing.expand(100));
-            row.child(applyButton);
-
-            ButtonComponent removeButton = UiFactory.button(
-                    ItemEditorText.tr("common.remove"),
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    button -> {
+                    },
+                    () -> {
                         TextColorPresets.removeColorPreset(preset.id());
                         onChanged.run();
-                    }
-            );
-            removeButton.tooltip(List.of(ItemEditorText.tr("dialog.color_picker.saved_remove_hint")));
-            removeButton.horizontalSizing(UiFactory.fixed(SAVED_REMOVE_BUTTON_WIDTH));
-            row.child(removeButton);
-            savedList.child(row);
+                    },
+                    SAVED_REMOVE_BUTTON_WIDTH,
+                    ItemEditorText.tr("dialog.color_picker.saved_remove_hint")
+            ));
         }
     }
 
-    private static FlowLayout compactInputField(Component label, TextBoxComponent input, int width, boolean fill) {
-        FlowLayout field = UiFactory.column();
-        field.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 2));
-        int labelWidth = Math.max(36, width);
-        field.horizontalSizing(fill ? Sizing.fill(100) : UiFactory.fixed(width));
-        field.child(UiFactory.muted(label, labelWidth));
-        input.horizontalSizing(fill ? Sizing.fill(100) : UiFactory.fixed(width));
-        field.child(input);
-        return field;
-    }
-
-    private static void updateFromRgb(
-            AtomicBoolean syncing,
-            LabelComponent errorLabel,
-            TextBoxComponent redInput,
-            TextBoxComponent greenInput,
-            TextBoxComponent blueInput,
-            IntConsumer setSelectedRgb
-    ) {
-        if (syncing.get()) return;
-
-        Integer red = ValidationUtil.tryParseByteChannel(redInput.getValue());
-        Integer green = ValidationUtil.tryParseByteChannel(greenInput.getValue());
-        Integer blue = ValidationUtil.tryParseByteChannel(blueInput.getValue());
-        if (red == null || green == null || blue == null) {
-            errorLabel.text(ItemEditorText.tr("dialog.color_picker.rgb_error"));
-            return;
-        }
-
-        setSelectedRgb.accept((red << 16) | (green << 8) | blue);
-    }
 }

@@ -17,6 +17,8 @@ import java.util.function.Function;
 public final class StyledTextFieldSection {
     private static final double COMPACT_TOOLBAR_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD = 560;
+    private static final boolean DEFAULT_COMPACT_TOOLBAR = false;
+    private static final int DEFAULT_TOOLBAR_WIDTH_HINT = -1;
 
     private StyledTextFieldSection() {
     }
@@ -33,7 +35,6 @@ public final class StyledTextFieldSection {
             int palettePrimary,
             int paletteSecondary,
             int paletteSelection,
-            int paletteCursor,
             int palettePlaceholder,
             int chromeFill,
             int chromeOutline,
@@ -48,7 +49,7 @@ public final class StyledTextFieldSection {
             Function<RichTextDocument, String> validator,
             Consumer<RichTextDocument> onDocumentChanged
     ) {
-        return create(
+        return createRichTextField(
                 screen,
                 initialDocument,
                 width,
@@ -60,7 +61,6 @@ public final class StyledTextFieldSection {
                 palettePrimary,
                 paletteSecondary,
                 paletteSelection,
-                paletteCursor,
                 palettePlaceholder,
                 chromeFill,
                 chromeOutline,
@@ -74,7 +74,8 @@ public final class StyledTextFieldSection {
                 includeGradient,
                 validator,
                 onDocumentChanged,
-                false
+                DEFAULT_COMPACT_TOOLBAR,
+                DEFAULT_TOOLBAR_WIDTH_HINT
         );
     }
 
@@ -90,7 +91,6 @@ public final class StyledTextFieldSection {
             int palettePrimary,
             int paletteSecondary,
             int paletteSelection,
-            int paletteCursor,
             int palettePlaceholder,
             int chromeFill,
             int chromeOutline,
@@ -106,16 +106,135 @@ public final class StyledTextFieldSection {
             Consumer<RichTextDocument> onDocumentChanged,
             boolean compactToolbar
     ) {
+        return createRichTextField(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
+                defaultStyle,
+                displayCharCount,
+                initialColor,
+                palettePrimary,
+                paletteSecondary,
+                paletteSelection,
+                palettePlaceholder,
+                chromeFill,
+                chromeOutline,
+                actions,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                includeColorPicker,
+                includeGradient,
+                validator,
+                onDocumentChanged,
+                compactToolbar,
+                DEFAULT_TOOLBAR_WIDTH_HINT
+        );
+    }
+
+    public static BoundEditor create(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            RichTextStyle defaultStyle,
+            boolean displayCharCount,
+            int initialColor,
+            int palettePrimary,
+            int paletteSecondary,
+            int paletteSelection,
+            int palettePlaceholder,
+            int chromeFill,
+            int chromeOutline,
+            List<RichTextToolbarUtil.ToolAction> actions,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            boolean includeColorPicker,
+            boolean includeGradient,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar,
+            int toolbarWidthHint
+    ) {
+        return createRichTextField(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
+                defaultStyle,
+                displayCharCount,
+                initialColor,
+                palettePrimary,
+                paletteSecondary,
+                paletteSelection,
+                palettePlaceholder,
+                chromeFill,
+                chromeOutline,
+                actions,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                includeColorPicker,
+                includeGradient,
+                validator,
+                onDocumentChanged,
+                compactToolbar,
+                toolbarWidthHint
+        );
+    }
+
+    private static BoundEditor createRichTextField(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            RichTextStyle defaultStyle,
+            boolean displayCharCount,
+            int initialColor,
+            int palettePrimary,
+            int paletteSecondary,
+            int paletteSelection,
+            int palettePlaceholder,
+            int chromeFill,
+            int chromeOutline,
+            List<RichTextToolbarUtil.ToolAction> actions,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            boolean includeColorPicker,
+            boolean includeGradient,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar,
+            int toolbarWidthHint
+    ) {
+        int effectiveToolbarWidthHint = toolbarWidthHint > 1
+                ? toolbarWidthHint
+                : screen.editorContentWidthHint();
         boolean effectiveCompactToolbar = compactToolbar
                 || screen.session().minecraft().getWindow().getGuiScale() >= COMPACT_TOOLBAR_SCALE_THRESHOLD
-                || screen.editorContentWidthHint() < UiFactory.scaledPixels(COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD);
+                || effectiveToolbarWidthHint < UiFactory.scaledPixels(COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD);
         RichTextAreaComponent editor = new RichTextAreaComponent(width, height, initialDocument);
         editor.placeholder(placeholder);
         editor.displayCharCount(displayCharCount);
         if (defaultStyle != null) {
             editor.defaultStyle(defaultStyle);
         }
-        editor.palette(palettePrimary, paletteSecondary, paletteSelection, paletteCursor, palettePlaceholder);
+        editor.palette(palettePrimary, paletteSecondary, paletteSelection, palettePlaceholder);
         editor.chrome(chromeFill, chromeOutline);
 
         AtomicInteger selectedColor = TextStylingController.initialColor(editor, initialColor);
@@ -132,7 +251,8 @@ public final class StyledTextFieldSection {
                 prepareStyledApply,
                 includeColorPicker,
                 includeGradient,
-                effectiveCompactToolbar
+                effectiveCompactToolbar,
+                toolbarWidthHint
         );
 
         TextStylingController.bindValidatedDocument(
@@ -160,7 +280,7 @@ public final class StyledTextFieldSection {
             Function<RichTextDocument, String> validator,
             Consumer<RichTextDocument> onDocumentChanged
     ) {
-        return create(
+        return createPresetField(
                 screen,
                 initialDocument,
                 width,
@@ -174,7 +294,8 @@ public final class StyledTextFieldSection {
                 prepareStyledApply,
                 validator,
                 onDocumentChanged,
-                false
+                DEFAULT_COMPACT_TOOLBAR,
+                DEFAULT_TOOLBAR_WIDTH_HINT
         );
     }
 
@@ -194,7 +315,79 @@ public final class StyledTextFieldSection {
             Consumer<RichTextDocument> onDocumentChanged,
             boolean compactToolbar
     ) {
-        return create(
+        return createPresetField(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
+                preset,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                validator,
+                onDocumentChanged,
+                compactToolbar,
+                DEFAULT_TOOLBAR_WIDTH_HINT
+        );
+    }
+
+    public static BoundEditor create(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            StylePreset preset,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar,
+            int toolbarWidthHint
+    ) {
+        return createPresetField(
+                screen,
+                initialDocument,
+                width,
+                height,
+                placeholder,
+                preset,
+                colorDialogTitle,
+                gradientDialogTitle,
+                colorTooltip,
+                gradientTooltip,
+                prepareStyledApply,
+                validator,
+                onDocumentChanged,
+                compactToolbar,
+                toolbarWidthHint
+        );
+    }
+
+    private static BoundEditor createPresetField(
+            ItemEditorScreen screen,
+            RichTextDocument initialDocument,
+            Sizing width,
+            Sizing height,
+            String placeholder,
+            StylePreset preset,
+            String colorDialogTitle,
+            String gradientDialogTitle,
+            String colorTooltip,
+            String gradientTooltip,
+            Runnable prepareStyledApply,
+            Function<RichTextDocument, String> validator,
+            Consumer<RichTextDocument> onDocumentChanged,
+            boolean compactToolbar,
+            int toolbarWidthHint
+    ) {
+        BoundEditor boundEditor = create(
                 screen,
                 initialDocument,
                 width,
@@ -206,7 +399,6 @@ public final class StyledTextFieldSection {
                 preset.palettePrimary(),
                 preset.paletteSecondary(),
                 preset.paletteSelection(),
-                preset.paletteCursor(),
                 preset.palettePlaceholder(),
                 preset.chromeFill(),
                 preset.chromeOutline(),
@@ -220,8 +412,11 @@ public final class StyledTextFieldSection {
                 preset.includeGradient(),
                 validator,
                 onDocumentChanged,
-                compactToolbar
+                compactToolbar,
+                toolbarWidthHint
         );
+        boundEditor.editor().renderStructuredObjects(preset.renderStructuredObjectsByDefault());
+        return boundEditor;
     }
 
     public record StylePreset(
@@ -231,13 +426,13 @@ public final class StyledTextFieldSection {
             int palettePrimary,
             int paletteSecondary,
             int paletteSelection,
-            int paletteCursor,
             int palettePlaceholder,
             int chromeFill,
             int chromeOutline,
             List<RichTextToolbarUtil.ToolAction> actions,
             boolean includeColorPicker,
-            boolean includeGradient
+            boolean includeGradient,
+            boolean renderStructuredObjectsByDefault
     ) {
         public static StylePreset name() {
             return new StylePreset(
@@ -247,11 +442,11 @@ public final class StyledTextFieldSection {
                     0xFFF2F5F8,
                     0x90768496,
                     0xC56E93FF,
-                    0xFFF4F7FF,
                     0xFFF2F5F8,
                     0xD0111620,
                     0xFF42506A,
                     RichTextToolbarUtil.BASIC_ACTIONS,
+                    true,
                     true,
                     true
             );
@@ -265,11 +460,11 @@ public final class StyledTextFieldSection {
                     baseColor,
                     0x90786692,
                     0xCC8D7BFF,
-                    0xFFF4EFFF,
                     0xFFF6EEFF,
                     0xD0121723,
                     0xFF4B5670,
                     RichTextToolbarUtil.EXTENDED_ACTIONS,
+                    true,
                     true,
                     true
             );
@@ -283,11 +478,11 @@ public final class StyledTextFieldSection {
                     0x3D2D1F,
                     0x9076644E,
                     0xB99AB7FF,
-                    0xFFF8FAFF,
                     0xFF3C2E22,
                     0xFFF3E6C8,
                     0xFFB29A72,
-                    RichTextToolbarUtil.WRITTEN_OUTPUT_ACTIONS,
+                    RichTextToolbarUtil.BOOK_OUTPUT_ACTIONS,
+                    true,
                     true,
                     true
             );
@@ -301,7 +496,6 @@ public final class StyledTextFieldSection {
                     0x3D2D1F,
                     0x9076644E,
                     0xB99AB7FF,
-                    0xFFF8FAFF,
                     0xFF3C2E22,
                     0xFFF3E6C8,
                     0xFFB29A72,
@@ -310,6 +504,7 @@ public final class StyledTextFieldSection {
                             new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
                             new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
                     ),
+                    false,
                     false,
                     false
             );
@@ -323,13 +518,31 @@ public final class StyledTextFieldSection {
                     0xFFF3F5F7,
                     0x90768496,
                     0xC56E93FF,
-                    0xFFF4F7FF,
                     0xFFF2F5F8,
                     0xD0111620,
                     0xFF42506A,
-                    RichTextToolbarUtil.EXTENDED_ACTIONS,
+                    RichTextToolbarUtil.BOOK_METADATA_ACTIONS,
                     !paletteOnly,
-                    !paletteOnly
+                    !paletteOnly,
+                    false
+            );
+        }
+
+        public static StylePreset signContent() {
+            return new StylePreset(
+                    RichTextStyle.EMPTY,
+                    true,
+                    0xFFFFFF,
+                    0xFFF3F5F7,
+                    0x90768496,
+                    0xC56E93FF,
+                    0xFFF2F5F8,
+                    0xD0111620,
+                    0xFF42506A,
+                    RichTextToolbarUtil.SIGN_OUTPUT_ACTIONS,
+                    true,
+                    true,
+                    true
             );
         }
     }

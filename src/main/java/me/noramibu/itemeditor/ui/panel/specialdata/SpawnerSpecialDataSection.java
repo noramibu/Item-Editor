@@ -6,6 +6,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -25,7 +26,6 @@ public final class SpawnerSpecialDataSection {
 
     private static final int AUTOCOMPLETE_LIMIT = 8;
     private static final int CHIP_LIMIT = 6;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int INT_FIELD_WIDTH = 100;
     private static final int POTENTIAL_WEIGHT_FIELD_WIDTH = 120;
@@ -314,8 +314,7 @@ public final class SpawnerSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static String shortEntityId(String entityId) {

@@ -25,7 +25,6 @@ final class ItemEditorLayoutBuilder {
     private static final int SHELL_MAX_WIDTH = 1600;
     private static final int SHELL_SIDE_PADDING = 8;
     private static final int RAIL_TOGGLE_SIZE = 18;
-    private static final int RAIL_MIN_WIDTH = 44;
     private static final int RAIL_MAX_WIDTH = 210;
     private static final int BODY_GAP = 8;
     private static final float PREVIEW_PANEL_TITLE_SCALE = 1.00F;
@@ -63,16 +62,13 @@ final class ItemEditorLayoutBuilder {
     private static final int PREVIEW_SECTION_HEADER_MIN_HEIGHT = 20;
     private static final int PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT = 24;
     private static final int PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT = 28;
-    private static final int PREVIEW_SECTION_SIDE_TOGGLE_MIN = 18;
     private static final int PREVIEW_SECTION_SIDE_TOGGLE_BASE = 24;
     private static final int PREVIEW_SECTION_HEADER_GAP_BASE = 10;
     private static final int PREVIEW_LEAD_NAME_GAP_BASE = 6;
     private static final int PREVIEW_LEAD_ICON_SLOT_BASE = 18;
-    private static final int PREVIEW_LEAD_COLLAPSE_TOGGLE_MIN = 16;
     private static final int PREVIEW_LEAD_COLLAPSE_TOGGLE_BASE = 22;
     private static final int TABS_HEADER_GAP_BASE = 6;
     private static final int TEXT_WIDTH_MIN = 24;
-    private static final int TOGGLE_SIZE_MIN = 14;
     private static final int APPLY_MODE_TEXT_WIDTH_HINT_DEFAULT = 220;
     private static final int PREVIEW_TEXT_WIDTH_HINT_DEFAULT = 210;
     private static final int TOP_BAR_COMPACT_WIDTH_THRESHOLD = 680;
@@ -85,7 +81,6 @@ final class ItemEditorLayoutBuilder {
     private static final double GUI_SCALE_VERY_HIGH_THRESHOLD = 4.0d;
     private static final int SHELL_BOTTOM_SAFETY_EXTRA_HIGH = 4;
     private static final int SHELL_BOTTOM_SAFETY_EXTRA_VERY_HIGH = 8;
-    private static final int PREVIEW_TOOLTIP_SIDE_HIDDEN_MIN_HEIGHT = 18;
     private static final double TOP_BAR_HEIGHT_MAX_RATIO = 0.18d;
     private static final double PREVIEW_SCALE_NORMAL = 0.70d;
     private static final double PREVIEW_SCALE_HIGH = 0.65d * 0.95d;
@@ -125,8 +120,6 @@ final class ItemEditorLayoutBuilder {
     private static final String TOOLTIP_SHOW_CATEGORIES = "Show categories";
     private static final String TOOLTIP_HIDE_PREVIEW = "Hide preview";
     private static final String TOOLTIP_SHOW_PREVIEW = "Show preview";
-    private static final String TOOLTIP_SHOW_TOOLTIP_SECTION = "Show tooltip section";
-    private static final String TOOLTIP_HIDE_TOOLTIP_SECTION = "Hide tooltip section";
 
     private final ItemEditorScreen screen;
     private int shellWidth;
@@ -174,14 +167,19 @@ final class ItemEditorLayoutBuilder {
     }
 
     private UIComponent buildShell() {
-        this.shellWidth = Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2)));
-        int outerPadding = UiFactory.scaledPixels(SHELL_SIDE_PADDING / 2);
-        int verticalPadding = this.scaledMin(2, 2);
         double guiScale = this.currentGuiScale();
+        boolean fullViewportShell = guiScale >= GUI_SCALE_HIGH_THRESHOLD;
+        this.shellWidth = fullViewportShell
+                ? Math.max(1, this.screen.screenWidth())
+                : Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2)));
+        int outerPadding = fullViewportShell ? 0 : UiFactory.scaledPixels(SHELL_SIDE_PADDING / 2);
+        int verticalPadding = fullViewportShell ? 0 : this.scaledMin(2, 2);
         int bottomSafetyExtra = guiScale >= GUI_SCALE_VERY_HIGH_THRESHOLD
                 ? SHELL_BOTTOM_SAFETY_EXTRA_VERY_HIGH
                 : (guiScale >= GUI_SCALE_HIGH_THRESHOLD ? SHELL_BOTTOM_SAFETY_EXTRA_HIGH : 0);
-        int bottomSafety = Math.max(
+        int bottomSafety = fullViewportShell
+                ? 0
+                : Math.max(
                 2,
                 UiFactory.scaledPixels(SHELL_VERTICAL_SAFE_PADDING + bottomSafetyExtra)
         );
@@ -209,7 +207,7 @@ final class ItemEditorLayoutBuilder {
         topBar.verticalSizing(Sizing.fixed(topBarHeight));
         shell.child(topBar);
         int bodyHeight = Math.max(minimumBodyHeight, availableShellHeight - topBarHeight - shellGap);
-        int bodyBottomPadding = this.scaledMin(2, 3);
+        int bodyBottomPadding = fullViewportShell ? 0 : this.scaledMin(2, 3);
 
         boolean categoriesCollapsed = this.screen.categoriesRailCollapsed();
         boolean previewCollapsed = this.screen.previewRailCollapsed();
@@ -249,6 +247,7 @@ final class ItemEditorLayoutBuilder {
 
         FlowLayout centered = UiFactory.column();
         centered.gap(0);
+        centered.horizontalSizing(Sizing.fill(100));
         centered.verticalSizing(Sizing.fill(100));
         centered.padding(Insets.of(verticalPadding, outerPadding, verticalPadding + bottomSafety, outerPadding));
         centered.horizontalAlignment(HorizontalAlignment.CENTER);
@@ -272,13 +271,13 @@ final class ItemEditorLayoutBuilder {
 
         int topButtonHeight = UiFactory.scaleProfile().controlHeight();
         if (highGuiScale) {
-            topButtonHeight = Math.max(14, topButtonHeight - this.scaledMin(2, 3));
+            topButtonHeight -= this.scaledMin(2, 3);
         }
         int rowGap = this.tightSpacingFloor2();
         int minTextGroupWidth = this.clamp(
                 TOP_BAR_MIN_TEXT_WIDTH,
                 TOP_TEXT_GROUP_DYNAMIC_MIN,
-                Math.max(TOP_TEXT_GROUP_DYNAMIC_MIN, (int) Math.round(this.shellWidth * 0.34d))
+                (int) Math.round(this.shellWidth * 0.34d)
         );
         int availableRowWidth = Math.max(1, this.shellWidth - (effectivePadding * 2));
         int maxRowGapBudget = TOP_ACTION_COUNT > 1
@@ -316,7 +315,7 @@ final class ItemEditorLayoutBuilder {
             this.screen.setCategoriesRailCollapsed(true);
             this.screen.rebuildLayout();
         });
-        this.configureRailToggleButton(collapse, toggleSize, Component.literal(TOOLTIP_HIDE_CATEGORIES));
+        this.configureRailToggleButton(collapse, toggleSize, Component.literal(TOOLTIP_HIDE_CATEGORIES), false);
         header.child(collapse);
         card.child(header);
         this.tabs = UiFactory.scrollContentColumn(PREVIEW_SCROLLBAR_THICKNESS);
@@ -376,27 +375,18 @@ final class ItemEditorLayoutBuilder {
             this.screen.rebuildLayout();
         });
         int railToggleSize = this.railToggleSize();
-        this.configureRailToggleButton(collapse, railToggleSize, Component.literal(TOOLTIP_HIDE_PREVIEW));
+        this.configureRailToggleButton(collapse, railToggleSize, Component.literal(TOOLTIP_HIDE_PREVIEW), false);
 
         this.tooltipLines = UiFactory.scrollContentColumn(PREVIEW_SCROLLBAR_THICKNESS, PREVIEW_TOOLTIP_CONTENT_INSET_BASE);
         this.messages = UiFactory.scrollContentColumn(PREVIEW_SCROLLBAR_THICKNESS, PREVIEW_VALIDATION_CONTENT_INSET_BASE);
 
         int verticalGap = this.tightSpacingFloor2();
 
-        boolean tooltipHiddenBySide = this.screen.previewTooltipHiddenBySide();
         boolean tooltipCollapsed = this.screen.previewTooltipCollapsed();
         boolean validationCollapsed = this.screen.previewValidationCollapsed();
-        boolean effectiveTooltipCollapsed = tooltipHiddenBySide || tooltipCollapsed;
         int collapsedSectionHeight = Math.max(
                 UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_MIN_HEIGHT),
                 UiFactory.scaleProfile().controlHeight() + UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_CONTROL_RESERVE)
-        );
-        int tooltipSideHiddenHeight = Math.max(
-                UiFactory.scaledPixels(PREVIEW_TOOLTIP_SIDE_HIDDEN_MIN_HEIGHT),
-                Math.max(
-                        UiFactory.scaleProfile().controlHeight(),
-                        this.previewSectionToggleSize()
-                )
         );
         ScrollContainer<FlowLayout> tooltipSectionScroll = this.configureScroll(
                 InputSafeScrollContainer.vertical(
@@ -427,15 +417,14 @@ final class ItemEditorLayoutBuilder {
                 tooltipCollapsed,
                 this.screen::setPreviewTooltipCollapsed,
                 tooltipSectionScroll,
-                textWidth,
-                tooltipHiddenBySide
+                textWidth
         );
         boolean validationExpanded = !validationCollapsed;
-        boolean tooltipExpanded = !effectiveTooltipCollapsed;
+        boolean tooltipExpanded = !tooltipCollapsed;
         PreviewSectionHeights sectionHeights = this.computePreviewSectionHeights(
                 tooltipExpanded,
                 validationExpanded,
-                tooltipHiddenBySide ? tooltipSideHiddenHeight : collapsedSectionHeight,
+                collapsedSectionHeight,
                 collapsedSectionHeight,
                 verticalGap
         );
@@ -478,18 +467,16 @@ final class ItemEditorLayoutBuilder {
         return card;
     }
 
-    private FlowLayout buildPreviewLeadRow(int textWidth, boolean collapsed, Consumer<Boolean> setter, ButtonComponent sideToggle) {
+    private FlowLayout buildPreviewLeadRow(int textWidth, boolean collapsed, Consumer<Boolean> setter) {
         FlowLayout row = UiFactory.row();
         row.child(this.previewItem);
         Component fullName = this.screen.session().previewStack().getHoverName();
         int toggleWidth = this.previewSectionToggleSize();
-        int sideToggleWidth = sideToggle == null ? 0 : this.previewSectionToggleSize();
-        int sideToggleGap = sideToggle == null ? 0 : this.tightSpacingFloor2();
         int rowGap = this.tightSpacingFloor2();
         int iconSlotWidth = UiFactory.scaledPixels(PREVIEW_LEAD_ICON_SLOT_BASE);
         int nameWidth = Math.max(
                 TEXT_WIDTH_MIN,
-                textWidth - iconSlotWidth - toggleWidth - sideToggleWidth - sideToggleGap - (rowGap * 2) - UiFactory.scaledPixels(PREVIEW_LEAD_NAME_GAP_BASE)
+                textWidth - iconSlotWidth - toggleWidth - (rowGap * 2) - UiFactory.scaledPixels(PREVIEW_LEAD_NAME_GAP_BASE)
         );
         Component fittedName = UiFactory.fitToWidth(fullName, nameWidth);
         this.previewNameLabel = UiFactory.title(fittedName, PREVIEW_NAME_SCALE).maxWidth(nameWidth);
@@ -506,13 +493,10 @@ final class ItemEditorLayoutBuilder {
                     this.screen.rebuildLayout();
                 }
         );
-        int toggleSize = Math.max(PREVIEW_LEAD_COLLAPSE_TOGGLE_MIN, UiFactory.scaledPixels(PREVIEW_LEAD_COLLAPSE_TOGGLE_BASE));
+        int toggleSize = UiFactory.scaledPixels(PREVIEW_LEAD_COLLAPSE_TOGGLE_BASE);
         toggle.horizontalSizing(Sizing.fixed(toggleSize));
         toggle.verticalSizing(Sizing.fixed(toggleSize));
         row.child(toggle);
-        if (sideToggle != null) {
-            row.child(sideToggle);
-        }
         return row;
     }
 
@@ -520,40 +504,14 @@ final class ItemEditorLayoutBuilder {
             boolean collapsed,
             Consumer<Boolean> setter,
             UIComponent content,
-            int textWidth,
-            boolean hiddenBySide
+            int textWidth
     ) {
         FlowLayout section = UiFactory.subCard();
-        if (hiddenBySide) {
-            FlowLayout hiddenHeader = UiFactory.row();
-            hiddenHeader.horizontalAlignment(HorizontalAlignment.RIGHT);
-            hiddenHeader.child(this.buildTooltipSideToggle(true));
-            section.child(hiddenHeader);
-            return section;
-        }
-
-        section.child(this.buildPreviewLeadRow(textWidth, collapsed, setter, this.buildTooltipSideToggle(false)));
+        section.child(this.buildPreviewLeadRow(textWidth, collapsed, setter));
         if (!collapsed) {
             section.child(content.verticalSizing(Sizing.expand(100)));
         }
         return section;
-    }
-
-    private ButtonComponent buildTooltipSideToggle(boolean hiddenBySide) {
-        ButtonComponent toggle = UiFactory.scaledTextButton(
-                Component.literal(hiddenBySide ? SYMBOL_RIGHT : SYMBOL_LEFT),
-                PREVIEW_SECTION_TOGGLE_SCALE,
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> {
-                    this.screen.setPreviewTooltipHiddenBySide(!hiddenBySide);
-                    this.screen.rebuildLayout();
-                }
-        );
-        int tooltipToggleSize = this.previewSectionToggleSize();
-        toggle.horizontalSizing(Sizing.fixed(tooltipToggleSize));
-        toggle.verticalSizing(Sizing.fixed(tooltipToggleSize));
-        toggle.tooltip(List.of(Component.literal(hiddenBySide ? TOOLTIP_SHOW_TOOLTIP_SECTION : TOOLTIP_HIDE_TOOLTIP_SECTION)));
-        return toggle;
     }
 
     private FlowLayout collapsiblePreviewSection(
@@ -662,12 +620,11 @@ final class ItemEditorLayoutBuilder {
             int available,
             int verticalGap
     ) {
-        int maxCombined = Math.max(1, available);
         int tooltip = Math.max(tooltipMin, tooltipTarget);
         int validation = Math.max(validationMin, validationTarget);
         int combined = tooltip + validation + verticalGap;
-        if (combined > maxCombined) {
-            int overflow = combined - maxCombined;
+        if (combined > available) {
+            int overflow = combined - available;
             int reduceTooltip = Math.min(overflow, Math.max(0, tooltip - tooltipMin));
             tooltip -= reduceTooltip;
             overflow -= reduceTooltip;
@@ -708,7 +665,7 @@ final class ItemEditorLayoutBuilder {
     }
 
     private int estimatedPreviewContentHeight() {
-        int bodyHeight = Math.max(1, this.previewCardHeightHint);
+        int bodyHeight = this.previewCardHeightHint;
         int cardPadding = UiFactory.scaleProfile().padding();
         int cardGap = UiFactory.scaledPixels(4);
         int previewHeaderHeight = Math.max(UiFactory.scaleProfile().controlHeight(), UiFactory.scaledPixels(PREVIEW_SECTION_HEADER_MIN_HEIGHT));
@@ -749,7 +706,7 @@ final class ItemEditorLayoutBuilder {
         int tabsMin = 0;
         int tabsWidth = 0;
         if (!categoriesCollapsed) {
-            tabsMin = Math.max(RAIL_MIN_WIDTH, (int) Math.round(this.widthByRatio(available, WIDE_TABS_MIN_RATIO, WIDE_TABS_MIN_FALLBACK) * tabsScale));
+            tabsMin = (int) Math.round(this.widthByRatio(available, WIDE_TABS_MIN_RATIO, WIDE_TABS_MIN_FALLBACK) * tabsScale);
             int tabsMax = Math.max(tabsMin + WIDE_TABS_MAX_EXTRA, (int) Math.round(this.widthByRatio(available, WIDE_TABS_MAX_RATIO, RAIL_MAX_WIDTH) * tabsScale));
             int tabsTarget = (int) Math.round(this.widthByRatio(available, WIDE_TABS_TARGET_RATIO, WIDE_TABS_TARGET_FALLBACK) * tabsScale);
             tabsWidth = this.clamp(tabsTarget, tabsMin, tabsMax);
@@ -760,7 +717,7 @@ final class ItemEditorLayoutBuilder {
         if (!previewCollapsed) {
             int previewMin = Math.max(WIDE_PREVIEW_MIN_WIDTH, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_MIN_RATIO, WIDE_PREVIEW_MIN_FALLBACK) * previewScale));
             int previewMax = Math.max(previewMin + WIDE_PREVIEW_MAX_EXTRA, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_MAX_RATIO, WIDE_PREVIEW_MAX_FALLBACK) * previewScale));
-            int previewTarget = Math.max(previewMin, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_TARGET_RATIO, WIDE_PREVIEW_TARGET_FALLBACK) * previewScale));
+            int previewTarget = (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_TARGET_RATIO, WIDE_PREVIEW_TARGET_FALLBACK) * previewScale);
             previewWidth = this.clamp(previewTarget, previewMin, previewMax);
         }
         int editorWidth = available - tabsWidth - previewWidth;
@@ -802,7 +759,7 @@ final class ItemEditorLayoutBuilder {
         previewWidth = Math.min(Math.max(0, available - tabsWidth), Math.max(0, previewWidth));
         editorWidth = Math.max(0, available - tabsWidth - previewWidth);
 
-        return new WideLayoutMetrics(Math.max(0, tabsWidth), Math.max(0, editorWidth), Math.max(0, previewWidth));
+        return new WideLayoutMetrics(tabsWidth, editorWidth, previewWidth);
     }
 
     private int clamp(int value, int min, int max) {
@@ -818,11 +775,11 @@ final class ItemEditorLayoutBuilder {
     }
 
     private int railToggleSize() {
-        return Math.max(TOGGLE_SIZE_MIN, UiFactory.scaledPixels(RAIL_TOGGLE_SIZE));
+        return UiFactory.scaledPixels(RAIL_TOGGLE_SIZE);
     }
 
     private int previewSectionToggleSize() {
-        return Math.max(PREVIEW_SECTION_SIDE_TOGGLE_MIN, UiFactory.scaledPixels(PREVIEW_SECTION_SIDE_TOGGLE_BASE));
+        return UiFactory.scaledPixels(PREVIEW_SECTION_SIDE_TOGGLE_BASE);
     }
 
     private int tightSpacingFloor2() {
@@ -831,10 +788,6 @@ final class ItemEditorLayoutBuilder {
 
     private int scaledMin(int min, int pixels) {
         return Math.max(min, UiFactory.scaledPixels(pixels));
-    }
-
-    private void configureRailToggleButton(ButtonComponent button, int size, Component tooltip) {
-        this.configureRailToggleButton(button, size, tooltip, false);
     }
 
     private void configureRailToggleButton(ButtonComponent button, int size, Component tooltip, boolean fillWidth) {
@@ -853,7 +806,7 @@ final class ItemEditorLayoutBuilder {
         Component titleText = ItemEditorText.tr("screen.title");
         Component applyModeFull = Component.literal(this.screen.applyModeText());
         int textBudget = Math.max(1, textGroupWidth - rowGap);
-        int minSegmentWidth = Math.max(1, Math.min(TEXT_WIDTH_MIN, Math.max(1, textBudget / 2)));
+        int minSegmentWidth = Math.clamp(textBudget / 2, 1, TEXT_WIDTH_MIN);
         int titleFullWidth = this.componentTextWidth(titleText);
         int applyModeFullWidth = this.componentTextWidth(applyModeFull);
         int titleWidth;
@@ -866,7 +819,7 @@ final class ItemEditorLayoutBuilder {
                     ? (int) Math.round(textGroupWidth * TOP_BAR_TITLE_RATIO_COMPACT)
                     : (int) Math.round(textGroupWidth * TOP_BAR_TITLE_RATIO_REGULAR);
             int titleMaxWidth = Math.max(minSegmentWidth, textGroupWidth - rowGap - minSegmentWidth);
-            titleWidth = this.clamp(titleTargetWidth, minSegmentWidth, Math.max(minSegmentWidth, titleMaxWidth));
+            titleWidth = this.clamp(titleTargetWidth, minSegmentWidth, titleMaxWidth);
             applyModeWidth = Math.max(minSegmentWidth, textGroupWidth - titleWidth - rowGap);
         }
 
@@ -992,7 +945,7 @@ final class ItemEditorLayoutBuilder {
     }
 
     private int topButtonTextWidth(int buttonWidth, int maxButtonWidth) {
-        int width = Math.max(1, Math.min(maxButtonWidth, buttonWidth));
+        int width = Math.clamp(buttonWidth, 1, maxButtonWidth);
         return Math.max(1, width - UiFactory.scaledPixels(8));
     }
 

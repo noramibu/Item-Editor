@@ -235,7 +235,6 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         }
     }
 
-    @SuppressWarnings("unchecked")
     private AdventureModePredicate buildAdventurePredicate(
             ItemPreviewApplyContext context,
             List<String> blockIds,

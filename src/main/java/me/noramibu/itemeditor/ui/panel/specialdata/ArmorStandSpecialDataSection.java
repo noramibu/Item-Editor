@@ -396,7 +396,7 @@ public final class ArmorStandSpecialDataSection {
                         ? ItemEditorText.str("special.armor_stand.name.single_line")
                         : null,
                 document -> context.mutate(() -> {
-                    special.armorStandCustomName = document.toMarkup();
+                    special.armorStandCustomName = TextComponentUtil.serializeEditorDocument(document);
                     special.armorStandSelectedPreset = PRESET_NONE;
                 })
         );
@@ -522,14 +522,14 @@ public final class ArmorStandSpecialDataSection {
 
         if (!compactLayout) {
             FlowLayout header = UiFactory.row();
-        header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.slot"), DISABLED_SLOT_LABEL_WIDTH)
-                .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_LABEL_WIDTH)));
-        header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.lock"), DISABLED_SLOT_HEADER_WIDTH)
-                .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
-        header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.take"), DISABLED_SLOT_HEADER_WIDTH)
-                .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
-        header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.put"), DISABLED_SLOT_HEADER_WIDTH)
-                .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
+            header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.slot"), DISABLED_SLOT_LABEL_WIDTH)
+                    .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_LABEL_WIDTH)));
+            header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.lock"), DISABLED_SLOT_HEADER_WIDTH)
+                    .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
+            header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.take"), DISABLED_SLOT_HEADER_WIDTH)
+                    .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
+            header.child(UiFactory.muted(ItemEditorText.tr("special.armor_stand.disabled_slots.put"), DISABLED_SLOT_HEADER_WIDTH)
+                    .horizontalSizing(UiFactory.fixed(DISABLED_SLOT_HEADER_WIDTH)));
             card.child(header);
         }
 
@@ -556,17 +556,13 @@ public final class ArmorStandSpecialDataSection {
         );
 
         if (compactLayout) {
-            FlowLayout actions = UiFactory.column();
-            actions.child(lockAllButton.horizontalSizing(Sizing.fill(100)));
-            actions.child(unlockAllButton.horizontalSizing(Sizing.fill(100)));
-            actions.child(reverseButton.horizontalSizing(Sizing.fill(100)));
-            card.child(actions);
+            addStackedDisabledActions(card, lockAllButton, unlockAllButton, reverseButton);
             return card;
         }
 
-        int lockWidth = adaptiveTextButtonWidth(lockAllLabel, DISABLED_ACTION_BUTTON_WIDTH_MIN, DISABLED_ACTION_BUTTON_WIDTH_MAX, DISABLED_ACTION_LABEL_PADDING_BASE);
-        int unlockWidth = adaptiveTextButtonWidth(unlockAllLabel, DISABLED_ACTION_BUTTON_WIDTH_MIN, DISABLED_ACTION_BUTTON_WIDTH_MAX, DISABLED_ACTION_LABEL_PADDING_BASE);
-        int reverseWidth = adaptiveTextButtonWidth(reverseLabel, DISABLED_ACTION_BUTTON_WIDTH_MIN, DISABLED_ACTION_BUTTON_WIDTH_MAX, DISABLED_ACTION_LABEL_PADDING_BASE);
+        int lockWidth = adaptiveTextButtonWidth(lockAllLabel);
+        int unlockWidth = adaptiveTextButtonWidth(unlockAllLabel);
+        int reverseWidth = adaptiveTextButtonWidth(reverseLabel);
         int spacing = UiFactory.scaleProfile().spacing();
         int availableWidth = Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(DISABLED_ACTION_ROW_RESERVE));
         int requiredRowWidth = lockWidth + unlockWidth + reverseWidth + (spacing * 2);
@@ -580,12 +576,21 @@ public final class ArmorStandSpecialDataSection {
             return card;
         }
 
-        FlowLayout stackedActions = UiFactory.column();
-        stackedActions.child(lockAllButton.horizontalSizing(Sizing.fill(100)));
-        stackedActions.child(unlockAllButton.horizontalSizing(Sizing.fill(100)));
-        stackedActions.child(reverseButton.horizontalSizing(Sizing.fill(100)));
-        card.child(stackedActions);
+        addStackedDisabledActions(card, lockAllButton, unlockAllButton, reverseButton);
         return card;
+    }
+
+    private static void addStackedDisabledActions(
+            FlowLayout card,
+            ButtonComponent lockAllButton,
+            ButtonComponent unlockAllButton,
+            ButtonComponent reverseButton
+    ) {
+        FlowLayout actions = UiFactory.column();
+        actions.child(lockAllButton.horizontalSizing(Sizing.fill(100)));
+        actions.child(unlockAllButton.horizontalSizing(Sizing.fill(100)));
+        actions.child(reverseButton.horizontalSizing(Sizing.fill(100)));
+        card.child(actions);
     }
 
     private static FlowLayout buildDisabledSlotRow(
@@ -741,7 +746,7 @@ public final class ArmorStandSpecialDataSection {
         int buttonsPerRow = compactLayout
                 ? 1
                 : Math.max(1, Math.min(PRESET_BUTTONS_PER_ROW_MAX, (availableWidth + spacing) / Math.max(1, desiredButtonWidth + spacing)));
-        int rowButtonWidth = buttonsPerRow <= 1
+        int rowButtonWidth = buttonsPerRow == 1
                 ? availableWidth
                 : clampWidth(
                 (availableWidth - (spacing * (buttonsPerRow - 1))) / buttonsPerRow,
@@ -769,13 +774,13 @@ public final class ArmorStandSpecialDataSection {
             button.horizontalSizing(Sizing.fixed(rowButtonWidth));
             currentRow.child(button);
             inRow++;
-            if (inRow >= buttonsPerRow) {
+            if (inRow == buttonsPerRow) {
                 rows.child(currentRow);
                 currentRow = UiFactory.row();
                 inRow = 0;
             }
         }
-        if (!compactLayout && currentRow != null && inRow > 0) {
+        if (!compactLayout && inRow > 0) {
             rows.child(currentRow);
         }
         presetCard.child(rows);
@@ -819,13 +824,7 @@ public final class ArmorStandSpecialDataSection {
             Rotation defaultRotation
     ) {
         boolean compactLayout = isCompactLayout(context);
-        int resetButtonWidth = resolveBoundedButtonWidth(
-                context.panelWidthHint(),
-                5,
-                POSE_RESET_BUTTON_WIDTH_MIN,
-                POSE_RESET_BUTTON_WIDTH_MAX,
-                POSE_RESET_BUTTON_ROW_RESERVE
-        );
+        int resetButtonWidth = resolvePoseResetButtonWidth(context.panelWidthHint());
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.child(UiFactory.muted(partLabel, POSE_PART_LABEL_WIDTH).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(POSE_PART_LABEL_WIDTH)));
         row.child(axisBox(context, "X", rotation.x, value -> rotation.x = value, defaultRotation.x));
@@ -907,32 +906,21 @@ public final class ArmorStandSpecialDataSection {
         return ValidationUtil.trimTrailingZeros(value);
     }
 
-    private static int resolveBoundedButtonWidth(
-            int panelWidthHint,
-            int buttonCount,
-            int minWidth,
-            int maxWidth,
-            int rowReserve
-    ) {
+    private static int resolvePoseResetButtonWidth(int panelWidthHint) {
         int contentWidth = Math.max(1, panelWidthHint);
         int preferred = Math.max(
-                minWidth,
+                POSE_RESET_BUTTON_WIDTH_MIN,
                 Math.min(
-                        maxWidth,
-                        (contentWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount)
+                        POSE_RESET_BUTTON_WIDTH_MAX,
+                        (contentWidth - UiFactory.scaledPixels(POSE_RESET_BUTTON_ROW_RESERVE)) / 5
                 )
         );
-        return Math.max(1, Math.min(contentWidth, preferred));
+        return Math.min(contentWidth, preferred);
     }
 
-    private static int adaptiveTextButtonWidth(
-            Component label,
-            int minWidth,
-            int maxWidth,
-            int horizontalPaddingBase
-    ) {
-        int desired = textPixelWidth(label) + UiFactory.scaledPixels(horizontalPaddingBase);
-        return clampWidth(desired, minWidth, maxWidth);
+    private static int adaptiveTextButtonWidth(Component label) {
+        int desired = textPixelWidth(label) + UiFactory.scaledPixels(DISABLED_ACTION_LABEL_PADDING_BASE);
+        return clampWidth(desired, DISABLED_ACTION_BUTTON_WIDTH_MIN, DISABLED_ACTION_BUTTON_WIDTH_MAX);
     }
 
     private static int textPixelWidth(Component text) {

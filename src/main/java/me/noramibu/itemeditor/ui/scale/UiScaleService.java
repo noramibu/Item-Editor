@@ -109,11 +109,10 @@ public final class UiScaleService {
         }
         scale = Math.clamp(scale, SCALE_MIN, SCALE_MAX);
 
-        int spacing = clampInt((int) Math.round(SPACING_BASE * scale), SPACING_MIN, SPACING_MAX);
-        int tightSpacing = clampInt((int) Math.round(TIGHT_SPACING_BASE * scale), TIGHT_SPACING_MIN, TIGHT_SPACING_MAX);
-        int padding = clampInt((int) Math.round(PADDING_BASE * scale), PADDING_MIN, PADDING_MAX);
-        int controlHeight = clampInt((int) Math.round(CONTROL_HEIGHT_BASE * scale), CONTROL_HEIGHT_MIN, CONTROL_HEIGHT_MAX);
-        // Keep text raster crisp by rendering at native font scale (1.0) and scaling layout instead.
+        int spacing = scaleMetric(SPACING_BASE, scale, SPACING_MIN, SPACING_MAX);
+        int tightSpacing = scaleMetric(TIGHT_SPACING_BASE, scale, TIGHT_SPACING_MIN, TIGHT_SPACING_MAX);
+        int padding = scaleMetric(PADDING_BASE, scale, PADDING_MIN, PADDING_MAX);
+        int controlHeight = scaleMetric(CONTROL_HEIGHT_BASE, scale, CONTROL_HEIGHT_MIN, CONTROL_HEIGHT_MAX);
         float titleTextScale = 1.0F;
         float bodyTextScale = 1.0F;
         float captionTextScale = 1.0F;
@@ -125,10 +124,10 @@ public final class UiScaleService {
                 BODY_LINE_SPACING_MIN,
                 BODY_LINE_SPACING_MAX
         );
-        int fieldTextWidth = clampInt((int) Math.round(width * FIELD_TEXT_WIDTH_RATIO), FIELD_TEXT_WIDTH_MIN, FIELD_TEXT_WIDTH_MAX);
-        int bodyTextWidth = clampInt((int) Math.round(width * BODY_TEXT_WIDTH_RATIO), BODY_TEXT_WIDTH_MIN, BODY_TEXT_WIDTH_MAX);
-        int scrollbarThickness = clampInt((int) Math.round(SCROLLBAR_BASE * scale), SCROLLBAR_MIN, SCROLLBAR_MAX);
-        int scrollStep = clampInt((int) Math.round(SCROLL_STEP_BASE * scale), SCROLL_STEP_MIN, SCROLL_STEP_MAX);
+        int fieldTextWidth = clampByWidthRatio(width, FIELD_TEXT_WIDTH_RATIO, FIELD_TEXT_WIDTH_MIN, FIELD_TEXT_WIDTH_MAX);
+        int bodyTextWidth = clampByWidthRatio(width, BODY_TEXT_WIDTH_RATIO, BODY_TEXT_WIDTH_MIN, BODY_TEXT_WIDTH_MAX);
+        int scrollbarThickness = scaleMetric(SCROLLBAR_BASE, scale, SCROLLBAR_MIN, SCROLLBAR_MAX);
+        int scrollStep = scaleMetric(SCROLL_STEP_BASE, scale, SCROLL_STEP_MIN, SCROLL_STEP_MAX);
 
         return new UiScaleProfile(
                 scale,
@@ -152,6 +151,14 @@ public final class UiScaleService {
 
     private static int clampInt(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static int scaleMetric(int base, double scale, int min, int max) {
+        return clampInt((int) Math.round(base * scale), min, max);
+    }
+
+    private static int clampByWidthRatio(int width, double ratio, int min, int max) {
+        return clampInt((int) Math.round(width * ratio), min, max);
     }
 
 }

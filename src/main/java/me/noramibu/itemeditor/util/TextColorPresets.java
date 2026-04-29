@@ -6,38 +6,21 @@ import net.minecraft.network.chat.MutableComponent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public final class TextColorPresets {
 
     public static final List<Preset> STANDARD = List.of(
-            Preset.builtIn("builtin:white", "color.preset.white", 0xFFFFFF),
-            Preset.builtIn("builtin:gray", "color.preset.gray", 0xAAAAAA),
-            Preset.builtIn("builtin:gold", "color.preset.gold", 0xFFAA00),
-            Preset.builtIn("builtin:red", "color.preset.red", 0xFF5555),
-            Preset.builtIn("builtin:green", "color.preset.green", 0x55FF55),
-            Preset.builtIn("builtin:aqua", "color.preset.aqua", 0x55FFFF),
-            Preset.builtIn("builtin:blue", "color.preset.blue", 0x5555FF),
-            Preset.builtIn("builtin:purple", "color.preset.purple", 0xFF55FF)
+            new Preset("builtin:white", "color.preset.white", 0xFFFFFF, true),
+            new Preset("builtin:gray", "color.preset.gray", 0xAAAAAA, true),
+            new Preset("builtin:gold", "color.preset.gold", 0xFFAA00, true),
+            new Preset("builtin:red", "color.preset.red", 0xFF5555, true),
+            new Preset("builtin:green", "color.preset.green", 0x55FF55, true),
+            new Preset("builtin:aqua", "color.preset.aqua", 0x55FFFF, true),
+            new Preset("builtin:blue", "color.preset.blue", 0x5555FF, true),
+            new Preset("builtin:purple", "color.preset.purple", 0xFF55FF, true)
     );
 
     private TextColorPresets() {
-    }
-
-    public static List<Preset> colorPresets() {
-        List<Preset> presets = new ArrayList<>(STANDARD);
-        for (CustomColorPreset custom : customColorPresets()) {
-            presets.add(Preset.custom(custom.id(), custom.name(), custom.rgb()));
-        }
-        return presets;
-    }
-
-    public static List<GradientPreset> gradientPresets() {
-        List<GradientPreset> presets = new ArrayList<>();
-        for (CustomGradientPreset custom : customGradientPresets()) {
-            presets.add(new GradientPreset(custom.id(), custom.name(), custom.startRgb(), custom.endRgb()));
-        }
-        return presets;
     }
 
     public static List<CustomColorPreset> customColorPresets() {
@@ -56,14 +39,6 @@ public final class TextColorPresets {
         ColorPresetService.instance().saveGradientPreset("", startRgb, endRgb);
     }
 
-    public static void saveColorPreset(String name, int rgb) {
-        ColorPresetService.instance().saveColorPreset(name, rgb);
-    }
-
-    public static void saveGradientPreset(String name, int startRgb, int endRgb) {
-        ColorPresetService.instance().saveGradientPreset(name, startRgb, endRgb);
-    }
-
     public static void removeColorPreset(String id) {
         ColorPresetService.instance().removeColorPreset(id);
     }
@@ -73,7 +48,11 @@ public final class TextColorPresets {
     }
 
     public static int gradientEndFor(int startRgb) {
-        for (Preset preset : colorPresets().reversed()) {
+        List<Preset> presets = new ArrayList<>(STANDARD);
+        for (CustomColorPreset custom : customColorPresets()) {
+            presets.add(new Preset(custom.id(), custom.name(), custom.rgb(), false));
+        }
+        for (Preset preset : presets.reversed()) {
             if ((preset.rgb() & 0xFFFFFF) != (startRgb & 0xFFFFFF)) {
                 return preset.rgb();
             }
@@ -100,28 +79,13 @@ public final class TextColorPresets {
     }
 
     public static Component colorLabel(int color) {
-        return ItemEditorText.tr("color.label", hexString(color)).copy().withColor(color);
-    }
-
-    public static String hexString(int color) {
-        return "#" + String.format(Locale.ROOT, "%06X", color & 0xFFFFFF);
+        return ItemEditorText.tr("color.label", ValidationUtil.toHex(color)).copy().withColor(color);
     }
 
     public record Preset(String id, String labelValue, int rgb, boolean translatable) {
-        public static Preset builtIn(String id, String labelKey, int rgb) {
-            return new Preset(id, labelKey, rgb, true);
-        }
-
-        public static Preset custom(String id, String label, int rgb) {
-            return new Preset(id, label, rgb, false);
-        }
-
         public String label() {
             return this.translatable ? ItemEditorText.str(this.labelValue) : this.labelValue;
         }
-    }
-
-    public record GradientPreset(String id, String name, int startRgb, int endRgb) {
     }
 
     public record CustomColorPreset(String id, String name, int rgb) {

@@ -47,16 +47,12 @@ public final class ScrollStateUtil {
     }
 
     private static void setField(ScrollContainer<?> scroll, String fieldName, double value) {
-        Field field;
-        if ("scrollOffset".equals(fieldName)) {
-            field = SCROLL_OFFSET_FIELD;
-        } else if ("currentScrollPosition".equals(fieldName)) {
-            field = CURRENT_SCROLL_POSITION_FIELD;
-        } else if ("lastScrollPosition".equals(fieldName)) {
-            field = LAST_SCROLL_POSITION_FIELD;
-        } else {
-            return;
-        }
+        Field field = switch (fieldName) {
+            case "scrollOffset" -> SCROLL_OFFSET_FIELD;
+            case "currentScrollPosition" -> CURRENT_SCROLL_POSITION_FIELD;
+            case "lastScrollPosition" -> LAST_SCROLL_POSITION_FIELD;
+            default -> null;
+        };
         if (field == null) {
             return;
         }

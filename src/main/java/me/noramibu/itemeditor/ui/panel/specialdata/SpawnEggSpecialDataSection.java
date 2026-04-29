@@ -7,10 +7,12 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -37,10 +39,7 @@ public final class SpawnEggSpecialDataSection {
     private static final int TRADE_ITEM_COUNT_FIELD_WIDTH = 54;
     private static final int TRADE_SHORT_FIELD_WIDTH = 95;
     private static final int NAME_EDITOR_HEIGHT = 54;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final String ACTION_COPY = "Copy";
     private static final String ACTION_RESET_FLAGS = "Reset Flags";
     private static final String ACTION_DISPLAY_PRESET = "Display Preset";
@@ -209,7 +208,7 @@ public final class SpawnEggSpecialDataSection {
                 document -> document.logicalLineCount() > 1
                         ? ItemEditorText.str("special.spawn_egg.name.single_line")
                         : null,
-                document -> context.mutate(() -> special.spawnEggCustomName = document.toMarkup())
+                document -> context.mutate(() -> special.spawnEggCustomName = TextComponentUtil.serializeEditorDocument(document))
         );
 
         FlowLayout frame = UiFactory.framedEditorCard();
@@ -397,7 +396,7 @@ public final class SpawnEggSpecialDataSection {
             summaryRow.gap(6);
             int summaryActionWidth = resolveButtonWidth(context, 2, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
             summaryRow.child(UiFactory.muted(Component.literal(tradeSummary(trade))));
-            ButtonComponent collapseToggle = UiFactory.button(Component.literal(trade.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent collapseToggle = UiFactory.button(LayoutModeUtil.sectionToggleText(trade.uiCollapsed), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> trade.uiCollapsed = !trade.uiCollapsed)
             );
             collapseToggle.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(summaryActionWidth));
@@ -586,8 +585,7 @@ public final class SpawnEggSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static <T> void swapEntries(List<T> drafts, int left, int right) {

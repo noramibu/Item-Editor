@@ -13,30 +13,32 @@ base {
 repositories {
 	maven { url 'https://maven.wispforest.io' }
 	maven { url 'https://jitpack.io' }
+	mavenCentral()
 }
 
 configurations.configureEach {
 	resolutionStrategy.eachDependency { details ->
-		if (details.requested.group == 'io.netty' && details.requested.name == 'netty-codec-http') {
-			details.useVersion('4.2.8.Final')
-			details.because('CVE-2025-67735')
+	if (details.requested.group == 'io.netty' && details.requested.name == 'netty-codec-http') {
+			details.useVersion('4.2.10.Final')
+			details.because('CVE-2026-33870')
 		}
 		if (details.requested.group == 'org.apache.logging.log4j' && details.requested.name == 'log4j-core') {
-			details.useVersion('2.25.3')
-			details.because('CVE-2025-68161')
+			details.useVersion('2.25.4')
+			details.because('CVE-2026-34478, CVE-2026-34480, CVE-2026-34477')
 		}
 	}
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	implementation "io.wispforest:owo-lib:${project.owo_version}"
 	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
+
+	testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
 }
 
 processResources {
@@ -51,10 +53,11 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
 }
 
+tasks.withType(Test).configureEach {
+	useJUnitPlatform()
+}
+
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
 	sourceCompatibility = JavaVersion.VERSION_25
@@ -69,7 +72,6 @@ jar {
 	}
 }
 
-// configure the maven publication
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
@@ -78,11 +80,6 @@ publishing {
 		}
 	}
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
 	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
 	}
 }

@@ -45,17 +45,20 @@ public final class ConfirmationDialog {
         );
         boolean hasBody = !body.isBlank();
         int headerReserve = UiFactory.scaledPixels(HEADER_RESERVE_WITH_BODY);
-        int bodyHeight = body.isBlank()
-                ? 0
-                : Math.min(
-                DialogUiUtil.scrollHeight(BODY_SCROLL_HEIGHT),
-                DialogUiUtil.availableDialogContentHeight(headerReserve + buttonReserve, BODY_SCROLL_MIN_HEIGHT)
-        );
-        int dialogHeight = DialogUiUtil.dialogHeight(headerReserve + buttonReserve + bodyHeight, DIALOG_MIN_HEIGHT);
-
-        FlowLayout dialog = hasBody
-                ? DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP)
-                : UiFactory.centeredCard(dialogWidth).gap(DIALOG_GAP);
+        int bodyHeight = 0;
+        FlowLayout dialog;
+        if (hasBody) {
+            DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
+                    BODY_SCROLL_HEIGHT,
+                    headerReserve + buttonReserve,
+                    BODY_SCROLL_MIN_HEIGHT,
+                    DIALOG_MIN_HEIGHT
+            );
+            bodyHeight = sizing.contentHeight();
+            dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
+        } else {
+            dialog = UiFactory.centeredCard(dialogWidth).gap(DIALOG_GAP);
+        }
         dialog.child(UiFactory.title(title));
         if (hasBody) {
             FlowLayout bodyContent = UiFactory.column();
@@ -63,9 +66,7 @@ public final class ConfirmationDialog {
             dialog.child(DialogUiUtil.scrollCard(bodyContent, bodyHeight));
         }
 
-        FlowLayout buttonRow = compactButtons ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
-        buttonRow.child(DialogUiUtil.footerButtonByDivisor(
-                Component.literal(cancelText),
+        FlowLayout buttonRow = DialogUiUtil.footerRowByDivisor(
                 dialogWidth,
                 compactButtons,
                 FOOTER_BUTTON_MIN_WIDTH,
@@ -73,19 +74,9 @@ public final class ConfirmationDialog {
                 FOOTER_BUTTON_WIDTH_DIVISOR,
                 FOOTER_BUTTON_TEXT_MIN_WIDTH,
                 FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onCancel.run()
-        ));
-        buttonRow.child(DialogUiUtil.footerButtonByDivisor(
-                Component.literal(confirmText),
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_WIDTH_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onConfirm.run()
-        ));
+                new DialogUiUtil.FooterAction(Component.literal(cancelText), button -> onCancel.run()),
+                new DialogUiUtil.FooterAction(Component.literal(confirmText), button -> onConfirm.run())
+        );
 
         dialog.child(buttonRow);
         overlay.child(dialog);

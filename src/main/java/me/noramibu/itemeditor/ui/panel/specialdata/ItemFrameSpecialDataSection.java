@@ -6,13 +6,14 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemFrameSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int NAME_EDITOR_HEIGHT = 54;
     private static final int VALUE_FIELD_WIDTH = 120;
@@ -52,7 +53,7 @@ public final class ItemFrameSpecialDataSection {
                 document -> document.logicalLineCount() > 1
                         ? ItemEditorText.str("special.item_frame.name.single_line")
                         : null,
-                document -> context.mutate(() -> special.itemFrameCustomName = document.toMarkup())
+                document -> context.mutate(() -> special.itemFrameCustomName = TextComponentUtil.serializeEditorDocument(document))
         );
 
         FlowLayout frame = UiFactory.framedEditorCard();
@@ -136,7 +137,6 @@ public final class ItemFrameSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 }

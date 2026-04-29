@@ -66,26 +66,7 @@ public final class RawValidationAsyncService {
             RegistryAccess registryAccess,
             long idleDelayMs
     ) {
-        if (requestId != this.requestVersion.get()) {
-            return null;
-        }
-        if (idleDelayMs > 0L) {
-            long remaining = idleDelayMs;
-            while (remaining > 0L) {
-                if (requestId != this.requestVersion.get()) {
-                    return null;
-                }
-                long sleep = Math.min(remaining, 40L);
-                try {
-                    Thread.sleep(sleep);
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    return null;
-                }
-                remaining -= sleep;
-            }
-        }
-        if (requestId != this.requestVersion.get()) {
+        if (this.cancelledBeforeIdle(requestId, idleDelayMs, 40L)) {
             return null;
         }
 
@@ -103,26 +84,7 @@ public final class RawValidationAsyncService {
             long idleDelayMs,
             CompletableFuture<ParsePhaseResult> parseFuture
     ) {
-        if (requestId != this.requestVersion.get()) {
-            return null;
-        }
-        if (idleDelayMs > 0L) {
-            long remaining = idleDelayMs;
-            while (remaining > 0L) {
-                if (requestId != this.requestVersion.get()) {
-                    return null;
-                }
-                long sleep = Math.min(remaining, 50L);
-                try {
-                    Thread.sleep(sleep);
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-                    return null;
-                }
-                remaining -= sleep;
-            }
-        }
-        if (requestId != this.requestVersion.get()) {
+        if (this.cancelledBeforeIdle(requestId, idleDelayMs, 50L)) {
             return null;
         }
         ParsePhaseResult parsePhase = parseFuture.join();
@@ -161,7 +123,7 @@ public final class RawValidationAsyncService {
                         -1,
                         -1,
                         null,
-                    0
+                        0
                 );
             }
         }
@@ -173,8 +135,29 @@ public final class RawValidationAsyncService {
                 -1,
                 -1,
                 diff.error(),
-            diff.error() == null ? diff.entries().size() : 0
+                diff.error() == null ? diff.entries().size() : 0
         );
+    }
+
+    private boolean cancelledBeforeIdle(long requestId, long idleDelayMs, long maxSleepMs) {
+        if (requestId != this.requestVersion.get()) {
+            return true;
+        }
+        long remaining = Math.max(0L, idleDelayMs);
+        while (remaining > 0L) {
+            if (requestId != this.requestVersion.get()) {
+                return true;
+            }
+            long sleep = Math.min(remaining, maxSleepMs);
+            try {
+                Thread.sleep(sleep);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                return true;
+            }
+            remaining -= sleep;
+        }
+        return requestId != this.requestVersion.get();
     }
 
     public record ParsePhaseResult(

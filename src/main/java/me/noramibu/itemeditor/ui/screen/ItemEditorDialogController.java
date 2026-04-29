@@ -5,11 +5,10 @@ import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.ui.component.ColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.ConfirmationDialog;
 import me.noramibu.itemeditor.ui.component.GradientPickerDialog;
-import me.noramibu.itemeditor.ui.component.ItemDiffDialog;
 import me.noramibu.itemeditor.ui.component.RawItemDataDialog;
+import me.noramibu.itemeditor.ui.component.RichTextTokenDialog;
 import me.noramibu.itemeditor.ui.component.SearchablePickerDialog;
 import me.noramibu.itemeditor.service.PostApplyVerificationService;
-import me.noramibu.itemeditor.util.ItemComponentDiffUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
@@ -80,21 +79,21 @@ final class ItemEditorDialogController {
             return;
         }
 
-        ItemStack original = this.session().originalStack();
         ItemStack preview = this.session().previewStack();
-        ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(original, preview, this.session().registryAccess());
-        if (diff.error() != null) {
-            this.showInfoDialog(
-                    ItemEditorText.str("dialog.apply_blocked.title"),
-                    ItemEditorText.str("dialog.apply.diff_failed", diff.error())
-            );
-            return;
+        String originalRaw = RawItemDataUtil.serialize(this.session().originalStack(), this.session().registryAccess());
+        String currentRaw = this.currentRawForDialog(this.session());
+        String body = this.screen.applyModeText();
+        if (!body.isBlank()) {
+            body += "\n";
         }
-        this.showDialog(ItemDiffDialog.create(
+        body += RAW_DIFF_HELP_TEXT;
+        this.showDialog(RawItemDataDialog.createConfirmation(
                 ItemEditorText.str("dialog.apply.title"),
-                this.screen.applyModeText(),
-                diff.entries(),
+                body,
+                this.buildRawDiffLines(originalRaw, currentRaw),
+                ItemEditorText.tr("common.save_apply"),
                 () -> this.performApply(preview.copy()),
+                ItemEditorText.tr("common.cancel"),
                 this::clearDialog
         ), () -> this.performApply(preview.copy()));
     }
@@ -156,6 +155,32 @@ final class ItemEditorDialogController {
         ));
     }
 
+    void openRichTextHeadDialog(String title, Consumer<String> onApply) {
+        this.showDialog(RichTextTokenDialog.createHead(
+                title,
+                token -> this.clearThen(() -> onApply.accept(token)),
+                this::clearDialog
+        ));
+    }
+
+    void openRichTextSpriteDialog(String title, Consumer<String> onApply) {
+        this.showDialog(RichTextTokenDialog.createSprite(
+                title,
+                token -> this.clearThen(() -> onApply.accept(token)),
+                this::clearDialog
+        ));
+    }
+
+    void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply) {
+        this.showDialog(RichTextTokenDialog.createEvent(
+                title,
+                includeHoverModes,
+                includeSuggestCommand,
+                token -> this.clearThen(() -> onApply.accept(token)),
+                this::clearDialog
+        ));
+    }
+
     void openRawItemDataDialog(String title, boolean previewData) {
         ItemEditorSession session = this.session();
         ItemStack originalStack = session.originalStack();
@@ -202,7 +227,6 @@ final class ItemEditorDialogController {
             if (parsed.success()) {
                 return RawItemDataUtil.serializeJson(parsed.stack(), session.registryAccess());
             }
-            // Keep user edits even when invalid instead of silently exporting last successful parse.
             return currentRaw;
         }
         return RawItemDataUtil.serializeJson(session.previewStack(), session.registryAccess());

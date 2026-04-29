@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.network.chat.Component;
@@ -20,7 +21,6 @@ import java.util.List;
 
 public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 520;
     private static final int TOGGLE_BUTTON_WIDTH_MIN = 26;
     private static final int TOGGLE_BUTTON_WIDTH_BASE = 34;
@@ -30,8 +30,6 @@ public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int ACTION_ROW_WIDTH_RESERVE = 16;
     private static final int ADD_BUTTON_WIDTH_MIN = 112;
     private static final int ADD_BUTTON_WIDTH_BASE = 156;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final String TOOLTIP_EXPAND_ALL = "Expand all";
     private static final String TOOLTIP_COLLAPSE_ALL = "Collapse all";
     private static final int SUMMARY_WIDTH_MIN = 200;
@@ -104,13 +102,15 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         int minActionRowWidth = minAddWidth + staticActionsWidth + UiFactory.scaledPixels(ACTION_ROW_WIDTH_RESERVE);
         boolean stackActions = compactLayout || contentWidth < minActionRowWidth;
         FlowLayout actions = stackActions ? UiFactory.column() : UiFactory.row();
-        ButtonComponent addButton = UiFactory.button(stored ? ItemEditorText.tr("enchantments.stored.add") : ItemEditorText.tr("enchantments.regular.add"), UiFactory.ButtonTextPreset.STANDARD,  button -> {
-            PanelBindings.mutateRefresh(this.screen, () -> {
-                ItemEditorState.EnchantmentDraft draft = new ItemEditorState.EnchantmentDraft();
-                draft.uiCollapsed = false;
-                drafts.add(draft);
-            });
-        });
+        ButtonComponent addButton = UiFactory.button(
+                stored ? ItemEditorText.tr("enchantments.stored.add") : ItemEditorText.tr("enchantments.regular.add"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> {
+                    ItemEditorState.EnchantmentDraft draft = new ItemEditorState.EnchantmentDraft();
+                    draft.uiCollapsed = false;
+                    drafts.add(draft);
+                })
+        );
         addButton.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.expand(100));
         actions.child(addButton);
         if (hasEntries) {
@@ -120,14 +120,14 @@ public final class EnchantmentEditorPanel implements EditorPanel {
             clearButton.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(clearWidth));
             actions.child(clearButton);
 
-            ButtonComponent expandAll = UiFactory.button(Component.literal(SYMBOL_SECTION_COLLAPSED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent expandAll = UiFactory.button(LayoutModeUtil.sectionToggleText(true), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = false))
             );
             expandAll.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(toggleWidth));
             expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
             actions.child(expandAll);
 
-            ButtonComponent collapseAll = UiFactory.button(Component.literal(SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent collapseAll = UiFactory.button(LayoutModeUtil.sectionToggleText(false), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = true))
             );
             collapseAll.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(toggleWidth));
@@ -241,9 +241,13 @@ public final class EnchantmentEditorPanel implements EditorPanel {
     private boolean isCompactLayout() {
         int contentWidth = this.availableContentWidth();
         var window = Minecraft.getInstance().getWindow();
-        return window.getGuiScaledWidth() <= COMPACT_LAYOUT_WIDTH_THRESHOLD
-                || window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || contentWidth < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactWindowAndContentInclusive(
+                window.getGuiScale(),
+                window.getGuiScaledWidth(),
+                COMPACT_LAYOUT_WIDTH_THRESHOLD,
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
     }
 
     private int availableContentWidth() {

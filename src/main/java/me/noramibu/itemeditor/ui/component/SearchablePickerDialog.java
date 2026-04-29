@@ -53,20 +53,24 @@ public final class SearchablePickerDialog {
         FlowLayout overlay = DialogUiUtil.overlay();
         int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
+        boolean hasBody = !body.isBlank();
         int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN);
         int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, LINE_TEXT_MARGIN);
         int controlHeight = UiFactory.scaleProfile().controlHeight();
         int footerReserve = DialogUiUtil.buttonRowReserve(compactButtons, FOOTER_ROWS, BUTTON_RESERVE_EXTRA, BUTTON_RESERVE_EXTRA);
-        int headerReserve = UiFactory.scaledPixels(body.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY) + controlHeight + footerReserve;
-        int resultsHeight = Math.min(
-                DialogUiUtil.scrollHeight(RESULTS_HEIGHT),
-                DialogUiUtil.availableDialogContentHeight(headerReserve, RESULTS_MIN_HEIGHT)
+        int headerReserve = UiFactory.scaledPixels(hasBody ? HEADER_RESERVE_WITH_BODY : HEADER_RESERVE_EMPTY_BODY)
+                + controlHeight
+                + footerReserve;
+        DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
+                RESULTS_HEIGHT,
+                headerReserve,
+                RESULTS_MIN_HEIGHT,
+                DIALOG_MIN_HEIGHT
         );
-        int dialogHeight = DialogUiUtil.dialogHeight(headerReserve + resultsHeight, DIALOG_MIN_HEIGHT);
 
-        FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
+        FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         dialog.child(UiFactory.title(title));
-        if (!body.isBlank()) {
+        if (hasBody) {
             dialog.child(UiFactory.muted(body, bodyTextWidth));
         }
 
@@ -90,7 +94,7 @@ public final class SearchablePickerDialog {
 
         InputSafeScrollContainer<FlowLayout> modalScroll = InputSafeScrollContainer.vertical(
                 Sizing.fill(100),
-                UiFactory.fixed(resultsHeight),
+                UiFactory.fixed(sizing.contentHeight()),
                 results
         ).consumeScrollWhenHovered(true);
 
@@ -136,10 +140,7 @@ public final class SearchablePickerDialog {
         search.onChanged().subscribe(value -> refresh.run());
         refresh.run();
 
-        FlowLayout buttonRow = compactButtons ? UiFactory.column() : DialogUiUtil.rightAlignedButtonRow();
-        Component cancelText = ItemEditorText.tr("common.cancel");
-        var cancelButton = DialogUiUtil.footerButtonByDivisor(
-                cancelText,
+        FlowLayout buttonRow = DialogUiUtil.footerRowByDivisor(
                 dialogWidth,
                 compactButtons,
                 FOOTER_BUTTON_MIN_WIDTH,
@@ -147,9 +148,8 @@ public final class SearchablePickerDialog {
                 FOOTER_BUTTON_DIVISOR,
                 FOOTER_BUTTON_TEXT_MIN_WIDTH,
                 FOOTER_BUTTON_TEXT_RESERVE,
-                button -> onCancel.run()
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run())
         );
-        buttonRow.child(cancelButton);
         dialog.child(buttonRow);
 
         overlay.child(dialog);

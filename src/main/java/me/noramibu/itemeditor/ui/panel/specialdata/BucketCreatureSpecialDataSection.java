@@ -6,6 +6,7 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
@@ -26,7 +27,6 @@ public final class BucketCreatureSpecialDataSection {
             new PufferStateOption("1", "special.bucket.puffer.medium"),
             new PufferStateOption("2", "special.bucket.puffer.full")
     );
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int PICKER_BUTTON_WIDTH = 210;
     private static final int HEALTH_FIELD_WIDTH = 120;
@@ -42,7 +42,7 @@ public final class BucketCreatureSpecialDataSection {
         ItemStack stack = context.originalStack();
         BucketType bucketType = detectBucketType(stack);
         ItemEditorState.SpecialData special = context.special();
-        boolean compactLayout = isCompactLayout(context);
+        boolean compactLayout = LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.bucket.title"), Component.empty());
 
@@ -152,11 +152,6 @@ public final class BucketCreatureSpecialDataSection {
         }
 
         return section;
-    }
-
-    private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static boolean supportsBucketEntityData(ItemStack stack) {

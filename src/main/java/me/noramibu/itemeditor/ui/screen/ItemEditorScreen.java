@@ -76,6 +76,8 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final int UNMEASURED_RESERVE_EXTRA = 16;
     private static final int EDITOR_CONTENT_WIDTH_FLOOR = 132;
     private static final double EDITOR_CONTENT_VIEWPORT_FLOOR_RATIO = 0.34d;
+    private static final int EDITOR_CONTENT_HEIGHT_FLOOR = 140;
+    private static final double EDITOR_CONTENT_HEIGHT_VIEWPORT_RATIO = 0.72d;
     private static final int RESPONSIVE_SIGNATURE_SEED = 17;
     private static final int RESPONSIVE_SIGNATURE_MULTIPLIER = 31;
     private static final int EDITOR_CONTENT_HINT_CHROME_BASE = 4;
@@ -114,7 +116,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private boolean previewValidationCollapsed;
     private boolean categoriesRailCollapsed;
     private boolean previewRailCollapsed;
-    private boolean previewTooltipHiddenBySide;
     private boolean pendingInitialResponsiveRefresh;
     private int initialRelayoutDelayTicks;
     private int initialRelayoutPassBudget;
@@ -129,7 +130,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.session = session;
         this.categoriesRailCollapsed = session.state().uiCategoriesRailCollapsed;
         this.previewRailCollapsed = session.state().uiPreviewRailCollapsed;
-        this.previewTooltipHiddenBySide = session.state().uiPreviewTooltipHiddenBySide;
         this.previewTooltipCollapsed = session.state().uiPreviewTooltipCollapsed;
         this.previewValidationCollapsed = session.state().uiPreviewValidationCollapsed;
         List<EditorModule> modules = EditorModuleRegistry.modules().stream()
@@ -225,9 +225,9 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             var tooltipStack = this.session.hasErrors() ? this.session.originalStack() : this.session.previewStack();
             int tooltipContentWidth = this.previewTextContentWidth();
             int scaledTooltipWidth = this.scaledTextWidth(tooltipContentWidth, PREVIEW_UI_SCALE);
-            this.safeTooltipLines(tooltipStack, context).forEach(line ->
-                    this.tooltipLines.child(UiFactory.bodyLabel(line, PREVIEW_UI_SCALE).maxWidth(scaledTooltipWidth))
-            );
+            this.safeTooltipLines(tooltipStack, context).stream()
+                    .map(line -> UiFactory.bodyLabel(line, PREVIEW_UI_SCALE).maxWidth(scaledTooltipWidth))
+                    .forEach(this.tooltipLines::child);
             ScrollStateUtil.sync(this.tooltipScroll);
         }
 
@@ -279,7 +279,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             }
         }
         if (maxTextWidth < hardCapTextWidth && sampledLimit < values.size()) {
-            // Continue with sparse checks after the initial sample to avoid missing rare long tails.
             int remaining = values.size() - sampledLimit;
             int stride = Math.max(1, remaining / Math.max(1, DROPDOWN_WIDTH_SAMPLE_LIMIT));
             for (int index = sampledLimit; index < values.size(); index += stride) {
@@ -303,7 +302,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         );
         double estimatedHeight = Math.min(
                 DROPDOWN_ESTIMATED_MAX_HEIGHT,
-                Math.max(0, values.size()) * estimatedRowHeight + UiFactory.scaledPixels(DROPDOWN_CHROME_RESERVE)
+                values.size() * estimatedRowHeight + UiFactory.scaledPixels(DROPDOWN_CHROME_RESERVE)
         );
         double viewportHeightBudget = Math.max(
                 DROPDOWN_VIEWPORT_HEIGHT_MIN_BUDGET,
@@ -320,7 +319,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         DropdownComponent dropdown = DropdownComponent.openContextMenu(
                 this,
                 this.rootLayout,
-                (parent, menu) -> parent.child(menu),
+                StackLayout::child,
                 menuX,
                 menuY,
                 menu -> values.forEach(value ->
@@ -376,6 +375,22 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     public void openGradientPickerDialog(String title, int initialStartRgb, int initialEndRgb, BiConsumer<Integer, Integer> onApply) {
         this.dialogController.openGradientPickerDialog(title, initialStartRgb, initialEndRgb, onApply);
+    }
+
+    public void openRichTextHeadDialog(String title, Consumer<String> onApply) {
+        this.dialogController.openRichTextHeadDialog(title, onApply);
+    }
+
+    public void openRichTextSpriteDialog(String title, Consumer<String> onApply) {
+        this.dialogController.openRichTextSpriteDialog(title, onApply);
+    }
+
+    public void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply) {
+        this.dialogController.openRichTextEventDialog(title, includeHoverModes, includeSuggestCommand, onApply);
+    }
+
+    public void openRichTextEventDialog(String title, boolean includeHoverModes, Consumer<String> onApply) {
+        this.openRichTextEventDialog(title, includeHoverModes, true, onApply);
     }
 
     public void openRawItemDataDialog(String title, boolean previewData) {
@@ -507,15 +522,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.session.state().uiCategoriesRailCollapsed = value;
     }
 
-    boolean previewTooltipHiddenBySide() {
-        return this.previewTooltipHiddenBySide;
-    }
-
-    void setPreviewTooltipHiddenBySide(boolean value) {
-        this.previewTooltipHiddenBySide = value;
-        this.session.state().uiPreviewTooltipHiddenBySide = value;
-    }
-
     boolean previewRailCollapsed() {
         return this.previewRailCollapsed;
     }
@@ -563,8 +569,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     private List<Component> safeTooltipLines(ItemStack stack, Item.TooltipContext context) {
         ItemStack safe = stack.copy();
-        // Invalid nested bundle templates can spam warnings while resolving tooltip content.
-        // For preview panel stability, strip bundle contents only for tooltip rendering.
         if (safe.has(DataComponents.BUNDLE_CONTENTS)) {
             safe.remove(DataComponents.BUNDLE_CONTENTS);
         }
@@ -658,13 +662,13 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         int estimatedTabs = 0;
         if (!this.categoriesRailCollapsed) {
             int preferredTabs = Math.max(ESTIMATED_TABS_MIN, Math.min(ESTIMATED_TABS_MAX, (int) Math.round(available * ESTIMATED_TABS_RATIO)));
-            estimatedTabs = Math.max(0, Math.min(available, preferredTabs));
+            estimatedTabs = Math.min(available, preferredTabs);
         }
         int estimatedPreview = 0;
         if (!this.previewRailCollapsed) {
-            int previewBudget = Math.max(0, available - estimatedTabs);
+            int previewBudget = available - estimatedTabs;
             int preferredPreview = Math.max(ESTIMATED_PREVIEW_MIN, Math.min(ESTIMATED_PREVIEW_MAX, (int) Math.round(available * ESTIMATED_PREVIEW_RATIO)));
-            estimatedPreview = Math.max(0, Math.min(previewBudget, preferredPreview));
+            estimatedPreview = Math.min(previewBudget, preferredPreview);
         }
         int unmeasuredReserve = Math.max(
                 UiFactory.scaledPixels(UNMEASURED_RESERVE_BASE),
@@ -675,6 +679,15 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         int safeFallback = Math.max(1, fallbackHint);
         int preferredHint = Math.max(EDITOR_CONTENT_WIDTH_FLOOR, viewportFloor);
         return Math.min(preferredHint, safeFallback);
+    }
+
+    public int editorContentHeightHint() {
+        if (this.panelScroll != null && this.panelScroll.height() > 0) {
+            return this.panelScroll.height();
+        }
+
+        int viewportFloor = (int) Math.round(this.screenHeight() * EDITOR_CONTENT_HEIGHT_VIEWPORT_RATIO);
+        return Math.max(EDITOR_CONTENT_HEIGHT_FLOOR, viewportFloor);
     }
 
     private int scaledTextWidth(int availableWidth, float textScale) {

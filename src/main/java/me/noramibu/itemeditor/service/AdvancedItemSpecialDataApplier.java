@@ -73,7 +73,6 @@ import net.minecraft.world.level.block.entity.PotDecorations;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.saveddata.maps.MapDecorationType;
 import net.minecraft.world.level.saveddata.maps.MapId;
-import org.jetbrains.annotations.Nullable;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import java.util.ArrayList;
@@ -364,7 +363,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack().set(DataComponents.LOCK, new LockCode(predicate));
     }
 
-    private @Nullable ItemPredicate parseLockPredicate(String raw, SpecialDataApplyContext context) {
+    private ItemPredicate parseLockPredicate(String raw, SpecialDataApplyContext context) {
         try {
             var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             var parsedTag = TagParser.create(ops).parseFully(raw);
@@ -1556,10 +1555,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
     }
 
-    private @Nullable Holder<SoundEvent> resolveSoundHolder(
+    private Holder<SoundEvent> resolveSoundHolder(
             Registry<SoundEvent> registry,
             String rawId,
-            @Nullable Holder<SoundEvent> fallback,
+            Holder<SoundEvent> fallback,
             String label,
             List<ValidationMessage> messages
     ) {

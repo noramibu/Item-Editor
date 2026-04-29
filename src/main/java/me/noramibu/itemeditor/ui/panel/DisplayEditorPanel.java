@@ -11,6 +11,7 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
+import me.noramibu.itemeditor.ui.component.RichTextHorizontalScrollbarComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.panel.specialdata.MiscSpecialDataSections;
@@ -79,12 +80,10 @@ public final class DisplayEditorPanel implements EditorPanel {
 
         RichTextDocument initialDocument = this.documentFromState(state);
         LabelComponent lineCount = UiFactory.muted(this.lineCountText(initialDocument.logicalLineCount()));
-        Consumer<RichTextDocument> commitDocument = document -> {
-            PanelBindings.mutate(this.screen, () -> {
-                this.applyLoreDocument(state, document);
-                lineCount.text(Component.literal(this.lineCountText(document.logicalLineCount())));
-            });
-        };
+        Consumer<RichTextDocument> commitDocument = document -> PanelBindings.mutate(this.screen, () -> {
+            this.applyLoreDocument(state, document);
+            lineCount.text(Component.literal(this.lineCountText(document.logicalLineCount())));
+        });
 
         StyledTextFieldSection.BoundEditor loreSection = StyledTextFieldSection.create(
                 this.screen,
@@ -104,12 +103,25 @@ public final class DisplayEditorPanel implements EditorPanel {
                 commitDocument,
                 true
         );
+        this.applyRichEditorRenderMode(loreSection.editor(), state.uiRenderObjectsInLore);
 
         FlowLayout editorFrame = UiFactory.subCard();
         editorFrame.padding(Insets.of(EDITOR_FRAME_PADDING));
         editorFrame.surface(Surface.flat(EDITOR_FRAME_FILL_COLOR).and(Surface.outline(EDITOR_FRAME_OUTLINE_COLOR)));
         editorFrame.child(loreSection.toolbar());
-        editorFrame.child(loreSection.editor());
+        editorFrame.child(UiFactory.checkbox(
+                ItemEditorText.tr("display.lore.render_objects"),
+                state.uiRenderObjectsInLore,
+                value -> {
+                    state.uiRenderObjectsInLore = value;
+                    this.applyRichEditorRenderMode(loreSection.editor(), value);
+                }
+        ));
+        FlowLayout editorStack = UiFactory.column();
+        editorStack.gap(0);
+        editorStack.child(loreSection.editor());
+        editorStack.child(new RichTextHorizontalScrollbarComponent(Sizing.fill(100), loreSection.editor()));
+        editorFrame.child(editorStack);
         editorFrame.child(this.buildFooter(loreSection.editor(), commitDocument, lineCount));
         editorFrame.child(loreSection.validation());
 
@@ -129,9 +141,6 @@ public final class DisplayEditorPanel implements EditorPanel {
         }
         if (MiscSpecialDataSections.supportsTrim(stack)) {
             UiFactory.appendFillChild(root, MiscSpecialDataSections.buildTrim(context));
-        }
-        if (MiscSpecialDataSections.supportsProfile(stack)) {
-            UiFactory.appendFillChild(root, MiscSpecialDataSections.buildProfile(context));
         }
     }
 
@@ -174,8 +183,9 @@ public final class DisplayEditorPanel implements EditorPanel {
     private RichTextDocument documentFromState(ItemEditorState state) {
         List<Component> lines = new ArrayList<>();
         for (ItemEditorState.LoreLineDraft line : state.loreLines) {
+            String normalizedRaw = TextComponentUtil.ensureObjectTokenColors(line.rawText, 0xFFFFFF);
             lines.add(TextComponentUtil.applyLineStyle(
-                    TextComponentUtil.parseMarkup(line.rawText),
+                    TextComponentUtil.parseMarkup(normalizedRaw),
                     line.style,
                     new ArrayList<>()
             ));
@@ -185,6 +195,19 @@ public final class DisplayEditorPanel implements EditorPanel {
 
     private void applyLoreDocument(ItemEditorState state, RichTextDocument document) {
         state.loreLines.clear();
+        String serialized = TextComponentUtil.ensureObjectTokenColors(
+                TextComponentUtil.serializeEditorDocument(document),
+                0xFFFFFF
+        );
+        if (TextComponentUtil.containsStructuredToken(serialized)) {
+            String[] lines = serialized.split("\n", -1);
+            for (String line : lines) {
+                ItemEditorState.LoreLineDraft draft = new ItemEditorState.LoreLineDraft();
+                draft.rawText = line;
+                state.loreLines.add(draft);
+            }
+            return;
+        }
         for (Component lineComponent : document.toLineComponents()) {
             ItemEditorState.LoreLineDraft draft = new ItemEditorState.LoreLineDraft();
             draft.rawText = TextComponentUtil.toMarkup(lineComponent);
@@ -235,5 +258,9 @@ public final class DisplayEditorPanel implements EditorPanel {
             ratio -= LORE_SCALE_RATIO_PENALTY;
         }
         return ratio;
+    }
+
+    private void applyRichEditorRenderMode(RichTextAreaComponent editor, boolean renderStructured) {
+        editor.structuredRenderMode(renderStructured);
     }
 }

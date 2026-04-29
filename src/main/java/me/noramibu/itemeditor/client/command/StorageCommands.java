@@ -3,7 +3,10 @@ package me.noramibu.itemeditor.client.command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import me.noramibu.itemeditor.storage.StorageSortMode;
+import me.noramibu.itemeditor.storage.search.StorageSearchAutocompleteUtil;
 import me.noramibu.itemeditor.ui.screen.StorageScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
@@ -15,7 +18,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 public final class StorageCommands {
 
@@ -53,33 +56,11 @@ public final class StorageCommands {
                                         .executes(context -> openStorage(context, IntegerArgumentType.getInteger(context, "pageNumber"), "", StorageSortMode.REGULAR))))
                         .then(ClientCommands.literal("search")
                                 .then(ClientCommands.argument("query", StringArgumentType.greedyString())
-                                        .suggests((context, builder) -> {
-                                            String remaining = builder.getRemaining();
-                                            int lastSpace = remaining.lastIndexOf(' ');
-                                            String base = lastSpace < 0 ? "" : remaining.substring(0, lastSpace + 1);
-                                            String tokenPrefix = lastSpace < 0 ? remaining : remaining.substring(lastSpace + 1);
-                                            String normalizedPrefix = tokenPrefix.toLowerCase(Locale.ROOT);
-                                            List<String> candidates = java.util.Arrays.stream(SEARCH_QUERY_SUGGESTIONS)
-                                                    .filter(token -> normalizedPrefix.isBlank() || token.toLowerCase(Locale.ROOT).startsWith(normalizedPrefix))
-                                                    .map(token -> base + token)
-                                                    .toList();
-                                            return SharedSuggestionProvider.suggest(candidates, builder);
-                                        })
+                                        .suggests(StorageCommands::suggestSearchQuery)
                                         .executes(context -> openStorage(context, 1, StringArgumentType.getString(context, "query"), StorageSortMode.REGULAR))))
                         .then(ClientCommands.literal("s")
                                 .then(ClientCommands.argument("query", StringArgumentType.greedyString())
-                                        .suggests((context, builder) -> {
-                                            String remaining = builder.getRemaining();
-                                            int lastSpace = remaining.lastIndexOf(' ');
-                                            String base = lastSpace < 0 ? "" : remaining.substring(0, lastSpace + 1);
-                                            String tokenPrefix = lastSpace < 0 ? remaining : remaining.substring(lastSpace + 1);
-                                            String normalizedPrefix = tokenPrefix.toLowerCase(Locale.ROOT);
-                                            List<String> candidates = java.util.Arrays.stream(SEARCH_QUERY_SUGGESTIONS)
-                                                    .filter(token -> normalizedPrefix.isBlank() || token.toLowerCase(Locale.ROOT).startsWith(normalizedPrefix))
-                                                    .map(token -> base + token)
-                                                    .toList();
-                                            return SharedSuggestionProvider.suggest(candidates, builder);
-                                        })
+                                        .suggests(StorageCommands::suggestSearchQuery)
                                         .executes(context -> openStorage(context, 1, StringArgumentType.getString(context, "query"), StorageSortMode.REGULAR))))
                         .then(ClientCommands.literal("sort")
                                 .then(ClientCommands.argument("mode", StringArgumentType.word())
@@ -111,9 +92,16 @@ public final class StorageCommands {
             return 0;
         }
         int safePage = Math.max(1, page);
-        StorageSortMode mode = sortMode == null ? StorageSortMode.REGULAR : sortMode;
-        minecraft.execute(() -> minecraft.setScreen(new StorageScreen(safePage, query, mode)));
+        minecraft.execute(() -> minecraft.setScreen(new StorageScreen(safePage, query, sortMode)));
         return 1;
+    }
+
+    private static CompletableFuture<Suggestions> suggestSearchQuery(
+            CommandContext<FabricClientCommandSource> ignoredContext,
+            SuggestionsBuilder builder
+    ) {
+        var completion = StorageSearchAutocompleteUtil.complete(builder.getRemaining(), SEARCH_QUERY_SUGGESTIONS);
+        return SharedSuggestionProvider.suggest(completion.withBase(), builder);
     }
 
 }

@@ -24,12 +24,6 @@ public final class PanelBindings {
         mutate(screen, mutation, screen::refreshCurrentPanel);
     }
 
-    public static void mutateRaw(ItemEditorScreen screen, Runnable mutation) {
-        mutation.run();
-        screen.session().state().rawEditorEdited = true;
-        screen.session().rebuildPreview();
-    }
-
     static Consumer<String> text(ItemEditorScreen screen, Consumer<String> updater) {
         return value -> mutate(screen, () -> updater.accept(value));
     }

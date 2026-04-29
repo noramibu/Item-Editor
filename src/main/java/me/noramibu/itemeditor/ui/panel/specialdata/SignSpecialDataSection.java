@@ -9,6 +9,7 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
+import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -41,7 +42,8 @@ public final class SignSpecialDataSection {
     private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
     private static final int BOARD_STYLE_PICKER_WIDTH = 180;
-    private static final int SIGN_EDITOR_VERTICAL_PADDING_BASE = 24;
+    private static final int SIGN_EDITOR_VERTICAL_PADDING_BASE = 12;
+    private static final int SIGN_EDITOR_RIGHT_PADDING = 6;
     private static final int SIGN_PREVIEW_SIZE_MIN = 84;
     private static final int SIGN_PREVIEW_SIZE_MAX = 180;
     private static final int SIGN_PREVIEW_HINT_WIDTH = 220;
@@ -120,7 +122,7 @@ public final class SignSpecialDataSection {
                 Sizing.fill(100),
                 Sizing.fixed(signEditorHeight()),
                 ItemEditorText.str("special.sign.placeholder"),
-                StyledTextFieldSection.StylePreset.bookMetadata(false),
+                StyledTextFieldSection.StylePreset.signContent(),
                 ItemEditorText.str("special.sign.color_dialog"),
                 ItemEditorText.str("special.sign.gradient_dialog"),
                 "",
@@ -148,16 +150,32 @@ public final class SignSpecialDataSection {
                     });
                 }
         );
+        editorSection.editor().lineWrap(false);
+        boolean renderObjects = context.screen().session().state().uiRenderObjectsInSign;
+        editorSection.editor().renderStructuredObjects(renderObjects);
         editorRef.set(editorSection);
 
         FlowLayout editorFrame = UiFactory.framedEditorCard();
         editorFrame.child(editorSection.toolbar());
+        editorFrame.child(UiFactory.checkbox(
+                ItemEditorText.tr("special.sign.render_objects"),
+                renderObjects,
+                value -> context.mutateRefresh(() -> {
+                    context.screen().session().state().uiRenderObjectsInSign = value;
+                    editorSection.editor().renderStructuredObjects(value);
+                })
+        ));
         FlowLayout editorRow = UiFactory.row();
         editorRow.horizontalSizing(Sizing.fill(100));
         editorRow.verticalAlignment(VerticalAlignment.TOP);
         editorRow.child(buildLineNumberGutter());
         editorRow.child(editorSection.editor().horizontalSizing(Sizing.fill(100)));
-        editorFrame.child(editorRow);
+        FlowLayout editorStack = UiFactory.column();
+        editorStack.gap(0);
+        editorStack.padding(Insets.of(0, 0, 0, UiFactory.scaledPixels(SIGN_EDITOR_RIGHT_PADDING)));
+        editorStack.child(editorRow);
+        editorStack.child(buildHorizontalScrollbar(editorSection.editor()));
+        editorFrame.child(editorStack);
         editorFrame.child(editorSection.validation());
 
         card.child(UiFactory.field(ItemEditorText.tr("special.sign.editor"), Component.empty(), editorFrame));
@@ -205,6 +223,15 @@ public final class SignSpecialDataSection {
 
     private static void applyDocumentToSideDraft(ItemEditorState.SignSideDraft sideDraft, RichTextDocument document) {
         sideDraft.lines.clear();
+        String serialized = TextComponentUtil.serializeEditorDocument(document);
+        if (TextComponentUtil.containsStructuredToken(serialized)) {
+            String[] lines = serialized.split("\n", -1);
+            for (int index = 0; index < SIGN_LINE_COUNT; index++) {
+                String line = index < lines.length ? lines[index] : "";
+                sideDraft.lines.add(TextComponentUtil.ensureLeadingWhiteForStructuredTokens(line));
+            }
+            return;
+        }
         List<Component> lines = document.toLineComponents();
         for (int index = 0; index < SIGN_LINE_COUNT; index++) {
             Component lineComponent = index < lines.size() ? lines.get(index) : Component.empty();
@@ -236,7 +263,6 @@ public final class SignSpecialDataSection {
         BlockState previewState = orientedPreviewState(previewBlock.defaultBlockState());
         CompoundTag signTag = new CompoundTag();
         SignText sideText = buildSignText(sideDraft);
-        // Mirror both sides for preview reliability regardless of the model side currently facing the camera.
         signTag.store("front_text", SignText.DIRECT_CODEC, sideText);
         signTag.store("back_text", SignText.DIRECT_CODEC, sideText);
         signTag.putBoolean("is_waxed", false);
@@ -336,6 +362,10 @@ public final class SignSpecialDataSection {
         }
         gutter.margins(Insets.top(UiFactory.scaledPixels(SIGN_LINE_NUMBER_TOP_OFFSET)));
         return gutter;
+    }
+
+    private static FlowLayout buildHorizontalScrollbar(RichTextAreaComponent editor) {
+        return UiFactory.horizontalScrollbarRow(editor, SIGN_LINE_NUMBER_WIDTH);
     }
 
     private static int signEditorHeight() {

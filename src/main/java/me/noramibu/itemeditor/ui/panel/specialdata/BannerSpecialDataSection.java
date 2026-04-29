@@ -16,6 +16,7 @@ import me.noramibu.itemeditor.ui.component.InputSafeScrollContainer;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RotatableItemPreviewComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.client.Minecraft;
@@ -36,7 +37,6 @@ import java.util.Collections;
 import java.util.List;
 
 public final class BannerSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
 
     private static final int PATTERN_BUTTON_WIDTH = 280;
@@ -439,8 +439,7 @@ public final class BannerSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static String dragActionLabel(int draggingLayer, int layerIndex) {

@@ -59,9 +59,12 @@ public final class ItemEditorState {
     public int uiRawEditorSelectionCursor;
     public double uiRawEditorScrollAmount;
     public boolean uiRawEditorOptionsExpanded;
+    public boolean uiRenderObjectsInCustomName = true;
+    public boolean uiRenderObjectsInLore = true;
+    public boolean uiRenderObjectsInBook = true;
+    public boolean uiRenderObjectsInSign = true;
     public boolean uiCategoriesRailCollapsed;
     public boolean uiPreviewRailCollapsed;
-    public boolean uiPreviewTooltipHiddenBySide;
     public boolean uiPreviewTooltipCollapsed;
     public boolean uiPreviewValidationCollapsed;
     public final List<RawEditorHistoryEntry> uiRawEditorUndoHistory = new ArrayList<>();
@@ -75,7 +78,7 @@ public final class ItemEditorState {
 
         public static LoreLineDraft fromComponent(Component component) {
             LoreLineDraft draft = new LoreLineDraft();
-            draft.rawText = TextComponentUtil.toMarkup(component);
+            draft.rawText = TextComponentUtil.ensureObjectTokenColors(TextComponentUtil.toMarkup(component), 0xFFFFFF);
             draft.style.readFrom(component.getStyle());
             return draft;
         }
@@ -141,8 +144,6 @@ public final class ItemEditorState {
         public final List<String> pages = new ArrayList<>();
         public int selectedPage;
         public double miniMapScrollOffset;
-        public boolean uiPageControlsCollapsed = true;
-        public boolean uiPageMiniMapCollapsed = true;
     }
 
     public static final class RawEditorHistoryEntry {

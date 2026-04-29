@@ -4,7 +4,6 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.core.Insets;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -13,8 +12,10 @@ import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
@@ -29,7 +30,6 @@ import java.util.function.Consumer;
 public final class GeneralEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 760;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int STACK_COLUMNS_WIDTH_THRESHOLD = 720;
     private static final int STACK_ROW_MARGIN_TOP = 2;
     private static final int FIELD_LABEL_WIDTH_MIN = 72;
@@ -55,8 +55,6 @@ public final class GeneralEditorPanel implements EditorPanel {
     private static final int CUSTOM_NAME_EDITOR_HEIGHT = 54;
     private static final int ADVENTURE_COUNT_HINT_WIDTH = 60;
     private static final int ADVENTURE_EMPTY_HINT_WIDTH = 320;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final String SYMBOL_MOVE_UP = "^";
     private static final String SYMBOL_MOVE_DOWN = "v";
     private static final String SYMBOL_REMOVE = "x";
@@ -66,11 +64,9 @@ public final class GeneralEditorPanel implements EditorPanel {
     private static final int ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH = 36;
     private static final int ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH = 42;
     private static final int ADVENTURE_STACK_CONTROLS_WIDTH_THRESHOLD = 520;
-    private static final int ADVENTURE_STACK_ENTRY_WIDTH_THRESHOLD = 500;
     private static final int RESPONSIVE_CHECKBOX_LABEL_RESERVE = 220;
     private static final int RESPONSIVE_CHECKBOX_LABEL_MIN_WIDTH = 120;
     private static final int ADVENTURE_ENTRY_LABEL_MIN_WIDTH = 120;
-    private static final int ADVENTURE_ENTRY_LABEL_STACKED_RESERVE = 36;
     private static final int ADVENTURE_ENTRY_LABEL_INLINE_RESERVE = 220;
     private static final int ENTRY_ACTION_BUTTON_SIZE_BASE = 32;
     private static final int ENTRY_ACTION_BUTTON_SIZE_MIN = 26;
@@ -123,12 +119,22 @@ public final class GeneralEditorPanel implements EditorPanel {
                 "",
                 null,
                 document -> document.logicalLineCount() > 1 ? ItemEditorText.str("general.identity.custom_name.single_line") : null,
-                document -> PanelBindings.text(this.screen, value -> state.customName = value).accept(document.toMarkup()),
+                document -> PanelBindings.text(this.screen, value -> state.customName = value)
+                        .accept(TextComponentUtil.ensureObjectTokenColors(TextComponentUtil.serializeEditorDocument(document), 0xFFFFFF)),
                 compactLayout
         );
+        this.applyRichEditorRenderMode(nameSection.editor(), state.uiRenderObjectsInCustomName);
 
         FlowLayout editorFrame = UiFactory.framedEditorCard();
         editorFrame.child(nameSection.toolbar());
+        editorFrame.child(UiFactory.checkbox(
+                ItemEditorText.tr("general.identity.custom_name.render_objects"),
+                state.uiRenderObjectsInCustomName,
+                value -> {
+                    state.uiRenderObjectsInCustomName = value;
+                    this.applyRichEditorRenderMode(nameSection.editor(), value);
+                }
+        ));
         editorFrame.child(nameSection.editor());
         editorFrame.child(nameSection.validation());
         identity.child(editorFrame);
@@ -141,7 +147,7 @@ public final class GeneralEditorPanel implements EditorPanel {
         double guiScale = this.screen.session().minecraft().getWindow().getGuiScale();
         int scaledWidth = this.screen.session().minecraft().getWindow().getGuiScaledWidth();
         boolean stackAsColumns = compactLayout
-                && (scaledWidth < STACK_COLUMNS_WIDTH_THRESHOLD || guiScale >= COMPACT_LAYOUT_SCALE_THRESHOLD);
+                && (scaledWidth < STACK_COLUMNS_WIDTH_THRESHOLD || guiScale >= LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD);
         FlowLayout stackRow = stackAsColumns ? UiFactory.column() : UiFactory.row();
         stackRow.gap(Math.max(2, UiFactory.scaleProfile().tightSpacing()));
         stackRow.margins(Insets.top(STACK_ROW_MARGIN_TOP));
@@ -333,7 +339,7 @@ public final class GeneralEditorPanel implements EditorPanel {
         headerAddButton.horizontalSizing(Sizing.fixed(Math.max(ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH, UiFactory.scaledPixels(ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH))));
         headerAddButton.tooltip(List.of(ItemEditorText.tr("general.adventure.add_block")));
         header.child(headerAddButton);
-        ButtonComponent collapseToggle = UiFactory.button(Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+        ButtonComponent collapseToggle = UiFactory.button(LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 PanelBindings.mutateRefresh(this.screen, () -> collapsedSetter.accept(!collapsed))
         );
         collapseToggle.horizontalSizing(Sizing.fixed(Math.max(ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH, UiFactory.scaledPixels(ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH))));
@@ -388,7 +394,6 @@ public final class GeneralEditorPanel implements EditorPanel {
                     ADVENTURE_ENTRY_LABEL_MIN_WIDTH,
                     effectiveContentWidth - UiFactory.scaledPixels(ADVENTURE_ENTRY_LABEL_INLINE_RESERVE)
             );
-            labelWidth = Math.max(ADVENTURE_ENTRY_LABEL_MIN_WIDTH, labelWidth);
             LabelComponent label = UiFactory.muted(UiFactory.fitToWidth(Component.literal(blockId), labelWidth), labelWidth);
             label.tooltip(List.of(Component.literal(blockId)));
             label.horizontalSizing(Sizing.content());
@@ -396,16 +401,16 @@ public final class GeneralEditorPanel implements EditorPanel {
 
             FlowLayout actionRow = UiFactory.row();
             if (currentIndex > 0) {
-                actionRow.child(this.actionButton(Component.literal(SYMBOL_MOVE_UP), ItemEditorText.tr("common.up"), false, () ->
+                actionRow.child(this.actionButton(Component.literal(SYMBOL_MOVE_UP), ItemEditorText.tr("common.up"), () ->
                         PanelBindings.mutateRefresh(this.screen, () -> this.swap(blockIds, currentIndex, currentIndex - 1))
                 ));
             }
             if (currentIndex < blockIds.size() - 1) {
-                actionRow.child(this.actionButton(Component.literal(SYMBOL_MOVE_DOWN), ItemEditorText.tr("common.down"), false, () ->
+                actionRow.child(this.actionButton(Component.literal(SYMBOL_MOVE_DOWN), ItemEditorText.tr("common.down"), () ->
                         PanelBindings.mutateRefresh(this.screen, () -> this.swap(blockIds, currentIndex, currentIndex + 1))
                 ));
             }
-            actionRow.child(this.actionButton(Component.literal(SYMBOL_REMOVE), ItemEditorText.tr("common.remove"), false, () ->
+            actionRow.child(this.actionButton(Component.literal(SYMBOL_REMOVE), ItemEditorText.tr("common.remove"), () ->
                     PanelBindings.mutateRefresh(this.screen, () -> blockIds.remove(currentIndex))
             ));
             row.child(actionRow);
@@ -415,10 +420,10 @@ public final class GeneralEditorPanel implements EditorPanel {
         return card;
     }
 
-    private ButtonComponent actionButton(Component label, Component tooltip, boolean stacked, Runnable action) {
+    private ButtonComponent actionButton(Component label, Component tooltip, Runnable action) {
         ButtonComponent button = UiFactory.button(label, UiFactory.ButtonTextPreset.COMPACT, component -> action.run());
         int size = Math.max(ENTRY_ACTION_BUTTON_SIZE_MIN, UiFactory.scaledPixels(ENTRY_ACTION_BUTTON_SIZE_BASE));
-        button.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(size));
+        button.horizontalSizing(Sizing.fixed(size));
         button.tooltip(List.of(tooltip));
         return button;
     }
@@ -546,9 +551,13 @@ public final class GeneralEditorPanel implements EditorPanel {
 
     private boolean useCompactLayout() {
         var window = this.screen.session().minecraft().getWindow();
-        return window.getGuiScaledWidth() < COMPACT_LAYOUT_WIDTH_THRESHOLD
-                || window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || this.availableContentWidth() < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactWindowAndContent(
+                window.getGuiScale(),
+                window.getGuiScaledWidth(),
+                COMPACT_LAYOUT_WIDTH_THRESHOLD,
+                this.availableContentWidth(),
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
     }
 
     private FlowLayout responsiveCheckboxLine(Component text, Consumer<Boolean> onChanged) {
@@ -587,6 +596,10 @@ public final class GeneralEditorPanel implements EditorPanel {
 
     private int availableContentWidth() {
         return Math.max(1, this.screen.editorContentWidthHint());
+    }
+
+    private void applyRichEditorRenderMode(me.noramibu.itemeditor.ui.component.RichTextAreaComponent editor, boolean renderStructured) {
+        editor.structuredRenderMode(renderStructured);
     }
 
 }
