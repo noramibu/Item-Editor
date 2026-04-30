@@ -48,6 +48,7 @@ final class ItemEditorDialogController {
     private static final String DIFF_LINE_UNCHANGED_PREFIX = "  ";
     private static final String DIFF_LINE_REMOVED_PREFIX = "- ";
     private static final String DIFF_LINE_ADDED_PREFIX = "+ ";
+    private static final int RAW_DIFF_LOOKAHEAD = 24;
     private static final int RAW_DIFF_BG_UNCHANGED = 0x00000000;
     private static final int RAW_DIFF_BG_ADDED_OR_CHANGED = 0x33276735;
     private static final int RAW_DIFF_BG_REMOVED = 0x334C1F2A;
@@ -247,86 +248,74 @@ final class ItemEditorDialogController {
         int n = original.length;
         int m = current.length;
 
-        int[][] lcs = new int[n + 1][m + 1];
-        for (int i = n - 1; i >= 0; i--) {
-            for (int j = m - 1; j >= 0; j--) {
-                if (original[i].equals(current[j])) {
-                    lcs[i][j] = lcs[i + 1][j + 1] + 1;
-                } else {
-                    lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-                }
-            }
-        }
-
-        List<DiffOp> ops = new ArrayList<>();
+        List<RawItemDataDialog.Line> lines = new ArrayList<>();
         int i = 0;
         int j = 0;
         while (i < n && j < m) {
-            if (original[i].equals(current[j])) {
-                ops.add(new DiffOp(DiffType.UNCHANGED, current[j]));
+            if (this.sameRawDiffLine(original[i], current[j])) {
+                lines.add(new RawItemDataDialog.Line(DIFF_LINE_UNCHANGED_PREFIX + current[j], RAW_DIFF_BG_UNCHANGED));
                 i++;
                 j++;
-            } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
-                ops.add(new DiffOp(DiffType.REMOVED, original[i]));
-                i++;
-            } else {
-                ops.add(new DiffOp(DiffType.ADDED, current[j]));
-                j++;
+                continue;
             }
-        }
 
-        while (i < n) {
-            ops.add(new DiffOp(DiffType.REMOVED, original[i]));
+            int nextOriginal = this.findMatchingRawLine(original, i + 1, current[j]);
+            int nextCurrent = this.findMatchingRawLine(current, j + 1, original[i]);
+            if (nextOriginal >= 0 && (nextCurrent < 0 || nextOriginal - i <= nextCurrent - j)) {
+                while (i < nextOriginal) {
+                    lines.add(new RawItemDataDialog.Line(DIFF_LINE_REMOVED_PREFIX + original[i], RAW_DIFF_BG_REMOVED));
+                    i++;
+                }
+                continue;
+            }
+            if (nextCurrent >= 0) {
+                while (j < nextCurrent) {
+                    lines.add(new RawItemDataDialog.Line(DIFF_LINE_ADDED_PREFIX + current[j], RAW_DIFF_BG_ADDED_OR_CHANGED));
+                    j++;
+                }
+                continue;
+            }
+
+            lines.add(new RawItemDataDialog.Line(DIFF_LINE_UPDATED_PREFIX + current[j], RAW_DIFF_BG_ADDED_OR_CHANGED));
             i++;
-        }
-        while (j < m) {
-            ops.add(new DiffOp(DiffType.ADDED, current[j]));
             j++;
         }
 
-        List<RawItemDataDialog.Line> lines = new ArrayList<>();
-        for (int index = 0; index < ops.size(); index++) {
-            DiffOp op = ops.get(index);
-            if ((op.type == DiffType.REMOVED || op.type == DiffType.ADDED) && index + 1 < ops.size()) {
-                DiffOp next = ops.get(index + 1);
-                if (this.isRemovalAdditionPair(op.type, next.type)) {
-                    String updatedText = op.type == DiffType.ADDED ? op.text : next.text;
-                    lines.add(new RawItemDataDialog.Line(DIFF_LINE_UPDATED_PREFIX + updatedText, RAW_DIFF_BG_ADDED_OR_CHANGED));
-                    index++;
-                    continue;
-                }
-            }
-            lines.add(this.toRawDiffLine(op));
+        while (i < n) {
+            lines.add(new RawItemDataDialog.Line(DIFF_LINE_REMOVED_PREFIX + original[i], RAW_DIFF_BG_REMOVED));
+            i++;
+        }
+        while (j < m) {
+            lines.add(new RawItemDataDialog.Line(DIFF_LINE_ADDED_PREFIX + current[j], RAW_DIFF_BG_ADDED_OR_CHANGED));
+            j++;
         }
         return lines;
     }
 
-    private boolean isRemovalAdditionPair(DiffType first, DiffType second) {
-        return (first == DiffType.REMOVED && second == DiffType.ADDED)
-                || (first == DiffType.ADDED && second == DiffType.REMOVED);
+    private int findMatchingRawLine(String[] lines, int start, String target) {
+        int end = Math.min(lines.length, start + RAW_DIFF_LOOKAHEAD);
+        for (int index = start; index < end; index++) {
+            if (this.sameRawDiffLine(lines[index], target)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
-    private RawItemDataDialog.Line toRawDiffLine(DiffOp op) {
-        if (op.type == DiffType.UNCHANGED) {
-            return new RawItemDataDialog.Line(DIFF_LINE_UNCHANGED_PREFIX + op.text, RAW_DIFF_BG_UNCHANGED);
-        }
-        if (op.type == DiffType.REMOVED) {
-            return new RawItemDataDialog.Line(DIFF_LINE_REMOVED_PREFIX + op.text, RAW_DIFF_BG_REMOVED);
-        }
-        return new RawItemDataDialog.Line(DIFF_LINE_ADDED_PREFIX + op.text, RAW_DIFF_BG_ADDED_OR_CHANGED);
+    private boolean sameRawDiffLine(String original, String current) {
+        return Objects.equals(this.normalizedRawDiffLine(original), this.normalizedRawDiffLine(current));
     }
 
-    private enum DiffType {
-        UNCHANGED,
-        ADDED,
-        REMOVED
-    }
-
-    private record DiffOp(DiffType type, String text) {
-        private DiffOp {
-            Objects.requireNonNull(type, "type");
-            text = text == null ? "" : text;
+    private String normalizedRawDiffLine(String line) {
+        String value = line == null ? "" : line;
+        int end = value.length();
+        while (end > 0 && Character.isWhitespace(value.charAt(end - 1))) {
+            end--;
         }
+        if (end > 0 && value.charAt(end - 1) == ',') {
+            value = value.substring(0, end - 1) + value.substring(end);
+        }
+        return value.trim();
     }
 
     private void exportRawData(String baseName, String extension, String content) {

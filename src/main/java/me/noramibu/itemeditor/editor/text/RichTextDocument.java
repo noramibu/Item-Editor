@@ -7,6 +7,7 @@ import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.contents.ObjectContents;
+import net.minecraft.network.chat.contents.objects.ObjectInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -437,7 +438,7 @@ public final class RichTextDocument {
         if (!text.isEmpty()) {
             Style segmentStyle = effectiveStyle;
             if (mode == ObjectContentMode.TOKEN_TEXT && contents instanceof ObjectContents) {
-                segmentStyle = Style.EMPTY;
+                segmentStyle = objectTokenStyle(effectiveStyle);
             }
             out.add(new Segment(text, RichTextStyle.fromStyle(segmentStyle)));
         }
@@ -447,12 +448,12 @@ public final class RichTextDocument {
     }
 
     private static String textFromContents(ComponentContents contents, ObjectContentMode mode, Style effectiveStyle) {
-        if (contents instanceof ObjectContents(var object, var fallbackOptional)) {
+        if (contents instanceof ObjectContents objectContents) {
             if (mode == ObjectContentMode.LAYOUT_PLACEHOLDER) {
                 return OBJECT_LAYOUT_PLACEHOLDER;
             }
-            Component fallback = fallbackOptional.orElse(Component.empty());
-            Component objectComponent = Component.object(object, fallback).withStyle(style -> style.withColor(effectiveStyle.getColor()));
+            ObjectInfo object = objectContents.contents();
+            Component objectComponent = Component.object(object).withStyle(style -> style.withColor(effectiveStyle.getColor()));
             return TextComponentUtil.toMarkup(objectComponent);
         }
         StringBuilder plain = new StringBuilder();
@@ -461,6 +462,39 @@ public final class RichTextDocument {
             return Optional.empty();
         });
         return plain.toString();
+    }
+
+    private static Style objectTokenStyle(Style style) {
+        Style tokenStyle = Style.EMPTY;
+        if (style.getShadowColor() != null) {
+            tokenStyle = tokenStyle.withShadowColor(style.getShadowColor());
+        }
+        if (style.getClickEvent() != null) {
+            tokenStyle = tokenStyle.withClickEvent(style.getClickEvent());
+        }
+        if (style.getHoverEvent() != null) {
+            tokenStyle = tokenStyle.withHoverEvent(style.getHoverEvent());
+        }
+        return copyTrueDecorations(style, tokenStyle);
+    }
+
+    private static Style copyTrueDecorations(Style source, Style target) {
+        if (source.isBold()) {
+            target = target.withBold(true);
+        }
+        if (source.isItalic()) {
+            target = target.withItalic(true);
+        }
+        if (source.isUnderlined()) {
+            target = target.withUnderlined(true);
+        }
+        if (source.isStrikethrough()) {
+            target = target.withStrikethrough(true);
+        }
+        if (source.isObfuscated()) {
+            target = target.withObfuscated(true);
+        }
+        return target;
     }
 
     public record Segment(String text, RichTextStyle style) {

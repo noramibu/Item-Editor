@@ -120,7 +120,7 @@ public final class GeneralEditorPanel implements EditorPanel {
                 null,
                 document -> document.logicalLineCount() > 1 ? ItemEditorText.str("general.identity.custom_name.single_line") : null,
                 document -> PanelBindings.text(this.screen, value -> state.customName = value)
-                        .accept(TextComponentUtil.ensureObjectTokenColors(TextComponentUtil.serializeEditorDocument(document), 0xFFFFFF)),
+                        .accept(TextComponentUtil.serializeEditorDocument(document)),
                 compactLayout
         );
         this.applyRichEditorRenderMode(nameSection.editor(), state.uiRenderObjectsInCustomName);

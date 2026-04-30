@@ -110,7 +110,6 @@ public final class ItemEditorStateMapper {
 
         state.customName = Optional.ofNullable(stack.get(DataComponents.CUSTOM_NAME))
                 .map(TextComponentUtil::toMarkup)
-                .map(markup -> TextComponentUtil.ensureObjectTokenColors(markup, 0xFFFFFF))
                 .orElse("");
         state.count = Integer.toString(stack.getCount());
 

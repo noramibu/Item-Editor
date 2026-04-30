@@ -75,17 +75,20 @@ public final class ItemEditorState {
     public static final class LoreLineDraft {
         public String rawText = "";
         public final TextStyleDraft style = new TextStyleDraft();
+        public Component originalComponent;
 
         public static LoreLineDraft fromComponent(Component component) {
             LoreLineDraft draft = new LoreLineDraft();
-            draft.rawText = TextComponentUtil.ensureObjectTokenColors(TextComponentUtil.toMarkup(component), 0xFFFFFF);
+            draft.rawText = TextComponentUtil.toMarkup(component);
             draft.style.readFrom(component.getStyle());
+            draft.originalComponent = component.copy();
             return draft;
         }
     }
 
     public static final class TextStyleDraft {
         public String colorHex = "";
+        public String shadowColorHex = "";
         public boolean bold;
         public boolean italic;
         public boolean underlined;
@@ -95,6 +98,9 @@ public final class ItemEditorState {
         public void readFrom(Style style) {
             if (style.getColor() != null) {
                 this.colorHex = ValidationUtil.toHex(style.getColor().getValue());
+            }
+            if (style.getShadowColor() != null) {
+                this.shadowColorHex = ValidationUtil.toHex(style.getShadowColor());
             }
             this.bold = style.isBold();
             this.italic = style.isItalic();

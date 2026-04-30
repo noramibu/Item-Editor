@@ -18,7 +18,7 @@ import java.util.List;
 abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
 
     protected final Component withPlainBaseline(Component component) {
-        return component.copy().withStyle(component.getStyle().withItalic(false));
+        return component;
     }
 
     protected final void putOptionalIntTag(

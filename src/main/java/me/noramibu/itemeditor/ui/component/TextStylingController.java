@@ -20,6 +20,11 @@ public final class TextStylingController {
         return new AtomicInteger(color == null ? fallbackColor : color);
     }
 
+    public static AtomicInteger initialShadowColor(RichTextAreaComponent editor, int fallbackColor) {
+        Integer color = editor.document().insertionStyleAt(0).shadowColor();
+        return new AtomicInteger(color == null ? fallbackColor : color);
+    }
+
     public static void bindValidatedDocument(
             RichTextAreaComponent editor,
             LabelComponent validationLabel,

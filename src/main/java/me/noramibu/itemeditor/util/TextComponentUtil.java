@@ -1,14 +1,12 @@
 package me.noramibu.itemeditor.util;
 
-import com.google.common.collect.LinkedHashMultimap;
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
-import com.mojang.authlib.properties.PropertyMap;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.SnbtPrinterTagVisitor;
 import net.minecraft.nbt.StringTag;
@@ -25,7 +23,6 @@ import net.minecraft.network.chat.contents.ObjectContents;
 import net.minecraft.network.chat.contents.objects.AtlasSprite;
 import net.minecraft.network.chat.contents.objects.PlayerSprite;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Util;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStackTemplate;
@@ -100,6 +97,15 @@ public final class TextComponentUtil {
                     index++;
                     continue;
                 }
+                if (next == '$' && index + 9 < input.length()) {
+                    String hex = input.substring(index + 2, index + 10);
+                    if (isHexColor(hex, 8)) {
+                        flushWithEvents(root, buffer, style, clickStack, hoverStack);
+                        style = style.withShadowColor((int) Long.parseLong(hex, 16));
+                        index += 9;
+                        continue;
+                    }
+                }
                 if ((next == 'x' || next == 'X') && index + 13 < input.length()) {
                     Integer rgb = parseLegacyHex(input, index, character);
                     if (rgb != null) {
@@ -143,6 +149,12 @@ public final class TextComponentUtil {
                 style = style.withColor(color);
             }
         }
+        if (!styleDraft.shadowColorHex.isBlank()) {
+            Integer color = ValidationUtil.parseColor(styleDraft.shadowColorHex, ItemEditorText.str("text.shadow_color"), messages);
+            if (color != null) {
+                style = style.withShadowColor(color | 0xFF000000);
+            }
+        }
 
         if (styleDraft.bold) style = style.withBold(true);
         if (styleDraft.italic) style = style.withItalic(true);
@@ -150,6 +162,14 @@ public final class TextComponentUtil {
         if (styleDraft.strikethrough) style = style.withStrikethrough(true);
         if (styleDraft.obfuscated) style = style.withObfuscated(true);
         return component.copy().withStyle(style);
+    }
+
+    public static Component parseStyledLine(String rawText, ItemEditorState.TextStyleDraft styleDraft, List<ValidationMessage> messages) {
+        Component component = parseMarkup(rawText);
+        if (containsStructuredToken(rawText) || containsFormattingCode(rawText)) {
+            return component;
+        }
+        return applyLineStyle(component, styleDraft, messages);
     }
 
     public static String toMarkup(Component component) {
@@ -164,20 +184,46 @@ public final class TextComponentUtil {
         if (document == null) {
             return "";
         }
-        String raw = document.plainText();
-        if (containsStructuredToken(raw)) {
-            return raw;
-        }
         return toMarkup(document.toComponent());
     }
 
-    public static Component stripEvents(Component component, boolean stripClickEvents, boolean stripHoverEvents) {
-        if (component == null || (!stripClickEvents && !stripHoverEvents)) {
-            return component == null ? Component.empty() : component.copy();
+    public static Component compactStyleFlags(Component component) {
+        if (component == null) {
+            return Component.empty();
         }
-        MutableComponent copy = component.copy();
-        stripEventsInPlace(copy, stripClickEvents, stripHoverEvents);
+        MutableComponent copy = MutableComponent.create(component.getContents());
+        copy.setStyle(compactStyle(component.getStyle()));
+        for (Component sibling : component.getSiblings()) {
+            copy.append(compactStyleFlags(sibling));
+        }
         return copy;
+    }
+
+    public static String canonicalLoreMarkup(Component component) {
+        return canonicalLoreMarkup(toMarkup(compactStyleFlags(component)));
+    }
+
+    public static String canonicalLoreMarkup(String text) {
+        return Objects.requireNonNullElse(text, "");
+    }
+
+    public static boolean sameVisibleContent(Component first, Component second) {
+        List<StyledChunk> firstChunks = flatten(first == null ? Component.empty() : first);
+        List<StyledChunk> secondChunks = flatten(second == null ? Component.empty() : second);
+        if (firstChunks.size() != secondChunks.size()) {
+            return false;
+        }
+        for (int index = 0; index < firstChunks.size(); index++) {
+            StyledChunk firstChunk = firstChunks.get(index);
+            StyledChunk secondChunk = secondChunks.get(index);
+            if (!Objects.equals(firstChunk.text(), secondChunk.text())) {
+                return false;
+            }
+            if (!visibleStyle(firstChunk.style()).equals(visibleStyle(secondChunk.style()))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static boolean containsStructuredToken(String input) {
@@ -192,6 +238,19 @@ public final class TextComponentUtil {
                 || input.contains(TOKEN_CLICK_CLOSE)
                 || input.contains(TOKEN_HOVER_OPEN)
                 || input.contains(TOKEN_HOVER_CLOSE);
+    }
+
+    public static boolean containsFormattingCode(String input) {
+        if (input == null || input.isEmpty()) {
+            return false;
+        }
+        for (int index = 0; index < input.length(); index++) {
+            int codeLength = formattingCodeLengthAt(input, index);
+            if (codeLength > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String ensureLeadingWhiteForStructuredTokens(String input) {
@@ -211,33 +270,6 @@ public final class TextComponentUtil {
             return normalized.toString();
         }
         return input;
-    }
-
-    public static String ensureObjectTokenColors(String input, int defaultRgb) {
-        if (input == null || input.isEmpty() || !containsStructuredToken(input)) {
-            return Objects.requireNonNullElse(input, "");
-        }
-        String defaultHex = ValidationUtil.toHex(defaultRgb);
-        StringBuilder normalized = new StringBuilder(input.length() + 16);
-        int cursor = 0;
-        while (cursor < input.length()) {
-            int tokenStart = input.indexOf(TOKEN_PREFIX, cursor);
-            if (tokenStart < 0) {
-                normalized.append(input, cursor, input.length());
-                break;
-            }
-            normalized.append(input, cursor, tokenStart);
-            int tokenEnd = findTokenEnd(input, tokenStart + TOKEN_PREFIX.length());
-            if (tokenEnd <= tokenStart) {
-                normalized.append(input.charAt(tokenStart));
-                cursor = tokenStart + 1;
-                continue;
-            }
-            String token = input.substring(tokenStart + TOKEN_PREFIX.length(), tokenEnd);
-            normalized.append(TOKEN_PREFIX).append(withDefaultObjectColor(token, defaultHex)).append(TOKEN_SUFFIX);
-            cursor = tokenEnd + 1;
-        }
-        return normalized.toString();
     }
 
     public static int structuredTokenLengthAt(String input, int index) {
@@ -275,39 +307,30 @@ public final class TextComponentUtil {
         return isRenderableToken(token) ? tokenEnd - index + 1 : -1;
     }
 
-    private static boolean missingTokenPrefixAt(String input, int index) {
-        return input == null || index < 0 || index >= input.length() || !input.startsWith(TOKEN_PREFIX, index);
+    public static int formattingCodeLengthAt(String input, int index) {
+        if (input == null || index < 0 || index + 1 >= input.length()) {
+            return -1;
+        }
+        char prefix = input.charAt(index);
+        if (prefix != '&' && prefix != SECTION_SIGN) {
+            return -1;
+        }
+
+        char code = input.charAt(index + 1);
+        if (code == '$' && index + 9 < input.length() && isHexColor(input.substring(index + 2, index + 10), 8)) {
+            return 10;
+        }
+        if (code == '#' && index + 7 < input.length() && ValidationUtil.isHexColor(input.substring(index + 2, index + 8))) {
+            return 8;
+        }
+        if ((code == 'x' || code == 'X') && index + 13 < input.length() && parseLegacyHex(input, index, prefix) != null) {
+            return 14;
+        }
+        return ChatFormatting.getByCode(code) != null || code == prefix ? 2 : -1;
     }
 
-    public static int writtenOutputAnchorOffsetAtOrAfter(String input, int index) {
-        if (input == null || input.isEmpty()) {
-            return 0;
-        }
-
-        int cursor = Math.clamp(index, 0, input.length());
-        while (cursor < input.length()) {
-            int containingTokenStart = renderableTokenStartContaining(input, cursor);
-            if (containingTokenStart >= 0) {
-                if (objectTokenLengthAt(input, containingTokenStart) > 0) {
-                    return containingTokenStart;
-                }
-                cursor = containingTokenStart + renderableTokenLengthAt(input, containingTokenStart);
-                continue;
-            }
-
-            int tokenLength = renderableTokenLengthAt(input, cursor);
-            if (tokenLength > 0) {
-                if (objectTokenLengthAt(input, cursor) > 0) {
-                    return cursor;
-                }
-                cursor += tokenLength;
-                continue;
-            }
-
-            return cursor;
-        }
-
-        return Math.clamp(index, 0, input.length());
+    private static boolean missingTokenPrefixAt(String input, int index) {
+        return input == null || index < 0 || index >= input.length() || !input.startsWith(TOKEN_PREFIX, index);
     }
 
     public static String escapeStructuredTokenValue(String value) {
@@ -334,50 +357,39 @@ public final class TextComponentUtil {
         return line.substring(0, firstContentIndex) + prefix + "r" + line.substring(firstContentIndex);
     }
 
-    private static void stripEventsInPlace(MutableComponent component, boolean stripClickEvents, boolean stripHoverEvents) {
-        Style style = component.getStyle();
-        if (stripClickEvents) {
-            style = style.withClickEvent(null);
+    private static Style compactStyle(Style style) {
+        Style compact = Style.EMPTY;
+        if (style.getColor() != null) {
+            compact = compact.withColor(style.getColor());
         }
-        if (stripHoverEvents) {
-            style = style.withHoverEvent(null);
+        if (style.getShadowColor() != null) {
+            compact = compact.withShadowColor(style.getShadowColor());
         }
-        component.setStyle(style);
-        for (Component sibling : component.getSiblings()) {
-            if (sibling instanceof MutableComponent mutableSibling) {
-                stripEventsInPlace(mutableSibling, stripClickEvents, stripHoverEvents);
-            }
+        if (style.getClickEvent() != null) {
+            compact = compact.withClickEvent(style.getClickEvent());
         }
-    }
-
-    private static String withDefaultObjectColor(String token, String defaultHex) {
-        return switch (tokenPrefix(token)) {
-            case "head:" -> "head:" + appendDefaultObjectColor(token.substring("head:".length()), defaultHex);
-            case "head_texture:" -> "head_texture:" + appendDefaultObjectColor(token.substring("head_texture:".length()), defaultHex);
-            case "sprite:" -> "sprite:" + appendDefaultObjectColor(token.substring("sprite:".length()), defaultHex);
-            default -> token;
-        };
-    }
-
-    private static String appendDefaultObjectColor(String payload, String defaultHex) {
-        ObjectColorSplit split = splitObjectColor(payload);
-        if (split.color() != null) {
-            return payload;
+        if (style.getHoverEvent() != null) {
+            compact = compact.withHoverEvent(style.getHoverEvent());
         }
-        return payload + "|" + escapeTokenValue(defaultHex);
-    }
-
-    private static String tokenPrefix(String token) {
-        if (token.startsWith("head:")) {
-            return "head:";
+        if (style.getInsertion() != null) {
+            compact = compact.withInsertion(style.getInsertion());
         }
-        if (token.startsWith("head_texture:")) {
-            return "head_texture:";
+        if (style.isBold()) {
+            compact = compact.withBold(true);
         }
-        if (token.startsWith("sprite:")) {
-            return "sprite:";
+        if (style.isItalic()) {
+            compact = compact.withItalic(true);
         }
-        return "";
+        if (style.isUnderlined()) {
+            compact = compact.withUnderlined(true);
+        }
+        if (style.isStrikethrough()) {
+            compact = compact.withStrikethrough(true);
+        }
+        if (style.isObfuscated()) {
+            compact = compact.withObfuscated(true);
+        }
+        return compact;
     }
 
     private static char preferredLegacyPrefix(String input) {
@@ -517,6 +529,18 @@ public final class TextComponentUtil {
         return Integer.parseInt(hexBuilder.toString(), 16);
     }
 
+    private static boolean isHexColor(String value, int length) {
+        if (value == null || value.length() != length) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            if (Character.digit(value.charAt(index), 16) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static int tryConsumeToken(
             String input,
             int index,
@@ -613,34 +637,6 @@ public final class TextComponentUtil {
                 continue;
             }
             if (c == ']') return i;
-        }
-        return -1;
-    }
-
-    private static int renderableTokenStartContaining(String input, int cursor) {
-        if (input == null || input.isEmpty()) {
-            return -1;
-        }
-
-        int clampedCursor = Math.clamp(cursor, 0, input.length());
-        if (clampedCursor >= input.length()) {
-            return -1;
-        }
-
-        int searchFrom = Math.min(clampedCursor, input.length() - 1);
-        int tokenStart = input.lastIndexOf(TOKEN_PREFIX, searchFrom);
-        while (tokenStart >= 0) {
-            int tokenLength = renderableTokenLengthAt(input, tokenStart);
-            if (tokenLength > 0) {
-                int tokenEnd = tokenStart + tokenLength;
-                if (clampedCursor >= tokenStart && clampedCursor < tokenEnd) {
-                    return tokenStart;
-                }
-                if (tokenEnd < clampedCursor) {
-                    return -1;
-                }
-            }
-            tokenStart = input.lastIndexOf(TOKEN_PREFIX, tokenStart - 1);
         }
         return -1;
     }
@@ -774,7 +770,7 @@ public final class TextComponentUtil {
         if (playerName.isBlank()) return null;
         boolean hat = parts.length > 1 && "true".equalsIgnoreCase(unescapeTokenValue(parts[1]).trim());
         return new ObjectToken(
-                Component.object(new PlayerSprite(ResolvableProfile.createUnresolved(playerName), hat), Component.empty()),
+                Component.object(new PlayerSprite(ResolvableProfile.createUnresolved(playerName), hat)),
                 split.color()
         );
     }
@@ -801,7 +797,7 @@ public final class TextComponentUtil {
 
         boolean hat = "true".equalsIgnoreCase(hatRaw);
         return new ObjectToken(
-                Component.object(new PlayerSprite(profileFromTextures(textureValue, textureSignature), hat), Component.empty()),
+                Component.object(new PlayerSprite(profileFromTextures(textureValue, textureSignature), hat)),
                 split.color()
         );
     }
@@ -822,7 +818,7 @@ public final class TextComponentUtil {
         Identifier sprite = Identifier.tryParse(unescapeTokenValue(raw.substring(pipeSeparator + 1)).trim());
         if (atlas == null || sprite == null) return null;
         return new ObjectToken(
-                Component.object(new AtlasSprite(atlas, sprite), Component.empty()),
+                Component.object(new AtlasSprite(atlas, sprite)),
                 split.color()
         );
     }
@@ -1075,14 +1071,18 @@ public final class TextComponentUtil {
     }
 
     private static ResolvableProfile profileFromTextures(String textureValue, String textureSignature) {
-        Property texturesProperty = textureSignature.isBlank()
-                ? new Property("textures", textureValue)
-                : new Property("textures", textureValue, textureSignature);
-        var mutableProperties = LinkedHashMultimap.<String, Property>create();
-        mutableProperties.put("textures", texturesProperty);
-        PropertyMap properties = new PropertyMap(mutableProperties);
-        GameProfile profile = new GameProfile(Util.NIL_UUID, "", properties);
-        return ResolvableProfile.createResolved(profile);
+        CompoundTag profileTag = new CompoundTag();
+        ListTag propertyTags = new ListTag();
+        CompoundTag texture = new CompoundTag();
+        texture.putString("name", "textures");
+        texture.putString("value", textureValue);
+        if (!textureSignature.isBlank()) {
+            texture.putString("signature", textureSignature);
+        }
+        propertyTags.add(texture);
+        profileTag.put("properties", propertyTags);
+
+        return ResolvableProfile.CODEC.parse(NbtOps.INSTANCE, profileTag).result().orElseThrow();
     }
 
     private static List<StyledChunk> flatten(Component component) {
@@ -1097,7 +1097,7 @@ public final class TextComponentUtil {
         if (contents instanceof ObjectContents objectContents) {
             String token = objectToken(objectContents, effective.getColor());
             if (!token.isEmpty()) {
-                out.add(new StyledChunk(token, effective.withColor((TextColor) null)));
+                out.add(new StyledChunk(token, objectTokenStyle(effective)));
             }
         } else {
             String text = textFromContents(contents);
@@ -1110,7 +1110,7 @@ public final class TextComponentUtil {
         }
     }
 
-    private static String textFromContents(net.minecraft.network.chat.ComponentContents contents) {
+    private static String textFromContents(ComponentContents contents) {
         StringBuilder text = new StringBuilder();
         contents.visit((String chunk) -> {
             text.append(chunk);
@@ -1174,13 +1174,49 @@ public final class TextComponentUtil {
         if (style.getColor() != null) {
             objectStyle = objectStyle.withColor(style.getColor());
         }
+        if (style.getShadowColor() != null) {
+            objectStyle = objectStyle.withShadowColor(style.getShadowColor());
+        }
         if (style.getClickEvent() != null) {
             objectStyle = objectStyle.withClickEvent(style.getClickEvent());
         }
         if (style.getHoverEvent() != null) {
             objectStyle = objectStyle.withHoverEvent(style.getHoverEvent());
         }
-        return objectStyle;
+        return copyTrueDecorations(style, objectStyle);
+    }
+
+    private static Style objectTokenStyle(Style style) {
+        Style tokenStyle = Style.EMPTY;
+        if (style.getShadowColor() != null) {
+            tokenStyle = tokenStyle.withShadowColor(style.getShadowColor());
+        }
+        if (style.getClickEvent() != null) {
+            tokenStyle = tokenStyle.withClickEvent(style.getClickEvent());
+        }
+        if (style.getHoverEvent() != null) {
+            tokenStyle = tokenStyle.withHoverEvent(style.getHoverEvent());
+        }
+        return copyTrueDecorations(style, tokenStyle);
+    }
+
+    private static Style copyTrueDecorations(Style source, Style target) {
+        if (source.isBold()) {
+            target = target.withBold(true);
+        }
+        if (source.isItalic()) {
+            target = target.withItalic(true);
+        }
+        if (source.isUnderlined()) {
+            target = target.withUnderlined(true);
+        }
+        if (source.isStrikethrough()) {
+            target = target.withStrikethrough(true);
+        }
+        if (source.isObfuscated()) {
+            target = target.withObfuscated(true);
+        }
+        return target;
     }
 
     private static void appendStyle(StringBuilder builder, Style style, char prefix, boolean legacyPaletteOnly, Style previousStyle) {
@@ -1194,6 +1230,9 @@ public final class TextComponentUtil {
             } else if (!legacyPaletteOnly) {
                 appendLegacyHex(builder, style.getColor().getValue(), prefix);
             }
+        }
+        if (!legacyPaletteOnly && style.getShadowColor() != null) {
+            builder.append(prefix).append('$').append(String.format(Locale.ROOT, "%08X", style.getShadowColor()));
         }
         if (style.isBold()) builder.append(prefix).append('l');
         if (style.isItalic()) builder.append(prefix).append('o');
@@ -1221,11 +1260,13 @@ public final class TextComponentUtil {
         if (previousStyle.isObfuscated() && !nextStyle.isObfuscated()) {
             return true;
         }
-        return previousStyle.getColor() != null && nextStyle.getColor() == null;
+        return previousStyle.getColor() != null && nextStyle.getColor() == null
+                || previousStyle.getShadowColor() != null && nextStyle.getShadowColor() == null;
     }
 
     private static boolean isLegacyStyleEmpty(Style style) {
         return style.getColor() == null
+                && style.getShadowColor() == null
                 && !style.isBold()
                 && !style.isItalic()
                 && !style.isUnderlined()
@@ -1354,6 +1395,33 @@ public final class TextComponentUtil {
     }
 
     private record StyledChunk(String text, Style style) {
+    }
+
+    private static VisibleStyle visibleStyle(Style style) {
+        return new VisibleStyle(
+                style.getColor() == null ? null : style.getColor().getValue(),
+                style.getShadowColor(),
+                style.isBold(),
+                style.isItalic(),
+                style.isUnderlined(),
+                style.isStrikethrough(),
+                style.isObfuscated(),
+                serializableClickEvent(style.getClickEvent()),
+                serializableHoverEvent(style.getHoverEvent(), '&', false)
+        );
+    }
+
+    private record VisibleStyle(
+            Integer color,
+            Integer shadowColor,
+            boolean bold,
+            boolean italic,
+            boolean underlined,
+            boolean strikethrough,
+            boolean obfuscated,
+            ClickEvent clickEvent,
+            HoverEvent hoverEvent
+    ) {
     }
 
     private record ProfileTextures(String value, String signature) {
