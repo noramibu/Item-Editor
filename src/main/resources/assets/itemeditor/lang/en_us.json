@@ -160,6 +160,8 @@
     "itemeditor.toolbar.reset":  "Reset",
     "itemeditor.toolbar.obf":  "Obf",
     "itemeditor.toolbar.gradient":  "Gradient",
+    "itemeditor.toolbar.shadow":  "Shadow Color",
+    "itemeditor.toolbar.shadow_short":  "Shadow %s",
     "itemeditor.toolbar.event":  "Insert Event",
     "itemeditor.toolbar.head":  "Head",
     "itemeditor.toolbar.sprite":  "Sprite",
@@ -759,5 +761,6 @@
     "itemeditor.validation.uuid":  "%s must be a valid UUID.",
     "itemeditor.validation.registry_missing":  "%s '%s' could not be found.",
     "itemeditor.text.validation.single_line":  "%s supports a single line only.",
-    "itemeditor.text.validation.max_length":  "%s must be at most %s characters including formatting codes."
+    "itemeditor.text.validation.max_length":  "%s must be at most %s characters including formatting codes.",
+    "itemeditor.text.shadow_color":  "Shadow Color"
 }

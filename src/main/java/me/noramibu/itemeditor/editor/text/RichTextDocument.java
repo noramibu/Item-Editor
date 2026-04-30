@@ -437,7 +437,7 @@ public final class RichTextDocument {
         if (!text.isEmpty()) {
             Style segmentStyle = effectiveStyle;
             if (mode == ObjectContentMode.TOKEN_TEXT && contents instanceof ObjectContents) {
-                segmentStyle = Style.EMPTY;
+                segmentStyle = objectTokenStyle(effectiveStyle);
             }
             out.add(new Segment(text, RichTextStyle.fromStyle(segmentStyle)));
         }
@@ -460,6 +460,39 @@ public final class RichTextDocument {
             return Optional.empty();
         });
         return plain.toString();
+    }
+
+    private static Style objectTokenStyle(Style style) {
+        Style tokenStyle = Style.EMPTY;
+        if (style.getShadowColor() != null) {
+            tokenStyle = tokenStyle.withShadowColor(style.getShadowColor());
+        }
+        if (style.getClickEvent() != null) {
+            tokenStyle = tokenStyle.withClickEvent(style.getClickEvent());
+        }
+        if (style.getHoverEvent() != null) {
+            tokenStyle = tokenStyle.withHoverEvent(style.getHoverEvent());
+        }
+        return copyTrueDecorations(style, tokenStyle);
+    }
+
+    private static Style copyTrueDecorations(Style source, Style target) {
+        if (source.isBold()) {
+            target = target.withBold(true);
+        }
+        if (source.isItalic()) {
+            target = target.withItalic(true);
+        }
+        if (source.isUnderlined()) {
+            target = target.withUnderlined(true);
+        }
+        if (source.isStrikethrough()) {
+            target = target.withStrikethrough(true);
+        }
+        if (source.isObfuscated()) {
+            target = target.withObfuscated(true);
+        }
+        return target;
     }
 
     public record Segment(String text, RichTextStyle style) {

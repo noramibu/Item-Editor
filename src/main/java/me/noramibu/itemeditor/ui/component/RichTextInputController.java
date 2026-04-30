@@ -32,14 +32,19 @@ final class RichTextInputController {
         }
 
         String insertedText = afterText.substring(prefix, afterSuffix);
-        DeletionRange range = this.normalizeEventBoundaryDeletion(
+        DeletionRange range = this.expandAtomicSourceDeletion(
                 beforeText,
-                new DeletionRange(prefix, beforeSuffix),
+                new DeletionRange(prefix, beforeSuffix)
+        );
+        range = this.normalizeEventBoundaryDeletion(
+                beforeText,
+                range,
                 insertedText
         );
         if (insertedText.isEmpty()) {
             range = this.expandEmptyEventDeletion(beforeText, range.start(), range.end());
         }
+        range = this.expandAtomicSourceDeletion(beforeText, range);
 
         RichTextDocument updated = previousDocument.copy();
         updated.replace(range.start(), range.end(), insertedText, this.normalizedStyle(insertionStyle, defaultInsertionStyle));
@@ -52,6 +57,50 @@ final class RichTextInputController {
             }
         }
         return new TextChangeResult(updated, cursorOverride);
+    }
+
+    private DeletionRange expandAtomicSourceDeletion(String text, DeletionRange range) {
+        DeletionRange expanded = range;
+        DeletionRange previous;
+        do {
+            previous = expanded;
+            expanded = this.expandOneAtomicSourceDeletion(text, previous);
+        } while (!expanded.equals(previous));
+        return expanded;
+    }
+
+    private DeletionRange expandOneAtomicSourceDeletion(String text, DeletionRange range) {
+        if (text == null || text.isEmpty()) {
+            return range;
+        }
+        for (int cursor = 0; cursor < text.length(); ) {
+            int length = this.atomicSourceLengthAt(text, cursor);
+            if (length > 0) {
+                int end = cursor + length;
+                if (this.rangeTouchesAtomicSource(range, cursor, end)) {
+                    return new DeletionRange(Math.min(range.start(), cursor), Math.max(range.end(), end));
+                }
+                cursor = end;
+                continue;
+            }
+            cursor += Character.charCount(text.codePointAt(cursor));
+        }
+        return range;
+    }
+
+    private int atomicSourceLengthAt(String text, int cursor) {
+        int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, cursor);
+        if (tokenLength > 0) {
+            return tokenLength;
+        }
+        return TextComponentUtil.formattingCodeLengthAt(text, cursor);
+    }
+
+    private boolean rangeTouchesAtomicSource(DeletionRange range, int start, int end) {
+        if (range.start() == range.end()) {
+            return range.start() > start && range.start() < end;
+        }
+        return range.start() < end && range.end() > start;
     }
 
     private DeletionRange expandEmptyEventDeletion(String text, int start, int end) {

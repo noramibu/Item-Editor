@@ -57,7 +57,19 @@ final class RichTextRenderer {
         if (renderStructuredEvents) {
             this.renderEventAttachmentOverlay(context, line, baseX, lineY, eventOverlayRanges);
         }
-        context.drawString(this.font, line.component(), baseX, lineY, color, false);
+        context.drawString(this.font, line.component(), baseX, lineY, color, hasShadowColor(line.component()));
+    }
+
+    private static boolean hasShadowColor(Component component) {
+        if (component.getStyle().getShadowColor() != null) {
+            return true;
+        }
+        for (Component sibling : component.getSiblings()) {
+            if (hasShadowColor(sibling)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void renderSelection(

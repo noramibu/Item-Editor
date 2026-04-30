@@ -183,35 +183,51 @@ public final class DisplayEditorPanel implements EditorPanel {
     private RichTextDocument documentFromState(ItemEditorState state) {
         List<Component> lines = new ArrayList<>();
         for (ItemEditorState.LoreLineDraft line : state.loreLines) {
-            String normalizedRaw = TextComponentUtil.ensureObjectTokenColors(line.rawText, 0xFFFFFF);
-            lines.add(TextComponentUtil.applyLineStyle(
-                    TextComponentUtil.parseMarkup(normalizedRaw),
-                    line.style,
-                    new ArrayList<>()
-            ));
+            lines.add(TextComponentUtil.parseStyledLine(line.rawText, line.style, new ArrayList<>()));
         }
         return RichTextDocument.fromLines(lines);
     }
 
     private void applyLoreDocument(ItemEditorState state, RichTextDocument document) {
+        List<ItemEditorState.LoreLineDraft> previousLines = new ArrayList<>(state.loreLines);
         state.loreLines.clear();
-        String serialized = TextComponentUtil.ensureObjectTokenColors(
-                TextComponentUtil.serializeEditorDocument(document),
-                0xFFFFFF
-        );
+        String serialized = TextComponentUtil.serializeEditorDocument(document);
         if (TextComponentUtil.containsStructuredToken(serialized)) {
             String[] lines = serialized.split("\n", -1);
-            for (String line : lines) {
+            for (int index = 0; index < lines.length; index++) {
                 ItemEditorState.LoreLineDraft draft = new ItemEditorState.LoreLineDraft();
-                draft.rawText = line;
+                draft.rawText = lines[index];
+                this.preserveOriginalLoreComponent(draft, previousLines, index);
                 state.loreLines.add(draft);
             }
             return;
         }
-        for (Component lineComponent : document.toLineComponents()) {
+        List<Component> lineComponents = document.toLineComponents();
+        for (int index = 0; index < lineComponents.size(); index++) {
+            Component lineComponent = lineComponents.get(index);
             ItemEditorState.LoreLineDraft draft = new ItemEditorState.LoreLineDraft();
             draft.rawText = TextComponentUtil.toMarkup(lineComponent);
+            this.preserveOriginalLoreComponent(draft, previousLines, index);
             state.loreLines.add(draft);
+        }
+    }
+
+    private void preserveOriginalLoreComponent(
+            ItemEditorState.LoreLineDraft draft,
+            List<ItemEditorState.LoreLineDraft> previousLines,
+            int index
+    ) {
+        if (index >= previousLines.size()) {
+            return;
+        }
+        ItemEditorState.LoreLineDraft previous = previousLines.get(index);
+        if (previous.originalComponent == null) {
+            return;
+        }
+
+        Component draftComponent = TextComponentUtil.parseStyledLine(draft.rawText, draft.style, new ArrayList<>());
+        if (TextComponentUtil.sameVisibleContent(draftComponent, previous.originalComponent)) {
+            draft.originalComponent = previous.originalComponent.copy();
         }
     }
 
@@ -261,6 +277,7 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     private void applyRichEditorRenderMode(RichTextAreaComponent editor, boolean renderStructured) {
-        editor.structuredRenderMode(renderStructured);
+        editor.structuredRenderMode(renderStructured)
+                .lineWrap(!renderStructured);
     }
 }

@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextColorPresets;
+import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -24,6 +25,7 @@ public final class RichTextToolbarUtil {
     private static final int COMPACT_BUTTON_ROW_HALF_MIN = 88;
     private static final int REGULAR_BUTTON_ROW_HALF_MIN = 112;
     private static final int TOOLBAR_CONTENT_WIDTH_MIN = 140;
+    private static final int DEFAULT_SHADOW_COLOR = 0xFF000000;
     private static final String CLICK_CLOSE_TEMPLATE = "[ie:/click]";
     private static final String HOVER_CLOSE_TEMPLATE = "[ie:/hover]";
     private static final String TOKEN_PLACEHOLDER = "text";
@@ -136,6 +138,7 @@ public final class RichTextToolbarUtil {
         FlowLayout tools = UiFactory.column();
         tools.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
         AtomicInteger gradientEndColor = new AtomicInteger(TextColorPresets.gradientEndFor(selectedColor.get()));
+        AtomicInteger selectedShadowColor = TextStylingController.initialShadowColor(editor, DEFAULT_SHADOW_COLOR);
         Runnable preparation = prepareStyledApply == null ? () -> {} : prepareStyledApply;
         List<ToolbarItem> toolbarItems = new ArrayList<>();
         int maxRowWidth = toolbarAvailableWidth(screen, compactToolbar, toolbarWidthHint);
@@ -156,6 +159,19 @@ public final class RichTextToolbarUtil {
                 pickColor.tooltip(List.of(Component.literal(colorTooltip)));
             }
             toolbarItems.add(toolbarItem(pickColor, compactToolbar, maxRowWidth));
+        }
+
+        if (includeColorPicker) {
+            ButtonComponent shadowColor = UiFactory.button(
+                    shadowLabel(selectedShadowColor.get()),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    button -> screen.openColorPickerDialog(
+                            ItemEditorText.str("toolbar.shadow"),
+                            selectedShadowColor.get() & 0xFFFFFF,
+                            color -> applyShadowColor(editor, preparation, selectedShadowColor, color | 0xFF000000, button)
+                    )
+            );
+            toolbarItems.add(toolbarItem(shadowColor, compactToolbar, maxRowWidth));
         }
 
         if (includeGradient) {
@@ -251,6 +267,26 @@ public final class RichTextToolbarUtil {
         }
         editor.resumeEditing();
         editor.collapseUnexpectedSelection(hadSelection);
+    }
+
+    private static void applyShadowColor(
+            RichTextAreaComponent editor,
+            Runnable preparation,
+            AtomicInteger selectedShadowColor,
+            int color,
+            ButtonComponent button
+    ) {
+        boolean hadSelection = editor.hasSelection();
+        preparation.run();
+        selectedShadowColor.set(color);
+        editor.applyShadowColor(color);
+        button.setMessage(shadowLabel(color));
+        editor.resumeEditing();
+        editor.collapseUnexpectedSelection(hadSelection);
+    }
+
+    private static Component shadowLabel(int color) {
+        return ItemEditorText.tr("toolbar.shadow_short", ValidationUtil.toHex(color)).copy().withColor(color & 0xFFFFFF);
     }
 
     private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {

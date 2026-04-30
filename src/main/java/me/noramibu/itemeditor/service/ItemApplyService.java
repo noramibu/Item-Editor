@@ -15,12 +15,6 @@ public final class ItemApplyService {
         int selectedSlot = minecraft.player.getInventory().getSelectedSlot();
         ItemStack copy = stack.copy();
 
-        if (minecraft.player.hasInfiniteMaterials() && minecraft.gameMode != null) {
-            minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
-            minecraft.gameMode.handleCreativeModeItemAdd(copy, 36 + selectedSlot);
-            return ApplyResult.success(ItemEditorText.str("apply.creative_success"));
-        }
-
         var singleplayerServer = minecraft.getSingleplayerServer();
         if (singleplayerServer != null) {
             minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
@@ -33,6 +27,12 @@ public final class ItemApplyService {
                 serverPlayer.containerMenu.broadcastChanges();
             });
             return ApplyResult.success(ItemEditorText.str("apply.singleplayer_success"));
+        }
+
+        if (minecraft.player.hasInfiniteMaterials() && minecraft.gameMode != null) {
+            minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
+            minecraft.gameMode.handleCreativeModeItemAdd(copy, 36 + selectedSlot);
+            return ApplyResult.success(ItemEditorText.str("apply.creative_success"));
         }
 
         return ApplyResult.failure(ItemEditorText.str("apply.multiplayer_preview_only"));

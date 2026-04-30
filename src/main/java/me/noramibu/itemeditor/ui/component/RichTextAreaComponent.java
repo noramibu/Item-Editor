@@ -286,6 +286,10 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         this.applyStyle(style -> style.withColor(color));
     }
 
+    public void applyShadowColor(int color) {
+        this.applyStyle(style -> style.withShadowColor(color));
+    }
+
     public void applyGradientSelectionOrAll(int startColor, int endColor) {
         if (this.document.isEmpty()) {
             return;

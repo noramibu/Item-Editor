@@ -825,6 +825,11 @@ public final class RichTextLayoutUtil {
                 index += 7;
                 continue;
             }
+            if (next == '$' && index + 9 < offset && isHexColor(text, index + 2, index + 10)) {
+                activeCodes.append(text, index, index + 10);
+                index += 9;
+                continue;
+            }
             if (isLegacyFormattingCode(next)) {
                 if (isLegacyColorOrReset(next)) {
                     activeCodes.setLength(0);
