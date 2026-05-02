@@ -2,8 +2,12 @@ package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+
+import java.util.Optional;
 
 public final class ItemApplyService {
 
@@ -17,12 +21,18 @@ public final class ItemApplyService {
 
         var singleplayerServer = minecraft.getSingleplayerServer();
         if (singleplayerServer != null) {
+            RegistryAccess clientRegistryAccess = minecraft.level == null ? RegistryAccess.EMPTY : minecraft.level.registryAccess();
+            Optional<ItemStack> serverStack = this.rebindForRegistryTransfer(copy, clientRegistryAccess, singleplayerServer.registryAccess());
+            if (serverStack.isEmpty()) {
+                return ApplyResult.failure(ItemEditorText.str("preview.validation.component_failed", "Failed to rebind item to singleplayer server registry"));
+            }
+
             minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
             singleplayerServer.execute(() -> {
                 ServerPlayer serverPlayer = singleplayerServer.getPlayerList().getPlayer(minecraft.player.getUUID());
                 if (serverPlayer == null) return;
 
-                serverPlayer.getInventory().setItem(selectedSlot, copy.copy());
+                serverPlayer.getInventory().setItem(selectedSlot, serverStack.get().copy());
                 serverPlayer.inventoryMenu.broadcastChanges();
                 serverPlayer.containerMenu.broadcastChanges();
             });
@@ -36,6 +46,23 @@ public final class ItemApplyService {
         }
 
         return ApplyResult.failure(ItemEditorText.str("apply.multiplayer_preview_only"));
+    }
+
+    private Optional<ItemStack> rebindForRegistryTransfer(
+            ItemStack stack,
+            RegistryAccess sourceRegistryAccess,
+            RegistryAccess targetRegistryAccess
+    ) {
+        return ItemStack.CODEC.encodeStart(
+                        sourceRegistryAccess.createSerializationContext(NbtOps.INSTANCE),
+                        stack
+                )
+                .flatMap(encoded -> ItemStack.CODEC.parse(
+                        targetRegistryAccess.createSerializationContext(NbtOps.INSTANCE),
+                        encoded
+                ))
+                .result()
+                .map(ItemStack::copy);
     }
 
     public record ApplyResult(boolean success, String message) {
