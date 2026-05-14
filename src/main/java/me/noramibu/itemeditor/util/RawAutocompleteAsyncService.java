@@ -19,25 +19,6 @@ public final class RawAutocompleteAsyncService {
             String text,
             int caret,
             RegistryAccess registryAccess,
-            Consumer<RawAutocompleteUtil.AutocompleteResult> onResult
-    ) {
-        this.request(text, caret, registryAccess, "", null, onResult);
-    }
-
-    public void request(
-            String text,
-            int caret,
-            RegistryAccess registryAccess,
-            String fallbackItemId,
-            Consumer<RawAutocompleteUtil.AutocompleteResult> onResult
-    ) {
-        this.request(text, caret, registryAccess, fallbackItemId, null, onResult);
-    }
-
-    public void request(
-            String text,
-            int caret,
-            RegistryAccess registryAccess,
             String fallbackItemId,
             EditDelta editDelta,
             Consumer<RawAutocompleteUtil.AutocompleteResult> onResult
@@ -49,10 +30,6 @@ public final class RawAutocompleteAsyncService {
             RawAutocompleteIndex index = this.ensureIndex(safeText, editDelta);
             return RawAutocompleteUtil.suggest(safeText, caret, registryAccess, index, safeFallbackItemId);
         }, resultConsumer);
-    }
-
-    public void cancelPending() {
-        this.requestVersion.incrementAndGet();
     }
 
     private RawAutocompleteIndex ensureIndex(String text, EditDelta editDelta) {

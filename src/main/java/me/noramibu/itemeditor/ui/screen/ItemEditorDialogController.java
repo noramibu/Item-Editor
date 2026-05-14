@@ -2,13 +2,14 @@ package me.noramibu.itemeditor.ui.screen;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
-import me.noramibu.itemeditor.ui.component.ColorPickerDialog;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.ui.component.ConfirmationDialog;
-import me.noramibu.itemeditor.ui.component.GradientPickerDialog;
 import me.noramibu.itemeditor.ui.component.RawItemDataDialog;
 import me.noramibu.itemeditor.ui.component.RichTextTokenDialog;
 import me.noramibu.itemeditor.ui.component.SearchablePickerDialog;
+import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.service.PostApplyVerificationService;
+import me.noramibu.itemeditor.storage.StorageServices;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
@@ -27,10 +28,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 final class ItemEditorDialogController {
@@ -55,6 +55,7 @@ final class ItemEditorDialogController {
 
     private final ItemEditorScreen screen;
     private Runnable dialogConfirmShortcut;
+    private RawItemDataDialog.Feedback rawDialogFeedback;
 
     ItemEditorDialogController(ItemEditorScreen screen) {
         this.screen = screen;
@@ -89,7 +90,7 @@ final class ItemEditorDialogController {
         }
         body += RAW_DIFF_HELP_TEXT;
         this.showDialog(RawItemDataDialog.createConfirmation(
-                ItemEditorText.str("dialog.apply.title"),
+                ItemEditorText.str(this.session().hasStorageOrigin() ? "dialog.apply.place_inventory_title" : "dialog.apply.title"),
                 body,
                 this.buildRawDiffLines(originalRaw, currentRaw),
                 ItemEditorText.tr("common.save_apply"),
@@ -97,6 +98,42 @@ final class ItemEditorDialogController {
                 ItemEditorText.tr("common.cancel"),
                 this::clearDialog
         ), () -> this.performApply(preview.copy()));
+    }
+
+    void requestSaveStorage() {
+        if (this.session().hasErrors()) {
+            return;
+        }
+        if (!(this.session().origin() instanceof ItemEditorSessionOrigin.Storage storageOrigin)) {
+            return;
+        }
+        ItemStack preview = this.session().previewStack();
+        this.showDialog(
+                ItemEditorText.str("dialog.storage_save.title"),
+                "",
+                ItemEditorText.str("editor.apply.save_storage"),
+                () -> this.performStorageSave(storageOrigin, preview.copy(), false),
+                ItemEditorText.str("common.cancel"),
+                this::clearDialog
+        );
+    }
+
+    void requestPlaceAndSaveStorage() {
+        if (this.session().hasErrors()) {
+            return;
+        }
+        if (!(this.session().origin() instanceof ItemEditorSessionOrigin.Storage storageOrigin)) {
+            return;
+        }
+        ItemStack preview = this.session().previewStack();
+        this.showDialog(
+                ItemEditorText.str("dialog.storage_place_save.title"),
+                "",
+                ItemEditorText.str("editor.apply.place_and_save_storage"),
+                () -> this.performStorageSave(storageOrigin, preview.copy(), true),
+                ItemEditorText.str("common.cancel"),
+                this::clearDialog
+        );
     }
 
     void requestClose() {
@@ -137,21 +174,15 @@ final class ItemEditorDialogController {
         return true;
     }
 
-    void openColorPickerDialog(String title, int initialRgb, IntConsumer onApply) {
-        this.showDialog(ColorPickerDialog.create(
+    void openUnifiedColorPickerDialog(
+            String title,
+            UnifiedColorPickerDialog.Options options,
+            Consumer<UnifiedColorPickerDialog.ColorPickerResult> onApply
+    ) {
+        this.showDialog(UnifiedColorPickerDialog.create(
                 title,
-                initialRgb,
-                color -> this.clearThen(() -> onApply.accept(color)),
-                this::clearDialog
-        ));
-    }
-
-    void openGradientPickerDialog(String title, int initialStartRgb, int initialEndRgb, BiConsumer<Integer, Integer> onApply) {
-        this.showDialog(GradientPickerDialog.create(
-                title,
-                initialStartRgb,
-                initialEndRgb,
-                (startColor, endColor) -> this.clearThen(() -> onApply.accept(startColor, endColor)),
+                options,
+                result -> this.clearThen(() -> onApply.accept(result)),
                 this::clearDialog
         ));
     }
@@ -197,20 +228,27 @@ final class ItemEditorDialogController {
                 ? this.buildRawDiffLines(originalRaw, currentRaw)
                 : this.toNeutralRawLines(rawData);
         String body = previewData ? RAW_DIFF_HELP_TEXT : "";
-        this.showDialog(RawItemDataDialog.create(
+        RawItemDataDialog.Feedback feedback = new RawItemDataDialog.Feedback();
+        FlowLayout dialog = RawItemDataDialog.create(
                 title,
                 body,
                 lines,
-                () -> {
-                    Minecraft minecraft = this.minecraft();
-                    if (minecraft != null) {
-                        minecraft.keyboardHandler.setClipboard(rawData);
-                    }
-                },
-                () -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_NBT, rawData),
-                () -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_JSON, jsonData),
+                feedback,
+                status -> this.copyRawData(rawData, status),
+                status -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_NBT, rawData, status),
+                status -> this.exportRawData(exportPrefix, EXPORT_EXTENSION_JSON, jsonData, status),
+                status -> this.copyCommand(() -> RawItemDataUtil.serializeGiveCommand(
+                        this.commandStackForDialog(session, previewData, originalStack, currentRaw),
+                        session.registryAccess()
+                ), "dialog.raw_data.copy_give_success", status),
+                status -> this.copyCommand(() -> RawItemDataUtil.serializeItemCommand(
+                        this.commandStackForDialog(session, previewData, originalStack, currentRaw),
+                        session.registryAccess()
+                ), "dialog.raw_data.copy_item_success", status),
                 this::clearDialog
-        ));
+        );
+        this.showDialog(dialog);
+        this.rawDialogFeedback = feedback;
     }
 
     private String currentRawForDialog(ItemEditorSession session) {
@@ -232,6 +270,20 @@ final class ItemEditorDialogController {
             return currentRaw;
         }
         return RawItemDataUtil.serializeJson(session.previewStack(), session.registryAccess());
+    }
+
+    private ItemStack commandStackForDialog(ItemEditorSession session, boolean previewData, ItemStack originalStack, String currentRaw) {
+        if (!previewData) {
+            return originalStack.copy();
+        }
+        if (session.state().rawEditorEdited) {
+            RawItemDataUtil.ParseResult parsed = RawItemDataUtil.parse(currentRaw, session.registryAccess());
+            if (!parsed.success()) {
+                throw new IllegalArgumentException(parsed.error() == null ? ItemEditorText.str("raw.unknown_error") : parsed.error());
+            }
+            return parsed.stack().copy();
+        }
+        return session.previewStack().copy();
     }
 
     private List<RawItemDataDialog.Line> toNeutralRawLines(String rawData) {
@@ -318,9 +370,10 @@ final class ItemEditorDialogController {
         return value.trim();
     }
 
-    private void exportRawData(String baseName, String extension, String content) {
+    private void exportRawData(String baseName, String extension, String content, RawItemDataDialog.Feedback feedback) {
         Minecraft minecraft = this.minecraft();
         if (minecraft == null) {
+            feedback.error(ItemEditorText.str("dialog.raw_data.export_failed", UNKNOWN_ERROR_MESSAGE));
             return;
         }
 
@@ -333,6 +386,9 @@ final class ItemEditorDialogController {
             Path file = exportDir.resolve(safeBase + "-" + timestamp + "." + extension);
             Files.writeString(file, content, StandardCharsets.UTF_8);
 
+            String statusMessage = ItemEditorText.str("dialog.raw_data.export_success", file.getFileName().toString());
+            feedback.success(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.GREEN);
             this.sendSystemMessage(
                     minecraft,
                     ItemEditorText.str("dialog.raw_data.export_success", file.toString()),
@@ -344,6 +400,53 @@ final class ItemEditorDialogController {
                     ItemEditorText.str("dialog.raw_data.export_failed", this.errorMessage(exception)),
                     ChatFormatting.RED
             );
+            String statusMessage = ItemEditorText.str("dialog.raw_data.export_failed", this.errorMessage(exception));
+            feedback.error(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.RED);
+        }
+    }
+
+    private void copyRawData(String rawData, RawItemDataDialog.Feedback feedback) {
+        Minecraft minecraft = this.minecraft();
+        if (minecraft == null) {
+            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", UNKNOWN_ERROR_MESSAGE));
+            return;
+        }
+
+        try {
+            minecraft.keyboardHandler.setClipboard(rawData == null ? "" : rawData);
+            String statusMessage = ItemEditorText.str("dialog.raw_data.copy_success");
+            feedback.success(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.GREEN);
+        } catch (RuntimeException exception) {
+            String statusMessage = ItemEditorText.str("dialog.raw_data.copy_failed", this.errorMessage(exception));
+            feedback.error(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.RED);
+            this.sendSystemMessage(minecraft, statusMessage, ChatFormatting.RED);
+        }
+    }
+
+    private void copyCommand(Supplier<String> commandSupplier, String successKey, RawItemDataDialog.Feedback feedback) {
+        Minecraft minecraft = this.minecraft();
+        if (minecraft == null) {
+            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", UNKNOWN_ERROR_MESSAGE));
+            return;
+        }
+
+        try {
+            String command = commandSupplier.get();
+            if (command == null || command.isBlank()) {
+                throw new IllegalArgumentException(ItemEditorText.str("raw.empty"));
+            }
+            minecraft.keyboardHandler.setClipboard(command);
+            String statusMessage = ItemEditorText.str(successKey);
+            feedback.success(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.GREEN);
+        } catch (RuntimeException exception) {
+            String statusMessage = ItemEditorText.str("dialog.raw_data.copy_failed", this.errorMessage(exception));
+            feedback.error(statusMessage);
+            this.sendOverlayMessage(minecraft, statusMessage, ChatFormatting.RED);
+            this.sendSystemMessage(minecraft, statusMessage, ChatFormatting.RED);
         }
     }
 
@@ -368,6 +471,13 @@ final class ItemEditorDialogController {
             return;
         }
         minecraft.player.displayClientMessage(Component.literal(message).withStyle(color), false);
+    }
+
+    private void sendOverlayMessage(Minecraft minecraft, String message, ChatFormatting color) {
+        if (minecraft.player == null) {
+            return;
+        }
+        minecraft.player.displayClientMessage(Component.literal(message).withStyle(color), true);
     }
 
     void openSearchablePickerDialog(
@@ -403,6 +513,12 @@ final class ItemEditorDialogController {
         this.clearDialog();
         this.dialogConfirmShortcut = confirmShortcut;
         this.screen.attachDialog(dialog);
+    }
+
+    void tick() {
+        if (this.rawDialogFeedback != null) {
+            this.rawDialogFeedback.tick();
+        }
     }
 
     private void showInfoDialog(String title, String body) {
@@ -441,8 +557,46 @@ final class ItemEditorDialogController {
         this.closeWithoutPrompt();
     }
 
+    private void performStorageSave(ItemEditorSessionOrigin.Storage origin, ItemStack preview, boolean placeAfterSave) {
+        this.clearDialog();
+        Minecraft minecraft = this.minecraft();
+        StorageServices.savedItems()
+                .enqueueReplaceSavedItem(origin.entry(), preview, this.session().registryAccess())
+                .whenComplete((result, throwable) -> minecraft.execute(() -> {
+                    if (throwable != null) {
+                        this.showStorageSaveFailure(throwable.getMessage());
+                        return;
+                    }
+                    if (result == null || !result.success()) {
+                        this.showStorageSaveFailure(result == null ? ItemEditorText.str("raw.unknown_error") : result.message());
+                        return;
+                    }
+                    if (minecraft.player != null) {
+                        minecraft.player.displayClientMessage(
+                                Component.literal(ItemEditorText.str("editor.apply.save_storage_success")).withStyle(ChatFormatting.GREEN),
+                                true
+                        );
+                    }
+                    if (placeAfterSave) {
+                        this.performApply(preview.copy());
+                    } else {
+                        this.closeWithoutPrompt();
+                    }
+                }));
+    }
+
+    private void showStorageSaveFailure(String detail) {
+        String message = ItemEditorText.str("editor.apply.save_storage_failed", detail == null || detail.isBlank() ? ItemEditorText.str("raw.unknown_error") : detail);
+        Minecraft minecraft = this.minecraft();
+        if (minecraft.player != null) {
+            minecraft.player.displayClientMessage(Component.literal(message).withStyle(ChatFormatting.RED), true);
+        }
+        this.showInfoDialog(ItemEditorText.str("dialog.apply_blocked.title"), message);
+    }
+
     private void clearDialog() {
         this.dialogConfirmShortcut = null;
+        this.rawDialogFeedback = null;
         this.screen.clearDialog();
     }
 

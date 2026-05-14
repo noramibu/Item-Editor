@@ -560,10 +560,6 @@ public final class GeneralEditorPanel implements EditorPanel {
         );
     }
 
-    private FlowLayout responsiveCheckboxLine(Component text, Consumer<Boolean> onChanged) {
-        return this.responsiveCheckboxLine(text, false, onChanged);
-    }
-
     private FlowLayout responsiveCheckboxLine(Component text, boolean checked, Consumer<Boolean> onChanged) {
         FlowLayout row = UiFactory.row();
 

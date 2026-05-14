@@ -2,10 +2,13 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.core.HorizontalAlignment;
+import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
+import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -27,6 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwingAnimationType;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
 import java.util.ArrayList;
@@ -52,6 +56,7 @@ public final class AdvancedItemSpecialDataSection {
     private static final int COMPACT_REMOVE_BUTTON_BASE = 88;
     private static final int COMPACT_FIXED_PICK_BUTTON_MIN = 46;
     private static final int COMPACT_FIXED_PICK_BUTTON_BASE = 56;
+    private static final int BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD = 420;
     private static final int SECTION_ROW_GAP = 10;
     private static final int FLAGS_ROW_GAP = 12;
     private static final int COLLAPSIBLE_HEADER_TITLE_RESERVE = 26;
@@ -61,9 +66,6 @@ public final class AdvancedItemSpecialDataSection {
     private static final String SYMBOL_SECTION_EXPANDED = "[-]";
     private static final String SYMBOL_STEP_DECREMENT = "-";
     private static final String SYMBOL_STEP_INCREMENT = "+";
-    private static final String BLOCK_STATE_KEY_LABEL = "Key";
-    private static final String BLOCK_STATE_VALUE_LABEL = "Value";
-    private static final String BLOCK_STATE_EMPTY_PROPERTIES_TEXT = "No block state properties configured.";
     private static final String TOOLTIP_EXPAND_ALL_BEES = "Expand all bees";
     private static final String TOOLTIP_COLLAPSE_ALL_BEES = "Collapse all bees";
     private static final String TOOLTIP_EXPAND_ALL_PROJECTILES = "Expand all projectiles";
@@ -81,7 +83,10 @@ public final class AdvancedItemSpecialDataSection {
     private static final int CROSSBOW_EMPTY_HINT_WIDTH = 320;
     private static final int CROSSBOW_PROJECTILE_SUMMARY_HINT_WIDTH = 340;
     private static final int MAP_DECORATION_SUMMARY_HINT_WIDTH = 360;
-    private static final int BLOCK_STATE_EMPTY_PROPERTIES_HINT_WIDTH = 320;
+    private static final int CUSTOM_DATA_EDITOR_HEIGHT = 220;
+    private static final int CUSTOM_DATA_CONTENT_PADDING = 4;
+    private static final int CUSTOM_DATA_TEXT_WIDTH_RESERVE = 14;
+    private static final int CUSTOM_DATA_HINT_MIN_WIDTH = 96;
 
     private AdvancedItemSpecialDataSection() {
     }
@@ -120,6 +125,11 @@ public final class AdvancedItemSpecialDataSection {
         return ItemEditorCapabilities.supportsComponent(stack, registryAccess, "minecraft:charged_projectiles")
                 || stack.has(DataComponents.CHARGED_PROJECTILES)
                 || stack.is(Items.CROSSBOW);
+    }
+
+    public static boolean supportsCustomData(ItemStack stack, RegistryAccess registryAccess) {
+        return ItemEditorCapabilities.supportsComponent(stack, registryAccess, "minecraft:custom_data")
+                || stack.has(DataComponents.CUSTOM_DATA);
     }
 
     public static boolean supportsMapAdvanced(ItemStack stack, RegistryAccess registryAccess) {
@@ -179,11 +189,14 @@ public final class AdvancedItemSpecialDataSection {
         );
     }
 
+    public static boolean supportsBlockState(ItemStack stack) {
+        return hasBlockStateProperties(stack);
+    }
+
     public static boolean supportsComponentTweaksBlock(ItemStack stack, RegistryAccess registryAccess) {
         return ItemEditorCapabilities.supportsAnyComponent(
                 stack,
                 registryAccess,
-                "minecraft:block_state",
                 "minecraft:blocks_attacks"
         );
     }
@@ -206,12 +219,96 @@ public final class AdvancedItemSpecialDataSection {
         return buildComponentTweakRegistrySection(context, context.special());
     }
 
+    public static FlowLayout buildBlockState(SpecialDataPanelContext context) {
+        return buildBlockState(context, context.special());
+    }
+
     public static FlowLayout buildComponentTweakBlockSection(SpecialDataPanelContext context) {
         return buildComponentTweakBlockSection(context, context.special());
     }
 
     public static FlowLayout buildComponentTweakBehaviorSection(SpecialDataPanelContext context) {
         return buildComponentTweakBehaviorSection(context, context.special());
+    }
+
+    public static FlowLayout buildCustomData(SpecialDataPanelContext context) {
+        ItemEditorState.SpecialData special = context.special();
+        return collapsibleCard(
+                context,
+                ItemEditorText.tr("special.advanced.custom_data.title"),
+                special.uiCustomDataCollapsed,
+                value -> special.uiCustomDataCollapsed = value,
+                () -> {
+                    int contentWidth = customDataContentWidth(context);
+                    FlowLayout content = UiFactory.column();
+                    content.padding(Insets.of(
+                            0,
+                            0,
+                            UiFactory.scaledPixels(CUSTOM_DATA_CONTENT_PADDING),
+                            UiFactory.scaledPixels(CUSTOM_DATA_CONTENT_PADDING)
+                    ));
+                    content.child(wrappedMutedText(ItemEditorText.tr("special.advanced.custom_data.hint"), contentWidth));
+                    content.child(compactField(
+                            ItemEditorText.tr("special.advanced.custom_data.editor"),
+                            customDataEditor(context, special),
+                            contentWidth
+                    ));
+                    return content;
+                }
+        );
+    }
+
+    private static RawTextAreaComponent customDataEditor(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+        RawTextAreaComponent editor = new RawTextAreaComponent(
+                Sizing.fill(100),
+                UiFactory.fixed(CUSTOM_DATA_EDITOR_HEIGHT),
+                special.customDataSnbt
+        );
+        editor.wordWrap(true);
+        editor.onChanged().subscribe((value, delta) -> context.mutate(() -> special.customDataSnbt = value));
+        return editor;
+    }
+
+    private static int customDataContentWidth(SpecialDataPanelContext context) {
+        int padding = UiFactory.scaledPixels(CUSTOM_DATA_CONTENT_PADDING * 2);
+        int reserve = UiFactory.scaledPixels(CUSTOM_DATA_TEXT_WIDTH_RESERVE);
+        return Math.max(
+                CUSTOM_DATA_HINT_MIN_WIDTH,
+                Math.min(guiWidth(), context.panelWidthHint() - padding - reserve)
+        );
+    }
+
+    private static FlowLayout wrappedMutedText(Component text, int maxWidth) {
+        FlowLayout lines = UiFactory.column();
+        lines.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 2));
+        for (String line : wrapText(text.getString(), maxWidth)) {
+            lines.child(UiFactory.muted(Component.literal(line), maxWidth));
+        }
+        return lines;
+    }
+
+    private static List<String> wrapText(String text, int maxWidth) {
+        List<String> lines = new ArrayList<>();
+        String remaining = text == null ? "" : text.trim();
+        var font = Minecraft.getInstance().font;
+        while (!remaining.isEmpty()) {
+            String line = font.plainSubstrByWidth(remaining, maxWidth);
+            if (line.isEmpty()) {
+                int next = Character.charCount(remaining.codePointAt(0));
+                line = remaining.substring(0, next);
+            } else if (line.length() < remaining.length()) {
+                int breakAt = line.lastIndexOf(' ');
+                if (breakAt > 0) {
+                    line = line.substring(0, breakAt);
+                }
+            }
+            lines.add(line);
+            remaining = remaining.substring(line.length()).trim();
+        }
+        if (lines.isEmpty()) {
+            lines.add("");
+        }
+        return lines;
     }
 
     public static FlowLayout buildFoodConsumable(SpecialDataPanelContext context) {
@@ -625,6 +722,14 @@ public final class AdvancedItemSpecialDataSection {
         Minecraft minecraft = Minecraft.getInstance();
         double guiScale = minecraft.getWindow().getGuiScale();
         return guiWidth() <= STACKED_COMPACT_WIDTH_THRESHOLD || guiScale >= STACKED_COMPACT_SCALE_THRESHOLD;
+    }
+
+    private static boolean usesStackedBlockStateRows() {
+        return guiWidth() <= UiFactory.scaledPixels(BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD);
+    }
+
+    private static int blockStateLabelWidth() {
+        return clampWidth(guiWidth(), 0.10, 72, 128);
     }
 
     private static FlowLayout responsiveRow() {
@@ -1502,6 +1607,18 @@ public final class AdvancedItemSpecialDataSection {
                 ItemEditorText.str("special.advanced.combat.equippable_shearing_sound"),
                 idWidth
         ));
+        card.child(compactField(
+                ItemEditorText.tr("special.advanced.combat.equippable_asset_id"),
+                UiFactory.textBox(special.equippableAssetId, context.bindText(value -> special.equippableAssetId = value))
+                .horizontalSizing(Sizing.fill(100)),
+                compactLongFieldWidth() + 40
+        ));
+        card.child(compactField(
+                ItemEditorText.tr("special.advanced.combat.equippable_camera_overlay"),
+                UiFactory.textBox(special.equippableCameraOverlayId, context.bindText(value -> special.equippableCameraOverlayId = value))
+                .horizontalSizing(Sizing.fill(100)),
+                compactLongFieldWidth() + 40
+        ));
 
         card.child(UiFactory.checkbox(ItemEditorText.tr("special.advanced.combat.equippable_dispensable"), special.equippableDispensable, context.bindToggle(value -> special.equippableDispensable = value)));
         card.child(UiFactory.checkbox(ItemEditorText.tr("special.advanced.combat.equippable_swappable"), special.equippableSwappable, context.bindToggle(value -> special.equippableSwappable = value)));
@@ -1649,6 +1766,20 @@ public final class AdvancedItemSpecialDataSection {
                 () -> {
                     FlowLayout content = UiFactory.column();
                     content.child(buildRegistryAndFlagsCard(context, special));
+                    return content;
+                }
+        );
+    }
+
+    private static FlowLayout buildBlockState(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+        return collapsibleCard(
+                context,
+                ItemEditorText.tr("special.advanced.block_state.title"),
+                special.uiBlockStateCollapsed,
+                value -> special.uiBlockStateCollapsed = value,
+                () -> {
+                    FlowLayout content = UiFactory.column();
+                    content.child(buildBlockStateCard(context, special));
                     return content;
                 }
         );
@@ -1818,100 +1949,82 @@ public final class AdvancedItemSpecialDataSection {
         return card;
     }
 
+    private static FlowLayout buildBlockStateCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+        FlowLayout card = UiFactory.subCard();
+        List<BlockStatePropertyMeta> availableProperties = blockStatePropertyMeta(context);
+
+        card.child(UiFactory.title(ItemEditorText.tr("special.advanced.component_tweaks.block_state")).shadow(false));
+
+        Map<String, String> currentValues = parseBlockStatePropertyMap(special.blockStateProperties);
+        FlowLayout stateActions = UiFactory.row();
+        stateActions.horizontalAlignment(HorizontalAlignment.RIGHT);
+        stateActions.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        ButtonComponent clearProperties = UiFactory.button(ItemEditorText.tr("common.reset"), UiFactory.ButtonTextPreset.COMPACT,  button ->
+                context.mutateRefresh(() -> special.blockStateProperties = "")
+        );
+        clearProperties.active(!currentValues.isEmpty());
+        clearProperties.horizontalSizing(Sizing.fixed(compactClearButtonWidth()));
+        card.child(stateActions);
+        stateActions.child(clearProperties);
+
+        for (BlockStatePropertyMeta property : availableProperties) {
+            UIComponent entry = blockStatePropertyRow(context, special, currentValues, property);
+            entry.horizontalSizing(Sizing.fill(100));
+            card.child(entry);
+        }
+        return card;
+    }
+
+    private static FlowLayout blockStatePropertyRow(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special,
+            Map<String, String> currentValues,
+            BlockStatePropertyMeta property
+    ) {
+        String currentValue = selectedBlockStateValue(currentValues, property);
+        boolean hasOverride = currentValues.containsKey(property.key()) && !currentValues.getOrDefault(property.key(), "").isBlank();
+        boolean stacked = usesStackedBlockStateRows();
+        FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
+        row.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+
+        int labelWidth = blockStateLabelWidth();
+        Component labelText = Component.literal(property.key());
+        Component fittedLabel = UiFactory.fitToWidth(labelText, labelWidth);
+        var label = UiFactory.muted(fittedLabel, labelWidth);
+        if (!Objects.equals(fittedLabel.getString(), labelText.getString())) {
+            label.tooltip(List.of(labelText));
+        }
+        label.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(labelWidth));
+        row.child(label);
+
+        ButtonComponent valueButton = UiFactory.button(
+                Component.literal(currentValue),
+                UiFactory.ButtonTextPreset.STANDARD,
+                anchor -> context.openDropdown(
+                        anchor,
+                        property.values(),
+                        value -> value,
+                        value -> context.mutateRefresh(() -> setBlockStateProperty(special, property.key(), value))
+                )
+        );
+        valueButton.active(!property.values().isEmpty());
+        valueButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100));
+        row.child(valueButton);
+
+        if (hasOverride) {
+            ButtonComponent resetButton = UiFactory.button(ItemEditorText.tr("common.reset"), UiFactory.ButtonTextPreset.COMPACT, button ->
+                    context.mutateRefresh(() -> removeBlockStateProperty(special, property.key()))
+            );
+            resetButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(compactClearButtonWidth()));
+            row.child(resetButton);
+        }
+        return row;
+    }
+
     private static FlowLayout buildBlockComponentsCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         int numericWidth = compactNumericFieldWidth();
-        int keyWidth = compactGroupFieldWidth();
-        int valueWidth = compactGroupFieldWidth();
         int idWidth = compactIdTextWidth();
-
-        List<BlockStateEntryDraft> stateEntries = parseBlockStateEntries(special.blockStateProperties);
-        List<BlockStatePropertyMeta> availableProperties = blockStatePropertyMeta(context);
-        List<String> availableKeys = availableProperties.stream().map(BlockStatePropertyMeta::key).toList();
-        Map<String, List<String>> valuesByKey = new LinkedHashMap<>();
-        for (BlockStatePropertyMeta property : availableProperties) {
-            valuesByKey.put(property.key(), property.values());
-        }
-
-        FlowLayout stateCard = UiFactory.subCard();
-        stateCard.child(UiFactory.title(ItemEditorText.tr("special.advanced.component_tweaks.block_state")).shadow(false));
-
-        FlowLayout stateActions = responsiveRow();
-        ButtonComponent addProperty = UiFactory.button(ItemEditorText.tr("common.add"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                context.mutateRefresh(() -> {
-                    List<BlockStateEntryDraft> entries = parseBlockStateEntries(special.blockStateProperties);
-                    entries.add(new BlockStateEntryDraft("", ""));
-                    special.blockStateProperties = serializeBlockStateEntries(entries);
-                })
-        );
-        ButtonComponent clearProperties = UiFactory.button(ItemEditorText.tr("common.reset"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                context.mutateRefresh(() -> special.blockStateProperties = "")
-        );
-        distributeRowChildren(stateActions, addProperty, clearProperties);
-        stateCard.child(stateActions);
-
-        if (stateEntries.isEmpty()) {
-            stateCard.child(UiFactory.muted(Component.literal(BLOCK_STATE_EMPTY_PROPERTIES_TEXT), BLOCK_STATE_EMPTY_PROPERTIES_HINT_WIDTH));
-        } else {
-            for (int index = 0; index < stateEntries.size(); index++) {
-                int currentIndex = index;
-                BlockStateEntryDraft entry = stateEntries.get(index);
-                FlowLayout entryCard = context.createReorderableCard(
-                        Component.literal("Property " + (index + 1)),
-                        currentIndex > 0,
-                        () -> {
-                            swapEntries(stateEntries, currentIndex, currentIndex - 1);
-                            special.blockStateProperties = serializeBlockStateEntries(stateEntries);
-                        },
-                        currentIndex < stateEntries.size() - 1,
-                        () -> {
-                            swapEntries(stateEntries, currentIndex, currentIndex + 1);
-                            special.blockStateProperties = serializeBlockStateEntries(stateEntries);
-                        },
-                        () -> {
-                            stateEntries.remove(currentIndex);
-                            special.blockStateProperties = serializeBlockStateEntries(stateEntries);
-                        }
-                );
-
-                Consumer<String> keySetter = value -> {
-                    entry.key = value;
-                    special.blockStateProperties = serializeBlockStateEntries(stateEntries);
-                };
-                Consumer<String> valueSetter = value -> {
-                    entry.value = value;
-                    special.blockStateProperties = serializeBlockStateEntries(stateEntries);
-                };
-
-                UIComponent keyInput = availableKeys.isEmpty()
-                ? UiFactory.textBox(entry.key, context.bindText(keySetter)).horizontalSizing(Sizing.fill(100))
-                        : textWithPickerCompact(
-                        context,
-                        entry.key,
-                        keySetter,
-                        availableKeys,
-                        "Block State Key"
-                );
-                List<String> valueOptions = valuesByKey.getOrDefault(entry.key == null ? "" : entry.key.trim(), List.of());
-                UIComponent valueInput = valueOptions.isEmpty()
-                ? UiFactory.textBox(entry.value, context.bindText(valueSetter)).horizontalSizing(Sizing.fill(100))
-                        : textWithPickerCompact(
-                        context,
-                        entry.value,
-                        valueSetter,
-                        valueOptions,
-                        "Block State Value"
-                );
-
-                FlowLayout keyValueRow = responsiveRow();
-                FlowLayout keyField = compactField(Component.literal(BLOCK_STATE_KEY_LABEL), keyInput, keyWidth + 40);
-                FlowLayout valueField = compactField(Component.literal(BLOCK_STATE_VALUE_LABEL), valueInput, valueWidth + 40);
-                distributeRowChildren(keyValueRow, keyField, valueField);
-                entryCard.child(keyValueRow);
-                stateCard.child(entryCard);
-            }
-        }
-        card.child(stateCard);
 
         FlowLayout row = responsiveRow();
         FlowLayout blockDelayField = compactField(
@@ -2131,30 +2244,66 @@ public final class AdvancedItemSpecialDataSection {
         return row;
     }
 
-    private static FlowLayout textWithPickerCompact(
-            SpecialDataPanelContext context,
-            String value,
-            Consumer<String> setter,
-            List<String> entries,
-            String pickerTitle
-    ) {
-        boolean stacked = prefersStackedCompactRows();
-        FlowLayout row = stacked ? UiFactory.column() : responsiveRow();
-        row.child(UiFactory.textBox(value, context.bindText(setter)).horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100)));
-        ButtonComponent pickButton = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                context.openSearchablePicker(
-                        pickerTitle,
-                        "",
-                        entries,
-                        entry -> entry,
-                        selected -> context.mutateRefresh(() -> setter.accept(selected))
-                )
-        );
-        int pickWidth = compactFixedPickButtonWidth();
-        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(pickWidth));
-        pickButton.active(!entries.isEmpty());
-        row.child(pickButton);
-        return row;
+    private static boolean hasBlockStateProperties(ItemStack stack) {
+        if (!(stack.getItem() instanceof BlockItem blockItem)) {
+            return false;
+        }
+        return !blockItem.getBlock().defaultBlockState().getProperties().isEmpty();
+    }
+
+    private static Map<String, String> parseBlockStatePropertyMap(String raw) {
+        Map<String, String> valuesByKey = new LinkedHashMap<>();
+        if (raw == null || raw.isBlank()) {
+            return valuesByKey;
+        }
+
+        for (String part : raw.split("[,\\r\\n]+")) {
+            String token = part.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            int separator = token.indexOf('=');
+            String key = separator < 0 ? token.trim() : token.substring(0, separator).trim();
+            String value = separator < 0 ? "" : token.substring(separator + 1).trim();
+            if (!key.isEmpty()) {
+                valuesByKey.put(key, value);
+            }
+        }
+        return valuesByKey;
+    }
+
+    private static String selectedBlockStateValue(Map<String, String> currentValues, BlockStatePropertyMeta property) {
+        String currentValue = currentValues.get(property.key());
+        if (currentValue != null && !currentValue.isBlank()) {
+            return currentValue;
+        }
+        if (property.defaultValue() != null && !property.defaultValue().isBlank()) {
+            return property.defaultValue();
+        }
+        return property.values().isEmpty() ? ItemEditorText.str("special.advanced.select") : property.values().getFirst();
+    }
+
+    private static void setBlockStateProperty(ItemEditorState.SpecialData special, String key, String value) {
+        Map<String, String> entries = parseBlockStatePropertyMap(special.blockStateProperties);
+        String normalizedKey = key == null ? "" : key.trim();
+        if (normalizedKey.isEmpty()) {
+            return;
+        }
+
+        String normalizedValue = value == null ? "" : value.trim();
+        if (!normalizedValue.isEmpty()) {
+            entries.put(normalizedKey, normalizedValue);
+        } else {
+            entries.remove(normalizedKey);
+        }
+        special.blockStateProperties = serializeBlockStateProperties(entries);
+    }
+
+    private static void removeBlockStateProperty(ItemEditorState.SpecialData special, String key) {
+        String normalizedKey = key == null ? "" : key.trim();
+        Map<String, String> entries = parseBlockStatePropertyMap(special.blockStateProperties);
+        entries.remove(normalizedKey);
+        special.blockStateProperties = serializeBlockStateProperties(entries);
     }
 
     private static List<BlockStatePropertyMeta> blockStatePropertyMeta(SpecialDataPanelContext context) {
@@ -2164,11 +2313,20 @@ public final class AdvancedItemSpecialDataSection {
         }
 
         List<BlockStatePropertyMeta> metas = new ArrayList<>();
-        for (Property<?> property : blockItem.getBlock().defaultBlockState().getProperties()) {
-            metas.add(new BlockStatePropertyMeta(property.getName(), blockStatePropertyValues(property)));
+        BlockState defaultState = blockItem.getBlock().defaultBlockState();
+        for (Property<?> property : defaultState.getProperties()) {
+            metas.add(blockStatePropertyMeta(defaultState, property));
         }
         metas.sort(Comparator.comparing(BlockStatePropertyMeta::key));
         return metas;
+    }
+
+    private static <T extends Comparable<T>> BlockStatePropertyMeta blockStatePropertyMeta(BlockState defaultState, Property<T> property) {
+        return new BlockStatePropertyMeta(
+                property.getName(),
+                blockStatePropertyValues(property),
+                property.getName(defaultState.getValue(property))
+        );
     }
 
     private static <T extends Comparable<T>> List<String> blockStatePropertyValues(Property<T> property) {
@@ -2180,36 +2338,11 @@ public final class AdvancedItemSpecialDataSection {
         return values;
     }
 
-    private static List<BlockStateEntryDraft> parseBlockStateEntries(String raw) {
-        List<BlockStateEntryDraft> entries = new ArrayList<>();
-        if (raw == null || raw.isBlank()) {
-            return entries;
-        }
-
-        for (String part : raw.split("[,\\r\\n]+")) {
-            String token = part.trim();
-            if (token.isEmpty()) {
-                continue;
-            }
-            int separator = token.indexOf('=');
-            if (separator < 0) {
-                entries.add(new BlockStateEntryDraft(token, ""));
-                continue;
-            }
-            entries.add(new BlockStateEntryDraft(
-                    token.substring(0, separator).trim(),
-                    token.substring(separator + 1).trim()
-            ));
-        }
-
-        return entries;
-    }
-
-    private static String serializeBlockStateEntries(List<BlockStateEntryDraft> entries) {
+    private static String serializeBlockStateProperties(Map<String, String> entries) {
         List<String> tokens = new ArrayList<>();
-        for (BlockStateEntryDraft entry : entries) {
-            String key = entry.key == null ? "" : entry.key.trim();
-            String value = entry.value == null ? "" : entry.value.trim();
+        for (Map.Entry<String, String> entry : entries.entrySet()) {
+            String key = entry.getKey() == null ? "" : entry.getKey().trim();
+            String value = entry.getValue() == null ? "" : entry.getValue().trim();
             if (key.isEmpty() && value.isEmpty()) {
                 continue;
             }
@@ -2218,17 +2351,7 @@ public final class AdvancedItemSpecialDataSection {
         return String.join(", ", tokens);
     }
 
-    private record BlockStatePropertyMeta(String key, List<String> values) {
-    }
-
-    private static final class BlockStateEntryDraft {
-        private String key;
-        private String value;
-
-        private BlockStateEntryDraft(String key, String value) {
-            this.key = key;
-            this.value = value;
-        }
+    private record BlockStatePropertyMeta(String key, List<String> values, String defaultValue) {
     }
 
     private static <T> void swapEntries(List<T> drafts, int left, int right) {

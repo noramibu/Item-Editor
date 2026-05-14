@@ -36,6 +36,7 @@ public final class ItemEditorSession {
     private final ItemApplyService applyService;
     private final List<Runnable> listeners = new ArrayList<>();
     private final ItemEditorState baselineState;
+    private final ItemEditorSessionOrigin origin;
 
     private ItemEditorState state;
     private final ItemStack cleanPreviewStack;
@@ -51,8 +52,13 @@ public final class ItemEditorSession {
     private RawItemDataUtil.ParseResult cachedRawParsedResult;
 
     public ItemEditorSession(Minecraft minecraft, ItemStack originalStack) {
+        this(minecraft, originalStack, ItemEditorSessionOrigin.TRANSIENT);
+    }
+
+    public ItemEditorSession(Minecraft minecraft, ItemStack originalStack, ItemEditorSessionOrigin origin) {
         this.minecraft = minecraft;
         this.originalStack = originalStack.copy();
+        this.origin = origin == null ? ItemEditorSessionOrigin.TRANSIENT : origin;
         this.stateMapper = new ItemEditorStateMapper();
         this.previewService = new ItemPreviewService();
         this.applyService = new ItemApplyService();
@@ -77,6 +83,14 @@ public final class ItemEditorSession {
 
     public ItemStack originalStack() {
         return this.originalStack.copy();
+    }
+
+    public ItemEditorSessionOrigin origin() {
+        return this.origin;
+    }
+
+    public boolean hasStorageOrigin() {
+        return this.origin instanceof ItemEditorSessionOrigin.Storage;
     }
 
     public ItemStack previewStack() {

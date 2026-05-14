@@ -210,8 +210,14 @@ public final class StorageDataFoundation {
     private static ColorsFileModel sanitizeColors(ColorsFileModel source) {
         ColorsFileModel model = source == null ? new ColorsFileModel() : source;
         model.schemaVersion = StorageConstants.COLOR_SCHEMA_VERSION;
-        if (model.colors == null) {
-            model.colors = new ArrayList<>();
+        if (model.color == null) {
+            model.color = new ArrayList<>();
+        }
+        if (model.gradient == null) {
+            model.gradient = new ArrayList<>();
+        }
+        if (model.shadow == null) {
+            model.shadow = new ArrayList<>();
         }
         return model;
     }

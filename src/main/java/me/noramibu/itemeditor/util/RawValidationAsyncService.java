@@ -56,10 +56,6 @@ public final class RawValidationAsyncService {
         });
     }
 
-    public void cancelPending() {
-        this.requestVersion.incrementAndGet();
-    }
-
     private ParsePhaseResult computeParseWithIdle(
             long requestId,
             String rawText,
@@ -167,9 +163,6 @@ public final class RawValidationAsyncService {
             int column,
             ItemStack parsedStack
     ) {
-        public boolean hasPosition() {
-            return this.line > 0 && this.column > 0;
-        }
     }
 
     public record Result(
@@ -180,8 +173,5 @@ public final class RawValidationAsyncService {
             String diffError,
             int diffEntries
     ) {
-        public boolean hasPosition() {
-            return this.line > 0 && this.column > 0;
-        }
     }
 }

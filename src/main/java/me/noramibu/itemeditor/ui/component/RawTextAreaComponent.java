@@ -8,19 +8,22 @@ import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
+import me.noramibu.itemeditor.ui.component.raw.RawEditorLayout;
+import me.noramibu.itemeditor.ui.component.raw.RawEditorRenderer;
+import me.noramibu.itemeditor.ui.component.raw.RawFontMetrics;
+import me.noramibu.itemeditor.ui.component.raw.RawGutterMetrics;
+import me.noramibu.itemeditor.ui.component.raw.RawSyntaxHighlighter;
+import me.noramibu.itemeditor.ui.component.raw.RawTextDocument;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.network.chat.Style;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
 import org.joml.Matrix3x2fStack;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,30 +62,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private static final int CURSOR_WIDTH = 1;
     private static final int COLOR_STRING = 0xFFA7F3D0;
     private static final int COLOR_NUMBER = 0xFFF2C26B;
-    private static final int COLOR_LITERAL = 0xFFF7A86D;
-    private static final int COLOR_PUNCT = 0xFFBFA6FF;
-    private static final int COLOR_IDENTIFIER = 0xFF93C5FD;
-    private static final int COLOR_BOOLEAN = 0xFFF9A8D4;
-    private static final int COLOR_NULL = 0xFFFDA4AF;
     private static final int COLOR_ESCAPE = 0xFFFDE68A;
     private static final int COLOR_NUMBER_SUFFIX = 0xFFEAB308;
-    private static final int COLOR_OPERATOR = 0xFF9CA3AF;
-    private static final int[] KEY_DEPTH_COLORS = {
-            0xFF7EC8F8,
-            0xFF67E8F9,
-            0xFF93C5FD,
-            0xFFA5B4FC,
-            0xFFC4B5FD,
-            0xFF6EE7B7
-    };
-    private static final int[] BRACKET_DEPTH_COLORS = {
-            0xFFC4B5FD,
-            0xFF93C5FD,
-            0xFFA7F3D0,
-            0xFF67E8F9,
-            0xFFFDE68A,
-            0xFFF9A8D4
-    };
     private static final int COLOR_GHOST = 0x66A2B2C7;
     private static final int COLOR_FOLD_MARKER = 0xFFA7B4C7;
     private static final int COLOR_FOLD_ACTIVE = 0xFFE7ECF3;
@@ -97,27 +78,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private static final int AUTOCOMPLETE_MAX_ROWS = 8;
     private static final int AUTOCOMPLETE_PADDING = 4;
     private static final int AUTOCOMPLETE_MIN_WIDTH = 140;
-    private static final Style RAW_STYLE = Style.EMPTY;
     private static final int FOLD_MARKER_WIDTH = 8;
+    private static final int FOLD_MARKER_TEXT_PADDING = 2;
     private static final int INDENT_SIZE = 4;
-    private static final double TEXT_SCALE_THRESHOLD_GS5 = 5.0d;
-    private static final double TEXT_SCALE_THRESHOLD_GS4 = 4.0d;
-    private static final double TEXT_SCALE_THRESHOLD_GS3 = 3.0d;
-    private static final float TEXT_SCALE_GS5 = 0.72F;
-    private static final float TEXT_SCALE_GS4 = 0.80F;
-    private static final float TEXT_SCALE_GS3 = 0.90F;
-    private static final int TEXT_SCALE_NARROW_WIDTH_THRESHOLD = 560;
-    private static final int TEXT_SCALE_NARROW_HEIGHT_THRESHOLD = 300;
-    private static final float TEXT_SCALE_NARROW_PENALTY = 0.04F;
-    private static final int TEXT_SCALE_WIDE_WIDTH_THRESHOLD = 1200;
-    private static final int TEXT_SCALE_WIDE_HEIGHT_THRESHOLD = 700;
-    private static final float TEXT_SCALE_WIDE_BONUS = 0.04F;
-    private static final float TEXT_SCALE_MIN = 0.10F;
-    private static final float TEXT_SCALE_MAX = 5.00F;
 
     private final EventStream<OnChanged> changedEvents = OnChanged.newStream();
-    private final ArrayDeque<HistoryState> undoHistory = new ArrayDeque<>();
-    private final ArrayDeque<HistoryState> redoHistory = new ArrayDeque<>();
+    private final RawTextDocument document = new RawTextDocument("", HISTORY_LIMIT, HISTORY_CHAR_BUDGET);
+    private final RawSyntaxHighlighter syntaxHighlighter = new RawSyntaxHighlighter();
+    private final RawEditorRenderer renderer = new RawEditorRenderer();
+    private final RawFontMetrics fontMetrics = new RawFontMetrics(100);
 
     private Runnable viewportChanged = () -> {};
     private Runnable historyChanged = () -> {};
@@ -136,8 +105,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private int cursor;
     private int selectionCursor;
     private double scrollAmount;
-    private boolean wordWrap;
-    private boolean horizontalScroll = true;
+    private boolean wordWrap = true;
+    private boolean horizontalScroll;
     private double horizontalScrollAmount;
     private int virtualCaretLine = -1;
     private int virtualCaretLocalX = -1;
@@ -151,16 +120,10 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private List<FoldRegion> foldRegions = List.of();
     private FoldRegion[] foldByStartLine = new FoldRegion[0];
     private boolean[] hiddenLines = new boolean[]{false};
-    private int[] visibleToActualLine = new int[]{0};
-    private int[] actualToVisibleLine = new int[]{0};
-    private int[] actualToVisibleLineLast = new int[]{0};
-    private int[] visibleSegmentStart = new int[]{0};
-    private int[] visibleSegmentEnd = new int[]{0};
+    private RawEditorLayout layout = RawEditorLayout.empty();
     private int[] lineDepthStarts = new int[]{0};
     private boolean lineDepthStartsDirty = true;
     private int contentHeight = 1;
-    private final Map<Integer, Float> glyphAdvanceCache = new HashMap<>();
-    private final Map<Integer, SyntaxLineCache> syntaxLineCache = new HashMap<>();
     private int maxVisibleLineWidth;
     private int wrapLayoutWidth = -1;
     private int fontSizePercent = 100;
@@ -267,6 +230,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return this;
         }
         this.fontSizePercent = clamped;
+        this.fontMetrics.setFontSizePercent(clamped);
         this.cachedTextScale = Float.NaN;
         this.wrapLayoutWidth = -1;
         this.applyFoldVisibility();
@@ -275,16 +239,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this;
     }
 
-    public boolean wordWrap() {
-        return this.wordWrap;
-    }
-
-    public boolean horizontalScroll() {
-        return this.horizontalScroll;
-    }
-
     public String getValue() {
-        return this.text;
+        return this.document.text();
     }
 
     public RawTextAreaComponent text(String value) {
@@ -293,12 +249,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     public int caretLine() {
-        return this.lineIndexForCursor(this.cursor) + 1;
+        return this.document.lineIndexForOffset(this.cursor) + 1;
     }
 
     public int caretColumn() {
-        int line = this.lineIndexForCursor(this.cursor);
-        return (this.cursor - this.lineStarts[line]) + 1;
+        int line = this.document.lineIndexForOffset(this.cursor);
+        return (this.cursor - this.document.lineStart(line)) + 1;
     }
 
     public int caretIndex() {
@@ -322,33 +278,23 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     public boolean canUndo() {
-        return !this.undoHistory.isEmpty();
+        return this.document.canUndo();
     }
 
     public boolean canRedo() {
-        return !this.redoHistory.isEmpty();
+        return this.document.canRedo();
     }
 
     public List<HistorySnapshot> undoHistorySnapshot() {
-        if (this.undoHistory.isEmpty()) {
-            return List.of();
-        }
-        List<HistorySnapshot> snapshots = new ArrayList<>(this.undoHistory.size());
-        for (HistoryState state : this.undoHistory) {
-            snapshots.add(this.toHistorySnapshot(state));
-        }
-        return snapshots;
+        return this.document.undoHistorySnapshot().stream()
+                .map(this::fromDocumentHistorySnapshot)
+                .toList();
     }
 
     public List<HistorySnapshot> redoHistorySnapshot() {
-        if (this.redoHistory.isEmpty()) {
-            return List.of();
-        }
-        List<HistorySnapshot> snapshots = new ArrayList<>(this.redoHistory.size());
-        for (HistoryState state : this.redoHistory) {
-            snapshots.add(this.toHistorySnapshot(state));
-        }
-        return snapshots;
+        return this.document.redoHistorySnapshot().stream()
+                .map(this::fromDocumentHistorySnapshot)
+                .toList();
     }
 
     public RawTextAreaComponent restoreEditorState(
@@ -358,30 +304,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             List<HistorySnapshot> undoHistory,
             List<HistorySnapshot> redoHistory
     ) {
-        this.cursor = Math.clamp(cursor, 0, this.text.length());
-        this.selectionCursor = Math.clamp(selection, 0, this.text.length());
+        this.document.restoreEditorState(
+                cursor,
+                selection,
+                this.toDocumentHistorySnapshots(undoHistory),
+                this.toDocumentHistorySnapshots(redoHistory)
+        );
+        this.syncFromDocument();
         this.scrollAmount = scrollAmount;
-
-        this.undoHistory.clear();
-        this.redoHistory.clear();
-        if (undoHistory != null) {
-            for (HistorySnapshot snapshot : undoHistory) {
-                if (snapshot == null) {
-                    continue;
-                }
-                this.undoHistory.addLast(this.fromHistorySnapshot(snapshot));
-            }
-        }
-        if (redoHistory != null) {
-            for (HistorySnapshot snapshot : redoHistory) {
-                if (snapshot == null) {
-                    continue;
-                }
-                this.redoHistory.addLast(this.fromHistorySnapshot(snapshot));
-            }
-        }
-        this.trimHistory(this.undoHistory);
-        this.trimHistory(this.redoHistory);
         this.clampScrollAmount();
         this.clampHorizontalScrollAmount();
         this.notifyViewportChanged();
@@ -390,34 +320,29 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     public void undo() {
-        if (this.undoHistory.isEmpty()) return;
-        int previousLength = this.text.length();
-        this.redoHistory.addLast(this.captureState());
-        this.trimHistory(this.redoHistory);
-        this.restoreState(this.undoHistory.removeLast());
-        this.historyChanged.run();
-        this.changedEvents.sink().onChanged(this.text, ChangeDelta.fullReplace(previousLength, this.text));
+        this.document.undo(this.scrollAmount).ifPresent(restored -> {
+            this.restoreDocumentState(restored);
+            this.historyChanged.run();
+            this.changedEvents.sink().onChanged(
+                    this.text,
+                    ChangeDelta.fullReplace(restored.previousLength(), this.text)
+            );
+        });
     }
 
     public void redo() {
-        if (this.redoHistory.isEmpty()) return;
-        int previousLength = this.text.length();
-        this.undoHistory.addLast(this.captureState());
-        this.trimHistory(this.undoHistory);
-        this.restoreState(this.redoHistory.removeLast());
-        this.historyChanged.run();
-        this.changedEvents.sink().onChanged(this.text, ChangeDelta.fullReplace(previousLength, this.text));
+        this.document.redo(this.scrollAmount).ifPresent(restored -> {
+            this.restoreDocumentState(restored);
+            this.historyChanged.run();
+            this.changedEvents.sink().onChanged(
+                    this.text,
+                    ChangeDelta.fullReplace(restored.previousLength(), this.text)
+            );
+        });
     }
 
     public void replaceRange(int start, int end, String replacement) {
-        int clampedStart = Math.clamp(start, 0, this.text.length());
-        int clampedEnd = Math.clamp(end, clampedStart, this.text.length());
-        String replacementText = replacement == null ? "" : replacement;
-        String next = this.text.substring(0, clampedStart)
-                + replacementText
-                + this.text.substring(clampedEnd);
-        int newCursor = clampedStart + replacementText.length();
-        this.commitTextChange(next, newCursor, newCursor, clampedStart, clampedEnd, replacementText);
+        this.applyDocumentEdit(this.document.replaceRange(start, end, replacement, this.scrollAmount));
     }
 
     @Override
@@ -503,9 +428,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     @Override
     public boolean onMouseDown(MouseButtonEvent click, boolean doubled) {
-        ResolvedMouse mouse = this.resolveEventCoordinates(click.x(), click.y());
-        double screenX = mouse.screenX();
-        double screenY = mouse.screenY();
+        double screenX = this.currentGuiMouseX();
+        double screenY = this.currentGuiMouseY();
         boolean inside = this.isInsideEditor(screenX, screenY);
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !inside) {
             return super.onMouseDown(click, doubled);
@@ -551,7 +475,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
 
         this.draggingSelection = true;
-        int targetCursor = this.cursorForPoint(screenX, screenY);
+        int targetCursor = this.cursorForPoint(screenX, screenY, click.hasShiftDown());
         if (targetCursor < 0) {
             this.draggingSelection = false;
             return true;
@@ -570,6 +494,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             this.cursor = targetCursor;
             this.selectionCursor = targetCursor;
         }
+        this.syncSelectionToDocument();
 
         boolean moved = this.cursor != beforeCursor || this.selectionCursor != beforeSelection;
         if (moved && !this.isCursorInViewport(this.cursor)) {
@@ -601,9 +526,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return super.onMouseDrag(click, deltaX, deltaY);
         }
 
-        ResolvedMouse mouse = this.resolveEventCoordinates(click.x(), click.y());
-        double screenX = mouse.screenX();
-        double screenY = mouse.screenY();
+        double screenX = this.currentGuiMouseX();
+        double screenY = this.currentGuiMouseY();
 
         if (this.draggingScrollbar) {
             this.updateScrollFromThumb(this.currentGuiMouseY());
@@ -620,11 +544,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return super.onMouseDrag(click, deltaX, deltaY);
         }
 
-        int targetCursor = this.cursorForPoint(screenX, screenY);
+        int targetCursor = this.cursorForPoint(screenX, screenY, true);
         if (targetCursor < 0) {
             return true;
         }
         this.cursor = targetCursor;
+        this.syncSelectionToDocument();
         this.ensureCursorVisible();
         this.notifyViewportChanged();
         return true;
@@ -700,8 +625,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                     return true;
                 }
                 case GLFW.GLFW_KEY_A -> {
-                    this.cursor = this.text.length();
-                    this.selectionCursor = 0;
+                    this.document.selectAll();
+                    this.syncFromDocument();
                     this.ensureCursorVisible();
                     this.notifyViewportChanged();
                     return true;
@@ -811,9 +736,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     private void replaceSelectionOrInsert(String insert) {
         insert = this.applyVirtualCaretPadding(insert);
-        int start = Math.min(this.cursor, this.selectionCursor);
-        int end = Math.max(this.cursor, this.selectionCursor);
-        this.replaceRange(start, end, insert);
+        this.applyDocumentEdit(this.document.replaceSelection(insert, this.scrollAmount));
     }
 
     private boolean hasAutocompletePopupSelection() {
@@ -1009,167 +932,77 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     private void copySelectionToClipboard(boolean cut) {
         if (!this.hasSelection()) return;
-        int start = Math.min(this.cursor, this.selectionCursor);
-        int end = Math.max(this.cursor, this.selectionCursor);
-        Minecraft.getInstance().keyboardHandler.setClipboard(this.text.substring(start, end));
-        if (cut) this.replaceRange(start, end, "");
+        this.syncSelectionToDocument();
+        Minecraft.getInstance().keyboardHandler.setClipboard(this.document.selectedText());
+        if (cut) {
+            this.applyDocumentEdit(this.document.cutSelection(this.scrollAmount).edit());
+        }
     }
 
     private void pasteClipboard() {
         String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
         if (clipboard.isEmpty()) return;
-        this.replaceSelectionOrInsert(clipboard);
+        clipboard = this.applyVirtualCaretPadding(clipboard);
+        this.applyDocumentEdit(this.document.pasteReplacingSelection(clipboard, this.scrollAmount));
     }
 
     private void deleteBackward(boolean byWord) {
-        if (this.hasSelection()) {
-            this.replaceSelectionOrInsert("");
-            return;
-        }
-        if (this.cursor == 0) return;
-        if (!byWord) {
-            int lineIndex = this.lineIndexForCursor(this.cursor);
-            int lineStart = this.lineStarts[lineIndex];
-            if (this.cursor == lineStart) {
-                int newlineIndex = lineStart - 1;
-                if (newlineIndex >= 0 && this.text.charAt(newlineIndex) == '\n') {
-                    this.replaceRange(newlineIndex, lineStart, "");
-                    return;
-                }
-                return;
-            }
-        }
-        int start = byWord ? this.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor);
-        this.replaceRange(start, this.cursor, "");
+        this.applyDocumentEdit(this.document.deleteBackward(byWord, this.scrollAmount));
     }
 
     private void deleteForward(boolean byWord) {
-        if (this.hasSelection()) {
-            this.replaceSelectionOrInsert("");
-            return;
-        }
-        if (this.cursor == this.text.length()) return;
-        int end = byWord ? this.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor);
-        this.replaceRange(this.cursor, end, "");
+        this.applyDocumentEdit(this.document.deleteForward(byWord, this.scrollAmount));
     }
 
     private void moveHorizontal(int target, boolean keepSelection) {
-        this.cursor = Math.clamp(target, 0, this.text.length());
-        if (!keepSelection) this.selectionCursor = this.cursor;
+        this.document.moveCaret(target, keepSelection);
+        this.syncFromDocument();
         this.clearVirtualCaret();
         this.ensureCursorVisible();
         this.notifyViewportChanged();
     }
 
     private void moveVertical(int deltaLines, boolean keepSelection) {
-        int currentLine = this.lineIndexForCursor(this.cursor);
         int currentVisibleLine = this.visibleLineForCursorIndex(this.cursor);
-        int targetX = this.cursorLocalVisualX(currentVisibleLine, currentLine);
-        int targetVisibleLine = Math.clamp(currentVisibleLine + deltaLines, 0, this.visibleToActualLine.length - 1);
+        int targetX = this.cursorLocalVisualX(currentVisibleLine);
+        int targetVisibleLine = Math.clamp(currentVisibleLine + deltaLines, 0, this.layout.rowCount() - 1);
         int target = this.cursorForVisibleLineAndX(targetVisibleLine, targetX);
-        this.cursor = target;
-        if (!keepSelection) this.selectionCursor = target;
+        this.document.moveCaret(target, keepSelection);
+        this.syncFromDocument();
         this.clearVirtualCaret();
         this.ensureCursorVisible();
         this.notifyViewportChanged();
     }
 
     private int cursorForVisibleLineAndX(int visibleLine, int targetX) {
-        int lineIndex = this.actualLineForVisibleLine(visibleLine);
-        if (!this.wordWrap) {
-            return this.cursorForLineAndX(lineIndex, targetX);
-        }
-        int lineStart = this.lineStarts[lineIndex];
-        int lineEnd = this.lineEnd(lineIndex);
-        int segmentStart = this.visibleSegmentStart(visibleLine);
-        int segmentEnd = this.visibleSegmentEnd(visibleLine);
-        String line = this.text.substring(lineStart, lineEnd);
-        if (line.isEmpty()) {
-            return lineStart;
-        }
-        int boundedStart = Math.clamp(segmentStart, 0, line.length());
-        int boundedEnd = Math.clamp(segmentEnd, boundedStart, line.length());
-        String segment = line.substring(boundedStart, boundedEnd);
-        return lineStart + boundedStart + this.rawIndexAtWidth(segment, Math.max(0, targetX));
+        return this.layout.cursorForRowAndX(visibleLine, targetX, this.fontMetrics);
     }
 
-    private int cursorForLineAndX(int lineIndex, int targetX) {
-        int start = this.lineStarts[lineIndex];
-        int end = this.lineEnd(lineIndex);
-        String line = this.text.substring(start, end);
-        if (line.isEmpty()) return start;
-        return start + this.rawIndexAtWidth(line, Math.max(0, targetX));
-    }
-
-    private int cursorLocalVisualX(int visibleLine, int lineIndex) {
-        int lineStart = this.lineStarts[lineIndex];
-        int lineEnd = this.lineEnd(lineIndex);
-        String line = this.text.substring(lineStart, lineEnd);
-        if (line.isEmpty()) {
-            return 0;
-        }
-        int cursorLocal = Math.clamp(this.cursor - lineStart, 0, line.length());
-        if (!this.wordWrap) {
-            return this.rawTextWidth(line.substring(0, cursorLocal));
-        }
-        int segmentStart = this.visibleSegmentStart(visibleLine);
-        int boundedStart = Math.clamp(segmentStart, 0, line.length());
-        int boundedCursor = Math.max(boundedStart, cursorLocal);
-        return this.rawTextWidth(line.substring(boundedStart, boundedCursor));
+    private int cursorLocalVisualX(int visibleLine) {
+        return this.layout.localVisualX(visibleLine, this.cursor, this.fontMetrics);
     }
 
     private int previousCodePoint(int index) {
-        if (index == 0) return 0;
-        return Character.offsetByCodePoints(this.text, index, -1);
+        return this.document.previousCodePoint(index);
     }
 
     private int nextCodePoint(int index) {
-        if (index == this.text.length()) return this.text.length();
-        return Character.offsetByCodePoints(this.text, index, 1);
+        return this.document.nextCodePoint(index);
     }
 
     private int previousWordBoundary(int index) {
-        int cursorPos = Math.clamp(index, 0, this.text.length());
-        while (cursorPos > 0 && Character.isWhitespace(this.text.charAt(cursorPos - 1))) {
-            cursorPos--;
-        }
-        while (cursorPos > 0
-                && !Character.isWhitespace(this.text.charAt(cursorPos - 1))
-                && !this.isWordCharacter(this.text.charAt(cursorPos - 1))) {
-            cursorPos--;
-        }
-        while (cursorPos > 0 && Character.isWhitespace(this.text.charAt(cursorPos - 1))) {
-            cursorPos--;
-        }
-        while (cursorPos > 0 && this.isWordCharacter(this.text.charAt(cursorPos - 1))) {
-            cursorPos--;
-        }
-        return cursorPos;
+        return this.document.previousWordBoundary(index);
     }
 
     private int nextWordBoundary(int index) {
-        int cursorPos = Math.clamp(index, 0, this.text.length());
-        while (cursorPos < this.text.length() && Character.isWhitespace(this.text.charAt(cursorPos))) {
-            cursorPos++;
-        }
-        while (cursorPos < this.text.length()
-                && !Character.isWhitespace(this.text.charAt(cursorPos))
-                && !this.isWordCharacter(this.text.charAt(cursorPos))) {
-            cursorPos++;
-        }
-        while (cursorPos < this.text.length() && Character.isWhitespace(this.text.charAt(cursorPos))) {
-            cursorPos++;
-        }
-        while (cursorPos < this.text.length() && this.isWordCharacter(this.text.charAt(cursorPos))) {
-            cursorPos++;
-        }
-        return cursorPos;
+        return this.document.nextWordBoundary(index);
     }
 
     private void selectWordAt(int cursorIndex) {
         if (this.text.isEmpty()) {
             this.cursor = 0;
             this.selectionCursor = 0;
+            this.syncSelectionToDocument();
             this.clearVirtualCaret();
             return;
         }
@@ -1224,6 +1057,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
         this.selectionCursor = Math.clamp(start, 0, this.text.length());
         this.cursor = Math.clamp(end, 0, this.text.length());
+        this.syncSelectionToDocument();
         this.clearVirtualCaret();
         this.ensureCursorVisible();
     }
@@ -1242,66 +1076,46 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void commitTextChange(String nextText, int newCursor, int newSelection) {
-        this.commitTextChange(nextText, newCursor, newSelection, -1, -1, "");
+        this.applyDocumentEdit(this.document.replaceContent(
+                nextText,
+                newCursor,
+                newSelection,
+                this.scrollAmount,
+                -1,
+                -1,
+                ""
+        ));
     }
 
-    private void commitTextChange(
-            String nextText,
-            int newCursor,
-            int newSelection,
-            int editStart,
-            int editEnd,
-            String replacement
-    ) {
-        if (nextText == null) nextText = "";
-        String previousText = this.text;
-        int oldTextLength = this.text.length();
-        boolean changed = !nextText.equals(this.text);
-        int safeEditStart = editStart;
-        int safeEditEnd = editEnd;
-        String safeReplacement = replacement == null ? "" : replacement;
-        if (changed && safeEditStart >= 0) {
-            safeEditStart = Math.clamp(safeEditStart, 0, oldTextLength);
-            safeEditEnd = Math.clamp(safeEditEnd, safeEditStart, oldTextLength);
-        }
-        String removedSegment = changed && safeEditStart >= 0
-                ? previousText.substring(safeEditStart, safeEditEnd)
-                : "";
-        int startLineBefore = changed && safeEditStart >= 0 ? this.lineIndexForCursor(safeEditStart) : -1;
-        int lineDelta = changed && safeEditStart >= 0
-                ? this.newlineCount(safeReplacement) - this.newlineCount(removedSegment)
-                : 0;
-        boolean lineCountChanged = changed && safeEditStart >= 0
-                && this.newlineCount(safeReplacement) != this.newlineCount(removedSegment);
-        boolean foldStructuralEdit = changed && safeEditStart >= 0
-                && (this.containsFoldStructuralChar(removedSegment) || this.containsFoldStructuralChar(safeReplacement));
-        boolean autocompleteStructuralEdit = changed && safeEditStart >= 0
-                && (foldStructuralEdit
-                || lineCountChanged
-                || this.containsAutocompleteStructuralChar(removedSegment)
-                || this.containsAutocompleteStructuralChar(safeReplacement));
-        if (changed) {
-            this.undoHistory.addLast(this.captureState());
-            this.trimHistory(this.undoHistory);
-            this.redoHistory.clear();
-            this.historyChanged.run();
-        }
-        this.text = nextText;
+    private void applyDocumentEdit(RawTextDocument.EditResult edit) {
+        this.syncFromDocument();
         this.lineDepthStartsDirty = true;
-        this.syntaxLineCache.clear();
-        this.cursor = Math.clamp(newCursor, 0, this.text.length());
-        this.selectionCursor = Math.clamp(newSelection, 0, this.text.length());
+        this.syntaxHighlighter.clear();
         this.clearVirtualCaret();
-        boolean incrementalApplied = changed
-                && safeEditStart >= 0
-                && this.rebuildLineStartsIncremental(oldTextLength, safeEditStart, safeEditEnd, safeReplacement);
-        if (incrementalApplied) {
-            if (!foldStructuralEdit) {
-                if (lineDelta == 0) {
-                    this.applyFoldVisibility();
-                } else if (startLineBefore >= 0) {
-                    this.shiftFoldRegionsAfterLine(startLineBefore, lineDelta);
-                    this.applyFoldVisibility();
+
+        boolean foldStructuralEdit = edit.changed()
+                && edit.start() >= 0
+                && (this.containsFoldStructuralChar(edit.removedText())
+                || this.containsFoldStructuralChar(edit.replacement()));
+        boolean autocompleteStructuralEdit = edit.changed()
+                && edit.start() >= 0
+                && (foldStructuralEdit
+                || edit.lineCountChanged()
+                || this.containsAutocompleteStructuralChar(edit.removedText())
+                || this.containsAutocompleteStructuralChar(edit.replacement()));
+
+        if (edit.changed()) {
+            this.historyChanged.run();
+            if (edit.incrementalLineStarts()) {
+                if (!foldStructuralEdit) {
+                    if (edit.lineDelta() == 0) {
+                        this.applyFoldVisibility();
+                    } else if (edit.startLineBefore() >= 0) {
+                        this.shiftFoldRegionsAfterLine(edit.startLineBefore(), edit.lineDelta());
+                        this.applyFoldVisibility();
+                    } else {
+                        this.rebuildFoldLayout();
+                    }
                 } else {
                     this.rebuildFoldLayout();
                 }
@@ -1309,83 +1123,75 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.rebuildFoldLayout();
             }
         }
-        if (!incrementalApplied) {
-            this.rebuildLineStarts();
-        }
+
         this.ensureCursorVisible();
         this.notifyViewportChanged();
-        if (changed) {
-            ChangeDelta delta = safeEditStart >= 0
-                    ? new ChangeDelta(safeEditStart, safeEditEnd, safeReplacement, autocompleteStructuralEdit)
-                    : ChangeDelta.fullReplace(oldTextLength, this.text);
+        if (edit.changed()) {
+            ChangeDelta delta = edit.start() >= 0
+                    ? new ChangeDelta(edit.start(), edit.end(), edit.replacement(), autocompleteStructuralEdit)
+                    : ChangeDelta.fullReplace(edit.previousLength(), this.text);
             this.changedEvents.sink().onChanged(this.text, delta);
         } else {
             this.changedEvents.sink().onChanged(this.text, ChangeDelta.none(this.text.length()));
         }
     }
 
-    private void restoreState(HistoryState state) {
-        this.text = state.text();
+    private void restoreDocumentState(RawTextDocument.RestoredState restored) {
+        this.syncFromDocument();
         this.lineDepthStartsDirty = true;
-        this.syntaxLineCache.clear();
-        this.cursor = Math.clamp(state.cursor(), 0, this.text.length());
-        this.selectionCursor = Math.clamp(state.selection(), 0, this.text.length());
-        this.scrollAmount = state.scroll();
-        this.rebuildLineStarts();
+        this.syntaxHighlighter.clear();
+        this.clearVirtualCaret();
+        this.scrollAmount = restored.scroll();
+        this.rebuildFoldLayout();
         this.clampScrollAmount();
         this.clampHorizontalScrollAmount();
         this.notifyViewportChanged();
     }
 
-    private void trimHistory(ArrayDeque<HistoryState> history) {
-        while (history.size() > HISTORY_LIMIT) {
-            history.removeFirst();
-        }
-        while (!history.isEmpty() && this.historyCharCount(history) > HISTORY_CHAR_BUDGET) {
-            history.removeFirst();
-        }
+    private void syncFromDocument() {
+        this.text = this.document.text();
+        this.cursor = this.document.caret();
+        this.selectionCursor = this.document.anchor();
+        this.lineStarts = this.document.lineStarts();
     }
 
-    private int historyCharCount(ArrayDeque<HistoryState> history) {
-        int total = 0;
-        for (HistoryState state : history) {
-            if (state != null && state.text() != null) {
-                total += state.text().length();
-                if (total > HISTORY_CHAR_BUDGET) {
-                    return total;
-                }
+    private void syncSelectionToDocument() {
+        this.document.setSelection(this.selectionCursor, this.cursor);
+        this.syncFromDocument();
+    }
+
+    private HistorySnapshot fromDocumentHistorySnapshot(RawTextDocument.HistorySnapshot snapshot) {
+        return new HistorySnapshot(snapshot.text(), snapshot.caret(), snapshot.anchor(), snapshot.scroll());
+    }
+
+    private List<RawTextDocument.HistorySnapshot> toDocumentHistorySnapshots(List<HistorySnapshot> snapshots) {
+        if (snapshots == null || snapshots.isEmpty()) {
+            return List.of();
+        }
+        List<RawTextDocument.HistorySnapshot> converted = new ArrayList<>(snapshots.size());
+        for (HistorySnapshot snapshot : snapshots) {
+            if (snapshot == null) {
+                continue;
             }
+            converted.add(new RawTextDocument.HistorySnapshot(
+                    snapshot.text(),
+                    snapshot.cursor(),
+                    snapshot.selection(),
+                    snapshot.scroll()
+            ));
         }
-        return total;
-    }
-
-    private HistoryState captureState() {
-        return new HistoryState(this.text, this.cursor, this.selectionCursor, this.scrollAmount);
-    }
-
-    private HistorySnapshot toHistorySnapshot(HistoryState state) {
-        return new HistorySnapshot(state.text(), state.cursor(), state.selection(), state.scroll());
-    }
-
-    private HistoryState fromHistorySnapshot(HistorySnapshot snapshot) {
-        String snapshotText = snapshot.text() == null ? "" : snapshot.text();
-        int snapshotCursor = Math.clamp(snapshot.cursor(), 0, snapshotText.length());
-        int snapshotSelection = Math.clamp(snapshot.selection(), 0, snapshotText.length());
-        return new HistoryState(snapshotText, snapshotCursor, snapshotSelection, snapshot.scroll());
+        return converted;
     }
 
     private void resetText(String value) {
-        this.text = value;
+        this.document.reset(value);
+        this.syncFromDocument();
         this.lineDepthStartsDirty = true;
-        this.syntaxLineCache.clear();
-        this.cursor = Math.clamp(this.cursor, 0, this.text.length());
-        this.selectionCursor = Math.clamp(this.selectionCursor, 0, this.text.length());
+        this.syntaxHighlighter.clear();
         this.clearVirtualCaret();
-        this.rebuildLineStarts();
+        this.rebuildFoldLayout();
         this.scrollAmount = 0;
         this.horizontalScrollAmount = 0;
-        this.undoHistory.clear();
-        this.redoHistory.clear();
         this.historyChanged.run();
     }
 
@@ -1429,14 +1235,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int prefixWidth = this.rawTextWidth(linePrefix);
         int textX = contentLeft + prefixWidth;
         int availableWidth = Math.max(0, contentWidth - prefixWidth - 2);
-        if (availableWidth <= 0) return;
+        if (availableWidth == 0) return;
 
         String visibleGhost = this.trimToWidthRaw(this.ghostSuggestion, availableWidth);
         if (visibleGhost.isEmpty()) return;
 
         int ghostWidth = this.rawTextWidth(visibleGhost);
         int suffixWidth = Math.max(0, availableWidth - ghostWidth);
-        String visibleSuffix = suffixWidth <= 0 ? "" : this.trimToWidthRaw(lineSuffix, suffixWidth);
+        String visibleSuffix = suffixWidth == 0 ? "" : this.trimToWidthRaw(lineSuffix, suffixWidth);
 
         int clearBottom = lineY + this.scaledFontLineHeight();
         int clearRight = contentLeft + contentWidth;
@@ -1600,7 +1406,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         if (lineY + lineHeight < top || lineY > top + visibleHeight) {
             return null;
         }
-        int cursorX = this.cursorXForLine(contentLeft, visibleLine, lineIndex);
+        int cursorX = this.cursorXForLine(contentLeft, lineIndex);
         return new CaretAnchor(cursorX, lineY);
     }
 
@@ -1609,13 +1415,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int activeVisibleLine = this.visibleLineForCursorIndex(this.cursor);
         int gutterRight = this.gutterRight() - GUTTER_LINE_RIGHT_INSET;
         int foldMarkerLeft = this.foldMarkerLeft();
-        int foldMarkerRight = foldMarkerLeft + FOLD_MARKER_WIDTH;
-        int minNumberX = foldMarkerRight + GUTTER_FOLD_GAP + 1;
-        for (int visibleLine = 0; visibleLine < this.visibleToActualLine.length; visibleLine++) {
+        int foldMarkerRight = this.foldMarkerRight();
+        int minNumberX = this.innerLeft() + this.gutterMetrics().numberLeftOffset();
+        for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
             int lineIndex = this.actualLineForVisibleLine(visibleLine);
             int lineY = top + visibleLine * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) continue;
-            if (this.wordWrap && this.visibleSegmentStart(visibleLine) > 0) {
+            if (this.wordWrap && this.rowSegmentStart(visibleLine) > 0) {
                 continue;
             }
             int lineNo = lineIndex + 1;
@@ -1633,7 +1439,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 int markerColor = visibleLine == activeVisibleLine ? COLOR_FOLD_ACTIVE : COLOR_FOLD_MARKER;
                 String marker = foldRegion.collapsed ? "+" : "-";
                 context.fill(foldMarkerLeft, lineY - 1, foldMarkerRight, lineY + lineHeight - 1, 0x332A3444);
-                this.drawRawText(context, marker, foldMarkerLeft + 1, lineY, markerColor);
+                int markerX = foldMarkerLeft + RawGutterMetrics.centeredMarkerTextOffset(
+                        this.fontMetrics,
+                        marker,
+                        this.foldMarkerWidth()
+                );
+                this.drawRawText(context, marker, markerX, lineY, markerColor);
             }
         }
     }
@@ -1644,15 +1455,16 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int[] depthStarts = this.lineDepthStartsForRender();
         int syntaxBudget = MAX_SYNTAX_RENDER_BUDGET_CHARS;
         int lastBudgetedLine = -1;
-        for (int visibleLine = 0; visibleLine < this.visibleToActualLine.length; visibleLine++) {
+        for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
             int lineIndex = this.actualLineForVisibleLine(visibleLine);
             int lineY = top + visibleLine * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) continue;
             int start = this.lineStarts[lineIndex];
             int end = this.lineEnd(lineIndex);
             String line = this.text.substring(start, end);
-            int segmentStart = this.visibleSegmentStart(visibleLine);
-            int segmentEnd = this.visibleSegmentEnd(visibleLine);
+            int segmentStart = this.rowSegmentStart(visibleLine);
+            int segmentEnd = this.rowSegmentEnd(visibleLine);
+            RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
             int boundedSegmentStart = Math.clamp(segmentStart, 0, line.length());
             int boundedSegmentEnd = Math.clamp(segmentEnd, boundedSegmentStart, line.length());
             String segment = line.substring(boundedSegmentStart, boundedSegmentEnd);
@@ -1670,32 +1482,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 int baseDepth = depthStarts == null || depthStarts.length == 0
                         ? 0
                         : depthStarts[Math.clamp(lineIndex, 0, depthStarts.length - 1)];
-                if (this.wordWrap) {
-                    this.renderLineSyntaxSegment(
-                            context,
-                            contentLeft,
-                            lineY,
-                            contentWidth,
-                            lineIndex,
-                            line,
-                            baseDepth,
-                            boundedSegmentStart,
-                            boundedSegmentEnd
-                    );
-                } else if (this.canHorizontalScroll()) {
-                    this.renderLineSyntaxWindow(
-                            context,
-                            contentLeft,
-                            lineY,
-                            contentWidth,
-                            lineIndex,
-                            line,
-                            baseDepth,
-                            horizontalOffset
-                    );
-                } else {
-                    this.renderLineSyntax(context, contentLeft, lineY, contentWidth, lineIndex, line, baseDepth);
-                }
+                this.renderLineSyntaxRow(context, contentLeft, lineY, contentWidth, lineIndex, line, baseDepth, row);
                 if (lineIndex != lastBudgetedLine) {
                     syntaxBudget -= Math.min(syntaxBudget, line.length());
                     lastBudgetedLine = lineIndex;
@@ -1765,24 +1552,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return offsets;
     }
 
-    private void renderLineSyntax(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            int lineIndex,
-            String line,
-            int baseDepth
-    ) {
-        List<SyntaxRun> runs = this.syntaxRunsForLine(lineIndex, line, baseDepth);
-        int drawn = 0;
-        for (int index = 0; index < runs.size() && drawn < availableWidth; index++) {
-            SyntaxRun run = runs.get(index);
-            drawn += this.renderSyntaxRun(context, x + drawn, y, availableWidth - drawn, run);
-        }
-    }
-
-    private void renderLineSyntaxWindow(
+    private void renderLineSyntaxRow(
             OwoUIGraphics context,
             int x,
             int y,
@@ -1790,243 +1560,111 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             int lineIndex,
             String line,
             int baseDepth,
-            int skipPixels
+            RawEditorLayout.VisualRow row
     ) {
-        List<SyntaxRun> runs = this.syntaxRunsForLine(lineIndex, line, baseDepth);
-        int skip = Math.max(0, skipPixels);
-        int drawn = 0;
-        for (int index = 0; index < runs.size() && drawn < availableWidth; index++) {
-            SyntaxRun run = runs.get(index);
-            String token = run.text();
-            if (token.isEmpty()) {
+        int lineStart = this.lineStarts[lineIndex];
+        int rowStart = row.documentStart();
+        int rowEnd = row.documentEnd();
+        if (rowEnd <= rowStart) {
+            return;
+        }
+        int horizontalOffset = this.horizontalRenderOffset();
+        int contentRight = x + availableWidth;
+        int measuredLocal = Math.max(0, row.localStart());
+        double advanceFromRowStart = 0d;
+        for (RawSyntaxHighlighter.SyntaxSpan span
+                : this.syntaxHighlighter.spansForLine(lineIndex, lineStart, line, baseDepth)) {
+            if (span.endOffset() <= rowStart) {
                 continue;
             }
-            int tokenWidth = this.rawTextWidth(token);
-            if (skip >= tokenWidth) {
-                skip -= tokenWidth;
+            if (span.startOffset() >= rowEnd) {
+                break;
+            }
+            int localStart = Math.max(0, Math.max(span.startOffset(), rowStart) - lineStart);
+            int localEnd = Math.min(line.length(), Math.min(span.endOffset(), rowEnd) - lineStart);
+            if (localEnd <= localStart) {
                 continue;
             }
-            if (skip > 0) {
-                int clipStart = Math.clamp(this.rawIndexAtWidth(token, skip), 0, token.length());
+            if (localStart > measuredLocal) {
+                advanceFromRowStart += this.rawTextAdvance(line, measuredLocal, localStart);
+            }
+            String token = line.substring(localStart, localEnd);
+            int tokenX = this.syntaxTokenX(x, horizontalOffset, advanceFromRowStart);
+            if (tokenX < x) {
+                int clipStart = Math.clamp(this.rawIndexAtWidth(token, x - tokenX), 0, token.length());
                 token = token.substring(clipStart);
-                skip = 0;
                 if (token.isEmpty()) {
+                    advanceFromRowStart += this.rawTextAdvance(line, localStart, localEnd);
+                    measuredLocal = localEnd;
                     continue;
                 }
+                tokenX = this.syntaxTokenX(
+                        x,
+                        horizontalOffset,
+                        advanceFromRowStart + this.rawTextAdvance(line, localStart, localStart + clipStart)
+                );
             }
-            int rendered = this.renderSyntaxRun(
+            if (tokenX >= contentRight) {
+                break;
+            }
+            this.renderSyntaxRun(
                     context,
-                    x + drawn,
+                    tokenX,
                     y,
-                    availableWidth - drawn,
-                    new SyntaxRun(run.kind(), token, run.color())
+                    contentRight - tokenX,
+                    new SyntaxRun(this.syntaxKind(span.kind()), token, span.color())
             );
-            if (rendered <= 0) {
-                break;
-            }
-            drawn += rendered;
+            advanceFromRowStart += this.rawTextAdvance(line, localStart, localEnd);
+            measuredLocal = localEnd;
         }
     }
 
-    private void renderLineSyntaxSegment(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            int lineIndex,
-            String line,
-            int baseDepth,
-            int segmentStart,
-            int segmentEnd
-    ) {
-        int safeStart = Math.clamp(segmentStart, 0, line.length());
-        int safeEnd = Math.clamp(segmentEnd, safeStart, line.length());
-        if (safeEnd == safeStart) {
-            return;
-        }
-        List<SyntaxRun> runs = this.syntaxRunsForLine(lineIndex, line, baseDepth);
-        int cursor = 0;
-        int drawn = 0;
-        for (int index = 0; index < runs.size() && drawn < availableWidth; index++) {
-            SyntaxRun run = runs.get(index);
-            String token = run.text();
-            int runStart = cursor;
-            int runEnd = cursor + token.length();
-            cursor = runEnd;
-            if (runEnd <= safeStart) {
-                continue;
-            }
-            if (runStart >= safeEnd) {
-                break;
-            }
-            int localStart = Math.max(0, safeStart - runStart);
-            int localEnd = Math.min(token.length(), safeEnd - runStart);
-            if (localEnd == localStart) {
-                continue;
-            }
-            String segmentToken = token.substring(localStart, localEnd);
-            int rendered = this.renderSyntaxRun(
+    private int syntaxTokenX(int contentLeft, int horizontalOffset, double advanceFromRowStart) {
+        return contentLeft - horizontalOffset + (int) Math.ceil(Math.max(0d, advanceFromRowStart));
+    }
+
+    private SyntaxRunKind syntaxKind(RawSyntaxHighlighter.SyntaxKind kind) {
+        return switch (kind) {
+            case STRING -> SyntaxRunKind.STRING;
+            case NUMERIC -> SyntaxRunKind.NUMERIC;
+            case COLOR_LITERAL -> SyntaxRunKind.HEX;
+            case PLAIN -> SyntaxRunKind.PLAIN;
+        };
+    }
+
+    private void renderSyntaxRun(OwoUIGraphics context, int x, int y, int availableWidth, SyntaxRun run) {
+        switch (run.kind()) {
+            case PLAIN -> this.drawSyntaxToken(context, x, y, availableWidth, run.text(), run.color());
+            case STRING -> this.renderStringToken(context, x, y, availableWidth, run.text());
+            case NUMERIC -> this.renderNumericToken(context, x, y, availableWidth, run.text());
+            case HEX -> this.drawSyntaxToken(
                     context,
-                    x + drawn,
+                    x,
                     y,
-                    availableWidth - drawn,
-                    new SyntaxRun(run.kind(), segmentToken, run.color())
+                    availableWidth,
+                    run.text(),
+                    run.color(),
+                    true
             );
-            if (rendered <= 0) {
-                break;
-            }
-            drawn += rendered;
         }
-    }
-
-    private int renderSyntaxRun(OwoUIGraphics context, int x, int y, int availableWidth, SyntaxRun run) {
-        if (run.kind() == SyntaxRunKind.PLAIN) {
-            return this.drawSyntaxToken(context, x, y, availableWidth, run.text(), run.color());
-        }
-        if (run.kind() == SyntaxRunKind.STRING) {
-            return this.renderStringToken(context, x, y, availableWidth, run.text());
-        }
-        if (run.kind() == SyntaxRunKind.NUMERIC) {
-            return this.renderNumericToken(context, x, y, availableWidth, run.text());
-        }
-        return this.drawSyntaxToken(context, x, y, availableWidth, run.text(), run.color(), true);
-    }
-
-    private List<SyntaxRun> syntaxRunsForLine(int lineIndex, String line, int baseDepth) {
-        SyntaxLineCache cached = this.syntaxLineCache.get(lineIndex);
-        if (cached != null && cached.matches(line, baseDepth)) {
-            return cached.runs();
-        }
-        List<SyntaxRun> runs = this.computeSyntaxRuns(line, baseDepth);
-        this.syntaxLineCache.put(lineIndex, new SyntaxLineCache(line, baseDepth, runs));
-        return runs;
-    }
-
-    private List<SyntaxRun> computeSyntaxRuns(String line, int baseDepth) {
-        List<SyntaxRun> runs = new ArrayList<>();
-        int cursorIndex = 0;
-        int depth = Math.max(0, baseDepth);
-        while (cursorIndex < line.length()) {
-            char c = line.charAt(cursorIndex);
-            int next;
-
-            if (Character.isWhitespace(c)) {
-                next = this.scanWhitespace(line, cursorIndex + 1);
-                this.addSyntaxRun(runs, SyntaxRunKind.PLAIN, line.substring(cursorIndex, next), COLOR_TEXT);
-                cursorIndex = next;
-                continue;
-            }
-
-            if (c == '"' || c == '\'') {
-                int end = this.findStringEnd(line, cursorIndex + 1, c);
-                next = end < 0 ? line.length() : end + 1;
-                String token = line.substring(cursorIndex, next);
-                boolean keyToken = this.isKeyToken(line, next);
-                boolean idToken = !keyToken && this.isResourceIdentifierString(token);
-                int hexColor = keyToken ? -1 : this.parseHexColorFromToken(token);
-
-                if (keyToken) {
-                    this.addSyntaxRun(runs, SyntaxRunKind.PLAIN, token, this.keyColorForDepth(depth));
-                } else if (hexColor != -1) {
-                    this.addSyntaxRun(runs, SyntaxRunKind.HEX, token, hexColor);
-                } else if (idToken) {
-                    this.addSyntaxRun(runs, SyntaxRunKind.PLAIN, token, COLOR_IDENTIFIER);
-                } else {
-                    this.addSyntaxRun(runs, SyntaxRunKind.STRING, token, 0);
-                }
-                cursorIndex = next;
-                continue;
-            }
-
-            if (this.isNumberStart(line, cursorIndex)) {
-                next = this.scanNumber(line, cursorIndex);
-                this.addSyntaxRun(runs, SyntaxRunKind.NUMERIC, line.substring(cursorIndex, next), 0);
-                cursorIndex = next;
-                continue;
-            }
-
-            if (this.isWordStart(c)) {
-                next = this.scanWord(line, cursorIndex + 1);
-                String word = line.substring(cursorIndex, next);
-                int hexColor = this.parseHexColorFromToken(word);
-                if (hexColor != -1) {
-                    this.addSyntaxRun(runs, SyntaxRunKind.HEX, word, hexColor);
-                } else if (this.isNumericWord(word)) {
-                    this.addSyntaxRun(runs, SyntaxRunKind.NUMERIC, word, 0);
-                } else {
-                    int color = this.resolveWordColor(line, word, cursorIndex, next, depth);
-                    this.addSyntaxRun(runs, SyntaxRunKind.PLAIN, word, color);
-                }
-                cursorIndex = next;
-                continue;
-            }
-
-            if (c == '}' || c == ']') {
-                depth = Math.max(0, depth - 1);
-            }
-            this.addSyntaxRun(
-                    runs,
-                    SyntaxRunKind.PLAIN,
-                    line.substring(cursorIndex, cursorIndex + 1),
-                    this.punctuationColor(c, depth)
-            );
-            if (c == '{' || c == '[') {
-                depth++;
-            }
-            cursorIndex++;
-        }
-        return runs;
-    }
-
-    private void addSyntaxRun(List<SyntaxRun> runs, SyntaxRunKind kind, String text, int color) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        if (!runs.isEmpty()) {
-            SyntaxRun last = runs.getLast();
-            if (last.kind() == kind && last.color() == color && kind == SyntaxRunKind.PLAIN) {
-                runs.set(runs.size() - 1, new SyntaxRun(kind, last.text() + text, color));
-                return;
-            }
-        }
-        runs.add(new SyntaxRun(kind, text, color));
     }
 
     private void renderSelection(OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
         if (!this.hasSelection()) return;
-        int horizontalOffset = this.horizontalRenderOffset();
-        int renderedScroll = this.renderedScroll();
-        int selectionStart = Math.min(this.cursor, this.selectionCursor);
-        int selectionEnd = Math.max(this.cursor, this.selectionCursor);
-        for (int visibleLine = 0; visibleLine < this.visibleToActualLine.length; visibleLine++) {
-            int lineIndex = this.actualLineForVisibleLine(visibleLine);
-            int lineStart = this.lineStarts[lineIndex];
-            int lineEnd = this.lineEnd(lineIndex);
-            if (selectionEnd < lineStart || selectionStart > lineEnd) continue;
-            int lineY = top + visibleLine * lineHeight - renderedScroll;
-            if (lineY + lineHeight < top || lineY > top + visibleHeight) continue;
-            int segmentStart = this.visibleSegmentStart(visibleLine);
-            int segmentEnd = this.visibleSegmentEnd(visibleLine);
-            int segmentAbsoluteStart = lineStart + segmentStart;
-            int segmentAbsoluteEnd = lineStart + segmentEnd;
-            int from = Math.max(selectionStart, segmentAbsoluteStart);
-            int to = Math.min(selectionEnd, segmentAbsoluteEnd);
-            if (from >= to) {
-                continue;
-            }
-            String line = this.text.substring(lineStart, lineEnd);
-            int startOffset = Math.clamp(from - lineStart, 0, line.length());
-            int endOffset = Math.clamp(to - lineStart, startOffset, line.length());
-            int prefixStart = this.wordWrap ? segmentStart : 0;
-            int startX = contentLeft - horizontalOffset + this.rawTextWidth(line.substring(prefixStart, startOffset));
-            int endX = contentLeft - horizontalOffset + this.rawTextWidth(line.substring(prefixStart, endOffset));
-            if (selectionEnd > segmentAbsoluteEnd) {
-                endX = Math.min(contentLeft + contentWidth, Math.max(endX + 2, startX + 1));
-            }
-            startX = Math.max(contentLeft, startX);
-            endX = Math.min(contentLeft + contentWidth, endX);
-            if (endX <= startX) endX = startX + 1;
-            context.fill(startX, lineY - 1, endX, lineY + this.scaledFontLineHeight() + 1, COLOR_SELECTION);
+        for (RawEditorRenderer.RenderRect rect : this.renderer.selectionRectangles(
+                this.layout,
+                this.document.selection(),
+                this.fontMetrics,
+                contentLeft,
+                contentWidth,
+                top,
+                visibleHeight,
+                this.renderedScroll(),
+                this.horizontalRenderOffset(),
+                lineHeight,
+                this.scaledFontLineHeight()
+        )) {
+            context.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), COLOR_SELECTION);
         }
     }
 
@@ -2037,7 +1675,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int visibleLine = this.visibleLineForCursorIndex(this.cursor);
         int lineY = top + visibleLine * lineHeight - renderedScroll;
         if (lineY + lineHeight < top || lineY > top + visibleHeight) return;
-        int cursorX = this.cursorXForLine(contentLeft, visibleLine, lineIndex);
+        int cursorX = this.cursorXForLine(contentLeft, lineIndex);
         context.fill(cursorX, lineY - 1, cursorX + CURSOR_WIDTH, lineY + this.scaledFontLineHeight() + 1, COLOR_CURSOR);
     }
 
@@ -2060,67 +1698,35 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return;
         }
 
-        int lineStart = this.lineStarts[lineIndex];
-        int lineEnd = this.lineEnd(lineIndex);
-        String line = this.text.substring(lineStart, lineEnd);
-        int errorStart = Math.clamp(this.errorColumn > 0 ? this.errorColumn - 1 : 0, 0, line.length());
-        int errorEnd = Math.clamp(errorStart + Math.max(1, this.errorLength), errorStart, line.length());
-        boolean markLineEnd = errorStart >= line.length();
-
-        int renderedScroll = this.renderedScroll();
-        int horizontalOffset = this.horizontalRenderOffset();
         int underlineHeight = Math.max(1, UiFactory.scaledPixels(1));
-
-        for (int visibleLine = 0; visibleLine < this.visibleToActualLine.length; visibleLine++) {
-            if (this.actualLineForVisibleLine(visibleLine) != lineIndex) {
-                continue;
-            }
-            int lineY = top + visibleLine * lineHeight - renderedScroll;
-            if (lineY + lineHeight < top || lineY > top + visibleHeight) {
-                continue;
-            }
-            int segmentStart = this.visibleSegmentStart(visibleLine);
-            int segmentEnd = this.visibleSegmentEnd(visibleLine);
-            int from = Math.max(errorStart, segmentStart);
-            int to = Math.min(errorEnd, segmentEnd);
-            int prefixStart = this.wordWrap ? segmentStart : 0;
-
-            int underlineY = lineY + this.scaledFontLineHeight() + 1;
-            if (from < to) {
-                int startX = contentLeft - horizontalOffset + this.rawTextWidth(line.substring(prefixStart, from));
-                int endX = contentLeft - horizontalOffset + this.rawTextWidth(line.substring(prefixStart, to));
-                startX = Math.max(contentLeft, startX);
-                endX = Math.min(contentLeft + contentWidth, endX);
-                if (endX <= startX) {
-                    endX = Math.min(contentLeft + contentWidth, startX + Math.max(2, UiFactory.scaledPixels(2)));
-                }
-                context.fill(startX, underlineY, endX, underlineY + underlineHeight, COLOR_ERROR_UNDERLINE);
-                continue;
-            }
-
-            if (markLineEnd && segmentEnd == line.length()) {
-        int caretX = contentLeft - horizontalOffset + this.rawTextWidth(line.substring(prefixStart));
-                int startX = Math.max(contentLeft, Math.min(contentLeft + contentWidth, caretX));
-                int endX = Math.min(contentLeft + contentWidth, startX + Math.max(2, UiFactory.scaledPixels(2)));
-                context.fill(startX, underlineY, endX, underlineY + underlineHeight, COLOR_ERROR_UNDERLINE);
-            }
+        for (RawEditorRenderer.RenderRect rect : this.renderer.errorUnderlineRectangles(
+                this.layout,
+                this.document,
+                this.fontMetrics,
+                lineIndex,
+                this.errorColumn,
+                this.errorLength,
+                contentLeft,
+                contentWidth,
+                top,
+                visibleHeight,
+                this.renderedScroll(),
+                this.horizontalRenderOffset(),
+                lineHeight,
+                this.scaledFontLineHeight(),
+                underlineHeight
+        )) {
+            context.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), COLOR_ERROR_UNDERLINE);
         }
     }
 
-    private int cursorXForLine(int contentLeft, int visibleLine, int lineIndex) {
-        int lineStart = this.lineStarts[lineIndex];
+    private int cursorXForLine(int contentLeft, int lineIndex) {
         int lineEnd = this.lineEnd(lineIndex);
-        String line = this.text.substring(lineStart, lineEnd);
-        int offset = this.horizontalRenderOffset();
-        int localCursor = Math.clamp(this.cursor - lineStart, 0, line.length());
-        int segmentStart = this.wordWrap ? this.visibleSegmentStart(visibleLine) : 0;
-        int clampedSegmentStart = Math.clamp(segmentStart, 0, localCursor);
-        int cursorX = contentLeft - offset + this.rawTextWidth(line.substring(clampedSegmentStart, localCursor));
         if (this.shouldUseVirtualCaretX(lineIndex, lineEnd)) {
             int clampedVirtualX = Math.clamp(this.virtualCaretLocalX, 0, Math.max(0, this.contentWidth() - 1));
             return contentLeft + clampedVirtualX;
         }
-        return cursorX;
+        return this.layout.caretX(this.cursor, this.fontMetrics, contentLeft, this.horizontalRenderOffset());
     }
 
     private boolean shouldUseVirtualCaretX(int lineIndex, int lineEnd) {
@@ -2130,63 +1736,21 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 && this.cursor == lineEnd;
     }
 
-    private int cursorForPoint(double mouseX, double mouseY) {
-        if (this.visibleToActualLine.length == 0) {
-            return 0;
-        }
-
-        double clampedMouseY = Math.clamp(mouseY, this.innerTop(), this.scrollbarBottom());
-        int renderedScroll = this.renderedScroll();
-        int lineHeight = this.lineHeightWithSpacing();
-        int visibleLine;
-        if (clampedMouseY == this.innerTop()) {
-            visibleLine = 0;
-        } else if (clampedMouseY == this.innerBottom()) {
-            visibleLine = this.visibleToActualLine.length - 1;
-        } else {
-            int localY = (int) Math.floor(clampedMouseY - this.innerTop() + renderedScroll);
-            int nearestRow = (int) Math.floor((localY + (lineHeight / 2.0d)) / lineHeight);
-            visibleLine = Math.clamp(nearestRow, 0, this.visibleToActualLine.length - 1);
-        }
-        return this.cursorForPointOnVisibleLine(mouseX, visibleLine);
-    }
-
-    private int cursorForPointOnVisibleLine(double mouseX, int visibleLine) {
-        int lineIndex = this.actualLineForVisibleLine(visibleLine);
-        int lineStart = this.lineStarts[lineIndex];
-        int lineEnd = this.lineEnd(lineIndex);
-        String line = this.text.substring(lineStart, lineEnd);
-        int segmentStart = this.visibleSegmentStart(visibleLine);
-        int segmentEnd = this.visibleSegmentEnd(visibleLine);
-        int horizontalOffset = this.horizontalRenderOffset();
-        int endOfLineTolerance = this.endOfLineClickTolerance();
-        double localX = mouseX - this.contentLeft() + horizontalOffset;
-        if (localX < -endOfLineTolerance) {
-            this.clearVirtualCaret();
-            return this.wordWrap ? (lineStart + segmentStart) : lineStart;
-        }
-
-        if (line.isEmpty()) {
-            this.clearVirtualCaret();
-            return lineStart;
-        }
-        int boundedStart = Math.clamp(segmentStart, 0, line.length());
-        int boundedEnd = Math.clamp(segmentEnd, boundedStart, line.length());
-        String segment = this.wordWrap ? line.substring(boundedStart, boundedEnd) : line;
-        if (localX <= 0d) {
-            this.clearVirtualCaret();
-            return this.wordWrap ? (lineStart + boundedStart) : lineStart;
-        }
-        int lineWidth = this.rawTextWidth(segment);
-        if (localX > lineWidth + endOfLineTolerance) {
-            this.clearVirtualCaret();
-            return this.wordWrap ? (lineStart + boundedEnd) : lineEnd;
-        }
-        if (localX > lineWidth) {
-            return this.wordWrap ? (lineStart + boundedEnd) : lineEnd;
-        }
+    private int cursorForPoint(double mouseX, double mouseY, boolean expandWrappedLineEnd) {
         this.clearVirtualCaret();
-        return lineStart + boundedStart + this.rawIndexAtWidth(segment, localX);
+        return this.layout.offsetAt(
+                mouseX,
+                mouseY,
+                this.fontMetrics,
+                this.innerTop(),
+                this.scrollbarBottom(),
+                this.contentLeft(),
+                this.renderedScroll(),
+                this.horizontalRenderOffset(),
+                this.lineHeightWithSpacing(),
+                this.endOfLineClickTolerance(),
+                expandWrappedLineEnd
+        );
     }
 
     private void startScrollbarDrag(double mouseY) {
@@ -2325,12 +1889,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
         int top = y - 1;
         int bottom = y + this.scaledFontLineHeight() + 1;
-        int left = x - 1;
-        int right = x + width + 2;
+        int right = x + width;
         int chipBackground = this.hexChipBackground(color);
         int chipBorder = this.hexChipBorder(color);
-        context.fill(left, top, right, bottom, chipBackground);
-        this.drawRectBorder(context, left, top, right, bottom, chipBorder);
+        context.fill(x, top, right, bottom, chipBackground);
+        this.drawRectBorder(context, x, top, right, bottom, chipBorder);
 
         int textColor = this.hexChipTextColor(color);
         this.drawRawText(context, visible, x, y, textColor);
@@ -2344,7 +1907,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this.trimToWidthRaw(token, availableWidth);
     }
 
-    private int renderStringToken(
+    private void renderStringToken(
             OwoUIGraphics context,
             int x,
             int y,
@@ -2352,19 +1915,23 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             String token
     ) {
         if (availableWidth <= 0 || token.isEmpty()) {
-            return 0;
+            return;
         }
-        int drawn = 0;
         int index = 0;
-        while (index < token.length() && drawn < availableWidth) {
+        while (index < token.length()) {
+            int partX = x + (int) Math.ceil(this.rawTextAdvance(token, 0, index));
+            int partAvailable = availableWidth - (partX - x);
+            if (partAvailable <= 0) {
+                break;
+            }
             char c = token.charAt(index);
             if (c == '\\') {
                 int escapeEnd = this.scanEscapeSequence(token, index);
-                drawn += this.drawSyntaxToken(
+                this.drawSyntaxToken(
                         context,
-                        x + drawn,
+                        partX,
                         y,
-                        availableWidth - drawn,
+                        partAvailable,
                         token.substring(index, escapeEnd),
                         COLOR_ESCAPE
                 );
@@ -2376,20 +1943,19 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             while (next < token.length() && token.charAt(next) != '\\') {
                 next++;
             }
-            drawn += this.drawSyntaxToken(
+            this.drawSyntaxToken(
                     context,
-                    x + drawn,
+                    partX,
                     y,
-                    availableWidth - drawn,
+                    partAvailable,
                     token.substring(index, next),
                     COLOR_STRING
             );
             index = next;
         }
-        return drawn;
     }
 
-    private int renderNumericToken(
+    private void renderNumericToken(
             OwoUIGraphics context,
             int x,
             int y,
@@ -2397,14 +1963,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             String token
     ) {
         if (availableWidth <= 0 || token.isEmpty()) {
-            return 0;
+            return;
         }
         int suffixStart = this.numericSuffixStart(token);
         if (suffixStart <= 0 || suffixStart >= token.length()) {
-            return this.drawSyntaxToken(context, x, y, availableWidth, token, COLOR_NUMBER);
+            this.drawSyntaxToken(context, x, y, availableWidth, token, COLOR_NUMBER);
+            return;
         }
 
-        int drawn = this.drawSyntaxToken(
+        int prefixWidth = this.drawSyntaxToken(
                 context,
                 x,
                 y,
@@ -2412,160 +1979,22 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 token.substring(0, suffixStart),
                 COLOR_NUMBER
         );
-        if (drawn >= availableWidth) {
-            return drawn;
+        if (prefixWidth >= availableWidth) {
+            return;
         }
-        drawn += this.drawSyntaxToken(
+        int suffixX = x + (int) Math.ceil(this.rawTextAdvance(token, 0, suffixStart));
+        int suffixAvailable = availableWidth - (suffixX - x);
+        if (suffixAvailable <= 0) {
+            return;
+        }
+        this.drawSyntaxToken(
                 context,
-                x + drawn,
+                suffixX,
                 y,
-                availableWidth - drawn,
+                suffixAvailable,
                 token.substring(suffixStart),
                 COLOR_NUMBER_SUFFIX
         );
-        return drawn;
-    }
-
-    private int findStringEnd(String line, int start, char quote) {
-        boolean escaping = false;
-        for (int index = start; index < line.length(); index++) {
-            char value = line.charAt(index);
-            if (escaping) {
-                escaping = false;
-                continue;
-            }
-            if (value == '\\') {
-                escaping = true;
-                continue;
-            }
-            if (value == quote) return index;
-        }
-        return -1;
-    }
-
-    private boolean isKeyToken(String line, int tokenEndExclusive) {
-        int next = tokenEndExclusive;
-        while (next < line.length() && Character.isWhitespace(line.charAt(next))) next++;
-        return next < line.length() && line.charAt(next) == ':';
-    }
-
-    private int scanWhitespace(String line, int index) {
-        int cursorPos = index;
-        while (cursorPos < line.length() && Character.isWhitespace(line.charAt(cursorPos))) {
-            cursorPos++;
-        }
-        return cursorPos;
-    }
-
-    private boolean isNumberStart(String line, int index) {
-        char c = line.charAt(index);
-        if (Character.isDigit(c)) {
-            return true;
-        }
-        if ((c == '-' || c == '+') && index + 1 < line.length()) {
-            char next = line.charAt(index + 1);
-            return Character.isDigit(next) || next == '.';
-        }
-        return c == '.' && index + 1 < line.length() && Character.isDigit(line.charAt(index + 1));
-    }
-
-    private int scanNumber(String line, int index) {
-        int cursorPos = index;
-        boolean seenDigits = false;
-        boolean seenDot = false;
-        boolean seenExponent = false;
-
-        if (cursorPos < line.length() && (line.charAt(cursorPos) == '+' || line.charAt(cursorPos) == '-')) {
-            cursorPos++;
-        }
-
-        while (cursorPos < line.length()) {
-            char c = line.charAt(cursorPos);
-            if (Character.isDigit(c)) {
-                seenDigits = true;
-                cursorPos++;
-                continue;
-            }
-            if (c == '_') {
-                cursorPos++;
-                continue;
-            }
-            if (c == '.' && !seenDot && !seenExponent) {
-                seenDot = true;
-                cursorPos++;
-                continue;
-            }
-            if ((c == 'e' || c == 'E') && seenDigits && !seenExponent) {
-                seenExponent = true;
-                cursorPos++;
-                if (cursorPos < line.length() && (line.charAt(cursorPos) == '+' || line.charAt(cursorPos) == '-')) {
-                    cursorPos++;
-                }
-                seenDigits = false;
-                continue;
-            }
-            break;
-        }
-
-        if (cursorPos < line.length() && this.isNumberSuffix(line.charAt(cursorPos))) {
-            cursorPos++;
-        }
-
-        if (cursorPos <= index) {
-            return Math.min(line.length(), index + 1);
-        }
-        return cursorPos;
-    }
-
-    private boolean isWordStart(char c) {
-        return Character.isLetter(c) || c == '_' || c == '#';
-    }
-
-    private int scanWord(String line, int index) {
-        int cursorPos = index;
-        while (cursorPos < line.length()) {
-            char c = line.charAt(cursorPos);
-            if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == '/' || c == '#') cursorPos++;
-            else break;
-        }
-        return cursorPos;
-    }
-
-    private int resolveWordColor(String line, String word, int tokenStartInclusive, int tokenEndExclusive, int depth) {
-        if (this.isKeyToken(line, tokenEndExclusive)) {
-            return this.keyColorForDepth(depth);
-        }
-        if (this.isBooleanWord(word)) {
-            return COLOR_BOOLEAN;
-        }
-        if ("null".equalsIgnoreCase(word)) {
-            return COLOR_NULL;
-        }
-        if (this.isTypedArrayTypeToken(line, word, tokenStartInclusive, tokenEndExclusive)) {
-            return COLOR_LITERAL;
-        }
-        if (this.looksLikeResourceIdentifier(word)) {
-            return COLOR_IDENTIFIER;
-        }
-        return COLOR_TEXT;
-    }
-
-    private int punctuationColor(char value, int depth) {
-        return switch (value) {
-            case '{', '}', '[', ']', '(', ')' -> this.bracketColorForDepth(depth);
-            case ':', ',', ';', '=' -> COLOR_OPERATOR;
-            default -> COLOR_PUNCT;
-        };
-    }
-
-    private int keyColorForDepth(int depth) {
-        int index = Math.floorMod(depth, KEY_DEPTH_COLORS.length);
-        return KEY_DEPTH_COLORS[index];
-    }
-
-    private int bracketColorForDepth(int depth) {
-        int index = Math.floorMod(depth, BRACKET_DEPTH_COLORS.length);
-        return BRACKET_DEPTH_COLORS[index];
     }
 
     private int scanEscapeSequence(String token, int start) {
@@ -2592,19 +2021,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 && (value < 'A' || value > 'F');
     }
 
-    private boolean isBooleanWord(String word) {
-        return "true".equalsIgnoreCase(word) || "false".equalsIgnoreCase(word);
-    }
-
-    private boolean isNumericWord(String word) {
-        return "Infinity".equalsIgnoreCase(word)
-                || "Infinityf".equalsIgnoreCase(word)
-                || "Infinityd".equalsIgnoreCase(word)
-                || "NaN".equalsIgnoreCase(word)
-                || "NaNf".equalsIgnoreCase(word)
-                || "NaNd".equalsIgnoreCase(word);
-    }
-
     private int numericSuffixStart(String token) {
         if (token.length() <= 1) {
             return -1;
@@ -2619,88 +2035,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private boolean isNumberSuffix(char value) {
         char c = Character.toLowerCase(value);
         return c == 'b' || c == 's' || c == 'l' || c == 'f' || c == 'd';
-    }
-
-    private boolean isTypedArrayTypeToken(
-            String line,
-            String word,
-            int tokenStartInclusive,
-            int tokenEndExclusive
-    ) {
-        if (word.length() != 1) {
-            return false;
-        }
-        char marker = Character.toUpperCase(word.charAt(0));
-        if (marker != 'B' && marker != 'I' && marker != 'L') {
-            return false;
-        }
-        int left = tokenStartInclusive - 1;
-        while (left >= 0 && Character.isWhitespace(line.charAt(left))) {
-            left--;
-        }
-        int right = tokenEndExclusive;
-        while (right < line.length() && Character.isWhitespace(line.charAt(right))) {
-            right++;
-        }
-        return left >= 0 && right < line.length() && line.charAt(left) == '[' && line.charAt(right) == ';';
-    }
-
-    private boolean isResourceIdentifierString(String token) {
-        if (token.length() < 3) {
-            return false;
-        }
-        char quote = token.charAt(0);
-        if ((quote != '"' && quote != '\'') || token.charAt(token.length() - 1) != quote) {
-            return false;
-        }
-        String inner = token.substring(1, token.length() - 1);
-        if (inner.indexOf('\\') >= 0) {
-            return false;
-        }
-        return this.looksLikeResourceIdentifier(inner);
-    }
-
-    private int parseHexColorFromToken(String token) {
-        if (token == null || token.isEmpty()) {
-            return -1;
-        }
-        if (token.length() >= 2) {
-            char first = token.charAt(0);
-            char last = token.charAt(token.length() - 1);
-            if ((first == '"' || first == '\'') && first == last) {
-                String inner = token.substring(1, token.length() - 1);
-                if (inner.indexOf('\\') >= 0) {
-                    return -1;
-                }
-                return this.parseHexColorLiteral(inner);
-            }
-        }
-        return this.parseHexColorLiteral(token);
-    }
-
-    private int parseHexColorLiteral(String literal) {
-        if (literal == null) {
-            return -1;
-        }
-        String value = literal.trim();
-        if (value.length() != 7 && value.length() != 9) {
-            return -1;
-        }
-        if (value.charAt(0) != '#') {
-            return -1;
-        }
-        for (int index = 1; index < value.length(); index++) {
-            if (this.isNonHexChar(value.charAt(index))) {
-                return -1;
-            }
-        }
-        try {
-            long parsed = Long.parseLong(value.substring(1), 16);
-            int rgb = value.length() == 7 ? (int) parsed : (int) (parsed & 0xFFFFFFL);
-            return 0xFF000000 | rgb;
-        } catch (NumberFormatException ignored) {
-            return -1;
-        }
     }
 
     private int hexChipBackground(int color) {
@@ -2769,91 +2103,19 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return Math.clamp(mixed, 0, 255);
     }
 
-    private boolean looksLikeResourceIdentifier(String value) {
-        if (value == null || value.isEmpty()) {
-            return false;
-        }
-        String candidate = value.charAt(0) == '#' ? value.substring(1) : value;
-        int separator = candidate.indexOf(':');
-        if (separator <= 0 || separator >= candidate.length() - 1) {
-            return false;
-        }
-        String namespace = candidate.substring(0, separator);
-        String path = candidate.substring(separator + 1);
-        for (int index = 0; index < namespace.length(); index++) {
-            char c = namespace.charAt(index);
-            if (!(Character.isLowerCase(c) || Character.isDigit(c) || c == '_' || c == '-' || c == '.')) {
-                return false;
-            }
-        }
-        for (int index = 0; index < path.length(); index++) {
-            char c = path.charAt(index);
-            if (!(Character.isLowerCase(c) || Character.isDigit(c) || c == '_' || c == '-' || c == '.' || c == '/')) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private int[] lineDepthStartsForRender() {
-        if (this.text.length() > MAX_SYNTAX_DEPTH_SCAN_TOTAL_CHARS) {
-            return null;
-        }
-        if (!this.lineDepthStartsDirty && this.lineDepthStarts.length == this.lineStarts.length) {
+        if (!this.lineDepthStartsDirty
+                && this.lineDepthStarts != null
+                && this.lineDepthStarts.length == this.lineStarts.length) {
             return this.lineDepthStarts;
         }
-        this.lineDepthStarts = this.computeLineDepthStarts();
+        this.lineDepthStarts = this.syntaxHighlighter.lineDepthStarts(
+                this.text,
+                this.lineStarts,
+                MAX_SYNTAX_DEPTH_SCAN_TOTAL_CHARS
+        );
         this.lineDepthStartsDirty = false;
         return this.lineDepthStarts;
-    }
-
-    private int[] computeLineDepthStarts() {
-        int lineCount = this.lineStarts.length;
-        int[] depths = new int[lineCount];
-        int depth = 0;
-        int line = 0;
-        boolean inString = false;
-        boolean escaping = false;
-        char quote = '"';
-        depths[0] = 0;
-
-        for (int index = 0; index < this.text.length(); index++) {
-            char c = this.text.charAt(index);
-            if (c == '\n') {
-                line = Math.min(line + 1, lineCount - 1);
-                depths[line] = Math.max(0, depth);
-                continue;
-            }
-
-            if (inString) {
-                if (escaping) {
-                    escaping = false;
-                    continue;
-                }
-                if (c == '\\') {
-                    escaping = true;
-                    continue;
-                }
-                if (c == quote) {
-                    inString = false;
-                }
-                continue;
-            }
-
-            if (c == '"' || c == '\'') {
-                inString = true;
-                quote = c;
-                continue;
-            }
-            if (c == '{' || c == '[') {
-                depth++;
-                continue;
-            }
-            if (c == '}' || c == ']') {
-                depth = Math.max(0, depth - 1);
-            }
-        }
-        return depths;
     }
 
     private void ensureCursorVisible() {
@@ -2892,118 +2154,16 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return lineTop >= top && lineBottom <= bottom;
     }
 
-    private void rebuildLineStarts() {
-        List<Integer> starts = new ArrayList<>();
-        starts.add(0);
-        for (int index = 0; index < this.text.length(); index++) {
-            if (this.text.charAt(index) == '\n') starts.add(index + 1);
-        }
-        this.applyLineStarts(starts.stream().mapToInt(Integer::intValue).toArray(), false);
-    }
-
-    private boolean rebuildLineStartsIncremental(int oldTextLength, int editStart, int editEnd, String replacement) {
-        if (this.lineStarts == null || this.lineStarts.length == 0) {
-            return false;
-        }
-        int safeStart = Math.clamp(editStart, 0, oldTextLength);
-        int safeEnd = Math.clamp(editEnd, safeStart, oldTextLength);
-        if (safeStart == 0 && safeEnd == oldTextLength) {
-            return false;
-        }
-
-        int delta = replacement.length() - (safeEnd - safeStart);
-        List<Integer> starts = this.updatedLineStarts(safeStart, safeEnd, replacement, delta);
-        if (starts.isEmpty()) {
-            starts.add(0);
-        }
-
-        int[] lineStartArray = starts.stream().mapToInt(Integer::intValue).toArray();
-        Arrays.sort(lineStartArray);
-        int textLength = this.text.length();
-        int write = 0;
-        for (int read = 0; read < lineStartArray.length; read++) {
-            int clamped = Math.clamp(lineStartArray[read], 0, textLength);
-            if (write == 0 || clamped != lineStartArray[write - 1]) {
-                lineStartArray[write++] = clamped;
-            }
-        }
-        if (write == 0 || lineStartArray[0] != 0) {
-            int[] normalized = new int[write + 1];
-            normalized[0] = 0;
-            if (write > 0) {
-                System.arraycopy(lineStartArray, 0, normalized, 1, write);
-            }
-            this.applyLineStarts(normalized, true);
-            return true;
-        }
-        if (write != lineStartArray.length) {
-            lineStartArray = Arrays.copyOf(lineStartArray, write);
-        }
-        this.applyLineStarts(lineStartArray, true);
-        return true;
-    }
-
-    private List<Integer> updatedLineStarts(int safeStart, int safeEnd, String replacement, int delta) {
-        List<Integer> starts = new ArrayList<>(this.lineStarts.length + 8);
-        for (int start : this.lineStarts) {
-            if (start <= safeStart) {
-                starts.add(start);
-                continue;
-            }
-            if (start < safeEnd) {
-                continue;
-            }
-            starts.add(start + delta);
-        }
-
-        for (int index = 0; index < replacement.length(); index++) {
-            if (replacement.charAt(index) == '\n') {
-                starts.add(safeStart + index + 1);
-            }
-        }
-        return starts;
-    }
-
-    private void applyLineStarts(int[] starts, boolean keepFoldRegions) {
-        if (starts == null || starts.length == 0) {
-            this.lineStarts = new int[]{0};
-        } else {
-            this.lineStarts = starts;
-        }
-        this.lineDepthStartsDirty = true;
-        this.syntaxLineCache.clear();
-        if (!keepFoldRegions) {
-            this.rebuildFoldLayout();
-            this.clampScrollAmount();
-        }
-    }
-
     private int lineEnd(int lineIndex) {
-        if (lineIndex >= this.lineStarts.length) return 0;
-        if (lineIndex + 1 < this.lineStarts.length) return this.lineStarts[lineIndex + 1] - 1;
-        return this.text.length();
+        return this.document.lineEnd(lineIndex);
     }
 
     private int lineIndexForCursor(int cursorIndex) {
-        int target = Math.clamp(cursorIndex, 0, this.text.length());
-        int low = 0;
-        int high = this.lineStarts.length - 1;
-        while (low <= high) {
-            int mid = (low + high) >>> 1;
-            int start = this.lineStarts[mid];
-            int end = this.lineEnd(mid);
-            if (target < start) high = mid - 1;
-            else if (target > end) low = mid + 1;
-            else return mid;
-        }
-        return Math.clamp(low, 0, this.lineStarts.length - 1);
+        return this.document.lineIndexForOffset(cursorIndex);
     }
 
     private int lineHeightWithSpacing() {
-        int scaledLineHeight = this.scaledFontLineHeight();
-        this.ensureTextScaleCache();
-        int scaledSpacing = Math.max(1, (int) Math.ceil(LINE_SPACING * this.cachedTextScale));
-        return scaledLineHeight + scaledSpacing;
+        return this.fontMetrics.lineHeightWithSpacing(LINE_SPACING);
     }
 
     private int endOfLineClickTolerance() {
@@ -3042,65 +2202,27 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private int foldMarkerRight() {
-        return this.foldMarkerLeft() + FOLD_MARKER_WIDTH;
+        return this.foldMarkerLeft() + this.foldMarkerWidth();
+    }
+
+    private int foldMarkerWidth() {
+        return this.gutterMetrics().foldMarkerWidth();
     }
 
     private int actualLineForVisibleLine(int visibleLine) {
-        int index = Math.clamp(visibleLine, 0, this.visibleToActualLine.length - 1);
-        return this.visibleToActualLine[index];
+        return this.layout.actualLineForRow(visibleLine);
     }
 
-    private int visibleSegmentStart(int visibleLine) {
-        if (this.visibleSegmentStart.length == 0) {
-            return 0;
-        }
-        int index = Math.clamp(visibleLine, 0, this.visibleSegmentStart.length - 1);
-        return this.visibleSegmentStart[index];
+    private int rowSegmentStart(int visibleLine) {
+        return this.layout.row(visibleLine).localStart();
     }
 
-    private int visibleSegmentEnd(int visibleLine) {
-        if (this.visibleSegmentEnd.length == 0) {
-            return 0;
-        }
-        int index = Math.clamp(visibleLine, 0, this.visibleSegmentEnd.length - 1);
-        return this.visibleSegmentEnd[index];
-    }
-
-    private int visibleLineForActualLine(int actualLine) {
-        if (this.actualToVisibleLine.length == 0) {
-            return 0;
-        }
-        int clamped = Math.clamp(actualLine, 0, this.actualToVisibleLine.length - 1);
-        int visible = this.actualToVisibleLine[clamped];
-        if (visible != -1) {
-            return visible;
-        }
-        for (int line = clamped; line >= 0; line--) {
-            if (this.actualToVisibleLine[line] != -1) {
-                return this.actualToVisibleLine[line];
-            }
-        }
-        return 0;
+    private int rowSegmentEnd(int visibleLine) {
+        return this.layout.row(visibleLine).localEnd();
     }
 
     private int visibleLineForCursorIndex(int cursorIndex) {
-        int lineIndex = this.lineIndexForCursor(cursorIndex);
-        int firstVisible = this.visibleLineForActualLine(lineIndex);
-        if (!this.wordWrap || this.actualToVisibleLineLast.length == 0) {
-            return firstVisible;
-        }
-        int lastVisible = this.actualToVisibleLineLast[Math.clamp(lineIndex, 0, this.actualToVisibleLineLast.length - 1)];
-        if (lastVisible < firstVisible) {
-            return firstVisible;
-        }
-        int localCursor = Math.max(0, cursorIndex - this.lineStarts[lineIndex]);
-        for (int visibleLine = firstVisible; visibleLine <= lastVisible; visibleLine++) {
-            int segmentEnd = this.visibleSegmentEnd(visibleLine);
-            if (localCursor <= segmentEnd || visibleLine == lastVisible) {
-                return visibleLine;
-            }
-        }
-        return firstVisible;
+        return this.layout.rowForOffset(cursorIndex);
     }
 
     private FoldRegion foldRegionStartingAt(int actualLine) {
@@ -3118,7 +2240,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         if (localY < 0) {
             return false;
         }
-        int visibleLine = Math.clamp(localY / this.lineHeightWithSpacing(), 0, this.visibleToActualLine.length - 1);
+        int visibleLine = Math.clamp(localY / this.lineHeightWithSpacing(), 0, this.layout.rowCount() - 1);
         int actualLine = this.actualLineForVisibleLine(visibleLine);
         FoldRegion region = this.foldRegionStartingAt(actualLine);
         if (region == null) {
@@ -3162,19 +2284,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 region.endLine += lineDelta;
             }
         }
-    }
-
-    private int newlineCount(String value) {
-        if (value == null || value.isEmpty()) {
-            return 0;
-        }
-        int count = 0;
-        for (int index = 0; index < value.length(); index++) {
-            if (value.charAt(index) == '\n') {
-                count++;
-            }
-        }
-        return count;
     }
 
     private boolean containsFoldStructuralChar(String value) {
@@ -3278,61 +2387,35 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             }
         }
 
-        this.actualToVisibleLine = new int[lineCount];
-        this.actualToVisibleLineLast = new int[lineCount];
-        Arrays.fill(this.actualToVisibleLine, -1);
-        Arrays.fill(this.actualToVisibleLineLast, -1);
-        List<Integer> visibleLines = new ArrayList<>(lineCount);
-        List<Integer> segmentStarts = new ArrayList<>(lineCount);
-        List<Integer> segmentEnds = new ArrayList<>(lineCount);
-        this.maxVisibleLineWidth = 0;
         int wrapWidth = Math.max(1, this.contentWidth());
+        this.layout = RawEditorLayout.build(
+                this.text,
+                this.lineStarts,
+                this.fontMetrics,
+                wrapWidth,
+                this.lineHeightWithSpacing(),
+                this.wordWrap,
+                this.layoutFoldSpans()
+        );
         for (int line = 0; line < lineCount; line++) {
-            if (this.hiddenLines[line]) {
-                continue;
-            }
-            int lineStart = this.lineStarts[line];
-            int lineEnd = this.lineEnd(line);
-            String lineText = this.text.substring(lineStart, lineEnd);
-            this.maxVisibleLineWidth = Math.max(this.maxVisibleLineWidth, this.rawTextWidth(lineText));
-
-            FoldRegion fold = this.foldRegionStartingAt(line);
-            boolean collapsed = fold != null && fold.collapsed;
-            if (collapsed || !this.wordWrap) {
-                this.actualToVisibleLine[line] = visibleLines.size();
-                this.actualToVisibleLineLast[line] = visibleLines.size();
-                visibleLines.add(line);
-                segmentStarts.add(0);
-                segmentEnds.add(Math.max(0, lineText.length()));
-                continue;
-            }
-
-            int added = this.appendWrappedSegments(visibleLines, segmentStarts, segmentEnds, line, lineText, wrapWidth);
-            if (added <= 0) {
-                this.actualToVisibleLine[line] = visibleLines.size();
-                this.actualToVisibleLineLast[line] = visibleLines.size();
-                visibleLines.add(line);
-                segmentStarts.add(0);
-                segmentEnds.add(0);
-                continue;
-            }
-            this.actualToVisibleLine[line] = visibleLines.size() - added;
-            this.actualToVisibleLineLast[line] = visibleLines.size() - 1;
+            this.hiddenLines[line] = this.layout.hiddenLine(line);
         }
-        if (visibleLines.isEmpty()) {
-            visibleLines.add(0);
-            this.actualToVisibleLine[0] = 0;
-            this.actualToVisibleLineLast[0] = 0;
-            segmentStarts.add(0);
-            segmentEnds.add(0);
-        }
-        this.visibleToActualLine = visibleLines.stream().mapToInt(Integer::intValue).toArray();
-        this.visibleSegmentStart = segmentStarts.stream().mapToInt(Integer::intValue).toArray();
-        this.visibleSegmentEnd = segmentEnds.stream().mapToInt(Integer::intValue).toArray();
         this.wrapLayoutWidth = wrapWidth;
         this.moveCursorOutOfHiddenRegion();
-        this.contentHeight = this.visibleToActualLine.length * this.lineHeightWithSpacing();
+        this.contentHeight = this.layout.contentHeight();
+        this.maxVisibleLineWidth = this.layout.maxVisibleLineWidth();
         this.clampHorizontalScrollAmount();
+    }
+
+    private List<RawEditorLayout.FoldSpan> layoutFoldSpans() {
+        if (this.foldRegions.isEmpty()) {
+            return List.of();
+        }
+        List<RawEditorLayout.FoldSpan> spans = new ArrayList<>(this.foldRegions.size());
+        for (FoldRegion region : this.foldRegions) {
+            spans.add(new RawEditorLayout.FoldSpan(region.startLine, region.endLine, region.collapsed));
+        }
+        return spans;
     }
 
     private void refreshWrapLayoutIfNeeded() {
@@ -3345,65 +2428,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
         this.applyFoldVisibility();
         this.ensureCursorVisible();
-    }
-
-    private int appendWrappedSegments(
-            List<Integer> visibleLines,
-            List<Integer> segmentStarts,
-            List<Integer> segmentEnds,
-            int line,
-            String lineText,
-            int wrapWidth
-    ) {
-        if (lineText.isEmpty()) {
-            visibleLines.add(line);
-            segmentStarts.add(0);
-            segmentEnds.add(0);
-            return 1;
-        }
-
-        int segmentStart = 0;
-        int lineLength = lineText.length();
-        int added = 0;
-        while (segmentStart < lineLength) {
-            int segmentEnd = this.wrapSegmentEnd(lineText, segmentStart, wrapWidth);
-            if (segmentEnd <= segmentStart) {
-                segmentEnd = Math.min(lineLength, segmentStart + 1);
-            }
-            visibleLines.add(line);
-            segmentStarts.add(segmentStart);
-            segmentEnds.add(segmentEnd);
-            segmentStart = segmentEnd;
-            added++;
-        }
-        return added;
-    }
-
-    private int wrapSegmentEnd(String lineText, int segmentStart, int wrapWidth) {
-        if (segmentStart >= lineText.length()) {
-            return segmentStart;
-        }
-        int index = segmentStart;
-        int lastBreak = -1;
-        double width = 0d;
-        while (index < lineText.length()) {
-            int codePoint = lineText.codePointAt(index);
-            int next = index + Character.charCount(codePoint);
-            double advance = this.rawGlyphAdvance(codePoint);
-            if (width + advance > wrapWidth) {
-                if (lastBreak > segmentStart) {
-                    return lastBreak;
-                }
-                return index > segmentStart ? index : next;
-            }
-            width += advance;
-            char symbol = (char) codePoint;
-            if (Character.isWhitespace(symbol) || symbol == ',' || symbol == ';' || symbol == ':' || symbol == ']' || symbol == '}' || symbol == ')') {
-                lastBreak = next;
-            }
-            index = next;
-        }
-        return lineText.length();
     }
 
     private void moveCursorOutOfHiddenRegion() {
@@ -3422,6 +2446,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 int target = this.lineStarts[Math.clamp(region.startLine, 0, this.lineStarts.length - 1)];
                 this.cursor = target;
                 this.selectionCursor = target;
+                this.syncSelectionToDocument();
                 this.clearVirtualCaret();
                 return;
             }
@@ -3511,12 +2536,20 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private int gutterWidth() {
-        int lineCount = this.lineStarts.length;
-        int digits = Integer.toString(lineCount).length();
-        String sample = "0".repeat(Math.max(2, digits));
-        int lineNumberWidth = this.rawTextWidth(sample) + GUTTER_PADDING;
-        int foldWidth = FOLD_MARKER_WIDTH + GUTTER_FOLD_GAP + GUTTER_LINE_RIGHT_INSET + 1;
-        return Math.max(GUTTER_MIN_WIDTH, lineNumberWidth + foldWidth);
+        return this.gutterMetrics().gutterWidth();
+    }
+
+    private RawGutterMetrics.Metrics gutterMetrics() {
+        return RawGutterMetrics.calculate(
+                this.fontMetrics,
+                this.lineStarts.length,
+                GUTTER_MIN_WIDTH,
+                GUTTER_PADDING,
+                FOLD_MARKER_WIDTH,
+                FOLD_MARKER_TEXT_PADDING,
+                GUTTER_FOLD_GAP,
+                GUTTER_LINE_RIGHT_INSET
+        );
     }
 
     private int contentLeft() {
@@ -3681,7 +2714,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
         this.ensureTextScaleCache();
         if (Math.abs(this.cachedTextScale - 1.0F) < 0.001F) {
-            context.drawString(Minecraft.getInstance().font, this.rawSequence(value), x, y, color, false);
+            context.drawString(Minecraft.getInstance().font, this.fontMetrics.formattedSequence(value), x, y, color, false);
             return;
         }
 
@@ -3690,121 +2723,49 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         matrices.translate(x, y);
         matrices.scale(this.cachedTextScale, this.cachedTextScale);
         matrices.translate(-x, -y);
-        context.drawString(Minecraft.getInstance().font, this.rawSequence(value), x, y, color, false);
+        context.drawString(Minecraft.getInstance().font, this.fontMetrics.formattedSequence(value), x, y, color, false);
         matrices.popMatrix();
     }
 
     private int rawTextWidth(String value) {
-        if (value == null || value.isEmpty()) return 0;
-        this.ensureTextScaleCache();
-        return (int) Math.ceil(Minecraft.getInstance().font.width(this.rawSequence(value)) * this.cachedTextScale);
+        return this.fontMetrics.textWidth(value);
+    }
+
+    private double rawTextAdvance(String value, int start, int end) {
+        if (value == null || value.isEmpty() || end <= start) {
+            return 0d;
+        }
+        int cursor = Math.clamp(start, 0, value.length());
+        int limit = Math.clamp(end, cursor, value.length());
+        double width = 0d;
+        while (cursor < limit) {
+            int codePoint = value.codePointAt(cursor);
+            width += this.fontMetrics.glyphAdvance(codePoint);
+            cursor += Character.charCount(codePoint);
+        }
+        return width;
     }
 
     private int scaledFontLineHeight() {
-        this.ensureTextScaleCache();
-        return Math.max(6, (int) Math.ceil(Minecraft.getInstance().font.lineHeight * this.cachedTextScale));
+        return this.fontMetrics.lineHeight();
     }
 
     private String trimToWidthRaw(String value, int maxWidth) {
-        if (value == null || value.isEmpty() || maxWidth <= 0) return "";
-        int end = this.rawIndexAtWidth(value, maxWidth);
-        return end <= 0 ? "" : value.substring(0, end);
-    }
-
-    private int rawIndexAtWidth(String value, int targetWidth) {
-        if (value.isEmpty() || targetWidth <= 0) {
-            return 0;
-        }
-        int boundary = 0;
-        double width = 0d;
-        while (boundary < value.length()) {
-            int codePoint = value.codePointAt(boundary);
-            int nextBoundary = boundary + Character.charCount(codePoint);
-            double glyphWidth = this.rawGlyphAdvance(codePoint);
-            double midpoint = width + (glyphWidth * 0.5d);
-            if (targetWidth < midpoint) {
-                return boundary;
-            }
-            width += glyphWidth;
-            if (targetWidth < width) {
-                return nextBoundary;
-            }
-            boundary = nextBoundary;
-        }
-        return value.length();
+        return this.fontMetrics.trimToWidth(value, maxWidth);
     }
 
     private int rawIndexAtWidth(String value, double targetWidth) {
-        if (value.isEmpty() || targetWidth <= 0d) {
-            return 0;
-        }
-        return this.rawIndexAtWidth(value, (int) Math.floor(targetWidth));
-    }
-
-    private float rawGlyphAdvance(int codePoint) {
-        this.ensureTextScaleCache();
-        return this.glyphAdvanceCache.computeIfAbsent(codePoint, cp -> {
-            String symbol = new String(Character.toChars(cp));
-            return Minecraft.getInstance().font.width(symbol) * this.cachedTextScale;
-        });
+        return this.fontMetrics.indexAtWidth(value, targetWidth);
     }
 
     private void ensureTextScaleCache() {
-        float scale = this.computeTextScale();
+        float scale = this.fontMetrics.textScale();
         if (Math.abs(scale - this.cachedTextScale) < 0.001F) {
             return;
         }
         this.cachedTextScale = scale;
-        this.glyphAdvanceCache.clear();
-        this.syntaxLineCache.clear();
+        this.syntaxHighlighter.clear();
         this.lineDepthStartsDirty = true;
-    }
-
-    private float computeTextScale() {
-        Minecraft minecraft = Minecraft.getInstance();
-        double guiScale = minecraft.getWindow().getGuiScale();
-        int guiWidth = minecraft.getWindow().getGuiScaledWidth();
-        int guiHeight = minecraft.getWindow().getGuiScaledHeight();
-
-        float scale = this.baseScaleForGuiScale(guiScale);
-
-        if (guiWidth <= TEXT_SCALE_NARROW_WIDTH_THRESHOLD || guiHeight <= TEXT_SCALE_NARROW_HEIGHT_THRESHOLD) {
-            scale -= TEXT_SCALE_NARROW_PENALTY;
-        } else if (guiWidth >= TEXT_SCALE_WIDE_WIDTH_THRESHOLD && guiHeight >= TEXT_SCALE_WIDE_HEIGHT_THRESHOLD) {
-            scale += TEXT_SCALE_WIDE_BONUS;
-        }
-
-        scale *= (this.fontSizePercent / 100.0F);
-
-        return Math.max(TEXT_SCALE_MIN, Math.min(TEXT_SCALE_MAX, scale));
-    }
-
-    private float baseScaleForGuiScale(double guiScale) {
-        int guiScaleTier = guiScale >= TEXT_SCALE_THRESHOLD_GS5 ? 3
-                : guiScale >= TEXT_SCALE_THRESHOLD_GS4 ? 2
-                : guiScale >= TEXT_SCALE_THRESHOLD_GS3 ? 1
-                : 0;
-        return switch (guiScaleTier) {
-            case 3 -> TEXT_SCALE_GS5;
-            case 2 -> TEXT_SCALE_GS4;
-            case 1 -> TEXT_SCALE_GS3;
-            default -> 1.0F;
-        };
-    }
-
-    private FormattedCharSequence rawSequence(String value) {
-        if (value == null || value.isEmpty()) return FormattedCharSequence.EMPTY;
-        return sink -> {
-            int index = 0;
-            int cursorPos = 0;
-            while (cursorPos < value.length()) {
-                int cp = value.codePointAt(cursorPos);
-                if (!sink.accept(index, RAW_STYLE, cp)) return false;
-                cursorPos += Character.charCount(cp);
-                index++;
-            }
-            return true;
-        };
     }
 
     private record OpenSymbol(char type, int line) {
@@ -3818,12 +2779,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private record SyntaxRun(SyntaxRunKind kind, String text, int color) {
-    }
-
-    private record SyntaxLineCache(String line, int baseDepth, List<SyntaxRun> runs) {
-        private boolean matches(String line, int baseDepth) {
-            return this.baseDepth == baseDepth && this.line.equals(line);
-        }
     }
 
     private static final class FoldRegion {
@@ -3843,9 +2798,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             long end = (((long) this.endLine) & 0xFFFFFFFFL) << 32;
             return end ^ start ^ ((long) this.type << 48);
         }
-    }
-
-    private record HistoryState(String text, int cursor, int selection, double scroll) {
     }
 
     private record LineRange(int startLine, int endLine) {

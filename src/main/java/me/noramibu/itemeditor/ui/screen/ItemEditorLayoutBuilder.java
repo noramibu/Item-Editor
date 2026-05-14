@@ -47,7 +47,6 @@ final class ItemEditorLayoutBuilder {
     private static final int TOP_ACTION_BUTTON_COMPACT_TARGET_MAX = 96;
     private static final int TOP_ACTION_BUTTON_REGULAR_TARGET_MIN = 56;
     private static final int TOP_ACTION_BUTTON_REGULAR_TARGET_MAX = 124;
-    private static final int TOP_ACTION_COUNT = 5;
     private static final int SHELL_VERTICAL_SAFE_PADDING = 8;
     private static final int PANEL_SCROLLBAR_THICKNESS = 8;
     private static final int PREVIEW_SCROLLBAR_THICKNESS = 7;
@@ -280,8 +279,9 @@ final class ItemEditorLayoutBuilder {
                 (int) Math.round(this.shellWidth * 0.34d)
         );
         int availableRowWidth = Math.max(1, this.shellWidth - (effectivePadding * 2));
-        int maxRowGapBudget = TOP_ACTION_COUNT > 1
-                ? Math.max(0, (availableRowWidth - TOP_ACTION_COUNT) / (TOP_ACTION_COUNT - 1))
+        int topActionCount = this.topActionLabels().length;
+        int maxRowGapBudget = topActionCount > 1
+                ? Math.max(0, (availableRowWidth - topActionCount) / (topActionCount - 1))
                 : rowGap;
         rowGap = Math.min(rowGap, maxRowGapBudget);
         TopActionLayout actionLayout = this.computeTopActionLayout(compact, availableRowWidth, rowGap, minTextGroupWidth);
@@ -362,7 +362,7 @@ final class ItemEditorLayoutBuilder {
                 TEXT_WIDTH_MIN,
                 innerWidth - UiFactory.scrollContentInset(PREVIEW_SCROLLBAR_THICKNESS)
         );
-        int textWidth = Math.max(1, Math.min(innerWidth, preferredTextWidth));
+        int textWidth = Math.min(innerWidth, preferredTextWidth);
         this.previewTextWidthHint = textWidth;
         FlowLayout card = UiFactory.card();
         card.verticalSizing(Sizing.fill(100));
@@ -852,13 +852,7 @@ final class ItemEditorLayoutBuilder {
             int rowGap,
             int minTextGroupWidth
     ) {
-        Component[] labels = new Component[]{
-                ItemEditorText.tr("screen.raw_data.original_item"),
-                ItemEditorText.tr("screen.raw_data.current_item"),
-                ItemEditorText.tr("common.reset"),
-                ItemEditorText.tr("common.cancel"),
-                ItemEditorText.tr("common.save_apply")
-        };
+        Component[] labels = this.topActionLabels();
         int targetButtonWidth = compact
                 ? this.clamp((int) Math.round(this.shellWidth * TOP_ACTION_BUTTON_TARGET_RATIO_COMPACT), TOP_ACTION_BUTTON_COMPACT_TARGET_MIN, TOP_ACTION_BUTTON_COMPACT_TARGET_MAX)
                 : this.clamp((int) Math.round(this.shellWidth * TOP_ACTION_BUTTON_TARGET_RATIO_REGULAR), TOP_ACTION_BUTTON_REGULAR_TARGET_MIN, TOP_ACTION_BUTTON_REGULAR_TARGET_MAX);
@@ -880,6 +874,28 @@ final class ItemEditorLayoutBuilder {
         int maxButtonGroupWidth = Math.max(1, availableRowWidth - rowGap - minTextGroupWidth);
         this.fitTopActionWidths(desiredWidths, minWidths, maxButtonGroupWidth, rowGap);
         return new TopActionLayout(labels, desiredWidths, maxButtonWidth);
+    }
+
+    private Component[] topActionLabels() {
+        Component[] base = new Component[]{
+                ItemEditorText.tr("screen.raw_data.original_item"),
+                ItemEditorText.tr("screen.raw_data.current_item"),
+                ItemEditorText.tr("common.reset"),
+                ItemEditorText.tr("common.cancel"),
+                ItemEditorText.tr("common.save_apply")
+        };
+        if (!this.screen.session().hasStorageOrigin()) {
+            return base;
+        }
+        return new Component[]{
+                base[0],
+                base[1],
+                base[2],
+                base[3],
+                ItemEditorText.tr("editor.apply.place_inventory"),
+                ItemEditorText.tr("editor.apply.save_storage"),
+                ItemEditorText.tr("editor.apply.place_and_save_storage")
+        };
     }
 
     private FlowLayout buildTopActionButtons(TopActionLayout layout, int topButtonHeight, int rowGap, int buttonGroupWidth) {
@@ -927,6 +943,24 @@ final class ItemEditorLayoutBuilder {
         buttonGroup.child(this.resetButton);
         buttonGroup.child(cancelButton);
         buttonGroup.child(this.applyButton);
+        if (this.screen.session().hasStorageOrigin() && labels.length >= 7) {
+            ButtonComponent storageButton = this.topActionButton(
+                    labels[5],
+                    this.topButtonTextWidth(widths[5], maxButtonWidth),
+                    widths[5],
+                    topButtonHeight,
+                    button -> this.screen.requestSaveStorage()
+            );
+            ButtonComponent placeStorageButton = this.topActionButton(
+                    labels[6],
+                    this.topButtonTextWidth(widths[6], maxButtonWidth),
+                    widths[6],
+                    topButtonHeight,
+                    button -> this.screen.requestPlaceAndSaveStorage()
+            );
+            buttonGroup.child(storageButton);
+            buttonGroup.child(placeStorageButton);
+        }
         return buttonGroup;
     }
 

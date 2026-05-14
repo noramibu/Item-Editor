@@ -8,6 +8,7 @@ import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.ColorTokenListEditor;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
@@ -129,7 +130,11 @@ public final class FireworkSpecialDataSection {
                 value -> draft.colors = value,
                 0xFF0000,
                 context::mutateRefresh,
-                (initialColor, onApply) -> context.screen().openColorPickerDialog(ItemEditorText.str("special.firework.colors"), initialColor, onApply),
+                (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
+                        ItemEditorText.str("special.firework.colors"),
+                        UnifiedColorPickerDialog.Options.plainColor(initialColor),
+                        result -> onApply.accept(result.colors().getFirst())
+                ),
                 index -> ItemEditorText.tr("special.firework.color_pick_existing", index + 1)
         ));
         colors.child(ColorTokenListEditor.buildField(
@@ -139,7 +144,11 @@ public final class FireworkSpecialDataSection {
                 value -> draft.fadeColors = value,
                 0xFFFFFF,
                 context::mutateRefresh,
-                (initialColor, onApply) -> context.screen().openColorPickerDialog(ItemEditorText.str("special.firework.fade_colors"), initialColor, onApply),
+                (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
+                        ItemEditorText.str("special.firework.fade_colors"),
+                        UnifiedColorPickerDialog.Options.plainColor(initialColor),
+                        result -> onApply.accept(result.colors().getFirst())
+                ),
                 index -> ItemEditorText.tr("special.firework.color_pick_existing", index + 1)
         ));
         card.child(colors);

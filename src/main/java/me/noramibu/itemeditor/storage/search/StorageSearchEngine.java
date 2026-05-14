@@ -35,10 +35,6 @@ public final class StorageSearchEngine {
         return matches;
     }
 
-    public static Comparator<SavedIndexItemEntry> bySortMode(StorageSortMode mode) {
-        return bySortMode(mode, false);
-    }
-
     public static Comparator<SavedIndexItemEntry> bySortMode(StorageSortMode mode, boolean reverseSort) {
         Comparator<SavedIndexItemEntry> comparator;
         if (mode == StorageSortMode.REGULAR) {

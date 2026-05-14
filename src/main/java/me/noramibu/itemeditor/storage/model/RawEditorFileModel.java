@@ -4,6 +4,7 @@ import me.noramibu.itemeditor.storage.StorageConstants;
 
 public final class RawEditorFileModel {
 
+    @SuppressWarnings("unused")
     public int schemaVersion = StorageConstants.RAW_EDITOR_SCHEMA_VERSION;
     public RawEditorOptions options = new RawEditorOptions();
 }

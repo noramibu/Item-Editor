@@ -205,12 +205,8 @@ public final class ItemEditorState {
         public boolean uiMapBasicCollapsed = true;
         public boolean uiMapAdvancedCollapsed = true;
         public boolean uiEquipmentCombatCollapsed = true;
-        public boolean uiCombatEquippableCollapsed = true;
-        public boolean uiCombatWeaponCollapsed = true;
-        public boolean uiCombatToolCollapsed = true;
-        public boolean uiCombatRepairableCollapsed = true;
-        public boolean uiCombatAttackRangeCollapsed = true;
-        public boolean uiComponentTweaksCollapsed = true;
+        public boolean uiCustomDataCollapsed = true;
+        public boolean uiBlockStateCollapsed = true;
         public boolean uiComponentTweaksNamingCollapsed = true;
         public boolean uiComponentTweaksRegistryCollapsed = true;
         public boolean uiComponentTweaksBlockCollapsed = true;
@@ -247,6 +243,7 @@ public final class ItemEditorState {
         public String kineticHitSoundId = "";
         public String swingAnimationType = "";
         public String swingAnimationDuration = "";
+        public String customDataSnbt = "";
 
         public final SignData sign = new SignData();
 
@@ -286,11 +283,6 @@ public final class ItemEditorState {
         public String itemFrameFacing = "";
 
         public String spawnEggEntityId = "";
-        public boolean uiSpawnEggEntityCollapsed;
-        public boolean uiSpawnEggNameCollapsed;
-        public boolean uiSpawnEggFlagsCollapsed;
-        public boolean uiSpawnEggValuesCollapsed;
-        public boolean uiSpawnEggVillagerCollapsed;
         public boolean spawnEggNoAi;
         public boolean spawnEggSilent;
         public boolean spawnEggNoGravity;
@@ -352,6 +344,8 @@ public final class ItemEditorState {
         public String equippableSlot = "";
         public String equippableEquipSoundId = "";
         public String equippableShearingSoundId = "";
+        public String equippableAssetId = "";
+        public String equippableCameraOverlayId = "";
         public boolean equippableDispensable;
         public boolean equippableSwappable;
         public boolean equippableDamageOnHurt;

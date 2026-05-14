@@ -19,7 +19,9 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
@@ -50,6 +52,7 @@ import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.item.component.BlocksAttacks;
 import net.minecraft.world.item.component.ChargedProjectiles;
 import net.minecraft.world.item.component.Consumable;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.DamageResistant;
 import net.minecraft.world.item.component.DeathProtection;
 import net.minecraft.world.item.component.KineticWeapon;
@@ -68,6 +71,8 @@ import net.minecraft.world.item.component.Weapon;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.Repairable;
 import net.minecraft.world.item.equipment.Equippable;
+import net.minecraft.world.item.equipment.EquipmentAsset;
+import net.minecraft.world.item.equipment.EquipmentAssets;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
 import net.minecraft.world.level.block.entity.PotDecorations;
@@ -92,6 +97,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         this.applyUseEffects(context);
         this.applyUseRemainder(context);
         this.applyUseCooldown(context);
+        this.applyCustomData(context);
 
         this.applyLock(context);
         this.applyContainerLoot(context);
@@ -320,6 +326,50 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         context.previewStack().set(DataComponents.USE_COOLDOWN, new UseCooldown(seconds, Optional.of(groupId)));
+    }
+
+    private void applyCustomData(SpecialDataApplyContext context) {
+        String customDataSnbt = context.special().customDataSnbt == null ? "" : context.special().customDataSnbt.trim();
+        String baselineCustomDataSnbt = context.baselineSpecial().customDataSnbt == null ? "" : context.baselineSpecial().customDataSnbt.trim();
+        if (this.handleUnchangedOrCleared(
+                context,
+                DataComponents.CUSTOM_DATA,
+                Objects.equals(customDataSnbt, baselineCustomDataSnbt),
+                customDataSnbt.isBlank()
+        )) {
+            return;
+        }
+
+        CompoundTag customData = this.parseCustomData(customDataSnbt, context);
+        if (customData == null) {
+            return;
+        }
+        if (customData.isEmpty()) {
+            this.clearToPrototype(context.previewStack(), DataComponents.CUSTOM_DATA);
+            return;
+        }
+        context.previewStack().set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
+    }
+
+    private CompoundTag parseCustomData(String raw, SpecialDataApplyContext context) {
+        try {
+            var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+            Tag parsedTag = TagParser.create(ops).parseFully(raw);
+            if (parsedTag instanceof CompoundTag compoundTag) {
+                return compoundTag;
+            }
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.advanced.custom_data.editor")
+            )));
+            return null;
+        } catch (CommandSyntaxException exception) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.advanced.custom_data.editor") + ": " + exception.getMessage()
+            )));
+            return null;
+        }
     }
 
     private void applyLock(SpecialDataApplyContext context) {
@@ -651,6 +701,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 Objects.equals(context.special().equippableSlot, context.baselineSpecial().equippableSlot)
                         && Objects.equals(context.special().equippableEquipSoundId, context.baselineSpecial().equippableEquipSoundId)
                         && Objects.equals(context.special().equippableShearingSoundId, context.baselineSpecial().equippableShearingSoundId)
+                        && Objects.equals(context.special().equippableAssetId, context.baselineSpecial().equippableAssetId)
+                        && Objects.equals(context.special().equippableCameraOverlayId, context.baselineSpecial().equippableCameraOverlayId)
                         && context.special().equippableDispensable == context.baselineSpecial().equippableDispensable
                         && context.special().equippableSwappable == context.baselineSpecial().equippableSwappable
                         && context.special().equippableDamageOnHurt == context.baselineSpecial().equippableDamageOnHurt
@@ -702,13 +754,51 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 .setCanBeSheared(context.special().equippableCanBeSheared)
                 .setShearingSound(shearingSound);
 
+        ResourceKey<EquipmentAsset> assetId = this.parseEquippableAssetId(context.special().equippableAssetId, context);
+        if (assetId == null && !context.special().equippableAssetId.isBlank()) {
+            return;
+        }
+        if (assetId != null) {
+            builder.setAsset(assetId);
+        }
+
+        Identifier cameraOverlay = this.parseOptionalIdentifier(
+                context.special().equippableCameraOverlayId,
+                ItemEditorText.str("special.advanced.combat.equippable_camera_overlay"),
+                context
+        );
+        if (cameraOverlay == null && !context.special().equippableCameraOverlayId.isBlank()) {
+            return;
+        }
+        if (cameraOverlay != null) {
+            builder.setCameraOverlay(cameraOverlay);
+        }
+
         if (original != null) {
             original.allowedEntities().ifPresent(builder::setAllowedEntities);
-            original.assetId().ifPresent(builder::setAsset);
-            original.cameraOverlay().ifPresent(builder::setCameraOverlay);
         }
 
         context.previewStack().set(DataComponents.EQUIPPABLE, builder.build());
+    }
+
+    private ResourceKey<EquipmentAsset> parseEquippableAssetId(String rawId, SpecialDataApplyContext context) {
+        Identifier identifier = this.parseOptionalIdentifier(
+                rawId,
+                ItemEditorText.str("special.advanced.combat.equippable_asset_id"),
+                context
+        );
+        return identifier == null ? null : ResourceKey.create(EquipmentAssets.ROOT_ID, identifier);
+    }
+
+    private Identifier parseOptionalIdentifier(String rawId, String fieldLabel, SpecialDataApplyContext context) {
+        if (rawId == null || rawId.isBlank()) {
+            return null;
+        }
+        Identifier identifier = IdFieldNormalizer.parse(rawId);
+        if (identifier == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
+        }
+        return identifier;
     }
 
     private void applyWeapon(SpecialDataApplyContext context) {

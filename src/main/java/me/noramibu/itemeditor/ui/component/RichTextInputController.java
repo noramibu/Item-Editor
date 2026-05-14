@@ -3,8 +3,13 @@ package me.noramibu.itemeditor.ui.component;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.util.TextComponentUtil;
+import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.function.UnaryOperator;
 
 final class RichTextInputController {
@@ -46,6 +51,18 @@ final class RichTextInputController {
         }
         range = this.expandAtomicSourceDeletion(beforeText, range);
 
+        TextChangeResult markupResult = this.applyInsertedLegacyMarkup(
+                previousDocument,
+                afterText,
+                prefix,
+                afterSuffix,
+                range,
+                insertionStyle
+        );
+        if (markupResult != null) {
+            return markupResult;
+        }
+
         RichTextDocument updated = previousDocument.copy();
         updated.replace(range.start(), range.end(), insertedText, this.normalizedStyle(insertionStyle, defaultInsertionStyle));
         int cursorOverride = range.start() != prefix || range.end() != beforeSuffix ? range.start() : -1;
@@ -57,6 +74,108 @@ final class RichTextInputController {
             }
         }
         return new TextChangeResult(updated, cursorOverride);
+    }
+
+    private TextChangeResult applyInsertedLegacyMarkup(
+            RichTextDocument previousDocument,
+            String afterText,
+            int prefix,
+            int afterSuffix,
+            DeletionRange range,
+            RichTextStyle insertionStyle
+    ) {
+        int markupStart = this.legacyMarkupStart(afterText, prefix, afterSuffix);
+        if (markupStart < 0 || markupStart >= afterSuffix) {
+            return null;
+        }
+
+        String markup = afterText.substring(markupStart, afterSuffix);
+        if (!TextComponentUtil.containsFormattingCode(markup)) {
+            return null;
+        }
+
+        int replaceStart = Math.max(0, range.start() - Math.max(0, prefix - markupStart));
+        int replaceEnd = Math.max(replaceStart, range.end());
+        RichTextDocument inserted = RichTextDocument.fromMarkup(markup);
+        RichTextDocument updated = previousDocument.copy();
+        int insertedLength = updated.replace(replaceStart, replaceEnd, inserted);
+        RichTextStyle pendingStyleOverride = inserted.isEmpty()
+                ? this.styleAfterLegacyMarkup(markup, insertionStyle)
+                : null;
+        return new TextChangeResult(updated, replaceStart + insertedLength, pendingStyleOverride);
+    }
+
+    private int legacyMarkupStart(String afterText, int prefix, int afterSuffix) {
+        if (prefix > 0 && afterSuffix > prefix) {
+            int tokenStart = prefix - 1;
+            int tokenLength = TextComponentUtil.formattingCodeLengthAt(afterText, tokenStart);
+            if (tokenLength > 0 && tokenStart + tokenLength == afterSuffix) {
+                return tokenStart;
+            }
+        }
+        return prefix;
+    }
+
+    private RichTextStyle styleAfterLegacyMarkup(String markup, RichTextStyle baseStyle) {
+        Style style = (baseStyle == null ? RichTextStyle.EMPTY : baseStyle).toStyle();
+        boolean changed = false;
+        for (int cursor = 0; cursor < markup.length();) {
+            int codeLength = TextComponentUtil.formattingCodeLengthAt(markup, cursor);
+            if (codeLength <= 0) {
+                cursor += Character.charCount(markup.codePointAt(cursor));
+                continue;
+            }
+
+            Style updated = this.applyLegacyCode(style, markup, cursor, codeLength);
+            if (!updated.equals(style)) {
+                style = updated;
+                changed = true;
+            }
+            cursor += codeLength;
+        }
+        return changed ? RichTextStyle.fromStyle(style) : null;
+    }
+
+    private Style applyLegacyCode(Style style, String markup, int codeStart, int codeLength) {
+        char marker = markup.charAt(codeStart);
+        char code = markup.charAt(codeStart + 1);
+        if (code == marker) {
+            return style;
+        }
+        if (code == '$' && codeLength == 10) {
+            return style.withShadowColor((int) Long.parseLong(markup.substring(codeStart + 2, codeStart + 10), 16));
+        }
+        if (code == '#') {
+            Integer color = ValidationUtil.tryParseHexColor(markup.substring(codeStart + 2, codeStart + 8));
+            return color == null ? style : style.withColor(TextColor.fromRgb(color));
+        }
+        if (code == 'x' || code == 'X') {
+            Integer color = this.parseLegacyHex(markup, codeStart, marker);
+            return color == null ? style : style.withColor(TextColor.fromRgb(color));
+        }
+
+        ChatFormatting formatting = ChatFormatting.getByCode(code);
+        if (formatting == null) {
+            return style;
+        }
+        return formatting == ChatFormatting.RESET ? Style.EMPTY : style.applyLegacyFormat(formatting);
+    }
+
+    private Integer parseLegacyHex(String text, int start, char marker) {
+        StringBuilder hex = new StringBuilder(6);
+        for (int digit = 0; digit < 6; digit++) {
+            int markerIndex = start + 2 + digit * 2;
+            int digitIndex = markerIndex + 1;
+            if (digitIndex >= text.length() || text.charAt(markerIndex) != marker) {
+                return null;
+            }
+            char value = text.charAt(digitIndex);
+            if (Character.digit(value, 16) < 0) {
+                return null;
+            }
+            hex.append(value);
+        }
+        return Integer.parseInt(hex.toString(), 16);
     }
 
     private DeletionRange expandAtomicSourceDeletion(String text, DeletionRange range) {
@@ -370,11 +489,21 @@ final class RichTextInputController {
             RichTextDocument source,
             int start,
             int end,
-            int startColor,
-            int endColor
+            List<Integer> colors
     ) {
         RichTextDocument updated = source.copy();
-        updated.applyGradient(start, end, startColor, endColor);
+        updated.applyGradient(start, end, colors);
+        return updated;
+    }
+
+    RichTextDocument applyShadowGradient(
+            RichTextDocument source,
+            int start,
+            int end,
+            List<Integer> colors
+    ) {
+        RichTextDocument updated = source.copy();
+        updated.applyShadowGradient(start, end, colors);
         return updated;
     }
 
@@ -432,7 +561,10 @@ final class RichTextInputController {
     ) {
     }
 
-    record TextChangeResult(RichTextDocument document, int cursorOverride) {
+    record TextChangeResult(RichTextDocument document, int cursorOverride, RichTextStyle pendingStyleOverride) {
+        TextChangeResult(RichTextDocument document, int cursorOverride) {
+            this(document, cursorOverride, null);
+        }
     }
 
     private record CleanupResult(RichTextDocument document, int cursor, boolean changed) {

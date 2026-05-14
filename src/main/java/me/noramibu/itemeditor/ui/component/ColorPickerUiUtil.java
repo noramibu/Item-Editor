@@ -20,6 +20,8 @@ import java.util.function.IntSupplier;
 
 final class ColorPickerUiUtil {
 
+    static final int INPUT_BORDER_CLIP_PADDING = 2;
+
     private ColorPickerUiUtil() {
     }
 
@@ -46,11 +48,10 @@ final class ColorPickerUiUtil {
 
     static void applyPickerSizing(
             ColorPickerComponent picker,
-            boolean compactLayout,
             int pickerWidth,
             int pickerHeight
     ) {
-        picker.sizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(pickerWidth), UiFactory.fixed(pickerHeight));
+        picker.sizing(Sizing.fixed(pickerWidth), Sizing.fixed(pickerHeight));
     }
 
     static Swatch createSwatch(int rgb, int swatchSize) {
@@ -61,14 +62,24 @@ final class ColorPickerUiUtil {
         return new Swatch(swatch, swatchLabel);
     }
 
-    static FlowLayout compactInputField(Component label, TextBoxComponent input, int width, boolean fill) {
+    static FlowLayout compactInputField(Component label, TextBoxComponent input, int width) {
+        return compactInputFieldPixels(label, input, UiFactory.scaledPixels(width));
+    }
+
+    static FlowLayout compactInputFieldPixels(Component label, TextBoxComponent input, int width) {
+        int inputWidth = Math.max(1, width);
+        int fieldWidth = compactInputFieldOuterWidth(inputWidth);
         FlowLayout field = UiFactory.column();
         field.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 2));
-        field.horizontalSizing(fill ? Sizing.fill(100) : UiFactory.fixed(width));
-        field.child(UiFactory.muted(label, Math.max(36, width)));
-        input.horizontalSizing(fill ? Sizing.fill(100) : UiFactory.fixed(width));
+        field.horizontalSizing(Sizing.fixed(fieldWidth));
+        field.child(UiFactory.muted(label, Math.max(UiFactory.scaledPixels(36), fieldWidth)));
+        input.horizontalSizing(Sizing.fixed(inputWidth));
         field.child(input);
         return field;
+    }
+
+    static int compactInputFieldOuterWidth(int inputWidth) {
+        return Math.max(1, inputWidth) + UiFactory.scaledPixels(INPUT_BORDER_CLIP_PADDING);
     }
 
     static void bindHexInput(
@@ -81,7 +92,7 @@ final class ColorPickerUiUtil {
             if (syncing.get()) return;
             Integer parsed = ValidationUtil.tryParseHexColor(value);
             if (parsed == null) {
-                errorLabel.text(ItemEditorText.tr("dialog.color_picker.hex_error"));
+                errorLabel.text(ItemEditorText.tr("dialog.unified_color_picker.hex_error"));
                 return;
             }
             setSelectedRgb.accept(parsed);
@@ -138,7 +149,7 @@ final class ColorPickerUiUtil {
         Integer green = ValidationUtil.tryParseByteChannel(greenInput.getValue());
         Integer blue = ValidationUtil.tryParseByteChannel(blueInput.getValue());
         if (red == null || green == null || blue == null) {
-            errorLabel.text(ItemEditorText.tr("dialog.color_picker.rgb_error"));
+            errorLabel.text(ItemEditorText.tr("dialog.unified_color_picker.rgb_error"));
             return;
         }
         setSelectedRgb.accept((red << 16) | (green << 8) | blue);
@@ -146,9 +157,17 @@ final class ColorPickerUiUtil {
 
     static FlowLayout savedPresetRow(
             Component applyLabel,
+            Component applyHint,
             Runnable onApply,
+            Runnable onEdit,
+            Component editHint,
+            boolean canMoveUp,
+            Runnable onMoveUp,
+            boolean canMoveDown,
+            Runnable onMoveDown,
             Runnable onRemove,
-            int removeButtonWidth,
+            int applyButtonWidth,
+            int actionButtonWidth,
             Component removeHint
     ) {
         FlowLayout row = UiFactory.row();
@@ -159,18 +178,37 @@ final class ColorPickerUiUtil {
                 UiFactory.ButtonTextPreset.COMPACT,
                 button -> onApply.run()
         );
-        applyButton.horizontalSizing(Sizing.expand(100));
+        if (applyButtonWidth > 0) {
+            ButtonFitUtil.applyFittedFixedLabel(applyButton, applyLabel, applyButtonWidth, 24, 8);
+        } else {
+            applyButton.horizontalSizing(Sizing.expand(100));
+        }
+        if (applyHint != null && !applyHint.getString().isBlank()) {
+            applyButton.tooltip(List.of(applyHint));
+        }
         row.child(applyButton);
 
-        ButtonComponent removeButton = UiFactory.button(
-                ItemEditorText.tr("common.remove"),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> onRemove.run()
-        );
-        removeButton.tooltip(List.of(removeHint));
-        removeButton.horizontalSizing(UiFactory.fixed(removeButtonWidth));
-        row.child(removeButton);
+        if (onEdit != null) {
+            row.child(savedPresetAction("E", editHint, true, onEdit, actionButtonWidth));
+        }
+        row.child(savedPresetAction("^", ItemEditorText.tr("common.up"), canMoveUp, onMoveUp, actionButtonWidth));
+        row.child(savedPresetAction("v", ItemEditorText.tr("common.down"), canMoveDown, onMoveDown, actionButtonWidth));
+        row.child(savedPresetAction("x", removeHint, true, onRemove, actionButtonWidth));
         return row;
+    }
+
+    private static ButtonComponent savedPresetAction(
+            String label,
+            Component hint,
+            boolean active,
+            Runnable action,
+            int width
+    ) {
+        ButtonComponent button = UiFactory.button(Component.literal(label), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
+        button.active(active);
+        button.tooltip(List.of(hint));
+        button.horizontalSizing(UiFactory.fixed(width));
+        return button;
     }
 
     record Swatch(BoxComponent swatch, LabelComponent label) {

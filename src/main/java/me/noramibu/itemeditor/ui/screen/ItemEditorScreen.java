@@ -16,6 +16,7 @@ import me.noramibu.itemeditor.editor.EditorModule;
 import me.noramibu.itemeditor.editor.EditorModuleRegistry;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -32,10 +33,8 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 
 public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final float PREVIEW_UI_SCALE = 0.70F;
@@ -364,17 +363,27 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.dialogController.requestApply();
     }
 
+    public void requestSaveStorage() {
+        this.session.flushQueuedRebuild();
+        this.dialogController.requestSaveStorage();
+    }
+
+    public void requestPlaceAndSaveStorage() {
+        this.session.flushQueuedRebuild();
+        this.dialogController.requestPlaceAndSaveStorage();
+    }
+
     public void requestClose() {
         this.session.flushQueuedRebuild();
         this.dialogController.requestClose();
     }
 
-    public void openColorPickerDialog(String title, int initialRgb, IntConsumer onApply) {
-        this.dialogController.openColorPickerDialog(title, initialRgb, onApply);
-    }
-
-    public void openGradientPickerDialog(String title, int initialStartRgb, int initialEndRgb, BiConsumer<Integer, Integer> onApply) {
-        this.dialogController.openGradientPickerDialog(title, initialStartRgb, initialEndRgb, onApply);
+    public void openUnifiedColorPickerDialog(
+            String title,
+            UnifiedColorPickerDialog.Options options,
+            Consumer<UnifiedColorPickerDialog.ColorPickerResult> onApply
+    ) {
+        this.dialogController.openUnifiedColorPickerDialog(title, options, onApply);
     }
 
     public void openRichTextHeadDialog(String title, Consumer<String> onApply) {
@@ -387,10 +396,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     public void openRichTextEventDialog(String title, boolean includeHoverModes, boolean includeSuggestCommand, String initialText, Consumer<String> onApply) {
         this.dialogController.openRichTextEventDialog(title, includeHoverModes, includeSuggestCommand, initialText, onApply);
-    }
-
-    public void openRichTextEventDialog(String title, boolean includeHoverModes, Consumer<String> onApply) {
-        this.openRichTextEventDialog(title, includeHoverModes, true, "text", onApply);
     }
 
     public void openRawItemDataDialog(String title, boolean previewData) {
@@ -456,6 +461,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     public void tick() {
         super.tick();
         this.session.tick();
+        this.dialogController.tick();
         this.runPendingInitialResponsiveRefresh();
     }
 
@@ -543,9 +549,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     Component categoryDescription(EditorModule module) {
-        if (module.category() == EditorCategory.SPECIAL_DATA) {
-            return ItemEditorCapabilities.specialDataDescription(this.session.originalStack());
-        }
         return module.category().description();
     }
 

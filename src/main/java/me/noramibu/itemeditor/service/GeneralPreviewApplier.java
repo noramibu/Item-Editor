@@ -12,6 +12,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Unit;
 import net.minecraft.world.item.AdventureModePredicate;
@@ -39,7 +40,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         } else if (state.customName.isBlank()) {
             this.clearToPrototype(context.previewStack(), DataComponents.CUSTOM_NAME);
         } else {
-            context.previewStack().set(DataComponents.CUSTOM_NAME, this.withPlainBaseline(TextComponentUtil.parseMarkup(state.customName)));
+            context.previewStack().set(DataComponents.CUSTOM_NAME, this.rebuiltCustomName(state.customName));
         }
 
         if (!Objects.equals(state.count, baselineState.count)) {
@@ -156,6 +157,14 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 DataComponents.CAN_PLACE_ON,
                 ItemEditorText.str("general.adventure.can_place_on")
         );
+    }
+
+    private Component rebuiltCustomName(String rawName) {
+        Component compact = TextComponentUtil.compactStyleFlags(TextComponentUtil.parseMarkup(rawName));
+        if (compact.getStyle().isItalic()) {
+            return compact;
+        }
+        return compact.copy().withStyle(compact.getStyle().withItalic(false));
     }
 
     private boolean sameCustomModel(ItemEditorState state, ItemEditorState baselineState) {

@@ -382,7 +382,7 @@ public final class RawEditorPanel implements EditorPanel {
             }
 
             if (selectedSuggestion[0] < 0 || selectedSuggestion[0] >= autocomplete[0].suggestions().size()) {
-                selectedSuggestion[0] = predictiveIndex >= 0 ? predictiveIndex : 0;
+                selectedSuggestion[0] = Math.max(predictiveIndex, 0);
             }
 
             RawAutocompleteUtil.Suggestion suggestion = autocomplete[0].suggestions().get(selectedSuggestion[0]);
@@ -464,7 +464,6 @@ public final class RawEditorPanel implements EditorPanel {
         editor.onChanged().subscribe((text, delta) -> {
             state.rawEditorText = text;
             state.rawEditorEdited = true;
-            boolean likelyIncomplete = this.isLikelyIncompleteRawState(text);
             pendingAutocompleteDelta[0] = delta == null ? null : new RawAutocompleteAsyncService.EditDelta(
                     delta.start(),
                     delta.end(),
@@ -1073,9 +1072,6 @@ public final class RawEditorPanel implements EditorPanel {
             inString = state.inString();
             escaping = state.escaping();
             quote = state.quote();
-            if (state.consumed()) {
-                continue;
-            }
         }
 
         for (int index = safeCursor; index < text.length(); index++) {
@@ -1410,7 +1406,7 @@ public final class RawEditorPanel implements EditorPanel {
             }
         }
         int column = (keyStart - lineStart) + 1;
-        return new ErrorHighlight(line, column, Math.max(1, key.length()));
+        return new ErrorHighlight(line, column, key.length());
     }
 
     private int rawLineStart(String text, int lineOneBased) {

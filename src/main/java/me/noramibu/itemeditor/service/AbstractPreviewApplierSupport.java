@@ -59,13 +59,17 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
     }
 
     protected final Integer parsePotionDuration(String rawDuration, List<ValidationMessage> messages) {
-        return ValidationUtil.parseInt(
+        Integer duration = ValidationUtil.parseInt(
                 rawDuration,
                 ItemEditorText.str("special.potion.duration"),
-                1,
+                -1,
                 Integer.MAX_VALUE,
                 messages
         );
+        if (duration == null) {
+            return null;
+        }
+        return duration <= 0 ? MobEffectInstance.INFINITE_DURATION : duration;
     }
 
     protected final Integer parsePotionAmplifier(String rawAmplifier, List<ValidationMessage> messages) {

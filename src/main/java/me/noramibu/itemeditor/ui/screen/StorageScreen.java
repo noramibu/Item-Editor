@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.screen;
 
 import com.mojang.serialization.DataResult;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageNbtSizeUtil;
 import me.noramibu.itemeditor.storage.StorageServices;
@@ -10,13 +11,12 @@ import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 import me.noramibu.itemeditor.storage.search.StorageSearchAutocompleteUtil;
 import me.noramibu.itemeditor.storage.search.StorageSearchParser;
 import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
+import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -31,6 +31,14 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import io.wispforest.owo.ui.component.ButtonComponent;
+import io.wispforest.owo.ui.component.TextBoxComponent;
+import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.StackLayout;
+import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.core.OwoUIAdapter;
+import io.wispforest.owo.ui.core.Positioning;
+import io.wispforest.owo.ui.core.Sizing;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -83,6 +91,7 @@ public final class StorageScreen extends ContainerScreen {
             .ofPattern("yyyy-MM-dd HH:mm:ss")
             .withZone(ZoneId.systemDefault());
     private static final Component HINT_OPEN_EDITOR = Component.literal("I on hovered item: open editor");
+    private static final Component HINT_PICK_OPEN_EDITOR = ItemEditorText.tr("storage.pick_hint");
     private static final Component HINT_VANILLA = Component.literal("Left/Right/Drag behaves like vanilla chest");
     private static final Component HINT_SYNC = Component.literal("Edit slots in regular sort with no search filter");
     private static final Component HINT_SEARCH = Component.literal("Live search updates as you type");
@@ -91,6 +100,8 @@ public final class StorageScreen extends ContainerScreen {
     private final SavedItemStorageService storage = StorageServices.savedItems();
     private final Map<Integer, SavedIndexItemEntry> slotEntries = new HashMap<>();
     private final Map<Integer, ItemStack> baselineVisibleStacks = new HashMap<>();
+    private final StorageScreenMode mode;
+    private final Screen returnScreen;
 
     private int currentPage;
     private String currentQuery;
@@ -99,10 +110,11 @@ public final class StorageScreen extends ContainerScreen {
 
     private SavedItemStorageService.PageResult currentResult;
 
-    private EditBox searchInput;
-    private EditBox jumpInput;
-    private Button sortButton;
-    private Button reverseSortButton;
+    private TextBoxComponent searchInput;
+    private TextBoxComponent jumpInput;
+    private ButtonComponent sortButton;
+    private ButtonComponent reverseSortButton;
+    private OwoUIAdapter<StackLayout> panelAdapter;
     private int panelX;
     private int panelWidth = PANEL_MIN_WIDTH;
     private int panelTextStartY;
@@ -123,7 +135,17 @@ public final class StorageScreen extends ContainerScreen {
     private long activeRefreshRequest;
 
     public StorageScreen(int initialPage, String initialQuery, StorageSortMode initialSortMode) {
-        this(new SimpleContainer(SLOT_COUNT), requireInventory(), initialPage, initialQuery, initialSortMode);
+        this(initialPage, initialQuery, initialSortMode, StorageScreenMode.MANAGE, null);
+    }
+
+    public StorageScreen(
+            int initialPage,
+            String initialQuery,
+            StorageSortMode initialSortMode,
+            StorageScreenMode mode,
+            Screen returnScreen
+    ) {
+        this(new SimpleContainer(SLOT_COUNT), requireInventory(), initialPage, initialQuery, initialSortMode, mode, returnScreen);
     }
 
     private StorageScreen(
@@ -131,10 +153,14 @@ public final class StorageScreen extends ContainerScreen {
             Inventory inventory,
             int initialPage,
             String initialQuery,
-            StorageSortMode initialSortMode
+            StorageSortMode initialSortMode,
+            StorageScreenMode mode,
+            Screen returnScreen
     ) {
         super(ChestMenu.sixRows(0, inventory, storageContainer), inventory, ItemEditorText.tr("storage.title"));
         this.storageContainer = storageContainer;
+        this.mode = mode == null ? StorageScreenMode.MANAGE : mode;
+        this.returnScreen = returnScreen;
         this.currentPage = Math.max(1, initialPage);
         this.currentQuery = initialQuery == null ? "" : initialQuery;
         this.sortMode = initialSortMode == null ? StorageSortMode.REGULAR : initialSortMode;
@@ -161,6 +187,12 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     protected void slotClicked(@Nullable Slot slot, int slotId, int button, @NotNull ClickType input) {
+        if (this.isPickMode()) {
+            if (button == 0 && slot != null && slot.index >= 0 && slot.index < SLOT_COUNT && slot.hasItem()) {
+                this.openStorageItem(slot.index);
+            }
+            return;
+        }
         this.beginInteractionSnapshot();
         if (this.minecraft.player == null) {
             return;
@@ -198,11 +230,11 @@ public final class StorageScreen extends ContainerScreen {
         if (input.key() == GLFW.GLFW_KEY_I) {
             Slot hovered = this.hoveredSlot;
             if (hovered != null && hovered.hasItem()) {
-                ItemStack stack = hovered.getItem().copy();
-                if (!stack.isEmpty()) {
-                    this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack)));
-                    return true;
+                if (this.isPickMode()) {
+                    return this.openStorageItem(hovered.index);
                 }
+                this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
+                return true;
             }
         }
         if (this.handleSearchShortcuts(input)) {
@@ -226,8 +258,15 @@ public final class StorageScreen extends ContainerScreen {
         }
         boolean typingInInputs = (this.searchInput != null && this.searchInput.isFocused())
                 || (this.jumpInput != null && this.jumpInput.isFocused());
+        if (this.isPickMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
+            this.minecraft.setScreen(this.returnScreen);
+            return true;
+        }
         boolean inventoryCloseKey = this.minecraft.options.keyInventory.matches(input);
         if (typingInInputs && inventoryCloseKey) {
+            return true;
+        }
+        if (this.isPickMode()) {
             return true;
         }
         this.beginInteractionSnapshot();
@@ -272,72 +311,113 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void buildPanelWidgets() {
-        int y = this.topPos;
+        this.removePanelAdapter();
+
+        this.panelAdapter = OwoUIAdapter.createWithoutScreen(this.panelX, this.topPos, this.panelWidth, PANEL_DRAW_HEIGHT, UIContainers::stack);
+        StackLayout root = this.panelAdapter.rootComponent;
+        root.clearChildren();
+
+        FlowLayout panel = UiFactory.column();
+        panel.positioning(Positioning.absolute(0, 0));
+        panel.horizontalSizing(Sizing.fixed(this.panelWidth));
+        panel.verticalSizing(Sizing.content());
+        panel.gap(GAP);
+
+        int y = 0;
         int halfWidth = (this.panelWidth - GAP) / 2;
 
-        this.searchInput = new EditBox(this.font, this.panelX, y, this.panelWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.search"));
-        this.searchInput.setValue(this.currentQuery);
-        this.searchInput.setMaxLength(256);
-        this.searchInput.setHint(Component.literal("item:\"minecraft:*_shulker_*\""));
-        this.searchInput.setResponder(value -> {
+        this.searchInput = UiFactory.textBox(this.currentQuery, value -> {
             this.liveSearchDueAt = System.currentTimeMillis() + SEARCH_DEBOUNCE_MS;
             this.updateAutocompleteHint(value);
         });
-        this.addRenderableWidget(this.searchInput);
+        this.searchInput.horizontalSizing(Sizing.fixed(this.panelWidth));
+        this.searchInput.verticalSizing(Sizing.fixed(BUTTON_HEIGHT));
+        this.searchInput.setValue(this.currentQuery);
+        this.searchInput.setMaxLength(256);
+        this.searchInput.setHint(Component.literal("item:\"minecraft:*_shulker_*\""));
+        panel.child(this.searchInput);
         y += BUTTON_HEIGHT + GAP;
 
-        this.addButton(this.panelX, y, halfWidth, ItemEditorText.tr("storage.search_apply"), this::applySearch);
-        this.addButton(this.panelX + halfWidth + GAP, y, halfWidth, ItemEditorText.tr("storage.search_clear"), this::clearSearch);
+        FlowLayout searchActions = this.panelRow();
+        this.addPanelButton(searchActions, halfWidth, ItemEditorText.tr("storage.search_apply"), this::applySearch);
+        this.addPanelButton(searchActions, halfWidth, ItemEditorText.tr("storage.search_clear"), this::clearSearch);
+        panel.child(searchActions);
         y += BUTTON_HEIGHT + GAP;
 
         int thirdWidth = (this.panelWidth - (GAP * 2)) / 3;
-        this.addTokenButton(this.panelX, y, thirdWidth, "item:\"minecraft:stone\"");
-        this.addTokenButton(this.panelX + thirdWidth + GAP, y, thirdWidth, "name:\"\"");
-        this.addTokenButton(this.panelX + (thirdWidth + GAP) * 2, y, this.panelWidth - ((thirdWidth + GAP) * 2), "lore:\"\"");
+        FlowLayout firstTokenRow = this.panelRow();
+        this.addTokenButton(firstTokenRow, thirdWidth, "item:\"minecraft:stone\"");
+        this.addTokenButton(firstTokenRow, thirdWidth, "name:\"\"");
+        this.addTokenButton(firstTokenRow, this.panelWidth - ((thirdWidth + GAP) * 2), "lore:\"\"");
+        panel.child(firstTokenRow);
         y += BUTTON_HEIGHT + GAP;
 
-        this.addTokenButton(this.panelX, y, thirdWidth, "amount:64");
-        this.addTokenButton(this.panelX + thirdWidth + GAP, y, thirdWidth, "size:>=128");
-        this.addTokenButton(this.panelX + (thirdWidth + GAP) * 2, y, this.panelWidth - ((thirdWidth + GAP) * 2), "before:7d");
+        FlowLayout secondTokenRow = this.panelRow();
+        this.addTokenButton(secondTokenRow, thirdWidth, "amount:64");
+        this.addTokenButton(secondTokenRow, thirdWidth, "size:>=128");
+        this.addTokenButton(secondTokenRow, this.panelWidth - ((thirdWidth + GAP) * 2), "before:7d");
+        panel.child(secondTokenRow);
         y += BUTTON_HEIGHT + GAP;
 
-        this.addButton(this.panelX, y, halfWidth, ItemEditorText.tr("common.prev"), () -> this.changeView(() -> this.currentPage = Math.max(1, this.currentPage - 1)));
-        this.addButton(this.panelX + halfWidth + GAP, y, halfWidth, ItemEditorText.tr("common.next"), () -> this.changeView(() -> this.currentPage++));
+        FlowLayout pageActions = this.panelRow();
+        this.addPanelButton(pageActions, halfWidth, ItemEditorText.tr("common.prev"), () -> this.changeView(() -> this.currentPage = Math.max(1, this.currentPage - 1)));
+        this.addPanelButton(pageActions, halfWidth, ItemEditorText.tr("common.next"), () -> this.changeView(() -> this.currentPage++));
+        panel.child(pageActions);
         y += BUTTON_HEIGHT + GAP;
 
         int jumpButtonWidth = 40;
         int jumpInputWidth = this.panelWidth - jumpButtonWidth - GAP;
-        this.jumpInput = new EditBox(this.font, this.panelX, y, jumpInputWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.jump"));
+        FlowLayout jumpRow = this.panelRow();
+        this.jumpInput = UiFactory.textBox(Integer.toString(this.currentPage), value -> {});
+        this.jumpInput.horizontalSizing(Sizing.fixed(jumpInputWidth));
+        this.jumpInput.verticalSizing(Sizing.fixed(BUTTON_HEIGHT));
         this.jumpInput.setValue(Integer.toString(this.currentPage));
         this.jumpInput.setMaxLength(8);
-        this.addRenderableWidget(this.jumpInput);
-        this.addButton(this.panelX + jumpInputWidth + GAP, y, jumpButtonWidth, ItemEditorText.tr("storage.jump_apply"), this::jumpToPage);
+        this.jumpInput.setHint(ItemEditorText.tr("storage.jump"));
+        jumpRow.child(this.jumpInput);
+        this.addPanelButton(jumpRow, jumpButtonWidth, ItemEditorText.tr("storage.jump_apply"), this::jumpToPage);
+        panel.child(jumpRow);
         y += BUTTON_HEIGHT + GAP;
 
         int reverseWidth = 72;
         int sortWidth = Math.max(32, this.panelWidth - reverseWidth - GAP);
-        this.sortButton = this.addButton(this.panelX, y, sortWidth, ItemEditorText.tr("storage.sort_saved"), () -> this.changeView(() -> this.sortMode = this.sortMode.next()));
-        this.reverseSortButton = this.addButton(
-                this.panelX + sortWidth + GAP,
-                y,
+        FlowLayout sortRow = this.panelRow();
+        this.sortButton = this.addPanelButton(sortRow, sortWidth, ItemEditorText.tr("storage.sort_saved"), () -> this.changeView(() -> this.sortMode = this.sortMode.next()));
+        this.reverseSortButton = this.addPanelButton(
+                sortRow,
                 this.panelWidth - sortWidth - GAP,
                 this.reverseSortButtonLabel(),
                 () -> this.changeView(() -> this.reverseSort = !this.reverseSort)
         );
-        this.reverseSortButton.setTooltip(Tooltip.create(this.reverseSortTooltip()));
-        this.panelTextStartY = y + BUTTON_HEIGHT + 4;
+        this.reverseSortButton.tooltip(this.reverseSortTooltip());
+        panel.child(sortRow);
+        this.panelTextStartY = this.topPos + y + BUTTON_HEIGHT + 4;
+
+        root.child(panel);
+        this.panelAdapter.inflateAndMount();
+        this.addRenderableWidget(this.panelAdapter);
     }
 
-    private Button addButton(int x, int y, int width, Component label, Runnable action) {
-        Button button = Button.builder(label, ignored -> action.run()).bounds(x, y, width, BUTTON_HEIGHT).build();
-        this.addRenderableWidget(button);
+    private FlowLayout panelRow() {
+        FlowLayout row = UiFactory.row();
+        row.horizontalSizing(Sizing.fixed(this.panelWidth));
+        row.verticalSizing(Sizing.fixed(BUTTON_HEIGHT));
+        row.gap(GAP);
+        return row;
+    }
+
+    private ButtonComponent addPanelButton(FlowLayout row, int width, Component label, Runnable action) {
+        ButtonComponent button = UiFactory.button(label, UiFactory.ButtonTextPreset.STANDARD, ignored -> action.run());
+        button.horizontalSizing(Sizing.fixed(Math.max(1, width)));
+        button.verticalSizing(Sizing.fixed(BUTTON_HEIGHT));
+        row.child(button);
         return button;
     }
 
-    private void addTokenButton(int x, int y, int width, String tokenTemplate) {
+    private void addTokenButton(FlowLayout row, int width, String tokenTemplate) {
         String label = tokenTemplate.contains(":") ? tokenTemplate.substring(0, tokenTemplate.indexOf(':') + 1) : tokenTemplate;
-        Button button = this.addButton(x, y, width, Component.literal(label), () -> this.insertSearchToken(tokenTemplate));
-        button.setTooltip(Tooltip.create(Component.literal(tokenTemplate)));
+        ButtonComponent button = this.addPanelButton(row, width, Component.literal(label), () -> this.insertSearchToken(tokenTemplate));
+        button.tooltip(Component.literal(tokenTemplate));
     }
 
     private void insertSearchToken(String tokenTemplate) {
@@ -451,7 +531,7 @@ public final class StorageScreen extends ContainerScreen {
                 this.reverseSortButton.visible = true;
                 this.reverseSortButton.active = this.sortMode != StorageSortMode.REGULAR;
                 this.reverseSortButton.setMessage(this.reverseSortButtonLabel());
-                this.reverseSortButton.setTooltip(Tooltip.create(this.reverseSortTooltip()));
+                this.reverseSortButton.tooltip(this.reverseSortTooltip());
             }
             int sortY = this.sortButton.getY();
             this.panelTextStartY = sortY + BUTTON_HEIGHT + 4;
@@ -560,9 +640,11 @@ public final class StorageScreen extends ContainerScreen {
         y += 6;
         y = this.drawPanelLine(context, textX, y, this.feedbackLabel, this.feedbackColor);
         y = this.drawPanelLine(context, textX, y, HINT_SEARCH, COLOR_HINT);
-        y = this.drawPanelLine(context, textX, y, HINT_OPEN_EDITOR, COLOR_HINT);
-        y = this.drawPanelLine(context, textX, y, HINT_VANILLA, COLOR_HINT);
-        this.drawPanelLine(context, textX, y, HINT_SYNC, COLOR_HINT);
+        y = this.drawPanelLine(context, textX, y, this.isPickMode() ? HINT_PICK_OPEN_EDITOR : HINT_OPEN_EDITOR, COLOR_HINT);
+        if (!this.isPickMode()) {
+            y = this.drawPanelLine(context, textX, y, HINT_VANILLA, COLOR_HINT);
+            this.drawPanelLine(context, textX, y, HINT_SYNC, COLOR_HINT);
+        }
     }
 
     private void feedback(Component message, int color) {
@@ -582,6 +664,10 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void finishInteractionSync() {
+        if (this.isPickMode()) {
+            this.interactionSnapshot = null;
+            return;
+        }
         if (this.interactionSnapshot == null) {
             return;
         }
@@ -643,10 +729,26 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     public void onClose() {
-        this.commitStorageBeforeViewChange();
-        this.storage.flushQueuedWrites();
-        this.storage.trimTrailingEmptyPages();
+        if (!this.isPickMode()) {
+            this.commitStorageBeforeViewChange();
+            this.storage.flushQueuedWrites();
+            this.storage.trimTrailingEmptyPages();
+        }
         super.onClose();
+    }
+
+    @Override
+    public void removed() {
+        this.removePanelAdapter();
+        super.removed();
+    }
+
+    private void removePanelAdapter() {
+        if (this.panelAdapter != null) {
+            this.removeWidget(this.panelAdapter);
+            this.panelAdapter.dispose();
+            this.panelAdapter = null;
+        }
     }
 
     private String trimToPanel(String value) {
@@ -808,6 +910,9 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void commitStorageBeforeViewChange() {
+        if (this.isPickMode()) {
+            return;
+        }
         this.finishInteractionSync();
         if (this.isReadOnlyLayoutView()) {
             return;
@@ -860,6 +965,25 @@ public final class StorageScreen extends ContainerScreen {
         for (int slot = 0; slot < SLOT_COUNT; slot++) {
             this.baselineVisibleStacks.put(slot, this.storageContainer.getItem(slot).copy());
         }
+    }
+
+    private boolean openStorageItem(int slotIndex) {
+        if (slotIndex < 0 || slotIndex >= SLOT_COUNT) {
+            return false;
+        }
+        SavedIndexItemEntry entry = this.slotEntries.get(slotIndex);
+        ItemStack stack = this.storageContainer.getItem(slotIndex).copy();
+        if (entry == null || stack.isEmpty()) {
+            this.feedback(ItemEditorText.tr("storage.pick_empty"), COLOR_HINT);
+            return true;
+        }
+        ItemEditorSessionOrigin.Storage origin = new ItemEditorSessionOrigin.Storage(entry, stack.copy());
+        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack, origin)));
+        return true;
+    }
+
+    private boolean isPickMode() {
+        return this.mode == StorageScreenMode.PICK_FOR_EDIT;
     }
 
     private static Inventory requireInventory() {

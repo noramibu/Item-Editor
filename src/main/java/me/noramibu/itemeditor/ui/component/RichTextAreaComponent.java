@@ -290,7 +290,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         this.applyStyle(style -> style.withShadowColor(color));
     }
 
-    public void applyGradientSelectionOrAll(int startColor, int endColor) {
+    public void applyGradientSelectionOrAll(List<Integer> colors) {
         if (this.document.isEmpty()) {
             return;
         }
@@ -300,7 +300,32 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int start = selection.hasSelection() ? selection.start() : 0;
         int end = selection.hasSelection() ? selection.end() : this.document.length();
 
-        RichTextDocument updated = this.inputController.applyGradient(this.document, start, end, startColor, endColor);
+        RichTextDocument updated = this.inputController.applyGradient(this.document, start, end, colors);
+        String rejection = this.validator.apply(updated);
+        if (rejection != null) {
+            this.rejectionHandler.accept(rejection);
+            return;
+        }
+
+        this.document = updated;
+        this.pendingStylePinned = false;
+        this.pendingStyle = this.resolveInsertionStyle(this.editBox.cursor());
+        this.refreshLayout();
+        this.recordUndo(before);
+        this.documentChangedEvents.sink().onChanged(this.document.copy());
+    }
+
+    public void applyShadowGradientSelectionOrAll(List<Integer> colors) {
+        if (this.document.isEmpty()) {
+            return;
+        }
+        HistoryState before = this.captureHistoryState();
+
+        RichTextSelectionModel selection = this.currentSelection();
+        int start = selection.hasSelection() ? selection.start() : 0;
+        int end = selection.hasSelection() ? selection.end() : this.document.length();
+
+        RichTextDocument updated = this.inputController.applyShadowGradient(this.document, start, end, colors);
         String rejection = this.validator.apply(updated);
         if (rejection != null) {
             this.rejectionHandler.accept(rejection);
@@ -337,23 +362,6 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             return Objects.requireNonNullElse(fallback, "");
         }
         return this.editBox.value().substring(selection.start(), selection.end());
-    }
-
-    public void wrapSelectionWithTemplate(String openToken, String closeToken, String placeholder) {
-        String open = Objects.requireNonNullElse(openToken, "");
-        String close = Objects.requireNonNullElse(closeToken, "");
-        String fill = Objects.requireNonNullElse(placeholder, "");
-        this.applyTextMutation(() -> {
-            RichTextSelectionModel selection = this.currentSelection();
-            int start = selection.start();
-            int end = selection.end();
-            String value = this.editBox.value();
-            String selected = start < end ? value.substring(start, end) : fill;
-            this.editBox.seekCursor(Whence.ABSOLUTE, start);
-            ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(end);
-            this.editBox.insertText(open + selected + close);
-            return true;
-        });
     }
 
     public void resumeEditing() {
@@ -768,8 +776,13 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             int cursor = result.cursorOverride() >= 0 ? result.cursorOverride() : Math.min(this.editBox.cursor(), updated.length());
             this.applyPlainTextState(updated.plainText(), cursor, cursor);
         }
-        this.pendingStylePinned = false;
-        this.pendingStyle = this.resolveInsertionStyle(this.editBox.cursor());
+        if (result.pendingStyleOverride() == null) {
+            this.pendingStylePinned = false;
+            this.pendingStyle = this.resolveInsertionStyle(this.editBox.cursor());
+        } else {
+            this.pendingStylePinned = true;
+            this.pendingStyle = result.pendingStyleOverride();
+        }
         this.refreshLayout();
         this.recordUndo(before);
         this.documentChangedEvents.sink().onChanged(this.document.copy());
