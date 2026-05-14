@@ -385,17 +385,6 @@ public final class RichTextLayoutUtil {
         return new SourceRange(units.get(startIndex).start(), units.get(endIndex).end());
     }
 
-    public static List<LineLayout> layoutRawPlainText(String sourceText, Font font, int maxWidth) {
-        Objects.requireNonNull(font, "font");
-        return layoutRawSourceInternal(
-                sourceText,
-                Math.max(1, maxWidth),
-                codePoint -> rawCodePointWidth(font, codePoint),
-                (start, end) -> Component.literal(safeSlice(sourceText, start, end)),
-                false
-        );
-    }
-
     private static List<LineLayout> layoutSourceInternal(
             String sourceText,
             int maxWidth,
@@ -894,15 +883,6 @@ public final class RichTextLayoutUtil {
             case ',', ';', ':', ']', '}', ')', '/', '\\', '-', '_' -> true;
             default -> false;
         };
-    }
-
-    private static String safeSlice(String sourceText, int start, int end) {
-        if (sourceText == null || sourceText.isEmpty()) {
-            return "";
-        }
-        int safeStart = Math.clamp(start, 0, sourceText.length());
-        int safeEnd = Math.clamp(end, safeStart, sourceText.length());
-        return sourceText.substring(safeStart, safeEnd);
     }
 
     private static float rawCodePointWidth(Font font, int codePoint) {

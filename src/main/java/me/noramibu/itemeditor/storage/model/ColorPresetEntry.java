@@ -1,14 +1,15 @@
 package me.noramibu.itemeditor.storage.model;
 
+import java.util.List;
+
 public final class ColorPresetEntry {
 
     public String id = "";
     public String name = "";
-    public String type = "color";
     public String value = "";
-    public String start = "";
-    public String end = "";
+    public List<String> stops;
     public long createdAt;
+    @SuppressWarnings("unused")
     public long updatedAt;
 }
 

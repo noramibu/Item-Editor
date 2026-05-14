@@ -20,10 +20,6 @@ public final class ScaledLabelComponent extends LabelComponent {
         return this;
     }
 
-    public float textScale() {
-        return this.textScale;
-    }
-
     @Override
     protected int determineHorizontalContentSize(Sizing sizing) {
         int base = super.determineHorizontalContentSize(sizing);
@@ -57,7 +53,6 @@ public final class ScaledLabelComponent extends LabelComponent {
         try {
             super.drawTooltip(context, mouseX, mouseY, partialTicks, delta);
         } catch (NullPointerException ignored) {
-            return;
         }
     }
 

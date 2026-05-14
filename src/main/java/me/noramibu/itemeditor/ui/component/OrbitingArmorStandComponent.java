@@ -18,15 +18,6 @@ public final class OrbitingArmorStandComponent extends EntityComponent<@NotNull 
         this.transform(matrix -> matrix.rotateX((float) Math.toRadians(-this.pitchDegrees)));
     }
 
-    public OrbitingArmorStandComponent pitch(float degrees) {
-        this.pitchDegrees = clampPitch(degrees);
-        return this;
-    }
-
-    public float pitch() {
-        return this.pitchDegrees;
-    }
-
     @Override
     public boolean onMouseDrag(@NotNull MouseButtonEvent click, double deltaX, double deltaY) {
         boolean handled = super.onMouseDrag(click, deltaX, deltaY);

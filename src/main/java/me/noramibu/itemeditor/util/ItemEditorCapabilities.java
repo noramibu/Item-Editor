@@ -119,10 +119,6 @@ public final class ItemEditorCapabilities {
         };
     }
 
-    public static Component specialDataDescription(ItemStack stack) {
-        return Component.empty();
-    }
-
     public static boolean supportsSpecialData(ItemStack stack) {
         return detectSpecialDataFocus(stack) != SpecialDataFocus.GENERAL;
     }
@@ -136,6 +132,7 @@ public final class ItemEditorCapabilities {
                 "minecraft:use_effects",
                 "minecraft:use_remainder",
                 "minecraft:use_cooldown",
+                "minecraft:custom_data",
                 "minecraft:lock",
                 "minecraft:container_loot",
                 "minecraft:bees",
@@ -169,7 +166,7 @@ public final class ItemEditorCapabilities {
                 "minecraft:swing_animation",
                 "minecraft:piercing_weapon",
                 "minecraft:kinetic_weapon"
-        );
+        ) || hasBlockStateProperties(stack);
     }
 
     public static boolean supportsAnyComponent(ItemStack stack, RegistryAccess registryAccess, String... componentIds) {
@@ -224,6 +221,13 @@ public final class ItemEditorCapabilities {
                 || block instanceof ShulkerBoxBlock
                 || block instanceof HopperBlock
                 || block instanceof DispenserBlock;
+    }
+
+    private static boolean hasBlockStateProperties(ItemStack stack) {
+        if (!(stack.getItem() instanceof BlockItem blockItem)) {
+            return false;
+        }
+        return !blockItem.getBlock().defaultBlockState().getProperties().isEmpty();
     }
 
     private static boolean hasSignBlockEntityData(ItemStack stack) {

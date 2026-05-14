@@ -14,6 +14,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.SnbtPrinterTagVisitor;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
@@ -153,6 +154,15 @@ public final class ItemEditorStateMapper {
             if (firstColor != null) state.customModelColor = ValidationUtil.toHex(firstColor);
         }
 
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            var tag = customData.copyTag();
+            if (!tag.isEmpty()) {
+                state.special.customDataSnbt = new SnbtPrinterTagVisitor().visit(tag);
+                state.special.uiCustomDataCollapsed = false;
+            }
+        }
+
         FoodProperties foodProperties = stack.get(DataComponents.FOOD);
         if (foodProperties != null) {
             state.special.foodNutrition = Integer.toString(foodProperties.nutrition());
@@ -194,6 +204,8 @@ public final class ItemEditorStateMapper {
             state.special.equippableSlot = equippable.slot().name();
             setIdFromHolder(equippable.equipSound(), id -> state.special.equippableEquipSoundId = id);
             setIdFromHolder(equippable.shearingSound(), id -> state.special.equippableShearingSoundId = id);
+            equippable.assetId().ifPresent(assetId -> state.special.equippableAssetId = assetId.identifier().toString());
+            equippable.cameraOverlay().ifPresent(cameraOverlay -> state.special.equippableCameraOverlayId = cameraOverlay.toString());
             state.special.equippableDispensable = equippable.dispensable();
             state.special.equippableSwappable = equippable.swappable();
             state.special.equippableDamageOnHurt = equippable.damageOnHurt();
@@ -308,6 +320,7 @@ public final class ItemEditorStateMapper {
                             .map(entry -> entry.getKey() + "=" + entry.getValue())
                             .toList()
             );
+            state.special.uiBlockStateCollapsed = false;
         }
 
         BlocksAttacks blocksAttacks = stack.get(DataComponents.BLOCKS_ATTACKS);

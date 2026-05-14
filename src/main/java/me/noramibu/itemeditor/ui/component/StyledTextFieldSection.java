@@ -7,7 +7,6 @@ import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,119 +20,6 @@ public final class StyledTextFieldSection {
     private static final int DEFAULT_TOOLBAR_WIDTH_HINT = -1;
 
     private StyledTextFieldSection() {
-    }
-
-    public static BoundEditor create(
-            ItemEditorScreen screen,
-            RichTextDocument initialDocument,
-            Sizing width,
-            Sizing height,
-            String placeholder,
-            RichTextStyle defaultStyle,
-            boolean displayCharCount,
-            int initialColor,
-            int palettePrimary,
-            int paletteSecondary,
-            int paletteSelection,
-            int palettePlaceholder,
-            int chromeFill,
-            int chromeOutline,
-            List<RichTextToolbarUtil.ToolAction> actions,
-            String colorDialogTitle,
-            String gradientDialogTitle,
-            String colorTooltip,
-            String gradientTooltip,
-            Runnable prepareStyledApply,
-            boolean includeColorPicker,
-            boolean includeGradient,
-            Function<RichTextDocument, String> validator,
-            Consumer<RichTextDocument> onDocumentChanged
-    ) {
-        return createRichTextField(
-                screen,
-                initialDocument,
-                width,
-                height,
-                placeholder,
-                defaultStyle,
-                displayCharCount,
-                initialColor,
-                palettePrimary,
-                paletteSecondary,
-                paletteSelection,
-                palettePlaceholder,
-                chromeFill,
-                chromeOutline,
-                actions,
-                colorDialogTitle,
-                gradientDialogTitle,
-                colorTooltip,
-                gradientTooltip,
-                prepareStyledApply,
-                includeColorPicker,
-                includeGradient,
-                validator,
-                onDocumentChanged,
-                DEFAULT_COMPACT_TOOLBAR,
-                DEFAULT_TOOLBAR_WIDTH_HINT
-        );
-    }
-
-    public static BoundEditor create(
-            ItemEditorScreen screen,
-            RichTextDocument initialDocument,
-            Sizing width,
-            Sizing height,
-            String placeholder,
-            RichTextStyle defaultStyle,
-            boolean displayCharCount,
-            int initialColor,
-            int palettePrimary,
-            int paletteSecondary,
-            int paletteSelection,
-            int palettePlaceholder,
-            int chromeFill,
-            int chromeOutline,
-            List<RichTextToolbarUtil.ToolAction> actions,
-            String colorDialogTitle,
-            String gradientDialogTitle,
-            String colorTooltip,
-            String gradientTooltip,
-            Runnable prepareStyledApply,
-            boolean includeColorPicker,
-            boolean includeGradient,
-            Function<RichTextDocument, String> validator,
-            Consumer<RichTextDocument> onDocumentChanged,
-            boolean compactToolbar
-    ) {
-        return createRichTextField(
-                screen,
-                initialDocument,
-                width,
-                height,
-                placeholder,
-                defaultStyle,
-                displayCharCount,
-                initialColor,
-                palettePrimary,
-                paletteSecondary,
-                paletteSelection,
-                palettePlaceholder,
-                chromeFill,
-                chromeOutline,
-                actions,
-                colorDialogTitle,
-                gradientDialogTitle,
-                colorTooltip,
-                gradientTooltip,
-                prepareStyledApply,
-                includeColorPicker,
-                includeGradient,
-                validator,
-                onDocumentChanged,
-                compactToolbar,
-                DEFAULT_TOOLBAR_WIDTH_HINT
-        );
     }
 
     public static BoundEditor create(
@@ -500,9 +386,9 @@ public final class StyledTextFieldSection {
                     0xFFF3E6C8,
                     0xFFB29A72,
                     List.of(
-                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.cap"), Component.empty(), RichTextAreaComponent::capitalizeSelectionOrAll, false),
-                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.low"), Component.empty(), RichTextAreaComponent::lowercaseSelectionOrAll, false),
-                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.reset"), Component.empty(), RichTextAreaComponent::clearFormatting, false)
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.cap"), RichTextToolbarUtil.tooltipFor("toolbar.cap"), RichTextAreaComponent::capitalizeSelectionOrAll, false),
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.low"), RichTextToolbarUtil.tooltipFor("toolbar.low"), RichTextAreaComponent::lowercaseSelectionOrAll, false),
+                            new RichTextToolbarUtil.ToolAction(ItemEditorText.tr("toolbar.reset"), RichTextToolbarUtil.tooltipFor("toolbar.reset"), RichTextAreaComponent::clearFormatting, false)
                     ),
                     false,
                     false,

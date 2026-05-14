@@ -20,8 +20,11 @@ import me.noramibu.itemeditor.ui.scale.UiScaleService;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 public final class UiFactory {
@@ -259,22 +262,9 @@ public final class UiFactory {
         return createAdaptiveButton(text, buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
     }
 
-    public static ButtonComponent button(Component text, ButtonPreset buttonPreset, TextPreset textPreset, Consumer<ButtonComponent> onPress) {
-        return createAdaptiveButton(text, buttonTextScale(textPreset), buttonPreset, onPress);
-    }
-
     public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
         float preferredScale = Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, textScale));
         return createAdaptiveButton(fullText, preferredScale, preset.buttonPreset, onPress);
-    }
-
-    public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {
-        float preferredScale = Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, textScale));
-        return createAdaptiveButton(fullText, preferredScale, preset, onPress);
-    }
-
-    public static ButtonComponent scaledTextButton(Component fullText, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
-        return createAdaptiveButton(fullText, buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
     }
 
     public static void applyButtonPreset(ButtonComponent button, ButtonPreset preset) {
@@ -289,10 +279,6 @@ public final class UiFactory {
         if (button.getWidth() <= 0 || button.getWidth() < minWidth) {
             button.horizontalSizing(Sizing.fixed(minWidth));
         }
-    }
-
-    public static void applyButtonPreset(ButtonComponent button, ButtonTextPreset preset) {
-        applyButtonPreset(button, preset.buttonPreset);
     }
 
     public static ButtonComponent pickerButton(Component text, int width, Consumer<ButtonComponent> onPress) {
@@ -380,14 +366,49 @@ public final class UiFactory {
         String ellipsis = "...";
         int ellipsisWidth = minecraft.font.width(ellipsis);
         if (maxPixelWidth <= ellipsisWidth) {
-            return Component.literal(ellipsis);
+            return Component.literal(ellipsis).withStyle(text.getStyle());
         }
 
-        String shortened = minecraft.font.plainSubstrByWidth(raw, Math.max(0, maxPixelWidth - ellipsisWidth)).trim();
-        if (shortened.isEmpty()) {
-            return Component.literal(ellipsis);
+        MutableComponent shortened = Component.empty();
+        int[] remainingWidth = {Math.max(0, maxPixelWidth - ellipsisWidth)};
+        appendFittedText(shortened, text, Style.EMPTY, remainingWidth);
+        if (shortened.getString().isBlank()) {
+            return Component.literal(ellipsis).withStyle(text.getStyle());
         }
-        return Component.literal(shortened + ellipsis);
+        shortened.append(Component.literal(ellipsis).withStyle(text.getStyle()));
+        return shortened;
+    }
+
+    private static void appendFittedText(MutableComponent output, Component component, Style parentStyle, int[] remainingWidth) {
+        if (component == null || remainingWidth[0] <= 0) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        Style effectiveStyle = component.getStyle().applyTo(parentStyle);
+        component.getContents().visit((String chunk) -> {
+            if (remainingWidth[0] <= 0 || chunk.isEmpty()) {
+                return Optional.empty();
+            }
+
+            int chunkWidth = minecraft.font.width(chunk);
+            if (chunkWidth <= remainingWidth[0]) {
+                output.append(Component.literal(chunk).withStyle(effectiveStyle));
+                remainingWidth[0] -= chunkWidth;
+                return Optional.empty();
+            }
+
+            String partial = minecraft.font.plainSubstrByWidth(chunk, remainingWidth[0]);
+            if (!partial.isEmpty()) {
+                output.append(Component.literal(partial).withStyle(effectiveStyle));
+            }
+            remainingWidth[0] = 0;
+            return Optional.empty();
+        });
+
+        for (Component sibling : component.getSiblings()) {
+            appendFittedText(output, sibling, effectiveStyle, remainingWidth);
+        }
     }
 
     public static TextBoxComponent textBox(String value, Consumer<String> onChanged) {

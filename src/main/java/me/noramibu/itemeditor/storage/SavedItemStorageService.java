@@ -148,11 +148,6 @@ public final class SavedItemStorageService {
         return loaded;
     }
 
-    public PageResult page(int requestedPage, StorageSortMode sortMode) {
-        this.ensureIndexLoaded();
-        return this.withIndexRead(() -> this.page(this.indexCache, requestedPage, sortMode, false));
-    }
-
     private PageResult page(SavedIndexFileModel index, int requestedPage, StorageSortMode sortMode, boolean reverseSort) {
         if (sortMode != StorageSortMode.REGULAR) {
             List<SavedIndexItemEntry> sorted = new ArrayList<>();
@@ -179,15 +174,6 @@ public final class SavedItemStorageService {
         }
         pageEntries.sort(Comparator.comparingInt((SavedIndexItemEntry entry) -> entry.slotInPage));
         return new PageResult(pageEntries, page, maxPage, false, index.items.size());
-    }
-
-    public PageResult search(String queryRaw, int requestedPage, StorageSortMode sortMode) {
-        StorageSearchQuery query = StorageSearchParser.parse(queryRaw);
-        if (query.isEmpty()) {
-            return this.page(requestedPage, sortMode);
-        }
-        this.ensureIndexLoaded();
-        return this.withIndexRead(() -> this.search(this.indexCache, query, requestedPage, sortMode, false));
     }
 
     private PageResult search(
@@ -294,6 +280,35 @@ public final class SavedItemStorageService {
                 this.clearPendingMutations(token);
             }
         });
+    }
+
+    public CompletableFuture<StorageReplaceResult> enqueueReplaceSavedItem(
+            SavedIndexItemEntry originalEntry,
+            ItemStack stack,
+            RegistryAccess registryAccess
+    ) {
+        CompletableFuture<StorageReplaceResult> result = new CompletableFuture<>();
+        if (originalEntry == null || originalEntry.id == null || originalEntry.id.isBlank()) {
+            result.complete(StorageReplaceResult.failure("Original saved entry is missing."));
+            return result;
+        }
+        ItemStack replacement = stack == null ? ItemStack.EMPTY : stack.copy();
+        if (replacement.isEmpty()) {
+            result.complete(StorageReplaceResult.failure("Cannot save an empty item back to storage."));
+            return result;
+        }
+        RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        SavedIndexItemEntry original = copy(originalEntry);
+        this.enqueueWrite(() -> {
+            try {
+                this.ensureIndexLoaded();
+                StorageReplaceResult writeResult = this.replaceSavedItemStrict(original, replacement, access);
+                result.complete(writeResult);
+            } catch (RuntimeException exception) {
+                result.complete(StorageReplaceResult.failure(exception.getMessage() == null ? "Storage save failed." : exception.getMessage()));
+            }
+        });
+        return result;
     }
 
     public void flushQueuedWrites() {
@@ -568,6 +583,40 @@ public final class SavedItemStorageService {
                     this.runtimeCaches.invalidateHotPageCache();
                 }
             });
+        });
+    }
+
+    private StorageReplaceResult replaceSavedItemStrict(
+            SavedIndexItemEntry originalEntry,
+            ItemStack replacement,
+            RegistryAccess registryAccess
+    ) {
+        return this.withIndexWrite(() -> {
+            SavedIndexFileModel index = this.indexCache;
+            SavedIndexItemEntry existing = this.findEntry(index.items, originalEntry.id);
+            if (existing == null) {
+                return StorageReplaceResult.failure("Original saved entry is missing.");
+            }
+            this.withChunkWrite(() -> {
+                CompoundTag encodedItemTag = this.encodeItemTag(replacement, registryAccess);
+                int encodedNbtBytes = nbtByteSize(encodedItemTag);
+                long now = System.currentTimeMillis();
+                SavedChunkCodec.SavedChunkData existingChunk = this.readChunk(existing.chunkId);
+                SavedChunkCodec.SavedChunkEntry current = existingChunk.entries().get(existing.slotInChunk);
+                long savedAt = current == null ? existing.savedAt : current.savedAt();
+                if (savedAt <= 0L) {
+                    savedAt = now;
+                }
+                existingChunk.entries().put(existing.slotInChunk, new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
+                this.writeChunk(existingChunk);
+                SavedIndexItemEntry refreshed = buildEntry(existing.id, existing.chunkId, existing.slotInChunk, savedAt, now, replacement, encodedNbtBytes);
+                this.replaceEntry(index.items, refreshed);
+                this.withItemCacheWrite(() -> this.itemCache.put(existing.id, replacement.copy()));
+                this.markIndexDirty();
+                this.flushIndexIfDue();
+                this.runtimeCaches.invalidateHotPageCache();
+            });
+                return StorageReplaceResult.ok();
         });
     }
 
@@ -963,10 +1012,6 @@ public final class SavedItemStorageService {
         return withReadLock(this.indexLock, action);
     }
 
-    private void withIndexRead(Runnable action) {
-        withReadLock(this.indexLock, action);
-    }
-
     private <T> T withIndexWrite(Supplier<T> action) {
         return withWriteLock(this.indexLock, action);
     }
@@ -991,15 +1036,6 @@ public final class SavedItemStorageService {
         lock.readLock().lock();
         try {
             return action.get();
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    private static void withReadLock(ReentrantReadWriteLock lock, Runnable action) {
-        lock.readLock().lock();
-        try {
-            action.run();
         } finally {
             lock.readLock().unlock();
         }
@@ -1138,6 +1174,16 @@ public final class SavedItemStorageService {
     ) {
         public SlotMutation {
             targetStack = Objects.requireNonNullElse(targetStack, ItemStack.EMPTY);
+        }
+    }
+
+    public record StorageReplaceResult(boolean success, String message) {
+        public static StorageReplaceResult ok() {
+            return new StorageReplaceResult(true, "");
+        }
+
+        public static StorageReplaceResult failure(String message) {
+            return new StorageReplaceResult(false, message == null || message.isBlank() ? "Storage save failed." : message);
         }
     }
 

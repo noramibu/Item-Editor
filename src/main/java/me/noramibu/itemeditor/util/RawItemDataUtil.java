@@ -7,10 +7,13 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonSyntaxException;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
@@ -30,6 +33,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class RawItemDataUtil {
 
@@ -41,6 +46,7 @@ public final class RawItemDataUtil {
     private static final String NULL_TOKEN = "null";
     private static final String PACKET_CONTEXT_THROW_TOKEN =
             "orelsethrow(\"net.fabricmc.fabric.api.networking.v1.context.packetcontext";
+    private static final String ITEM_COMMAND_SLOT = "weapon.mainhand";
 
     private RawItemDataUtil() {
     }
@@ -92,6 +98,64 @@ public final class RawItemDataUtil {
         }
     }
 
+    public static String serializeGiveCommand(ItemStack stack, RegistryAccess registryAccess) {
+        String itemArgument = serializeCommandItemArgument(stack, registryAccess);
+        return itemArgument.isBlank() ? "" : "/give @s " + itemArgument + " " + commandCount(stack);
+    }
+
+    public static String serializeItemCommand(ItemStack stack, RegistryAccess registryAccess) {
+        String itemArgument = serializeCommandItemArgument(stack, registryAccess);
+        return itemArgument.isBlank()
+                ? ""
+                : "/item replace entity @s " + ITEM_COMMAND_SLOT + " with " + itemArgument + " " + commandCount(stack);
+    }
+
+    private static String serializeCommandItemArgument(ItemStack stack, RegistryAccess registryAccess) {
+        if (stack == null || stack.isEmpty()) {
+            return "";
+        }
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        StringBuilder commandItem = new StringBuilder(itemId.toString());
+        String components = serializeCommandComponents(stack, registryAccess);
+        if (!components.isBlank()) {
+            commandItem.append('[').append(components).append(']');
+        }
+        return commandItem.toString();
+    }
+
+    private static String serializeCommandComponents(ItemStack stack, RegistryAccess registryAccess) {
+        DynamicOps<Tag> ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
+        return stack.getComponentsPatch().entrySet().stream()
+                .flatMap(entry -> entry.getValue()
+                        .map(value -> serializePresentCommandComponent(entry.getKey(), value, ops))
+                        .orElseGet(() -> serializeRemovedCommandComponent(entry.getKey())))
+                .collect(Collectors.joining(","));
+    }
+
+    private static Stream<String> serializeRemovedCommandComponent(DataComponentType<?> type) {
+        Identifier componentId = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
+        if (componentId == null) {
+            return Stream.empty();
+        }
+        return Stream.of("!" + componentId);
+    }
+
+    private static Stream<String> serializePresentCommandComponent(DataComponentType<?> type, Object value, DynamicOps<Tag> ops) {
+        Identifier componentId = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
+        if (componentId == null) {
+            return Stream.empty();
+        }
+        TypedDataComponent<?> component = TypedDataComponent.createUnchecked(type, value);
+        return component.encodeValue(ops)
+                .result()
+                .stream()
+                .map(tag -> componentId + "=" + tag);
+    }
+
+    private static int commandCount(ItemStack stack) {
+        return stack == null || stack.isEmpty() ? 1 : Math.max(1, stack.getCount());
+    }
+
     private static String printTag(Tag tag) {
         return new SnbtPrinterTagVisitor().visit(tag);
     }
@@ -130,6 +194,87 @@ public final class RawItemDataUtil {
         DataResult<ItemStack> result = ItemStack.CODEC.parse(
                 registryAccess.createSerializationContext(NbtOps.INSTANCE),
                 parsedTag
+        );
+
+        return result.result()
+                .map(stack -> new ParseResult(stack, null, -1, -1))
+                .orElseGet(() -> new ParseResult(
+                        null,
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")),
+                        -1,
+                        -1
+                ));
+    }
+
+    public static ParseResult parseFlexible(String rawData, RegistryAccess registryAccess) {
+        ParseResult snbt = parse(rawData, registryAccess);
+        if (snbt.success()) {
+            return snbt;
+        }
+
+        ParseResult json = parseJson(rawData, registryAccess);
+        if (json.success()) {
+            return json;
+        }
+
+        if (snbt.hasPosition()) {
+            return snbt;
+        }
+        return new ParseResult(
+                null,
+                ItemEditorText.str("import.parse_failed_detail", snbt.error(), json.error()),
+                -1,
+                -1
+        );
+    }
+
+    public static ParseResult parseTagFlexible(Tag tag, RegistryAccess registryAccess) {
+        Tag effectiveTag = unwrapItemChild(tag);
+        return parseItemTag(effectiveTag, registryAccess);
+    }
+
+    private static ParseResult parseJson(String rawData, RegistryAccess registryAccess) {
+        if (rawData == null || rawData.isBlank()) {
+            return new ParseResult(null, ItemEditorText.str("raw.unknown_error"), -1, -1);
+        }
+        try {
+            JsonElement json = GSON.fromJson(rawData, JsonElement.class);
+            if (json == null) {
+                return new ParseResult(null, ItemEditorText.str("raw.unknown_error"), -1, -1);
+            }
+            Tag converted = JsonOps.INSTANCE.convertTo(NbtOps.INSTANCE, json);
+            return parseItemTag(unwrapItemChild(converted), registryAccess);
+        } catch (JsonSyntaxException exception) {
+            return new ParseResult(
+                    null,
+                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage(),
+                    -1,
+                    -1
+            );
+        } catch (RuntimeException exception) {
+            return new ParseResult(
+                    null,
+                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage(),
+                    -1,
+                    -1
+            );
+        }
+    }
+
+    private static Tag unwrapItemChild(Tag tag) {
+        if (tag instanceof CompoundTag compound) {
+            var itemChild = compound.getCompound("item");
+            if (itemChild.isPresent()) {
+                return itemChild.get();
+            }
+        }
+        return tag;
+    }
+
+    private static ParseResult parseItemTag(Tag tag, RegistryAccess registryAccess) {
+        DataResult<ItemStack> result = ItemStack.CODEC.parse(
+                registryAccess.createSerializationContext(NbtOps.INSTANCE),
+                tag
         );
 
         return result.result()
@@ -351,10 +496,6 @@ public final class RawItemDataUtil {
             validatePacketRoundTrip(preview, registryAccess, messages);
         }
         return messages;
-    }
-
-    public static String format(String rawData, RegistryAccess registryAccess) {
-        return format(rawData, registryAccess, false);
     }
 
     public static String format(String rawData, RegistryAccess registryAccess, boolean showKnownDefaults) {

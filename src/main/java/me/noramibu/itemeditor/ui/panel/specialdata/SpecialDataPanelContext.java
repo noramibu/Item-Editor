@@ -5,6 +5,7 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -119,10 +120,10 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         int selectedColor = this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
                 Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD, 
-                button -> this.screen.openColorPickerDialog(
+                button -> this.screen.openUnifiedColorPickerDialog(
                         pickerTitle,
-                        this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor),
-                        color -> this.mutateRefresh(() -> setter.accept(ValidationUtil.toHex(color)))
+                        UnifiedColorPickerDialog.Options.plainColor(this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor)),
+                        result -> this.mutateRefresh(() -> setter.accept(ValidationUtil.toHex(result.colors().getFirst())))
                 )
         );
         pickButton.tooltip(List.of(Component.literal(ValidationUtil.toHex(selectedColor)).withColor(selectedColor)));

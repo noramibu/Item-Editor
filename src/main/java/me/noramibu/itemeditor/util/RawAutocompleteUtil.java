@@ -303,11 +303,6 @@ public final class RawAutocompleteUtil {
     private RawAutocompleteUtil() {
     }
 
-    public static AutocompleteResult suggest(String rawText, int caretIndex, RegistryAccess registryAccess) {
-        RawAutocompleteIndex index = RawAutocompleteIndex.create(rawText);
-        return suggest(rawText, caretIndex, registryAccess, index, "");
-    }
-
     public static AutocompleteResult suggest(
             String rawText,
             int caretIndex,
@@ -316,15 +311,6 @@ public final class RawAutocompleteUtil {
     ) {
         RawAutocompleteIndex index = RawAutocompleteIndex.create(rawText);
         return suggest(rawText, caretIndex, registryAccess, index, fallbackItemId);
-    }
-
-    public static AutocompleteResult suggest(
-            String rawText,
-            int caretIndex,
-            RegistryAccess registryAccess,
-            RawAutocompleteIndex index
-    ) {
-        return suggest(rawText, caretIndex, registryAccess, index, "");
     }
 
     public static AutocompleteResult suggest(
@@ -1067,25 +1053,6 @@ public final class RawAutocompleteUtil {
             return BooleanInsertStyle.TEXT;
         }
         return BooleanInsertStyle.NBT_BYTE;
-    }
-
-    private static void addSuggestions(
-            Map<String, Suggestion> output,
-            List<String> values,
-            String prefix,
-            SuggestionKind kind
-    ) {
-        addSuggestions(output, values, prefix, kind, UnaryOperator.identity(), 3);
-    }
-
-    private static void addSuggestions(
-            Map<String, Suggestion> output,
-            List<String> values,
-            String prefix,
-            SuggestionKind kind,
-            UnaryOperator<String> insertMapper
-    ) {
-        addSuggestions(output, values, prefix, kind, insertMapper, 3);
     }
 
     private static void addSuggestions(

@@ -1,6 +1,8 @@
 package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.component.LabelComponent;
+import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Surface;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -9,6 +11,7 @@ import net.minecraft.network.chat.MutableComponent;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public final class RawItemDataDialog {
@@ -40,7 +43,7 @@ public final class RawItemDataDialog {
     private static final String PUNCTUATION = "{}[]()";
     private static final String OPERATORS = ":,;=";
     private static final int COMPACT_BUTTON_WIDTH_THRESHOLD = 540;
-    private static final int COMPACT_BUTTON_ROWS = 4;
+    private static final int COMPACT_BUTTON_ROWS = 6;
     private static final int COMPACT_BUTTON_EXTRA = 26;
     private static final int REGULAR_BUTTON_EXTRA = 16;
     private static final int FOOTER_BUTTON_MIN_WIDTH = 64;
@@ -48,7 +51,13 @@ public final class RawItemDataDialog {
     private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
     private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
     private static final int FOOTER_BUTTON_ROW_RESERVE = 80;
-    private static final int FOOTER_BUTTON_COUNT = 4;
+    private static final int FOOTER_BUTTON_COUNT = 6;
+    private static final int STATUS_RESERVE = 18;
+    private static final int COLOR_STATUS_EMPTY = 0xA9B5C0;
+    private static final int COLOR_STATUS_SUCCESS = 0x7ED67A;
+    private static final int COLOR_STATUS_ERROR = 0xFF8A8A;
+    private static final long SUCCESS_VISIBLE_MILLIS = 4_000L;
+    private static final long ERROR_VISIBLE_MILLIS = 8_000L;
     private static final String EMPTY_TEXT = "";
     private static final String BLANK_RENDERED_TEXT = " ";
 
@@ -59,20 +68,27 @@ public final class RawItemDataDialog {
             String title,
             String body,
             List<Line> rawLines,
-            Runnable onCopy,
-            Runnable onExportNbt,
-            Runnable onExportJson,
+            Feedback feedback,
+            Consumer<Feedback> onCopy,
+            Consumer<Feedback> onExportNbt,
+            Consumer<Feedback> onExportJson,
+            Consumer<Feedback> onCopyGiveCommand,
+            Consumer<Feedback> onCopyItemCommand,
             Runnable onClose
     ) {
+        Feedback actualFeedback = feedback == null ? new Feedback() : feedback;
         return create(
                 title,
                 body,
                 rawLines,
+                actualFeedback,
                 COMPACT_BUTTON_ROWS,
                 FOOTER_BUTTON_COUNT,
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.copy"), button -> onCopy.run()),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_nbt"), button -> onExportNbt.run()),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_json"), button -> onExportJson.run()),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.copy"), button -> onCopy.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_nbt"), button -> onExportNbt.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_json"), button -> onExportJson.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.copy_give_command"), button -> onCopyGiveCommand.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.copy_item_command"), button -> onCopyItemCommand.accept(actualFeedback)),
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("common.close"), button -> onClose.run())
         );
     }
@@ -90,6 +106,7 @@ public final class RawItemDataDialog {
                 title,
                 body,
                 rawLines,
+                null,
                 2,
                 2,
                 new DialogUiUtil.FooterAction(cancelText, button -> onCancel.run()),
@@ -101,6 +118,7 @@ public final class RawItemDataDialog {
             String title,
             String body,
             List<Line> rawLines,
+            Feedback feedback,
             int compactButtonRows,
             int footerButtonCount,
             DialogUiUtil.FooterAction... footerActions
@@ -112,16 +130,20 @@ public final class RawItemDataDialog {
         int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN);
         int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, LINE_TEXT_MARGIN);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
+        int actualCompactButtonRows = compactButtons
+                ? DialogUiUtil.compactFooterRowCount(dialogWidth, FOOTER_BUTTON_MIN_WIDTH, footerButtonCount)
+                : compactButtonRows;
         int buttonReserve = DialogUiUtil.buttonRowReserve(
                 compactButtons,
-                compactButtonRows,
+                actualCompactButtonRows,
                 COMPACT_BUTTON_EXTRA,
                 REGULAR_BUTTON_EXTRA
         );
         int headerReserve = UiFactory.scaledPixels(safeBody.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY);
+        int statusReserve = feedback == null ? 0 : UiFactory.scaledPixels(STATUS_RESERVE);
         DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
                 DATA_HEIGHT,
-                headerReserve + buttonReserve,
+                headerReserve + statusReserve + buttonReserve,
                 DATA_MIN_HEIGHT,
                 DIALOG_MIN_HEIGHT
         );
@@ -143,6 +165,12 @@ public final class RawItemDataDialog {
         }
 
         dialog.child(DialogUiUtil.scrollCard(lines, sizing.contentHeight()));
+
+        if (feedback != null) {
+            LabelComponent statusLabel = UiFactory.message(Component.literal(BLANK_RENDERED_TEXT), COLOR_STATUS_EMPTY).maxWidth(bodyTextWidth);
+            feedback.attach(statusLabel, bodyTextWidth);
+            dialog.child(statusLabel);
+        }
 
         FlowLayout buttonRow = DialogUiUtil.footerRowByCount(
                 dialogWidth,
@@ -353,6 +381,56 @@ public final class RawItemDataDialog {
     }
 
     public record Line(String text, int backgroundColor) {
+    }
+
+    public static final class Feedback {
+        private LabelComponent statusLabel;
+        private int maxWidth;
+        private long clearAtMillis;
+
+        private void attach(LabelComponent statusLabel, int maxWidth) {
+            this.statusLabel = statusLabel;
+            this.maxWidth = maxWidth;
+            this.clear();
+        }
+
+        public void success(String message) {
+            this.show(message, COLOR_STATUS_SUCCESS, SUCCESS_VISIBLE_MILLIS);
+        }
+
+        public void error(String message) {
+            this.show(message, COLOR_STATUS_ERROR, ERROR_VISIBLE_MILLIS);
+        }
+
+        public void tick() {
+            if (this.clearAtMillis > 0 && System.currentTimeMillis() >= this.clearAtMillis) {
+                this.clear();
+            }
+        }
+
+        private void show(String message, int color, long visibleMillis) {
+            if (this.statusLabel == null) {
+                return;
+            }
+            String safeMessage = safeText(message);
+            if (safeMessage.isBlank()) {
+                this.clear();
+                return;
+            }
+            this.statusLabel.text(Component.literal(safeMessage));
+            this.statusLabel.color(Color.ofRgb(color));
+            this.statusLabel.maxWidth(this.maxWidth);
+            this.clearAtMillis = System.currentTimeMillis() + visibleMillis;
+        }
+
+        private void clear() {
+            if (this.statusLabel != null) {
+                this.statusLabel.text(Component.literal(BLANK_RENDERED_TEXT));
+                this.statusLabel.color(Color.ofRgb(COLOR_STATUS_EMPTY));
+                this.statusLabel.maxWidth(this.maxWidth);
+            }
+            this.clearAtMillis = 0L;
+        }
     }
 
     private static String safeText(String value) {

@@ -55,9 +55,12 @@ public final class RichTextTokenDialog {
     private static final int OBJECT_PICKER_HEIGHT_NORMAL = 86;
     private static final int OBJECT_PICKER_SELECTOR_WIDTH = 14;
     private static final int OBJECT_PICKER_SELECTOR_PADDING = 6;
+    private static final int OBJECT_PICKER_WIDTH_MAX = 340;
     private static final int OBJECT_SWATCH_SIZE = 12;
     private static final int OBJECT_HEX_INPUT_MIN_WIDTH = 72;
+    private static final int OBJECT_HEX_INPUT_MAX_WIDTH = 140;
     private static final int OBJECT_HEX_ROW_LEFT_RESERVE = 96;
+    private static final int VALUE_FIELD_WIDTH_MAX = 360;
 
     private RichTextTokenDialog() {
     }
@@ -332,10 +335,6 @@ public final class RichTextTokenDialog {
         );
     }
 
-    public static FlowLayout createEvent(String title, boolean includeHoverModes, boolean includeSuggestCommand, Consumer<String> onApply, Runnable onCancel) {
-        return createEvent(title, includeHoverModes, includeSuggestCommand, TOKEN_PLACEHOLDER, onApply, onCancel);
-    }
-
     private static FlowLayout create(
             String title,
             Component body,
@@ -394,18 +393,25 @@ public final class RichTextTokenDialog {
                     .showAlpha(false)
                     .selectorWidth(OBJECT_PICKER_SELECTOR_WIDTH)
                     .selectorPadding(OBJECT_PICKER_SELECTOR_PADDING);
+            int objectPickerSize = UiFactory.scaledPixels(compactButtons ? OBJECT_PICKER_HEIGHT_COMPACT : OBJECT_PICKER_HEIGHT_NORMAL);
+            int objectPickerWidth = Math.min(
+                    UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX),
+                    Math.max(objectPickerSize, textWidth)
+            );
             ColorPickerUiUtil.applyPickerSizing(
                     picker,
-                    compactButtons,
-                    Math.max(1, textWidth),
-                    compactButtons ? OBJECT_PICKER_HEIGHT_COMPACT : OBJECT_PICKER_HEIGHT_NORMAL
+                    objectPickerWidth,
+                    objectPickerSize
             );
             ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(objectColor.get(), OBJECT_SWATCH_SIZE);
             TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(objectColor.get()), ignored -> errorLabel.text(Component.empty()));
             hexInput.setMaxLength(7);
             int hexInputWidth = Math.max(
                     UiFactory.scaledPixels(OBJECT_HEX_INPUT_MIN_WIDTH),
-                    textWidth - UiFactory.scaledPixels(OBJECT_HEX_ROW_LEFT_RESERVE)
+                    Math.min(
+                            UiFactory.scaledPixels(OBJECT_HEX_INPUT_MAX_WIDTH),
+                            textWidth - UiFactory.scaledPixels(OBJECT_HEX_ROW_LEFT_RESERVE)
+                    )
             );
             hexInput.horizontalSizing(UiFactory.fixed(hexInputWidth));
 
@@ -455,11 +461,13 @@ public final class RichTextTokenDialog {
             inputs.clear();
 
             ModeSpec mode = modes.get(selectedMode.get());
+            int valueFieldWidth = valueFieldWidth(textWidth);
             for (FieldSpec field : mode.fields()) {
                 TextBoxComponent input = UiFactory.textBox(field.initialValue(), ignored -> errorLabel.text(Component.empty()));
                 input.setMaxLength(UNBOUNDED_TEXT_LIMIT);
-                input.horizontalSizing(Sizing.fill(100));
-                fieldsList.child(UiFactory.field(field.label(), Component.empty(), input));
+                FlowLayout fieldLayout = UiFactory.field(field.label(), Component.empty(), input);
+                fieldLayout.horizontalSizing(UiFactory.fixed(valueFieldWidth));
+                fieldsList.child(fieldLayout);
                 inputs.add(input);
             }
         };
@@ -618,6 +626,10 @@ public final class RichTextTokenDialog {
                 + "|"
                 + TextComponentUtil.escapeStructuredTokenValue(ValidationUtil.toHex(rgb))
                 + token.substring(closeIndex);
+    }
+
+    private static int valueFieldWidth(int textWidth) {
+        return Math.max(1, Math.min(textWidth, UiFactory.scaledPixels(VALUE_FIELD_WIDTH_MAX)));
     }
 
     private static FieldSpec eventTextField(String initialText) {

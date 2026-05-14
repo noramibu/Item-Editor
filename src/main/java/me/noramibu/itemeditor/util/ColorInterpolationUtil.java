@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.util;
 
+import java.util.List;
+
 public final class ColorInterpolationUtil {
 
     private ColorInterpolationUtil() {
@@ -17,6 +19,22 @@ public final class ColorInterpolationUtil {
         int green = Math.round(startGreen + (endGreen - startGreen) * progress);
         int blue = Math.round(startBlue + (endBlue - startBlue) * progress);
         return rgb(red, green, blue);
+    }
+
+    public static int interpolateRgb(List<Integer> colors, float progress) {
+        if (colors == null || colors.isEmpty()) {
+            return 0xFFFFFF;
+        }
+        if (colors.size() == 1) {
+            return colors.getFirst() & 0xFFFFFF;
+        }
+
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        float scaled = clamped * (colors.size() - 1);
+        int startIndex = Math.min(colors.size() - 2, (int) Math.floor(scaled));
+        int endIndex = startIndex + 1;
+        float segmentProgress = scaled - startIndex;
+        return interpolateRgb(colors.get(startIndex), colors.get(endIndex), segmentProgress);
     }
 
     public static double colorDistanceSquared(int left, int right) {

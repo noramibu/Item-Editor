@@ -99,7 +99,7 @@ public final class TextComponentUtil {
                 }
                 if (next == '$' && index + 9 < input.length()) {
                     String hex = input.substring(index + 2, index + 10);
-                    if (isHexColor(hex, 8)) {
+                    if (isShadowHexColor(hex)) {
                         flushWithEvents(root, buffer, style, clickStack, hoverStack);
                         style = style.withShadowColor((int) Long.parseLong(hex, 16));
                         index += 9;
@@ -127,7 +127,7 @@ public final class TextComponentUtil {
                 ChatFormatting formatting = ChatFormatting.getByCode(next);
                 if (formatting != null) {
                     flushWithEvents(root, buffer, style, clickStack, hoverStack);
-                    style = formatting == ChatFormatting.RESET ? Style.EMPTY : style.applyLegacyFormat(formatting);
+                    style = applyMarkupFormatting(style, formatting);
                     index++;
                     continue;
                 }
@@ -197,14 +197,6 @@ public final class TextComponentUtil {
             copy.append(compactStyleFlags(sibling));
         }
         return copy;
-    }
-
-    public static String canonicalLoreMarkup(Component component) {
-        return canonicalLoreMarkup(toMarkup(compactStyleFlags(component)));
-    }
-
-    public static String canonicalLoreMarkup(String text) {
-        return Objects.requireNonNullElse(text, "");
     }
 
     public static boolean sameVisibleContent(Component first, Component second) {
@@ -317,7 +309,7 @@ public final class TextComponentUtil {
         }
 
         char code = input.charAt(index + 1);
-        if (code == '$' && index + 9 < input.length() && isHexColor(input.substring(index + 2, index + 10), 8)) {
+        if (code == '$' && index + 9 < input.length() && isShadowHexColor(input.substring(index + 2, index + 10))) {
             return 10;
         }
         if (code == '#' && index + 7 < input.length() && ValidationUtil.isHexColor(input.substring(index + 2, index + 8))) {
@@ -327,6 +319,29 @@ public final class TextComponentUtil {
             return 14;
         }
         return ChatFormatting.getByCode(code) != null || code == prefix ? 2 : -1;
+    }
+
+    private static Style applyMarkupFormatting(Style style, ChatFormatting formatting) {
+        if (formatting == ChatFormatting.RESET) {
+            return Style.EMPTY;
+        }
+        if (formatting.isColor()) {
+            Style updated = Style.EMPTY;
+            if (style.getShadowColor() != null) {
+                updated = updated.withShadowColor(style.getShadowColor());
+            }
+            if (style.getClickEvent() != null) {
+                updated = updated.withClickEvent(style.getClickEvent());
+            }
+            if (style.getHoverEvent() != null) {
+                updated = updated.withHoverEvent(style.getHoverEvent());
+            }
+            if (style.getInsertion() != null) {
+                updated = updated.withInsertion(style.getInsertion());
+            }
+            return updated.withColor(TextColor.fromLegacyFormat(formatting));
+        }
+        return style.applyFormat(formatting);
     }
 
     private static boolean missingTokenPrefixAt(String input, int index) {
@@ -529,8 +544,8 @@ public final class TextComponentUtil {
         return Integer.parseInt(hexBuilder.toString(), 16);
     }
 
-    private static boolean isHexColor(String value, int length) {
-        if (value == null || value.length() != length) {
+    private static boolean isShadowHexColor(String value) {
+        if (value == null || value.length() != 8) {
             return false;
         }
         for (int index = 0; index < value.length(); index++) {

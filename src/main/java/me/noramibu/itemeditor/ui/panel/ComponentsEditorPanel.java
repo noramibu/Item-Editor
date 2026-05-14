@@ -29,12 +29,32 @@ public final class ComponentsEditorPanel implements EditorPanel {
         FlowLayout root = UiFactory.column();
         List<ComponentSection> sections = List.of(
                 new ComponentSection(
+                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksNaming(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildComponentTweakNamingSection(this.context)
+                ),
+                new ComponentSection(
                         () -> AdvancedItemSpecialDataSection.supportsFoodConsumable(stack, registryAccess),
                         () -> AdvancedItemSpecialDataSection.buildFoodConsumable(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsContainerMetadata(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildContainerMetadata(this.context)
+                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBehavior(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildComponentTweakBehaviorSection(this.context)
+                ),
+                new ComponentSection(
+                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksRegistry(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildComponentTweakRegistrySection(this.context)
+                ),
+                new ComponentSection(
+                        () -> AdvancedItemSpecialDataSection.supportsEquipmentCombat(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildEquipmentCombat(this.context)
+                ),
+                new ComponentSection(
+                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBlock(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildComponentTweakBlockSection(this.context)
+                ),
+                new ComponentSection(
+                        () -> AdvancedItemSpecialDataSection.supportsBlockState(stack),
+                        () -> AdvancedItemSpecialDataSection.buildBlockState(this.context)
                 ),
                 new ComponentSection(
                         () -> AdvancedItemSpecialDataSection.supportsCrossbow(stack, registryAccess),
@@ -49,24 +69,12 @@ public final class ComponentsEditorPanel implements EditorPanel {
                         () -> AdvancedItemSpecialDataSection.buildMapAdvanced(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsEquipmentCombat(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildEquipmentCombat(this.context)
+                        () -> AdvancedItemSpecialDataSection.supportsContainerMetadata(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildContainerMetadata(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksNaming(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildComponentTweakNamingSection(this.context)
-                ),
-                new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksRegistry(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildComponentTweakRegistrySection(this.context)
-                ),
-                new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBlock(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildComponentTweakBlockSection(this.context)
-                ),
-                new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBehavior(stack, registryAccess),
-                        () -> AdvancedItemSpecialDataSection.buildComponentTweakBehaviorSection(this.context)
+                        () -> AdvancedItemSpecialDataSection.supportsCustomData(stack, registryAccess),
+                        () -> AdvancedItemSpecialDataSection.buildCustomData(this.context)
                 )
         );
         boolean hasAnySection = false;

@@ -209,7 +209,16 @@ public final class RichTextDocument {
         this.normalize();
     }
 
-    public void applyGradient(int start, int end, int startColor, int endColor) {
+    public void applyGradient(int start, int end, List<Integer> colors) {
+        this.applyPerCharacterGradient(start, end, colors, RichTextStyle::withColor);
+    }
+
+    public void applyShadowGradient(int start, int end, List<Integer> colors) {
+        this.applyPerCharacterGradient(start, end, colors, (style, color) -> style.withShadowColor((color & 0xFFFFFF) | 0xFF000000));
+    }
+
+    private void applyPerCharacterGradient(int start, int end, List<Integer> colors, GradientStyleApplier styleApplier) {
+        List<Integer> gradientColors = this.normalizedGradientColors(colors);
         IntRange range = this.clampRange(start, end);
         if (range.start() == range.end()) {
             return;
@@ -245,7 +254,7 @@ public final class RichTextDocument {
                 float progress = gradientSteps == 1 ? 0f : (float) colorIndex / (gradientSteps - 1);
                 updated.add(new Segment(
                         Character.toString(codePoint),
-                        segment.style().withColor(ColorInterpolationUtil.interpolateRgb(startColor, endColor, progress))
+                        styleApplier.apply(segment.style(), ColorInterpolationUtil.interpolateRgb(gradientColors, progress))
                 ));
                 colorIndex++;
                 index += Character.charCount(codePoint);
@@ -257,6 +266,30 @@ public final class RichTextDocument {
         this.segments.clear();
         this.segments.addAll(updated);
         this.normalize();
+    }
+
+    private interface GradientStyleApplier {
+        RichTextStyle apply(RichTextStyle style, int color);
+    }
+
+    private List<Integer> normalizedGradientColors(List<Integer> colors) {
+        if (colors == null || colors.isEmpty()) {
+            return List.of(0xFFFFFF, 0xFFFFFF);
+        }
+
+        List<Integer> normalized = new ArrayList<>();
+        for (Integer color : colors) {
+            if (color != null) {
+                normalized.add(color & 0xFFFFFF);
+            }
+        }
+        if (normalized.isEmpty()) {
+            return List.of(0xFFFFFF, 0xFFFFFF);
+        }
+        if (normalized.size() == 1) {
+            normalized.add(normalized.getFirst());
+        }
+        return normalized;
     }
 
     public int transformText(int start, int end, UnaryOperator<String> transformer) {
@@ -298,17 +331,6 @@ public final class RichTextDocument {
             root.append(Component.literal(segment.text()).withStyle(segment.style().toStyle()));
         }
         return root;
-    }
-
-    public RichTextDocument slice(int start, int end) {
-        IntRange range = this.clampRange(start, end);
-        RichTextDocument document = new RichTextDocument();
-        if (range.start() >= range.end()) {
-            return document;
-        }
-        document.segments.addAll(this.sliceSegments(range.start(), range.end()));
-        document.normalize();
-        return document;
     }
 
     public String toMarkup() {

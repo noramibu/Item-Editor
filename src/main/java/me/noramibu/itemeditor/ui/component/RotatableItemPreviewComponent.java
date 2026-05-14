@@ -47,8 +47,4 @@ public final class RotatableItemPreviewComponent extends ItemComponent {
         return this;
     }
 
-    public RotatableItemPreviewComponent rotation(float rotationDegrees) {
-        this.rotationDegrees = rotationDegrees;
-        return this;
-    }
 }
