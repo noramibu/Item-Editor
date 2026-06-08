@@ -16,11 +16,6 @@ import net.minecraft.world.item.Items;
 import java.util.List;
 
 public final class StewSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int EFFECT_PICKER_WIDTH = 220;
-    private static final int DURATION_FIELD_WIDTH = 100;
-
     private StewSpecialDataSection() {
     }
 
@@ -32,7 +27,6 @@ public final class StewSpecialDataSection {
         ItemEditorState.SpecialData special = context.special();
         Registry<MobEffect> effectRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         List<String> effectIds = RegistryUtil.ids(effectRegistry);
-        boolean compactLayout = isCompactLayout(context);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.stew.title"), Component.empty());
         section.child(UiFactory.button(ItemEditorText.tr("special.stew.add_effect"), UiFactory.ButtonTextPreset.STANDARD,  button ->
@@ -49,24 +43,16 @@ public final class StewSpecialDataSection {
 
             row.child(EffectFieldLayoutUtil.buildEffectFields(
                     context,
-                    compactLayout,
                     effectIds,
                     draft.effectId,
                     id -> context.mutateRefresh(() -> draft.effectId = id),
                     draft.duration,
                     context.bindText(value -> draft.duration = value),
                     null,
-                    null,
-                    EFFECT_PICKER_WIDTH,
-                    DURATION_FIELD_WIDTH
+                    null
             ));
             section.child(row);
         }
         return section;
-    }
-
-    private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 }

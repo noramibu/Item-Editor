@@ -770,41 +770,119 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     private static FlowLayout buildOnConsumeEffectsEditor(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        FlowLayout card = UiFactory.subCard();
-        card.child(UiFactory.title(ItemEditorText.tr("special.advanced.consumable.on_consume_effects")).shadow(false));
+        return buildConsumeEffectsEditor(
+                context,
+                special.consumableOnConsumeEffects,
+                "special.advanced.consumable.on_consume_effects",
+                "special.advanced.consumable.add_effect",
+                "special.advanced.consumable.effects_empty",
+                "special.advanced.consumable.effect",
+                false
+        );
+    }
 
-        ButtonComponent addButton = UiFactory.button(ItemEditorText.tr("special.advanced.consumable.add_effect"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                context.mutateRefresh(() -> special.consumableOnConsumeEffects.add(new ItemEditorState.ConsumableEffectDraft()))
+    private static void setDeathProtectionEnabled(ItemEditorState.SpecialData special, boolean enabled) {
+        special.deathProtection = enabled;
+        if (enabled && special.deathProtectionEffects.isEmpty()) {
+            addDefaultDeathProtectionEffects(special.deathProtectionEffects);
+        }
+    }
+
+    private static void addDefaultDeathProtectionEffects(List<ItemEditorState.ConsumableEffectDraft> drafts) {
+        ItemEditorState.ConsumableEffectDraft clearAll = new ItemEditorState.ConsumableEffectDraft();
+        clearAll.type = ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS;
+        drafts.add(clearAll);
+
+        ItemEditorState.ConsumableEffectDraft apply = expandedConsumableEffectDraft();
+        apply.effects.add(deathProtectionPotionEffect("minecraft:regeneration", 900, 1));
+        apply.effects.add(deathProtectionPotionEffect("minecraft:absorption", 100, 1));
+        apply.effects.add(deathProtectionPotionEffect("minecraft:fire_resistance", 800, 0));
+        drafts.add(apply);
+    }
+
+    private static ItemEditorState.PotionEffectDraft deathProtectionPotionEffect(
+            String effectId,
+            int duration,
+            int amplifier
+    ) {
+        ItemEditorState.PotionEffectDraft draft = new ItemEditorState.PotionEffectDraft();
+        draft.effectId = effectId;
+        draft.duration = Integer.toString(duration);
+        draft.amplifier = Integer.toString(amplifier);
+        return draft;
+    }
+
+    private static ItemEditorState.ConsumableEffectDraft expandedConsumableEffectDraft() {
+        ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
+        draft.uiCollapsed = false;
+        return draft;
+    }
+
+    private static FlowLayout buildDeathProtectionEffectsEditor(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special
+    ) {
+        return buildConsumeEffectsEditor(
+                context,
+                special.deathProtectionEffects,
+                "special.advanced.component_tweaks.death_effects",
+                "special.advanced.component_tweaks.add_death_effect",
+                "special.advanced.component_tweaks.death_effects_empty",
+                "special.advanced.component_tweaks.death_effect",
+                true
+        );
+    }
+
+    private static FlowLayout buildConsumeEffectsEditor(
+            SpecialDataPanelContext context,
+            List<ItemEditorState.ConsumableEffectDraft> drafts,
+            String titleKey,
+            String addKey,
+            String emptyKey,
+            String effectTitleKey,
+            boolean includeClearAllEffects
+    ) {
+        FlowLayout card = UiFactory.subCard();
+        card.child(UiFactory.title(ItemEditorText.tr(titleKey)).shadow(false));
+
+        ButtonComponent addButton = UiFactory.button(ItemEditorText.tr(addKey), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                context.mutateRefresh(() -> drafts.add(expandedConsumableEffectDraft()))
         );
         addButton.horizontalSizing(Sizing.fill(100));
         card.child(addButton);
 
-        if (special.consumableOnConsumeEffects.isEmpty()) {
-            card.child(UiFactory.muted(ItemEditorText.tr("special.advanced.consumable.effects_empty"), CONSUMABLE_EFFECTS_EMPTY_HINT_WIDTH));
+        if (drafts.isEmpty()) {
+            card.child(UiFactory.muted(ItemEditorText.tr(emptyKey), CONSUMABLE_EFFECTS_EMPTY_HINT_WIDTH));
             return card;
         }
 
-        List<String> effectTypeValues = List.of(
-                ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS,
-                ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND
-        );
+        List<String> effectTypeValues = includeClearAllEffects
+                ? List.of(
+                        ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS,
+                        ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS,
+                        ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND
+                )
+                : List.of(
+                        ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS,
+                        ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND
+                );
         List<String> effectIds = effectIds(context);
         List<String> sounds = soundIds(context);
 
-        for (int index = 0; index < special.consumableOnConsumeEffects.size(); index++) {
+        for (int index = 0; index < drafts.size(); index++) {
             int currentIndex = index;
-            ItemEditorState.ConsumableEffectDraft draft = special.consumableOnConsumeEffects.get(index);
+            ItemEditorState.ConsumableEffectDraft draft = drafts.get(index);
             String currentType = draft.type == null || draft.type.isBlank()
                     ? ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS
                     : draft.type;
 
             FlowLayout effectCard = context.createReorderableCard(
-                    ItemEditorText.tr("special.advanced.consumable.effect", index + 1),
+                    ItemEditorText.tr(effectTitleKey, index + 1),
                     currentIndex > 0,
-                    () -> swapEntries(special.consumableOnConsumeEffects, currentIndex, currentIndex - 1),
-                    currentIndex < special.consumableOnConsumeEffects.size() - 1,
-                    () -> swapEntries(special.consumableOnConsumeEffects, currentIndex, currentIndex + 1),
-                    () -> special.consumableOnConsumeEffects.remove(currentIndex)
+                    () -> swapEntries(drafts, currentIndex, currentIndex - 1),
+                    currentIndex < drafts.size() - 1,
+                    () -> swapEntries(drafts, currentIndex, currentIndex + 1),
+                    () -> drafts.remove(currentIndex)
             );
             FlowLayout collapseRow = responsiveRow();
             UIComponent summary = UiFactory.muted(Component.literal(consumableEffectSummary(draft, currentType)), CONSUMABLE_EFFECT_SUMMARY_HINT_WIDTH);
@@ -832,6 +910,11 @@ public final class AdvancedItemSpecialDataSection {
                     AdvancedItemSpecialDataSection::effectTypeLabel,
                     selectedType -> context.mutateRefresh(() -> draft.type = selectedType)
             ));
+
+            if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
+                card.child(effectCard);
+                continue;
+            }
 
             if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
                 effectCard.child(UiFactory.field(
@@ -917,6 +1000,9 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     private static String consumableEffectSummary(ItemEditorState.ConsumableEffectDraft draft, String currentType) {
+        if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
+            return "clear_all_effects";
+        }
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
             String sound = draft.soundId == null || draft.soundId.isBlank() ? "-" : draft.soundId;
             return "play_sound - " + sound;
@@ -954,6 +1040,9 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     private static String effectTypeLabel(String effectTypeId) {
+        if (Objects.equals(effectTypeId, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
+            return ItemEditorText.str("special.advanced.consumable.effect_type.clear_all_effects");
+        }
         if (Objects.equals(effectTypeId, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
             return ItemEditorText.str("special.advanced.consumable.effect_type.play_sound");
         }
@@ -1880,7 +1969,7 @@ public final class AdvancedItemSpecialDataSection {
         UIComponent deathProtectionToggle = UiFactory.checkbox(
                 ItemEditorText.tr("special.advanced.component_tweaks.death_protection"),
                 special.deathProtection,
-                context.bindToggle(value -> special.deathProtection = value)
+                value -> context.mutateRefresh(() -> setDeathProtectionEnabled(special, value))
         );
 
         if (stacked) {
@@ -1895,6 +1984,9 @@ public final class AdvancedItemSpecialDataSection {
             FlowLayout togglesB = responsiveRow();
             distributeRowChildren(togglesB, deathProtectionToggle);
             card.child(togglesB);
+        }
+        if (special.deathProtection) {
+            card.child(buildDeathProtectionEffectsEditor(context, special));
         }
         return card;
     }

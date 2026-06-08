@@ -44,6 +44,7 @@ import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwingAnimationType;
 import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
+import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
 import net.minecraft.world.item.component.AttackRange;
@@ -1199,16 +1200,38 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private void applyDeathProtection(SpecialDataApplyContext context) {
+        boolean effectsUnchanged = this.sameConsumableEffects(
+                context.special().deathProtectionEffects,
+                context.baselineSpecial().deathProtectionEffects
+        );
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.DEATH_PROTECTION,
-                context.special().deathProtection == context.baselineSpecial().deathProtection,
+                context.special().deathProtection == context.baselineSpecial().deathProtection && effectsUnchanged,
                 !context.special().deathProtection
         )) {
             return;
         }
 
-        context.previewStack().set(DataComponents.DEATH_PROTECTION, DeathProtection.TOTEM_OF_UNDYING);
+        DeathProtection original = context.originalStack().get(DataComponents.DEATH_PROTECTION);
+        List<ConsumeEffect> deathEffects;
+        if (effectsUnchanged) {
+            deathEffects = this.valueFromOriginal(original, DeathProtection::deathEffects, List.of());
+        } else {
+            deathEffects = this.parseConsumableEffects(
+                    context,
+                    context.special().deathProtectionEffects,
+                    ItemEditorText.str("special.advanced.component_tweaks.death_effects")
+            );
+            if (deathEffects == null) {
+                return;
+            }
+        }
+
+        context.previewStack().set(
+                DataComponents.DEATH_PROTECTION,
+                new DeathProtection(deathEffects)
+        );
     }
 
     private void applyGlider(SpecialDataApplyContext context) {
@@ -1707,15 +1730,32 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private List<ConsumeEffect> parseConsumableEffects(SpecialDataApplyContext context) {
+        return this.parseConsumableEffects(
+                context,
+                context.special().consumableOnConsumeEffects,
+                ItemEditorText.str("special.advanced.consumable.on_consume_effects")
+        );
+    }
+
+    private List<ConsumeEffect> parseConsumableEffects(
+            SpecialDataApplyContext context,
+            List<ItemEditorState.ConsumableEffectDraft> drafts,
+            String effectsLabel
+    ) {
         List<ConsumeEffect> effects = new ArrayList<>();
         Registry<MobEffect> effectRegistry = context.registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         Registry<SoundEvent> soundRegistry = context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT);
 
-        for (int index = 0; index < context.special().consumableOnConsumeEffects.size(); index++) {
-            ItemEditorState.ConsumableEffectDraft draft = context.special().consumableOnConsumeEffects.get(index);
+        for (int index = 0; index < drafts.size(); index++) {
+            ItemEditorState.ConsumableEffectDraft draft = drafts.get(index);
             String normalizedType = draft.type == null ? "" : draft.type.trim();
             if (normalizedType.isBlank()) {
                 normalizedType = ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS;
+            }
+
+            if (Objects.equals(normalizedType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
+                effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
+                continue;
             }
 
             if (Objects.equals(normalizedType, ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS)) {
@@ -1746,7 +1786,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 if (mobEffects.isEmpty()) {
                     context.messages().add(ValidationMessage.error(ItemEditorText.str(
                             "preview.validation.component_failed",
-                            ItemEditorText.str("special.advanced.consumable.on_consume_effects")
+                            effectsLabel
                     )));
                     return null;
                 }

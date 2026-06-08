@@ -285,6 +285,7 @@ public final class ItemEditorCapabilities {
                 || stack.is(Items.POTION)
                 || stack.is(Items.SPLASH_POTION)
                 || stack.is(Items.LINGERING_POTION)
+                || stack.is(Items.ARROW)
                 || stack.is(Items.TIPPED_ARROW)
                 || stack.is(Items.SUSPICIOUS_STEW);
     }

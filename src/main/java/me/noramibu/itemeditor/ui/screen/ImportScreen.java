@@ -14,6 +14,7 @@ import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.service.ItemImportService;
+import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
@@ -65,6 +66,20 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
         var file = UiFactory.button(ItemEditorText.tr("import.file"), UiFactory.ButtonTextPreset.LARGE, button -> this.openFileDialog());
         file.horizontalSizing(Sizing.fill(100));
         card.child(file);
+
+        var storage = UiFactory.button(
+                ItemEditorText.tr("import.storage"),
+                UiFactory.ButtonTextPreset.LARGE,
+                button -> this.minecraft.setScreen(new StorageScreen(
+                        1,
+                        "",
+                        StorageSortMode.REGULAR,
+                        StorageScreenMode.PICK_FOR_EDIT,
+                        this
+                ))
+        );
+        storage.horizontalSizing(Sizing.fill(100));
+        card.child(storage);
 
         this.statusLabel = UiFactory.message(Component.literal(" "), 0xA9B5C0).maxWidth(UiFactory.scaledPixels(230));
         card.child(this.statusLabel);

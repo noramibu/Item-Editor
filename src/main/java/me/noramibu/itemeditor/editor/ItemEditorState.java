@@ -229,6 +229,7 @@ public final class ItemEditorState {
         public String blocksAttacksBlockSoundId = "";
         public String blocksAttacksDisableSoundId = "";
         public boolean deathProtection;
+        public final List<ConsumableEffectDraft> deathProtectionEffects = new ArrayList<>();
         public boolean glider;
         public boolean intangibleProjectile;
         public boolean piercingDealsKnockback;
@@ -520,6 +521,7 @@ public final class ItemEditorState {
 
     public static final class ConsumableEffectDraft {
         public static final String TYPE_APPLY_EFFECTS = "minecraft:apply_effects";
+        public static final String TYPE_CLEAR_ALL_EFFECTS = "minecraft:clear_all_effects";
         public static final String TYPE_PLAY_SOUND = "minecraft:play_sound";
 
         public String type = TYPE_APPLY_EFFECTS;

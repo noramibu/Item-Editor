@@ -37,6 +37,9 @@ public final class ItemPreviewService {
         ItemStack preview = (originalStack.is(Items.WRITABLE_BOOK) && state.book.writtenBook)
                 ? originalStack.transmuteCopy(Items.WRITTEN_BOOK, originalStack.getCount())
                 : originalStack.copy();
+        if (this.shouldPromoteArrowToTippedArrow(originalStack, state)) {
+            preview = preview.transmuteCopy(Items.TIPPED_ARROW, preview.getCount());
+        }
         List<ValidationMessage> messages = new ArrayList<>();
 
         ItemPreviewApplyContext context = new ItemPreviewApplyContext(
@@ -84,6 +87,21 @@ public final class ItemPreviewService {
             return new PreviewBuildResult(originalStack.copy(), messages);
         }
         return new PreviewBuildResult(preview, messages);
+    }
+
+    private boolean shouldPromoteArrowToTippedArrow(ItemStack originalStack, ItemEditorState state) {
+        return originalStack.is(Items.ARROW) && this.hasPotionData(state);
+    }
+
+    private boolean hasPotionData(ItemEditorState state) {
+        return !this.isBlank(state.special.potionId)
+                || !this.isBlank(state.special.potionCustomColor)
+                || !this.isBlank(state.special.potionCustomName)
+                || state.special.potionEffects.stream().anyMatch(effect -> !this.isBlank(effect.effectId));
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     public record PreviewBuildResult(ItemStack previewStack, List<ValidationMessage> messages) {

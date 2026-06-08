@@ -46,6 +46,7 @@ import net.minecraft.world.item.component.Consumable;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.DamageResistant;
+import net.minecraft.world.item.component.DeathProtection;
 import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.Fireworks;
@@ -75,6 +76,7 @@ import net.minecraft.world.item.component.Weapon;
 import net.minecraft.world.item.component.WritableBookContent;
 import net.minecraft.world.item.component.WrittenBookContent;
 import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
+import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
@@ -176,7 +178,7 @@ public final class ItemEditorStateMapper {
             state.special.consumableAnimation = consumable.animation().name();
             setIdFromHolder(consumable.sound(), id -> state.special.consumableSoundId = id);
             state.special.consumableHasParticles = consumable.hasConsumeParticles();
-            readConsumableEffects(consumable.onConsumeEffects(), state.special);
+            readConsumableEffects(consumable.onConsumeEffects(), state.special.consumableOnConsumeEffects);
         }
 
         UseEffects useEffects = stack.get(DataComponents.USE_EFFECTS);
@@ -285,7 +287,11 @@ public final class ItemEditorStateMapper {
 
         state.special.glider = stack.has(DataComponents.GLIDER);
         state.special.intangibleProjectile = stack.has(DataComponents.INTANGIBLE_PROJECTILE);
-        state.special.deathProtection = stack.has(DataComponents.DEATH_PROTECTION);
+        DeathProtection deathProtection = stack.get(DataComponents.DEATH_PROTECTION);
+        if (deathProtection != null) {
+            state.special.deathProtection = true;
+            readConsumableEffects(deathProtection.deathEffects(), state.special.deathProtectionEffects);
+        }
 
         EitherHolder<DamageType> damageType = stack.get(DataComponents.DAMAGE_TYPE);
         if (damageType != null) {
@@ -1019,7 +1025,7 @@ public final class ItemEditorStateMapper {
         stackTag.getByte("count").ifPresent(value -> stackDraft.count = Integer.toString(value));
     }
 
-    private void readConsumableEffects(List<ConsumeEffect> effects, ItemEditorState.SpecialData special) {
+    private void readConsumableEffects(List<ConsumeEffect> effects, List<ItemEditorState.ConsumableEffectDraft> target) {
         for (ConsumeEffect consumeEffect : effects) {
             if (consumeEffect instanceof ApplyStatusEffectsConsumeEffect(var effectInstances, var probability)) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
@@ -1035,7 +1041,14 @@ public final class ItemEditorStateMapper {
                     effectDraft.showIcon = effectInstance.showIcon();
                     draft.effects.add(effectDraft);
                 }
-                special.consumableOnConsumeEffects.add(draft);
+                target.add(draft);
+                continue;
+            }
+
+            if (consumeEffect instanceof ClearAllStatusEffectsConsumeEffect) {
+                ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
+                draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS;
+                target.add(draft);
                 continue;
             }
 
@@ -1043,7 +1056,7 @@ public final class ItemEditorStateMapper {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
                 draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND;
                 setIdFromHolder(sound, id -> draft.soundId = id);
-                special.consumableOnConsumeEffects.add(draft);
+                target.add(draft);
             }
         }
     }

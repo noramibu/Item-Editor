@@ -58,7 +58,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
         card.child(createButton);
 
         var storageButton = UiFactory.button(ItemEditorText.tr("entry.storage"), UiFactory.ButtonTextPreset.LARGE, button ->
-                this.minecraft.setScreen(new StorageScreen(1, "", StorageSortMode.REGULAR, StorageScreenMode.PICK_FOR_EDIT, new ItemEntryScreen(this.minecraft)))
+                this.minecraft.setScreen(new StorageScreen(1, "", StorageSortMode.REGULAR))
         );
         storageButton.horizontalSizing(Sizing.fill(100));
         card.child(storageButton);

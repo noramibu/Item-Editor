@@ -18,24 +18,21 @@ final class EffectFieldLayoutUtil {
 
     static FlowLayout buildEffectFields(
             SpecialDataPanelContext context,
-            boolean compactLayout,
             List<String> effectIds,
             String effectId,
             Consumer<String> setEffectId,
             String duration,
             Consumer<String> setDuration,
             String amplifier,
-            Consumer<String> setAmplifier,
-            int pickerWidth,
-            int numericWidth
+            Consumer<String> setAmplifier
     ) {
-        FlowLayout fields = compactLayout ? UiFactory.column() : UiFactory.row();
+        FlowLayout fields = UiFactory.column();
         fields.child(PickerFieldFactory.searchableField(
                 context,
                 ItemEditorText.tr("special.potion.effect_id"),
                 Component.empty(),
                 PickerFieldFactory.selectedOrFallback(effectId, ItemEditorText.tr("special.potion.select_effect")),
-                compactLayout ? -1 : pickerWidth,
+                -1,
                 ItemEditorText.str("special.potion.effect_id"),
                 "",
                 effectIds,
@@ -46,7 +43,7 @@ final class EffectFieldLayoutUtil {
                 ItemEditorText.tr("special.potion.duration"),
                 Component.empty(),
                 UiFactory.textBox(duration, setDuration).horizontalSizing(
-                        compactLayout ? Sizing.fill(100) : UiFactory.fixed(numericWidth)
+                        Sizing.fill(100)
                 )
         ));
         if (amplifier != null && setAmplifier != null) {
@@ -54,7 +51,7 @@ final class EffectFieldLayoutUtil {
                     ItemEditorText.tr("special.potion.amplifier"),
                     Component.empty(),
                     UiFactory.textBox(amplifier, setAmplifier).horizontalSizing(
-                            compactLayout ? Sizing.fill(100) : UiFactory.fixed(numericWidth)
+                            Sizing.fill(100)
                     )
             ));
         }

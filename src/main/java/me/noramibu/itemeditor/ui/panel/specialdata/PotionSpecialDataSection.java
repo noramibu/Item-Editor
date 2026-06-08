@@ -23,8 +23,6 @@ import java.util.List;
 
 public final class PotionSpecialDataSection {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int EFFECT_PICKER_WIDTH = 220;
-    private static final int EFFECT_NUMERIC_FIELD_WIDTH = 90;
     private static final int EFFECT_ACTION_BUTTON_WIDTH = 116;
 
     private PotionSpecialDataSection() {
@@ -35,6 +33,7 @@ public final class PotionSpecialDataSection {
                 || stack.is(Items.POTION)
                 || stack.is(Items.SPLASH_POTION)
                 || stack.is(Items.LINGERING_POTION)
+                || stack.is(Items.ARROW)
                 || stack.is(Items.TIPPED_ARROW);
     }
 
@@ -100,16 +99,13 @@ public final class PotionSpecialDataSection {
 
             card.child(EffectFieldLayoutUtil.buildEffectFields(
                     context,
-                    compactLayout,
                     effectIds,
                     draft.effectId,
                     id -> context.mutateRefresh(() -> draft.effectId = id),
                     draft.duration,
                     context.bindText(value -> draft.duration = value),
                     draft.amplifier,
-                    context.bindText(value -> draft.amplifier = value),
-                    EFFECT_PICKER_WIDTH,
-                    EFFECT_NUMERIC_FIELD_WIDTH
+                    context.bindText(value -> draft.amplifier = value)
             ));
 
             FlowLayout toggles = compactLayout ? UiFactory.column() : UiFactory.row();
