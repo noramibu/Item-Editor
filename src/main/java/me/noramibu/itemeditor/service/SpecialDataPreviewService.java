@@ -17,6 +17,7 @@ public final class SpecialDataPreviewService {
             new ArmorStandSpecialDataApplier(),
             new ItemFrameSpecialDataApplier(),
             new SpawnEggSpecialDataApplier(),
+            new EntityVariantSpecialDataApplier(),
             new PotionSpecialDataApplier(),
             new StewSpecialDataApplier(),
             new FireworkSpecialDataApplier(),

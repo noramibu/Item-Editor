@@ -24,7 +24,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -50,9 +49,6 @@ public final class SpawnEggSpecialDataSection {
     private static final int ACTION_BUTTON_WIDTH_MIN = 76;
     private static final int ACTION_BUTTON_WIDTH_MAX = 176;
     private static final int ACTION_BUTTON_ROW_RESERVE = 12;
-    private static final int QUICK_BUTTON_WIDTH_MIN = 64;
-    private static final int QUICK_BUTTON_WIDTH_MAX = 132;
-    private static final int QUICK_BUTTON_ROW_RESERVE = 20;
 
     private SpawnEggSpecialDataSection() {
     }
@@ -100,26 +96,6 @@ public final class SpawnEggSpecialDataSection {
         pickButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(entityActionWidth));
         row.child(pickButton);
         card.child(row);
-
-        FlowLayout quickRow = compactLayout ? UiFactory.column() : UiFactory.row();
-        quickRow.gap(6);
-        int quickButtonWidth = resolveButtonWidth(context, 6, QUICK_BUTTON_WIDTH_MIN, QUICK_BUTTON_WIDTH_MAX, QUICK_BUTTON_ROW_RESERVE);
-        for (String quickEntityId : Arrays.asList(
-                "minecraft:villager",
-                "minecraft:zombie",
-                "minecraft:skeleton",
-                "minecraft:creeper",
-                "minecraft:cow",
-                "minecraft:pig"
-        )) {
-            ButtonComponent quickButton = UiFactory.button(Component.literal(shortEntityName(quickEntityId)), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                    setSelectedEntity(context, special, quickEntityId)
-            );
-            quickButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(quickButtonWidth));
-            quickButton.tooltip(List.of(Component.literal(quickEntityId)));
-            quickRow.child(quickButton);
-        }
-        card.child(quickRow);
         return card;
     }
 
@@ -128,11 +104,12 @@ public final class SpawnEggSpecialDataSection {
             ItemEditorState.SpecialData special,
             String rawValue
     ) {
+        String previousEntityId = special.spawnEggEntityId;
         boolean wasVillager = isVillagerSelected(context, special.spawnEggEntityId);
         String normalized = IdFieldNormalizer.normalize(rawValue);
         context.mutate(() -> special.spawnEggEntityId = normalized);
         boolean isVillager = isVillagerSelected(context, special.spawnEggEntityId);
-        if (wasVillager != isVillager) {
+        if (wasVillager != isVillager || variantFieldsChanged(context, previousEntityId, normalized)) {
             context.screen().refreshCurrentPanel();
         }
     }
@@ -142,28 +119,63 @@ public final class SpawnEggSpecialDataSection {
             ItemEditorState.SpecialData special,
             String entityId
     ) {
+        String previousEntityId = special.spawnEggEntityId;
         String normalized = IdFieldNormalizer.normalize(entityId);
         boolean wasVillager = isVillagerSelected(context, special.spawnEggEntityId);
         context.mutate(() -> special.spawnEggEntityId = normalized);
         boolean isVillager = isVillagerSelected(context, special.spawnEggEntityId);
-        if (wasVillager != isVillager) {
+        if (wasVillager != isVillager || variantFieldsChanged(context, previousEntityId, normalized)) {
             context.screen().refreshCurrentPanel();
         } else {
             context.screen().session().rebuildPreview();
         }
     }
 
-    private static String shortEntityName(String entityId) {
-        int separator = entityId.indexOf(':');
-        String path = separator >= 0 ? entityId.substring(separator + 1) : entityId;
-        return switch (path) {
-            case "villager" -> "Villager";
-            case "zombie" -> "Zombie";
-            case "skeleton" -> "Skeleton";
-            case "creeper" -> "Creeper";
-            case "cow" -> "Cow";
-            case "pig" -> "Pig";
-            default -> path;
+    private static boolean variantFieldsChanged(
+            SpecialDataPanelContext context,
+            String previousEntityId,
+            String nextEntityId
+    ) {
+        return !Objects.equals(
+                variantFieldGroup(context, previousEntityId),
+                variantFieldGroup(context, nextEntityId)
+        );
+    }
+
+    private static String variantFieldGroup(SpecialDataPanelContext context, String rawEntityId) {
+        EntityType<?> selectedType = resolveSelectedEntityType(context, rawEntityId);
+        if (selectedType == null) {
+            return "";
+        }
+
+        Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(selectedType);
+        if (id == null) {
+            return "";
+        }
+
+        String entityId = id.toString();
+        return switch (entityId) {
+            case "minecraft:axolotl",
+                    "minecraft:cat",
+                    "minecraft:chicken",
+                    "minecraft:cow",
+                    "minecraft:fox",
+                    "minecraft:frog",
+                    "minecraft:horse",
+                    "minecraft:llama",
+                    "minecraft:trader_llama",
+                    "minecraft:mooshroom",
+                    "minecraft:parrot",
+                    "minecraft:pig",
+                    "minecraft:rabbit",
+                    "minecraft:salmon",
+                    "minecraft:sheep",
+                    "minecraft:shulker",
+                    "minecraft:tropical_fish",
+                    "minecraft:villager",
+                    "minecraft:wolf",
+                    "minecraft:zombie_nautilus" -> entityId;
+            default -> "";
         };
     }
 

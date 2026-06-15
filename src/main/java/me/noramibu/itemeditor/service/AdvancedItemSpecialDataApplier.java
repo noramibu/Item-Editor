@@ -90,6 +90,9 @@ import java.util.Optional;
 import java.util.function.Function;
 
 final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
+    private static final List<BlocksAttacks.DamageReduction> DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS = List.of(
+            new BlocksAttacks.DamageReduction(90.0F, Optional.empty(), 0.0F, 1.0F)
+    );
 
     @Override
     public void apply(SpecialDataApplyContext context) {
@@ -1261,17 +1264,44 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private void applyBlocksAttacks(SpecialDataApplyContext context) {
+        boolean damageReductionsUnchanged = this.sameBlocksAttacksDamageReductions(
+                context.special().blocksAttacksDamageReductions,
+                context.baselineSpecial().blocksAttacksDamageReductions
+        );
+        boolean itemDamageUnchanged = Objects.equals(
+                context.special().blocksAttacksItemDamageThreshold,
+                context.baselineSpecial().blocksAttacksItemDamageThreshold
+        ) && Objects.equals(
+                context.special().blocksAttacksItemDamageBase,
+                context.baselineSpecial().blocksAttacksItemDamageBase
+        ) && Objects.equals(
+                context.special().blocksAttacksItemDamageFactor,
+                context.baselineSpecial().blocksAttacksItemDamageFactor
+        );
+        boolean bypassedByUnchanged = Objects.equals(
+                context.special().blocksAttacksBypassedByTypeIds,
+                context.baselineSpecial().blocksAttacksBypassedByTypeIds
+        );
+
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.BLOCKS_ATTACKS,
                 Objects.equals(context.special().blocksAttacksBlockDelaySeconds, context.baselineSpecial().blocksAttacksBlockDelaySeconds)
                         && Objects.equals(context.special().blocksAttacksDisableCooldownScale, context.baselineSpecial().blocksAttacksDisableCooldownScale)
                         && Objects.equals(context.special().blocksAttacksBlockSoundId, context.baselineSpecial().blocksAttacksBlockSoundId)
-                        && Objects.equals(context.special().blocksAttacksDisableSoundId, context.baselineSpecial().blocksAttacksDisableSoundId),
+                        && Objects.equals(context.special().blocksAttacksDisableSoundId, context.baselineSpecial().blocksAttacksDisableSoundId)
+                        && damageReductionsUnchanged
+                        && itemDamageUnchanged
+                        && bypassedByUnchanged,
                 context.special().blocksAttacksBlockDelaySeconds.isBlank()
                         && context.special().blocksAttacksDisableCooldownScale.isBlank()
+                        && context.special().blocksAttacksBypassedByTypeIds.isBlank()
+                        && context.special().blocksAttacksItemDamageThreshold.isBlank()
+                        && context.special().blocksAttacksItemDamageBase.isBlank()
+                        && context.special().blocksAttacksItemDamageFactor.isBlank()
                         && context.special().blocksAttacksBlockSoundId.isBlank()
                         && context.special().blocksAttacksDisableSoundId.isBlank()
+                        && context.special().blocksAttacksDamageReductions.isEmpty()
         )) {
             return;
         }
@@ -1315,9 +1345,41 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        List<BlocksAttacks.DamageReduction> damageReductions = this.valueFromOriginal(original, BlocksAttacks::damageReductions, List.of());
-        BlocksAttacks.ItemDamageFunction itemDamage = this.valueFromOriginal(original, BlocksAttacks::itemDamage, BlocksAttacks.ItemDamageFunction.DEFAULT);
-        Optional<TagKey<DamageType>> bypassedBy = this.optionalFromOriginal(original, BlocksAttacks::bypassedBy);
+        List<BlocksAttacks.DamageReduction> damageReductions;
+        if (damageReductionsUnchanged) {
+            damageReductions = this.valueFromOriginal(
+                    original,
+                    BlocksAttacks::damageReductions,
+                    DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS
+            );
+        } else {
+            damageReductions = this.parseBlocksAttacksDamageReductions(context);
+            if (damageReductions == null) {
+                return;
+            }
+        }
+
+        BlocksAttacks.ItemDamageFunction itemDamage = itemDamageUnchanged
+                ? this.valueFromOriginal(original, BlocksAttacks::itemDamage, BlocksAttacks.ItemDamageFunction.DEFAULT)
+                : this.parseBlocksAttacksItemDamage(context, original);
+        if (itemDamage == null) {
+            return;
+        }
+
+        Optional<TagKey<DamageType>> bypassedBy;
+        if (bypassedByUnchanged) {
+            bypassedBy = this.optionalFromOriginal(original, BlocksAttacks::bypassedBy);
+        } else {
+            bypassedBy = this.parseOptionalDamageTypeTagKey(
+                    context.special().blocksAttacksBypassedByTypeIds,
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_bypassed_by"),
+                    context.messages()
+            );
+            if (bypassedBy == null) {
+                return;
+            }
+        }
+
         context.previewStack().set(
                 DataComponents.BLOCKS_ATTACKS,
                 new BlocksAttacks(blockDelay, disableCooldownScale, damageReductions, itemDamage, bypassedBy, blockSound, disableSound)
@@ -1673,6 +1735,168 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return holder;
     }
 
+    private Optional<HolderSet<DamageType>> parseOptionalDamageTypeHolderSet(
+            Registry<DamageType> registry,
+            String raw,
+            String label,
+            List<ValidationMessage> messages
+    ) {
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
+        }
+
+        List<String> values = this.splitIdentifierList(raw);
+        if (values.isEmpty()) {
+            return Optional.empty();
+        }
+        if (values.size() == 1 && values.getFirst().startsWith("#")) {
+            Identifier tagId = IdFieldNormalizer.parse(values.getFirst().substring(1));
+            if (tagId == null) {
+                this.reportMissingRegistry(label, values.getFirst(), messages);
+                return null;
+            }
+            TagKey<DamageType> tagKey = TagKey.create(Registries.DAMAGE_TYPE, tagId);
+            Optional<HolderSet.Named<DamageType>> tag = registry.get(tagKey);
+            if (tag.isEmpty()) {
+                this.reportMissingRegistry(label, values.getFirst(), messages);
+                return null;
+            }
+            return Optional.of(tag.get());
+        }
+
+        List<Holder<DamageType>> holders = new ArrayList<>();
+        for (String value : values) {
+            if (value.startsWith("#")) {
+                messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
+                return null;
+            }
+            Holder<DamageType> holder = RegistryUtil.resolveHolder(registry, value);
+            if (holder == null) {
+                this.reportMissingRegistry(label, value, messages);
+                return null;
+            }
+            holders.add(holder);
+        }
+        return Optional.of(HolderSet.direct(holders));
+    }
+
+    private Optional<TagKey<DamageType>> parseOptionalDamageTypeTagKey(
+            String raw,
+            String label,
+            List<ValidationMessage> messages
+    ) {
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
+        }
+
+        List<String> values = this.splitIdentifierList(raw);
+        if (values.isEmpty()) {
+            return Optional.empty();
+        }
+        if (values.size() > 1) {
+            messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
+            return null;
+        }
+
+        String value = values.getFirst();
+        Identifier tagId = IdFieldNormalizer.parse(value.startsWith("#") ? value.substring(1) : value);
+        if (tagId == null) {
+            this.reportMissingRegistry(label, value, messages);
+            return null;
+        }
+        return Optional.of(TagKey.create(Registries.DAMAGE_TYPE, tagId));
+    }
+
+    private List<BlocksAttacks.DamageReduction> parseBlocksAttacksDamageReductions(
+            SpecialDataApplyContext context
+    ) {
+        Registry<DamageType> damageTypeRegistry = context.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
+        List<BlocksAttacks.DamageReduction> reductions = new ArrayList<>();
+        for (ItemEditorState.BlocksAttacksDamageReductionDraft draft : context.special().blocksAttacksDamageReductions) {
+            String label = ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_damage_reductions");
+            Float angle = this.parseFloatField(
+                    draft.horizontalBlockingAngle,
+                    90.0F,
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_angle"),
+                    context.messages()
+            );
+            Float base = this.parseFloatField(
+                    draft.base,
+                    0.0F,
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_base"),
+                    context.messages()
+            );
+            Float factor = this.parseFloatField(
+                    draft.factor,
+                    1.0F,
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_factor"),
+                    context.messages()
+            );
+            Optional<HolderSet<DamageType>> type = this.parseOptionalDamageTypeHolderSet(
+                    damageTypeRegistry,
+                    draft.typeIds,
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_types"),
+                    context.messages()
+            );
+            if (angle == null || base == null || factor == null || type == null) {
+                return null;
+            }
+            if (angle <= 0.0F) {
+                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
+                return null;
+            }
+            reductions.add(new BlocksAttacks.DamageReduction(angle, type, base, factor));
+        }
+        return reductions;
+    }
+
+    private BlocksAttacks.ItemDamageFunction parseBlocksAttacksItemDamage(
+            SpecialDataApplyContext context,
+            BlocksAttacks original
+    ) {
+        BlocksAttacks.ItemDamageFunction fallback = this.valueFromOriginal(
+                original,
+                BlocksAttacks::itemDamage,
+                BlocksAttacks.ItemDamageFunction.DEFAULT
+        );
+        Float threshold = this.parseFloatField(
+                context.special().blocksAttacksItemDamageThreshold,
+                fallback.threshold(),
+                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_threshold"),
+                context.messages()
+        );
+        Float base = this.parseFloatField(
+                context.special().blocksAttacksItemDamageBase,
+                fallback.base(),
+                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_base"),
+                context.messages()
+        );
+        Float factor = this.parseFloatField(
+                context.special().blocksAttacksItemDamageFactor,
+                fallback.factor(),
+                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_factor"),
+                context.messages()
+        );
+        if (threshold == null || base == null || factor == null) {
+            return null;
+        }
+        if (threshold < 0.0F) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_threshold")
+            )));
+            return null;
+        }
+        return new BlocksAttacks.ItemDamageFunction(threshold, base, factor);
+    }
+
+    private Float parseFloatField(String raw, float fallback, String label, List<ValidationMessage> messages) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        return ValidationUtil.parseFloat(raw, label, messages);
+    }
+
     private Holder<SoundEvent> defaultConsumeSound(ItemUseAnimation animation) {
         return animation == ItemUseAnimation.DRINK ? SoundEvents.GENERIC_DRINK : SoundEvents.GENERIC_EAT;
     }
@@ -1707,6 +1931,18 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         && Objects.equals(left.x, right.x)
                         && Objects.equals(left.z, right.z)
                         && Objects.equals(left.rotation, right.rotation)
+        );
+    }
+
+    private boolean sameBlocksAttacksDamageReductions(
+            List<ItemEditorState.BlocksAttacksDamageReductionDraft> current,
+            List<ItemEditorState.BlocksAttacksDamageReductionDraft> baseline
+    ) {
+        return this.sameList(current, baseline, (left, right) ->
+                Objects.equals(left.typeIds, right.typeIds)
+                        && Objects.equals(left.horizontalBlockingAngle, right.horizontalBlockingAngle)
+                        && Objects.equals(left.base, right.base)
+                        && Objects.equals(left.factor, right.factor)
         );
     }
 

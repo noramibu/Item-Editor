@@ -11,6 +11,7 @@ import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.component.CustomData;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -164,7 +165,10 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 || context.special().bucketGlowing
                 || context.special().bucketInvulnerable
                 || !context.special().bucketPuffState.isBlank()
-                || !context.special().bucketHealth.isBlank();
+                || !context.special().bucketHealth.isBlank()
+                || !context.special().bucketAge.isBlank()
+                || context.special().bucketAgeLocked
+                || !context.special().bucketHuntingCooldown.isBlank();
         if (!hasAnyEntry) {
             this.clearToPrototype(context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
             return;
@@ -188,6 +192,25 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 ItemEditorText.str("special.bucket.puffer_state"),
                 0,
                 2,
+                context.messages()
+        );
+        this.putOptionalIntTag(
+                bucketTag,
+                "Age",
+                context.special().bucketAge,
+                ItemEditorText.str("special.bucket.age"),
+                Integer.MIN_VALUE,
+                Integer.MAX_VALUE,
+                context.messages()
+        );
+        setBooleanKey(bucketTag, "AgeLocked", context.special().bucketAgeLocked);
+        this.putOptionalLongTag(
+                bucketTag,
+                "HuntingCooldown",
+                context.special().bucketHuntingCooldown,
+                ItemEditorText.str("special.bucket.hunting_cooldown"),
+                0L,
+                Long.MAX_VALUE,
                 context.messages()
         );
 
@@ -220,6 +243,33 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         }
     }
 
+    private void putOptionalLongTag(
+            CompoundTag tag,
+            String key,
+            String raw,
+            String fieldName,
+            long min,
+            long max,
+            List<ValidationMessage> messages
+    ) {
+        String normalized = raw.trim();
+        if (normalized.isBlank()) {
+            tag.remove(key);
+            return;
+        }
+
+        try {
+            long value = Long.parseLong(normalized);
+            if (value < min || value > max) {
+                messages.add(ValidationMessage.error(ItemEditorText.str("validation.range", fieldName, min, max)));
+                return;
+            }
+            tag.putLong(key, value);
+        } catch (NumberFormatException exception) {
+            messages.add(ValidationMessage.error(ItemEditorText.str("validation.whole_number", fieldName)));
+        }
+    }
+
     private static DyeColor parseDyeColor(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -244,6 +294,9 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 && context.special().bucketNoGravity == context.baselineSpecial().bucketNoGravity
                 && context.special().bucketGlowing == context.baselineSpecial().bucketGlowing
                 && context.special().bucketInvulnerable == context.baselineSpecial().bucketInvulnerable
-                && Objects.equals(context.special().bucketHealth, context.baselineSpecial().bucketHealth);
+                && Objects.equals(context.special().bucketHealth, context.baselineSpecial().bucketHealth)
+                && Objects.equals(context.special().bucketAge, context.baselineSpecial().bucketAge)
+                && context.special().bucketAgeLocked == context.baselineSpecial().bucketAgeLocked
+                && Objects.equals(context.special().bucketHuntingCooldown, context.baselineSpecial().bucketHuntingCooldown);
     }
 }

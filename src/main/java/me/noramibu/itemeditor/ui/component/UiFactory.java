@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 public final class UiFactory {
+    private static final int UNBOUNDED_TEXT_LIMIT = Integer.MAX_VALUE;
 
     private static final Surface CARD_SURFACE = Surface.flat(0xAA141A22).and(Surface.outline(0xFF2F3945));
     private static final Surface SUB_CARD_SURFACE = Surface.flat(0xAA1B222B).and(Surface.outline(0xFF414B56));
@@ -412,7 +413,9 @@ public final class UiFactory {
     }
 
     public static TextBoxComponent textBox(String value, Consumer<String> onChanged) {
-        TextBoxComponent box = UIComponents.textBox(Sizing.fill(100), value);
+        TextBoxComponent box = UIComponents.textBox(Sizing.fill(100), "");
+        box.setMaxLength(UNBOUNDED_TEXT_LIMIT);
+        box.text(value == null ? "" : value);
         box.verticalSizing(Sizing.fixed(scaleProfile().controlHeight()));
         box.onChanged().subscribe(onChanged::accept);
         return box;

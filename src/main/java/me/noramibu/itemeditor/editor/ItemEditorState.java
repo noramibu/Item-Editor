@@ -226,8 +226,13 @@ public final class ItemEditorState {
         public String blockStateProperties = "";
         public String blocksAttacksBlockDelaySeconds = "";
         public String blocksAttacksDisableCooldownScale = "";
+        public String blocksAttacksBypassedByTypeIds = "";
+        public String blocksAttacksItemDamageThreshold = "";
+        public String blocksAttacksItemDamageBase = "";
+        public String blocksAttacksItemDamageFactor = "";
         public String blocksAttacksBlockSoundId = "";
         public String blocksAttacksDisableSoundId = "";
+        public final List<BlocksAttacksDamageReductionDraft> blocksAttacksDamageReductions = new ArrayList<>();
         public boolean deathProtection;
         public final List<ConsumableEffectDraft> deathProtectionEffects = new ArrayList<>();
         public boolean glider;
@@ -327,6 +332,33 @@ public final class ItemEditorState {
         public boolean bucketGlowing;
         public boolean bucketInvulnerable;
         public String bucketHealth = "";
+        public String bucketAge = "";
+        public boolean bucketAgeLocked;
+        public String bucketHuntingCooldown = "";
+
+        public String entityCatCollar = "";
+        public String entityCatVariant = "";
+        public String entityCatSoundVariant = "";
+        public String entityChickenVariant = "";
+        public String entityChickenSoundVariant = "";
+        public String entityCowVariant = "";
+        public String entityCowSoundVariant = "";
+        public String entityFoxVariant = "";
+        public String entityFrogVariant = "";
+        public String entityHorseVariant = "";
+        public String entityLlamaVariant = "";
+        public String entityMooshroomVariant = "";
+        public String entityParrotVariant = "";
+        public String entityPigVariant = "";
+        public String entityPigSoundVariant = "";
+        public String entityRabbitVariant = "";
+        public String entitySheepColor = "";
+        public String entityShulkerColor = "";
+        public String entityVillagerVariant = "";
+        public String entityWolfCollar = "";
+        public String entityWolfSoundVariant = "";
+        public String entityWolfVariant = "";
+        public String entityZombieNautilusVariant = "";
 
         public String instrumentId = "";
         public String jukeboxSongId = "";
@@ -529,6 +561,14 @@ public final class ItemEditorState {
         public String soundId = "";
         public boolean uiCollapsed = true;
         public final List<PotionEffectDraft> effects = new ArrayList<>();
+    }
+
+    public static final class BlocksAttacksDamageReductionDraft {
+        public String typeIds = "";
+        public String horizontalBlockingAngle = "90";
+        public String base = "0";
+        public String factor = "1";
+        public boolean uiCollapsed = true;
     }
 
     public static final class MapDecorationDraft {
