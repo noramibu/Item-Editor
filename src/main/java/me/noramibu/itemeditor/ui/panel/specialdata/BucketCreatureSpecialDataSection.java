@@ -140,6 +140,27 @@ public final class BucketCreatureSpecialDataSection {
             bucketEntityCard.child(UiFactory.checkbox(ItemEditorText.tr("special.bucket.no_gravity"), special.bucketNoGravity, context.bindToggle(value -> special.bucketNoGravity = value)));
             bucketEntityCard.child(UiFactory.checkbox(ItemEditorText.tr("special.bucket.glowing"), special.bucketGlowing, context.bindToggle(value -> special.bucketGlowing = value)));
             bucketEntityCard.child(UiFactory.checkbox(ItemEditorText.tr("special.bucket.invulnerable"), special.bucketInvulnerable, context.bindToggle(value -> special.bucketInvulnerable = value)));
+            if (supportsAge(bucketType, special)) {
+                bucketEntityCard.child(UiFactory.field(
+                        ItemEditorText.tr("special.bucket.age"),
+                        Component.empty(),
+                        UiFactory.textBox(
+                                special.bucketAge,
+                                context.bindText(value -> special.bucketAge = value)
+                        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))
+                ));
+                bucketEntityCard.child(UiFactory.checkbox(ItemEditorText.tr("special.bucket.age_locked"), special.bucketAgeLocked, context.bindToggle(value -> special.bucketAgeLocked = value)));
+            }
+            if (supportsHuntingCooldown(bucketType, special)) {
+                bucketEntityCard.child(UiFactory.field(
+                        ItemEditorText.tr("special.bucket.hunting_cooldown"),
+                        Component.empty(),
+                        UiFactory.textBox(
+                                special.bucketHuntingCooldown,
+                                context.bindText(value -> special.bucketHuntingCooldown = value)
+                        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))
+                ));
+            }
             bucketEntityCard.child(UiFactory.field(
                     ItemEditorText.tr("special.bucket.health"),
                     Component.empty(),
@@ -177,6 +198,17 @@ public final class BucketCreatureSpecialDataSection {
 
     private static boolean supportsPufferState(BucketType bucketType, ItemEditorState.SpecialData special) {
         return bucketType == BucketType.PUFFERFISH || !special.bucketPuffState.isBlank();
+    }
+
+    private static boolean supportsAge(BucketType bucketType, ItemEditorState.SpecialData special) {
+        return bucketType == BucketType.AXOLOTL
+                || bucketType == BucketType.TADPOLE
+                || !special.bucketAge.isBlank()
+                || special.bucketAgeLocked;
+    }
+
+    private static boolean supportsHuntingCooldown(BucketType bucketType, ItemEditorState.SpecialData special) {
+        return bucketType == BucketType.AXOLOTL || !special.bucketHuntingCooldown.isBlank();
     }
 
     private static BucketType detectBucketType(ItemStack stack) {

@@ -83,6 +83,8 @@ public final class AdvancedItemSpecialDataSection {
     private static final int CROSSBOW_EMPTY_HINT_WIDTH = 320;
     private static final int CROSSBOW_PROJECTILE_SUMMARY_HINT_WIDTH = 340;
     private static final int MAP_DECORATION_SUMMARY_HINT_WIDTH = 360;
+    private static final int BLOCKS_ATTACKS_REDUCTION_EMPTY_HINT_WIDTH = 320;
+    private static final int BLOCKS_ATTACKS_REDUCTION_SUMMARY_HINT_WIDTH = 360;
     private static final int CUSTOM_DATA_EDITOR_HEIGHT = 220;
     private static final int CUSTOM_DATA_CONTENT_PADDING = 4;
     private static final int CUSTOM_DATA_TEXT_WIDTH_RESERVE = 14;
@@ -92,15 +94,7 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     public static boolean supportsFoodConsumable(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:food",
-                "minecraft:consumable",
-                "minecraft:use_effects",
-                "minecraft:use_remainder",
-                "minecraft:use_cooldown"
-        );
+        return true;
     }
 
     public static boolean supportsContainerMetadata(ItemStack stack, RegistryAccess registryAccess) {
@@ -128,8 +122,7 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     public static boolean supportsCustomData(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsComponent(stack, registryAccess, "minecraft:custom_data")
-                || stack.has(DataComponents.CUSTOM_DATA);
+        return true;
     }
 
     public static boolean supportsMapAdvanced(ItemStack stack, RegistryAccess registryAccess) {
@@ -146,47 +139,15 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     public static boolean supportsEquipmentCombat(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:equippable",
-                "minecraft:weapon",
-                "minecraft:tool",
-                "minecraft:repairable",
-                "minecraft:attack_range"
-        ) || stack.has(DataComponents.EQUIPPABLE)
-                || stack.has(DataComponents.WEAPON)
-                || stack.has(DataComponents.TOOL)
-                || stack.has(DataComponents.REPAIRABLE)
-                || stack.has(DataComponents.ATTACK_RANGE)
-                || stack.isDamageableItem();
+        return true;
     }
 
     public static boolean supportsComponentTweaksNaming(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:item_name",
-                "minecraft:minimum_attack_charge",
-                "minecraft:enchantable",
-                "minecraft:ominous_bottle_amplifier",
-                "minecraft:tooltip_style",
-                "minecraft:glider",
-                "minecraft:intangible_projectile",
-                "minecraft:death_protection"
-        );
+        return true;
     }
 
     public static boolean supportsComponentTweaksRegistry(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:damage_type",
-                "minecraft:damage_resistant",
-                "minecraft:note_block_sound",
-                "minecraft:break_sound",
-                "minecraft:painting_variant"
-        );
+        return true;
     }
 
     public static boolean supportsBlockState(ItemStack stack) {
@@ -194,21 +155,11 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     public static boolean supportsComponentTweaksBlock(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:blocks_attacks"
-        );
+        return true;
     }
 
     public static boolean supportsComponentTweaksBehavior(ItemStack stack, RegistryAccess registryAccess) {
-        return ItemEditorCapabilities.supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:swing_animation",
-                "minecraft:piercing_weapon",
-                "minecraft:kinetic_weapon"
-        );
+        return true;
     }
 
     public static FlowLayout buildComponentTweakNamingSection(SpecialDataPanelContext context) {
@@ -814,6 +765,12 @@ public final class AdvancedItemSpecialDataSection {
 
     private static ItemEditorState.ConsumableEffectDraft expandedConsumableEffectDraft() {
         ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
+        draft.uiCollapsed = false;
+        return draft;
+    }
+
+    private static ItemEditorState.BlocksAttacksDamageReductionDraft expandedBlocksAttacksDamageReductionDraft() {
+        ItemEditorState.BlocksAttacksDamageReductionDraft draft = new ItemEditorState.BlocksAttacksDamageReductionDraft();
         draft.uiCollapsed = false;
         return draft;
     }
@@ -2134,6 +2091,20 @@ public final class AdvancedItemSpecialDataSection {
         distributeRowChildren(row, blockDelayField, disableScaleField);
         card.child(row);
 
+        card.child(buildBlocksAttacksDamageReductionsEditor(context, special));
+        card.child(buildBlocksAttacksItemDamageCard(context, special));
+        card.child(compactField(
+                ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_bypassed_by"),
+                idListTextWithPickerCompact(
+                        context,
+                        special.blocksAttacksBypassedByTypeIds,
+                        value -> special.blocksAttacksBypassedByTypeIds = value,
+                        () -> special.blocksAttacksBypassedByTypeIds,
+                        damageTypeIds(context),
+                        ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_bypassed_by")
+                ),
+                idWidth + 80
+        ));
         card.child(compactIdField(
                 context,
                 ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_block_sound"),
@@ -2153,6 +2124,156 @@ public final class AdvancedItemSpecialDataSection {
                 idWidth
         ));
         return card;
+    }
+
+    private static FlowLayout buildBlocksAttacksDamageReductionsEditor(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special
+    ) {
+        FlowLayout card = UiFactory.subCard();
+        card.child(UiFactory.title(ItemEditorText.tr(
+                "special.advanced.component_tweaks.blocks_attacks_damage_reductions"
+        )).shadow(false));
+
+        ButtonComponent addButton = UiFactory.button(
+                ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_add_damage_reduction"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> context.mutateRefresh(() ->
+                        special.blocksAttacksDamageReductions.add(expandedBlocksAttacksDamageReductionDraft()))
+        );
+        addButton.horizontalSizing(Sizing.fill(100));
+        card.child(addButton);
+
+        if (special.blocksAttacksDamageReductions.isEmpty()) {
+            card.child(UiFactory.muted(
+                    ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_damage_reductions_empty"),
+                    BLOCKS_ATTACKS_REDUCTION_EMPTY_HINT_WIDTH
+            ));
+            return card;
+        }
+
+        int idWidth = compactIdTextWidth();
+        int numericWidth = compactTinyFieldWidth();
+        for (int index = 0; index < special.blocksAttacksDamageReductions.size(); index++) {
+            int currentIndex = index;
+            ItemEditorState.BlocksAttacksDamageReductionDraft draft = special.blocksAttacksDamageReductions.get(index);
+            FlowLayout reductionCard = context.createReorderableCard(
+                    ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_damage_reduction", index + 1),
+                    currentIndex > 0,
+                    () -> swapEntries(special.blocksAttacksDamageReductions, currentIndex, currentIndex - 1),
+                    currentIndex < special.blocksAttacksDamageReductions.size() - 1,
+                    () -> swapEntries(special.blocksAttacksDamageReductions, currentIndex, currentIndex + 1),
+                    () -> special.blocksAttacksDamageReductions.remove(currentIndex)
+            );
+
+            FlowLayout summaryRow = responsiveRow();
+            UIComponent summary = UiFactory.muted(
+                    Component.literal(blocksAttacksDamageReductionSummary(draft)),
+                    BLOCKS_ATTACKS_REDUCTION_SUMMARY_HINT_WIDTH
+            );
+            summary.horizontalSizing(Sizing.expand(100));
+            summaryRow.child(summary);
+            ButtonComponent collapseToggle = UiFactory.button(
+                    Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)
+            );
+            collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            summaryRow.child(collapseToggle);
+            reductionCard.child(summaryRow);
+
+            if (!draft.uiCollapsed) {
+                reductionCard.child(compactField(
+                        ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_reduction_types"),
+                        idListTextWithPickerCompact(
+                                context,
+                                draft.typeIds,
+                                value -> draft.typeIds = value,
+                                () -> draft.typeIds,
+                                damageTypeIds(context),
+                                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_types")
+                        ),
+                        idWidth + 80
+                ));
+                FlowLayout values = responsiveRow();
+                FlowLayout angle = compactTextField(
+                        context,
+                        ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_reduction_angle"),
+                        draft.horizontalBlockingAngle,
+                        value -> draft.horizontalBlockingAngle = value,
+                        numericWidth
+                );
+                FlowLayout base = compactTextField(
+                        context,
+                        ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_reduction_base"),
+                        draft.base,
+                        value -> draft.base = value,
+                        numericWidth
+                );
+                FlowLayout factor = compactTextField(
+                        context,
+                        ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_reduction_factor"),
+                        draft.factor,
+                        value -> draft.factor = value,
+                        numericWidth
+                );
+                distributeRowChildren(values, angle, base, factor);
+                reductionCard.child(values);
+            }
+
+            card.child(reductionCard);
+        }
+
+        return card;
+    }
+
+    private static FlowLayout buildBlocksAttacksItemDamageCard(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special
+    ) {
+        FlowLayout card = UiFactory.subCard();
+        card.child(UiFactory.title(ItemEditorText.tr(
+                "special.advanced.component_tweaks.blocks_attacks_item_damage_title"
+        )).shadow(false));
+
+        int numericWidth = compactTinyFieldWidth();
+        FlowLayout row = responsiveRow();
+        FlowLayout threshold = compactTextField(
+                context,
+                ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_item_damage_threshold"),
+                special.blocksAttacksItemDamageThreshold,
+                value -> special.blocksAttacksItemDamageThreshold = value,
+                numericWidth
+        );
+        FlowLayout base = compactTextField(
+                context,
+                ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_item_damage_base"),
+                special.blocksAttacksItemDamageBase,
+                value -> special.blocksAttacksItemDamageBase = value,
+                numericWidth
+        );
+        FlowLayout factor = compactTextField(
+                context,
+                ItemEditorText.tr("special.advanced.component_tweaks.blocks_attacks_item_damage_factor"),
+                special.blocksAttacksItemDamageFactor,
+                value -> special.blocksAttacksItemDamageFactor = value,
+                numericWidth
+        );
+        distributeRowChildren(row, threshold, base, factor);
+        card.child(row);
+        return card;
+    }
+
+    private static String blocksAttacksDamageReductionSummary(
+            ItemEditorState.BlocksAttacksDamageReductionDraft draft
+    ) {
+        String types = draft.typeIds == null || draft.typeIds.isBlank() ? "all damage" : draft.typeIds;
+        String angle = draft.horizontalBlockingAngle == null || draft.horizontalBlockingAngle.isBlank()
+                ? "90"
+                : draft.horizontalBlockingAngle;
+        String base = draft.base == null || draft.base.isBlank() ? "0" : draft.base;
+        String factor = draft.factor == null || draft.factor.isBlank() ? "1" : draft.factor;
+        return types + " - angle " + angle + " - " + base + " + " + factor + "x";
     }
 
     private static FlowLayout buildCombatBehaviorCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
@@ -2334,6 +2455,44 @@ public final class AdvancedItemSpecialDataSection {
         pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(pickWidth));
         row.child(pickButton);
         return row;
+    }
+
+    private static FlowLayout idListTextWithPickerCompact(
+            SpecialDataPanelContext context,
+            String value,
+            Consumer<String> setter,
+            Supplier<String> currentValueSupplier,
+            List<String> entries,
+            String pickerTitle
+    ) {
+        boolean stacked = prefersStackedCompactRows();
+        FlowLayout row = stacked ? UiFactory.column() : responsiveRow();
+        UIComponent input = UiFactory.textBox(value, context.bindText(setter))
+                .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100));
+        row.child(input);
+        ButtonComponent pickButton = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                context.openSearchablePicker(
+                        pickerTitle,
+                        "",
+                        entries,
+                        id -> id,
+                        id -> context.mutateRefresh(() -> setter.accept(appendIdentifierListValue(currentValueSupplier.get(), id)))
+                )
+        );
+        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(compactFixedPickButtonWidth()));
+        row.child(pickButton);
+        return row;
+    }
+
+    private static String appendIdentifierListValue(String raw, String selected) {
+        if (raw == null || raw.isBlank()) {
+            return selected;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.endsWith(",") || trimmed.endsWith("\n") || trimmed.endsWith("\r")) {
+            return raw + selected;
+        }
+        return raw + ", " + selected;
     }
 
     private static boolean hasBlockStateProperties(ItemStack stack) {

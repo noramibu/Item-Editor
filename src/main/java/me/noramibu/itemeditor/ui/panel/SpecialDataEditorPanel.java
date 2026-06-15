@@ -8,6 +8,7 @@ import me.noramibu.itemeditor.ui.panel.specialdata.BannerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BundleSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BucketCreatureSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.EntityVariantSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.FireworkSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ArmorStandSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ItemFrameSpecialDataSection;
@@ -45,6 +46,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
         if (this.addIf(root, ArmorStandSpecialDataSection.supports(stack), () -> ArmorStandSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, ItemFrameSpecialDataSection.supports(stack), () -> ItemFrameSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, SpawnEggSpecialDataSection.supports(stack), () -> SpawnEggSpecialDataSection.build(this.context))) sectionCount++;
+        if (this.addIf(root, EntityVariantSpecialDataSection.supports(stack), () -> EntityVariantSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, BucketCreatureSpecialDataSection.supports(stack), () -> BucketCreatureSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, MiscSpecialDataSections.supportsProfile(stack), () -> MiscSpecialDataSections.buildProfile(this.context))) sectionCount++;
         if (this.addIf(root, MiscSpecialDataSections.supportsInstrument(stack), () -> MiscSpecialDataSections.buildInstrument(this.context))) sectionCount++;

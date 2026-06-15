@@ -39,7 +39,7 @@ public final class RichTextLayoutUtil {
             return layoutRawSourceInternal(
                     source,
                     safeWidth,
-                    codePoint -> rawCodePointWidth(font, codePoint),
+                    (text, index) -> styledCodePointWidth(document, font, text, index),
                     document::sliceToComponent,
                     false
             );
@@ -48,7 +48,7 @@ public final class RichTextLayoutUtil {
         return layoutStructuredSourceInternal(
                 source,
                 safeWidth,
-                codePoint -> rawCodePointWidth(font, codePoint),
+                (text, index) -> styledCodePointWidth(document, font, text, index),
                 (fullText, tokenStart, tokenLength) -> objectTokenWidth(fullText, tokenStart, tokenLength, font),
                 true,
                 true,
@@ -69,7 +69,7 @@ public final class RichTextLayoutUtil {
             return layoutRawSourceInternal(
                     document.plainText(),
                     Math.max(1, maxWidth),
-                    codePoint -> rawCodePointWidth(font, codePoint),
+                    (text, index) -> styledCodePointWidth(document, font, text, index),
                     document::sliceToComponent,
                     true
             );
@@ -77,7 +77,7 @@ public final class RichTextLayoutUtil {
         return layoutSourceInternal(
                 document.plainText(),
                 maxWidth,
-                codePoint -> rawCodePointWidth(font, codePoint),
+                (text, index) -> styledCodePointWidth(document, font, text, index),
                 (fullText, tokenStart, tokenLength) -> objectTokenWidth(fullText, tokenStart, tokenLength, font),
                 renderStructuredEvents,
                 renderStructuredObjects,
@@ -621,7 +621,7 @@ public final class RichTextLayoutUtil {
     ) {
         int codePoint = sourceText.codePointAt(index);
         int next = index + Character.charCount(codePoint);
-        float width = Math.max(0f, codePointWidthMeasurer.width(codePoint));
+        float width = Math.max(0f, codePointWidthMeasurer.width(sourceText, index));
         units.add(new Unit(index, next, width * layoutScale, width, allowWrapBreaks && isWrapBreak(codePoint)));
         return next;
     }
@@ -892,6 +892,21 @@ public final class RichTextLayoutUtil {
         return font.width(Character.toString(codePoint));
     }
 
+    private static float styledCodePointWidth(RichTextDocument document, Font font, String sourceText, int index) {
+        if (sourceText == null || index < 0 || index >= sourceText.length()) {
+            return 0f;
+        }
+        int codePoint = sourceText.codePointAt(index);
+        if (codePoint == '\n') {
+            return 0f;
+        }
+        RichTextStyle style = document.insertionStyleAt(index);
+        if (RichTextStyle.EMPTY.equals(style)) {
+            return rawCodePointWidth(font, codePoint);
+        }
+        return font.width(Component.literal(Character.toString(codePoint)).withStyle(style.toStyle()));
+    }
+
     private static float objectTokenWidth(String fullText, int tokenStart, int tokenLength, Font font) {
         float fallback = Math.max(OBJECT_LAYOUT_MIN_WIDTH, font.width(OBJECT_LAYOUT_FALLBACK_TEXT));
         try {
@@ -1089,7 +1104,7 @@ public final class RichTextLayoutUtil {
 
     @FunctionalInterface
     private interface CodePointWidthMeasurer {
-        float width(int codePoint);
+        float width(String sourceText, int index);
     }
 
     @FunctionalInterface

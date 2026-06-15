@@ -81,13 +81,43 @@ public final class ItemEditorCapabilities {
         return stack.getItem() instanceof SpawnEggItem;
     }
 
-    public static boolean supportsBucketCreature(ItemStack stack) {
-        return stack.has(DataComponents.BUCKET_ENTITY_DATA)
+    public static boolean supportsEntityVariantData(ItemStack stack) {
+        return stack.getItem() instanceof SpawnEggItem
+                || stack.is(Items.EGG)
+                || stack.is(Items.PAINTING)
                 || stack.has(DataComponents.AXOLOTL_VARIANT)
+                || stack.has(DataComponents.CAT_COLLAR)
+                || stack.has(DataComponents.CAT_VARIANT)
+                || stack.has(DataComponents.CAT_SOUND_VARIANT)
+                || stack.has(DataComponents.CHICKEN_VARIANT)
+                || stack.has(DataComponents.CHICKEN_SOUND_VARIANT)
+                || stack.has(DataComponents.COW_VARIANT)
+                || stack.has(DataComponents.COW_SOUND_VARIANT)
+                || stack.has(DataComponents.FOX_VARIANT)
+                || stack.has(DataComponents.FROG_VARIANT)
+                || stack.has(DataComponents.HORSE_VARIANT)
+                || stack.has(DataComponents.LLAMA_VARIANT)
+                || stack.has(DataComponents.MOOSHROOM_VARIANT)
+                || stack.has(DataComponents.PAINTING_VARIANT)
+                || stack.has(DataComponents.PARROT_VARIANT)
+                || stack.has(DataComponents.PIG_VARIANT)
+                || stack.has(DataComponents.PIG_SOUND_VARIANT)
+                || stack.has(DataComponents.RABBIT_VARIANT)
                 || stack.has(DataComponents.SALMON_SIZE)
+                || stack.has(DataComponents.SHEEP_COLOR)
+                || stack.has(DataComponents.SHULKER_COLOR)
                 || stack.has(DataComponents.TROPICAL_FISH_PATTERN)
                 || stack.has(DataComponents.TROPICAL_FISH_BASE_COLOR)
                 || stack.has(DataComponents.TROPICAL_FISH_PATTERN_COLOR)
+                || stack.has(DataComponents.VILLAGER_VARIANT)
+                || stack.has(DataComponents.WOLF_COLLAR)
+                || stack.has(DataComponents.WOLF_SOUND_VARIANT)
+                || stack.has(DataComponents.WOLF_VARIANT)
+                || stack.has(DataComponents.ZOMBIE_NAUTILUS_VARIANT);
+    }
+
+    public static boolean supportsBucketCreature(ItemStack stack) {
+        return stack.has(DataComponents.BUCKET_ENTITY_DATA)
                 || isBucketCreatureBucketItem(stack);
     }
 
@@ -109,6 +139,7 @@ public final class ItemEditorCapabilities {
             case ARMOR_STAND -> ItemEditorText.tr("category.special_data.armor_stand.title");
             case ITEM_FRAME -> ItemEditorText.tr("category.special_data.item_frame.title");
             case SPAWN_EGG -> ItemEditorText.tr("category.special_data.spawn_egg.title");
+            case ENTITY_VARIANTS -> ItemEditorText.tr("special.entity_variant.title");
             case BUCKET_CREATURE -> ItemEditorText.tr("category.special_data.bucket.title");
             case POTION -> ItemEditorText.tr("category.special_data.potion.title");
             case FIREWORK -> ItemEditorText.tr("category.special_data.firework.title");
@@ -124,49 +155,7 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsComponents(ItemStack stack, RegistryAccess registryAccess) {
-        return supportsAnyComponent(
-                stack,
-                registryAccess,
-                "minecraft:food",
-                "minecraft:consumable",
-                "minecraft:use_effects",
-                "minecraft:use_remainder",
-                "minecraft:use_cooldown",
-                "minecraft:custom_data",
-                "minecraft:lock",
-                "minecraft:container_loot",
-                "minecraft:bees",
-                "minecraft:pot_decorations",
-                "minecraft:charged_projectiles",
-                "minecraft:map_color",
-                "minecraft:map_post_processing",
-                "minecraft:map_id",
-                "minecraft:map_decorations",
-                "minecraft:lodestone_tracker",
-                "minecraft:equippable",
-                "minecraft:weapon",
-                "minecraft:tool",
-                "minecraft:repairable",
-                "minecraft:attack_range",
-                "minecraft:item_name",
-                "minecraft:minimum_attack_charge",
-                "minecraft:enchantable",
-                "minecraft:ominous_bottle_amplifier",
-                "minecraft:tooltip_style",
-                "minecraft:glider",
-                "minecraft:intangible_projectile",
-                "minecraft:death_protection",
-                "minecraft:damage_type",
-                "minecraft:damage_resistant",
-                "minecraft:note_block_sound",
-                "minecraft:break_sound",
-                "minecraft:painting_variant",
-                "minecraft:block_state",
-                "minecraft:blocks_attacks",
-                "minecraft:swing_animation",
-                "minecraft:piercing_weapon",
-                "minecraft:kinetic_weapon"
-        ) || hasBlockStateProperties(stack);
+        return true;
     }
 
     public static boolean supportsAnyComponent(ItemStack stack, RegistryAccess registryAccess, String... componentIds) {
@@ -261,6 +250,9 @@ public final class ItemEditorCapabilities {
         if (supportsBucketCreature(stack)) {
             return SpecialDataFocus.BUCKET_CREATURE;
         }
+        if (supportsEntityVariantData(stack)) {
+            return SpecialDataFocus.ENTITY_VARIANTS;
+        }
         if (isPotionRelated(stack)) {
             return SpecialDataFocus.POTION;
         }
@@ -354,6 +346,7 @@ public final class ItemEditorCapabilities {
         ARMOR_STAND,
         ITEM_FRAME,
         SPAWN_EGG,
+        ENTITY_VARIANTS,
         BUCKET_CREATURE,
         POTION,
         FIREWORK,

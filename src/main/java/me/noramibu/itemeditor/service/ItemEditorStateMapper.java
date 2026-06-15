@@ -333,6 +333,20 @@ public final class ItemEditorStateMapper {
         if (blocksAttacks != null) {
             state.special.blocksAttacksBlockDelaySeconds = trimTrailingZeros(blocksAttacks.blockDelaySeconds());
             state.special.blocksAttacksDisableCooldownScale = trimTrailingZeros(blocksAttacks.disableCooldownScale());
+            state.special.blocksAttacksBypassedByTypeIds = blocksAttacks.bypassedBy()
+                    .map(ItemEditorStateMapper::joinHolderSetIds)
+                    .orElse("");
+            state.special.blocksAttacksItemDamageThreshold = trimTrailingZeros(blocksAttacks.itemDamage().threshold());
+            state.special.blocksAttacksItemDamageBase = trimTrailingZeros(blocksAttacks.itemDamage().base());
+            state.special.blocksAttacksItemDamageFactor = trimTrailingZeros(blocksAttacks.itemDamage().factor());
+            for (BlocksAttacks.DamageReduction reduction : blocksAttacks.damageReductions()) {
+                ItemEditorState.BlocksAttacksDamageReductionDraft draft = new ItemEditorState.BlocksAttacksDamageReductionDraft();
+                draft.typeIds = reduction.type().map(ItemEditorStateMapper::joinHolderSetIds).orElse("");
+                draft.horizontalBlockingAngle = trimTrailingZeros(reduction.horizontalBlockingAngle());
+                draft.base = trimTrailingZeros(reduction.base());
+                draft.factor = trimTrailingZeros(reduction.factor());
+                state.special.blocksAttacksDamageReductions.add(draft);
+            }
             setIdFromHolder(blocksAttacks.blockSound().orElse(null), id -> state.special.blocksAttacksBlockSoundId = id);
             setIdFromHolder(blocksAttacks.disableSound().orElse(null), id -> state.special.blocksAttacksDisableSoundId = id);
         }
@@ -615,6 +629,30 @@ public final class ItemEditorStateMapper {
         DyeColor tropicalPatternColor = stack.get(DataComponents.TROPICAL_FISH_PATTERN_COLOR);
         setEnumName(tropicalPatternColor, name -> state.special.bucketTropicalPatternColor = name);
 
+        setSerializedName(stack.get(DataComponents.CAT_COLLAR), name -> state.special.entityCatCollar = name);
+        setIdFromHolder(stack.get(DataComponents.CAT_VARIANT), id -> state.special.entityCatVariant = id);
+        setIdFromHolder(stack.get(DataComponents.CAT_SOUND_VARIANT), id -> state.special.entityCatSoundVariant = id);
+        setIdFromHolder(stack.get(DataComponents.CHICKEN_VARIANT), id -> state.special.entityChickenVariant = id);
+        setIdFromHolder(stack.get(DataComponents.CHICKEN_SOUND_VARIANT), id -> state.special.entityChickenSoundVariant = id);
+        setIdFromHolder(stack.get(DataComponents.COW_VARIANT), id -> state.special.entityCowVariant = id);
+        setIdFromHolder(stack.get(DataComponents.COW_SOUND_VARIANT), id -> state.special.entityCowSoundVariant = id);
+        setSerializedName(stack.get(DataComponents.FOX_VARIANT), name -> state.special.entityFoxVariant = name);
+        setIdFromHolder(stack.get(DataComponents.FROG_VARIANT), id -> state.special.entityFrogVariant = id);
+        setSerializedName(stack.get(DataComponents.HORSE_VARIANT), name -> state.special.entityHorseVariant = name);
+        setSerializedName(stack.get(DataComponents.LLAMA_VARIANT), name -> state.special.entityLlamaVariant = name);
+        setSerializedName(stack.get(DataComponents.MOOSHROOM_VARIANT), name -> state.special.entityMooshroomVariant = name);
+        setSerializedName(stack.get(DataComponents.PARROT_VARIANT), name -> state.special.entityParrotVariant = name);
+        setIdFromHolder(stack.get(DataComponents.PIG_VARIANT), id -> state.special.entityPigVariant = id);
+        setIdFromHolder(stack.get(DataComponents.PIG_SOUND_VARIANT), id -> state.special.entityPigSoundVariant = id);
+        setSerializedName(stack.get(DataComponents.RABBIT_VARIANT), name -> state.special.entityRabbitVariant = name);
+        setSerializedName(stack.get(DataComponents.SHEEP_COLOR), name -> state.special.entitySheepColor = name);
+        setSerializedName(stack.get(DataComponents.SHULKER_COLOR), name -> state.special.entityShulkerColor = name);
+        setIdFromHolder(stack.get(DataComponents.VILLAGER_VARIANT), id -> state.special.entityVillagerVariant = id);
+        setSerializedName(stack.get(DataComponents.WOLF_COLLAR), name -> state.special.entityWolfCollar = name);
+        setIdFromHolder(stack.get(DataComponents.WOLF_SOUND_VARIANT), id -> state.special.entityWolfSoundVariant = id);
+        setIdFromHolder(stack.get(DataComponents.WOLF_VARIANT), id -> state.special.entityWolfVariant = id);
+        setIdFromHolder(stack.get(DataComponents.ZOMBIE_NAUTILUS_VARIANT), id -> state.special.entityZombieNautilusVariant = id);
+
         CustomData bucketEntityData = stack.get(DataComponents.BUCKET_ENTITY_DATA);
         if (bucketEntityData != null) {
             var tag = bucketEntityData.copyTag();
@@ -625,6 +663,9 @@ public final class ItemEditorStateMapper {
             state.special.bucketGlowing = tag.getBooleanOr("Glowing", false);
             state.special.bucketInvulnerable = tag.getBooleanOr("Invulnerable", false);
             tag.getFloat("Health").ifPresent(value -> state.special.bucketHealth = Float.toString(value));
+            tag.getInt("Age").ifPresent(value -> state.special.bucketAge = Integer.toString(value));
+            state.special.bucketAgeLocked = tag.getBooleanOr("AgeLocked", false);
+            tag.getLong("HuntingCooldown").ifPresent(value -> state.special.bucketHuntingCooldown = Long.toString(value));
         }
 
         InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
@@ -1117,6 +1158,10 @@ public final class ItemEditorStateMapper {
     }
 
     private static <T> String joinHolderSetIds(HolderSet<T> holderSet) {
+        Optional<String> tagId = holderSet.unwrapKey().map(key -> "#" + key.location());
+        if (tagId.isPresent()) {
+            return tagId.get();
+        }
         return String.join(
                 ", ",
                 holderSet.stream()
