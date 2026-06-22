@@ -1044,7 +1044,7 @@ public final class TextComponentUtil {
                             + ":"
                             + escapeTokenValue(textures.signature())
                             + ":"
-                            + (hat ? "true" : "false")
+                            + hat
                             + colorSuffix
                             + TOKEN_SUFFIX;
                 }
@@ -1056,7 +1056,7 @@ public final class TextComponentUtil {
                     yield TOKEN_HEAD_OPEN
                             + escapeTokenValue(name)
                             + ":"
-                            + (hat ? "true" : "false")
+                            + hat
                             + colorSuffix
                             + TOKEN_SUFFIX;
                 }

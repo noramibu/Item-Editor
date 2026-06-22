@@ -33,6 +33,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 import java.util.List;
@@ -206,13 +207,16 @@ public final class EntityVariantSpecialDataSection {
         }
         if (stack.getItem() instanceof SpawnEggItem spawnEggItem) {
             EntityType<?> type = spawnEggItem.getType(stack);
+            if (type == null) {
+                return "";
+            }
             Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-            return id == null ? "" : id.toString();
+            return id.toString();
         }
         return "";
     }
 
-    private static <T> List<String> registryIds(
+    private static <T extends @NotNull Object> List<String> registryIds(
             SpecialDataPanelContext context,
             ResourceKey<? extends Registry<T>> registryKey
     ) {

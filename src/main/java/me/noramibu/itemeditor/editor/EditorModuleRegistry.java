@@ -17,7 +17,7 @@ public final class EditorModuleRegistry {
 
     private static final List<EditorModule> MODULES = List.of(
             new EditorModule(EditorCategory.GENERAL, session -> true, GeneralEditorPanel::new),
-            new EditorModule(EditorCategory.COMPONENTS, session -> ItemEditorCapabilities.supportsComponents(session.originalStack(), session.registryAccess()), ComponentsEditorPanel::new),
+            new EditorModule(EditorCategory.COMPONENTS, session -> true, ComponentsEditorPanel::new),
             new EditorModule(EditorCategory.DISPLAY, session -> true, DisplayEditorPanel::new),
             new EditorModule(EditorCategory.ATTRIBUTES, session -> true, AttributeEditorPanel::new),
             new EditorModule(EditorCategory.ENCHANTMENTS, session -> true, EnchantmentEditorPanel::new),

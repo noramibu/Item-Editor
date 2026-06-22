@@ -122,10 +122,24 @@ public final class StorageSearchEngine {
         if (token == null || token.isBlank()) {
             return true;
         }
+        String itemPath = itemPath(itemKey);
         if (token.indexOf('*') >= 0) {
-            return wildcardMatch(itemKey, token);
+            return wildcardMatch(itemKey, token) || wildcardMatch(itemPath, token);
         }
-        return itemKey.equals(token) || itemKey.startsWith(token);
+        return itemKey.equals(token)
+                || itemKey.startsWith(token)
+                || itemPath.equals(token)
+                || itemPath.startsWith(token);
+    }
+
+    private static String itemPath(String itemKey) {
+        if (itemKey == null) {
+            return "";
+        }
+        int separator = itemKey.indexOf(':');
+        return separator < 0 || separator == itemKey.length() - 1
+                ? itemKey
+                : itemKey.substring(separator + 1);
     }
 
     private static boolean wildcardMatch(String value, String pattern) {

@@ -1,24 +1,35 @@
 package me.noramibu.itemeditor.storage;
 
 import com.mojang.serialization.DataResult;
+import com.mojang.serialization.Dynamic;
 import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
-import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
+import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
+import me.noramibu.itemeditor.storage.model.SavedPageEntry;
 import me.noramibu.itemeditor.storage.search.StorageSearchEngine;
 import me.noramibu.itemeditor.storage.search.StorageSearchParser;
 import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
+import me.noramibu.itemeditor.util.TextComponentUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.SharedConstants;
+import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.datafix.fixes.References;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,18 +43,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.io.IOException;
-import java.util.stream.Stream;
 
 public final class SavedItemStorageService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(SavedItemStorageService.class);
     private static final String CHUNK_PREFIX = "chunk-";
+    private static final String DEFAULT_PAGE_NAME = "";
     private static final int MIN_ITEM_CACHE_SIZE = 128;
     private static final int MAX_ITEM_CACHE_SIZE = 1024;
     private static final int MIN_CHUNK_CACHE_SIZE = 24;
@@ -63,6 +74,9 @@ public final class SavedItemStorageService {
     private final Map<String, SavedChunkCodec.SavedChunkData> chunkCache;
     private final Map<String, ItemStack> itemCache;
     private final SavedItemRuntimeCaches runtimeCaches;
+    private final StorageItemBackupService backupService;
+    private final Set<String> autoBackedUpDfuPages = ConcurrentHashMap.newKeySet();
+    private final Set<String> storageDfuInProgress = ConcurrentHashMap.newKeySet();
     private final ReentrantReadWriteLock indexLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock chunkLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock itemCacheLock = new ReentrantReadWriteLock();
@@ -95,6 +109,7 @@ public final class SavedItemStorageService {
         this.chunkCache = lruCache(computeAdaptiveChunkCacheSize());
         this.itemCache = lruCache(computeAdaptiveItemCacheSize());
         this.runtimeCaches = new SavedItemRuntimeCaches(computeAdaptiveDecodeMemoCacheSize(), HOT_PAGE_CACHE_SIZE);
+        this.backupService = new StorageItemBackupService(foundation.paths().storageBackupsDirectory());
         this.decodeThreadCount = computeDecodeThreadCount();
         this.decodeExecutor = Executors.newFixedThreadPool(
                 this.decodeThreadCount,
@@ -107,15 +122,18 @@ public final class SavedItemStorageService {
         if (entries == null || entries.isEmpty()) {
             return loaded;
         }
+        this.backupPagesBeforeDfu(entries);
+        int currentDataVersion = currentDataVersion();
         List<DecodeRequest> decodeRequests = new ArrayList<>();
         Map<String, SavedChunkCodec.SavedChunkData> chunkById = new HashMap<>();
         for (SavedIndexItemEntry entry : entries) {
             if (entry == null || entry.id == null || entry.id.isBlank()) {
                 continue;
             }
+            boolean outdated = currentDataVersion > 0 && entry.dataVersion > 0 && entry.dataVersion < currentDataVersion;
             ItemStack cached = withReadLock(this.itemCacheLock, () -> {
                 ItemStack fromCache = this.itemCache.get(entry.id);
-                return fromCache == null ? ItemStack.EMPTY : fromCache.copy();
+                return outdated || fromCache == null ? ItemStack.EMPTY : fromCache.copy();
             });
             if (!cached.isEmpty()) {
                 loaded.put(entry.id, cached);
@@ -131,7 +149,18 @@ public final class SavedItemStorageService {
             }
             CompoundTag itemTag = chunkEntry.itemTag().copy();
             SavedChunkCodec.DecodeKey key = SavedChunkCodec.decodeKey(itemTag);
-            decodeRequests.add(new DecodeRequest(entry.id, itemTag, key.tagHash(), key.fingerprint()));
+            int dataVersion = Math.max(0, entry.dataVersion);
+            decodeRequests.add(new DecodeRequest(
+                    entry.id,
+                    entry.chunkId,
+                    entry.page,
+                    entry.slotInPage,
+                    entry.slotInChunk,
+                    dataVersion,
+                    itemTag,
+                    key.tagHash(),
+                    key.fingerprint() + "|dv=" + dataVersion
+            ));
         }
 
         Map<String, ItemStack> decoded = this.decodeRequestsParallel(decodeRequests, registryAccess);
@@ -148,7 +177,27 @@ public final class SavedItemStorageService {
         return loaded;
     }
 
+    private void backupPagesBeforeDfu(List<SavedIndexItemEntry> entries) {
+        int currentDataVersion = currentDataVersion();
+        if (currentDataVersion <= 0 || entries == null || entries.isEmpty()) {
+            return;
+        }
+        Set<Integer> pages = new HashSet<>();
+        for (SavedIndexItemEntry entry : entries) {
+            if (entry != null && entry.dataVersion > 0 && entry.dataVersion < currentDataVersion) {
+                pages.add(Math.max(1, entry.page));
+            }
+        }
+        for (int page : pages) {
+            String key = currentDataVersion + ":" + page;
+            if (this.autoBackedUpDfuPages.add(key)) {
+                this.backupPageSnapshot(page, "storage_page_pre_dfu", "Automatically backed up prior to running DFU");
+            }
+        }
+    }
+
     private PageResult page(SavedIndexFileModel index, int requestedPage, StorageSortMode sortMode, boolean reverseSort) {
+        this.syncPageMetadata(index);
         if (sortMode != StorageSortMode.REGULAR) {
             List<SavedIndexItemEntry> sorted = new ArrayList<>();
             for (SavedIndexItemEntry entry : index.items) {
@@ -160,20 +209,32 @@ public final class SavedItemStorageService {
             return this.pagedResult(sorted, requestedPage, false);
         }
 
-        int maxPage = Math.max(1, this.maxPage(index.items));
-        int page = clampMinPage(requestedPage);
+        int requested = clampMinPage(requestedPage);
+        SavedPageEntry pageEntry = this.pageByNumberOrVirtual(index, requested);
+        int maxPage = Math.max(requested, this.maxKnownPage(index));
+        int page = pageEntry.order + 1;
 
         List<SavedIndexItemEntry> pageEntries = new ArrayList<>();
         for (SavedIndexItemEntry entry : index.items) {
             if (entry == null) {
                 continue;
             }
-            if (entry.page == page) {
+            if (pageEntry.id.equals(entry.pageId)) {
                 pageEntries.add(copy(entry));
             }
         }
         pageEntries.sort(Comparator.comparingInt((SavedIndexItemEntry entry) -> entry.slotInPage));
-        return new PageResult(pageEntries, page, maxPage, false, index.items.size());
+        return new PageResult(
+                pageEntries,
+                page,
+                maxPage,
+                false,
+                index.items.size(),
+                pageEntry.id,
+                pageEntry.chunkId,
+                pageEntry.name,
+                pageEntry.namePlain
+        );
     }
 
     private PageResult search(
@@ -198,57 +259,321 @@ public final class SavedItemStorageService {
         return this.withIndexRead(() -> this.pageStatsCache);
     }
 
-    public void trimTrailingEmptyPages() {
+    public List<PageInfo> listPages(int includePage) {
         this.ensureIndexLoaded();
-        IndexChunkScan scan = this.withIndexRead(() -> {
-            Set<String> chunkIds = new HashSet<>();
-            int maxChunkIndex = -1;
+        return this.withIndexWrite(() -> {
+            this.syncPageMetadata(this.indexCache);
+            List<PageInfo> pages = new ArrayList<>();
+            int maxPage = Math.max(Math.max(1, includePage), this.maxStoredPage(this.indexCache));
+            for (int pageNumber = 1; pageNumber <= maxPage; pageNumber++) {
+                SavedPageEntry page = this.pageByNumberOrVirtual(this.indexCache, pageNumber);
+                pages.add(this.pageInfo(this.indexCache, page, !this.isPersistedPage(this.indexCache, page.id)));
+            }
+            return pages;
+        });
+    }
+
+    public void enqueueRenamePage(String pageId, int pageNumber, String name) {
+        String targetPageId = pageId == null ? "" : pageId;
+        String targetName = name == null || name.isBlank() ? "" : name.trim();
+        this.enqueueWrite(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageById(this.indexCache, targetPageId);
+            if (page == null && targetName.isBlank()) {
+                return;
+            }
+            if (page != null && targetName.isBlank() && this.isPlaceholderPage(this.indexCache, page)) {
+                String emptyPageId = page.id;
+                this.indexCache.pages.removeIf(candidate -> candidate != null && emptyPageId.equals(candidate.id));
+                this.syncPageMetadata(this.indexCache);
+                this.markIndexDirty();
+                this.flushIndexNow();
+                this.runtimeCaches.invalidateHotPageCache();
+                return;
+            }
+            if (page == null) {
+                page = this.ensurePersistentPageByNumber(this.indexCache, pageNumber);
+            }
+            long now = System.currentTimeMillis();
+            if (page.createdAt <= 0L) {
+                page.createdAt = now;
+            }
+            page.name = targetName;
+            page.namePlain = targetName.isBlank() ? "" : TextComponentUtil.parseMarkup(targetName).getString();
+            page.updatedAt = now;
+            this.syncPageMetadata(this.indexCache);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+        }));
+    }
+
+    public int nextEmptyPageNumber(int includePage) {
+        this.ensureIndexLoaded();
+        return this.withIndexRead(() -> Math.max(Math.max(1, includePage), this.maxStoredPage(this.indexCache)) + 1);
+    }
+
+    public CompletableFuture<Integer> enqueueRemoveEmptyPages() {
+        CompletableFuture<Integer> result = new CompletableFuture<>();
+        this.enqueueWrite(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            Map<String, Boolean> occupied = new HashMap<>();
             for (SavedIndexItemEntry entry : this.indexCache.items) {
-                if (entry == null) {
+                if (entry != null && entry.pageId != null && !entry.pageId.isBlank()) {
+                    occupied.put(entry.pageId, true);
+                }
+            }
+            int before = this.indexCache.pages.size();
+            this.indexCache.pages.removeIf(page -> page == null || !occupied.containsKey(page.id));
+            this.indexCache.pages.sort(Comparator.comparingInt(page -> page.order));
+            for (int index = 0; index < this.indexCache.pages.size(); index++) {
+                this.indexCache.pages.get(index).order = index;
+            }
+            int removed = before - this.indexCache.pages.size();
+            if (removed <= 0) {
+                result.complete(0);
+                return;
+            }
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+            result.complete(removed);
+        }));
+        return result;
+    }
+
+    public CompletableFuture<Integer> enqueueDuplicatePage(int pageNumber) {
+        CompletableFuture<Integer> result = new CompletableFuture<>();
+        this.enqueueWrite(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry sourcePage = this.pageByNumber(this.indexCache, pageNumber);
+            if (sourcePage == null || this.isPlaceholderPage(this.indexCache, sourcePage)) {
+                result.complete(-1);
+                return;
+            }
+            SavedPageEntry targetPage = this.ensurePersistentPageByNumber(this.indexCache, this.maxKnownPage(this.indexCache) + 1);
+            long now = System.currentTimeMillis();
+            targetPage.name = sourcePage.name;
+            targetPage.namePlain = sourcePage.namePlain;
+            targetPage.createdAt = now;
+            targetPage.updatedAt = now;
+
+            SavedChunkCodec.SavedChunkData targetChunk = new SavedChunkCodec.SavedChunkData(targetPage.chunkId, new HashMap<>());
+            Map<String, SavedChunkCodec.SavedChunkData> sourceChunks = new HashMap<>();
+            for (SavedIndexItemEntry entry : new ArrayList<>(this.indexCache.items)) {
+                if (entry == null || !sourcePage.id.equals(entry.pageId)) {
                     continue;
                 }
-                chunkIds.add(entry.chunkId);
-                maxChunkIndex = Math.max(maxChunkIndex, chunkIndexFromId(entry.chunkId));
+                SavedChunkCodec.SavedChunkData sourceChunk = sourceChunks.computeIfAbsent(entry.chunkId, this::readChunk);
+                SavedChunkCodec.SavedChunkEntry sourceEntry = sourceChunk.entries().get(entry.slotInChunk);
+                if (sourceEntry == null) {
+                    continue;
+                }
+                int slot = clampSlot(entry.slotInPage);
+                String id = UUID.randomUUID().toString();
+                targetChunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(
+                        id,
+                        now,
+                        now,
+                        sourceEntry.itemTag().copy()
+                ));
+                SavedIndexItemEntry copied = copy(entry);
+                copied.id = id;
+                copied.pageId = targetPage.id;
+                copied.chunkId = targetPage.chunkId;
+                copied.page = targetPage.order + 1;
+                copied.slotInChunk = slot;
+                copied.slotInPage = slot;
+                copied.savedAt = now;
+                copied.updatedAt = now;
+                copied.pageNamePlain = targetPage.namePlain;
+                this.indexCache.items.add(copied);
+                this.onIndexEntryAdded(copied);
             }
-            return new IndexChunkScan(chunkIds, maxChunkIndex);
-        });
-        Set<String> referencedChunkIds = scan.chunkIds();
-        int maxReferencedChunkIndex = scan.maxChunkIndex();
+            this.withChunkWrite(() -> this.writeChunk(targetChunk));
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+            result.complete(targetPage.order + 1);
+        }));
+        return result;
+    }
 
-        int removed = 0;
-        Path dataDir = this.foundation.paths().savedDataDirectory();
-        if (!Files.isDirectory(dataDir)) {
+    public CompletableFuture<Path> enqueueBackupPage(int pageNumber) {
+        CompletableFuture<Path> result = new CompletableFuture<>();
+        this.enqueueWrite(() -> {
+            try {
+                result.complete(this.backupPageSnapshot(
+                        pageNumber,
+                        "storage_page_manual_backup",
+                        "Manually backed up by user"
+                ));
+            } catch (RuntimeException exception) {
+                result.completeExceptionally(exception);
+                throw exception;
+            }
+        });
+        return result;
+    }
+
+    public CompletableFuture<StorageImportResult> enqueueImportPages(
+            List<ExternalPageImport> pages,
+            RegistryAccess registryAccess,
+            Consumer<StorageImportProgress> progress
+    ) {
+        CompletableFuture<StorageImportResult> result = new CompletableFuture<>();
+        RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        List<ExternalPageImport> imports = pages == null ? List.of() : pages;
+        this.enqueueWrite(() -> {
+            try {
+                this.withIndexWrite(() -> {
+                    this.ensureIndexLoaded();
+                    int importedPages = 0;
+                    int importedItems = 0;
+                    int nextPageNumber = this.maxKnownPage(this.indexCache) + 1;
+                    long now = System.currentTimeMillis();
+                    for (int importIndex = 0; importIndex < imports.size(); importIndex++) {
+                        ExternalPageImport pageImport = imports.get(importIndex);
+                        emitImportProgress(progress, "save_page", importIndex + 1, imports.size(), importedItems);
+                        List<ExternalItemImport> items = pageImport == null || pageImport.items() == null
+                                ? List.of()
+                                : pageImport.items().stream()
+                                        .filter(item -> item != null && !item.stack().isEmpty())
+                                        .toList();
+                        if (items.isEmpty()) {
+                            continue;
+                        }
+                        SavedPageEntry page = this.ensurePersistentPageByNumber(this.indexCache, nextPageNumber++);
+                        page.name = pageImport.name() == null ? "" : pageImport.name().trim();
+                        page.namePlain = page.name.isBlank() ? "" : TextComponentUtil.parseMarkup(page.name).getString();
+                        page.createdAt = now;
+                        page.updatedAt = now;
+                        SavedChunkCodec.SavedChunkData chunk = new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>());
+                        for (ExternalItemImport item : items) {
+                            if (importedItems % 18 == 0) {
+                                emitImportProgress(progress, "save_items", importIndex + 1, imports.size(), importedItems);
+                            }
+                            int slot = clampSlot(item.slotInPage());
+                            ItemStack stack = item.stack().copy();
+                            CompoundTag itemTag = item.itemTag() == null
+                                    ? this.encodeItemTag(stack, access)
+                                    : item.itemTag().copy();
+                            String id = UUID.randomUUID().toString();
+                            chunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, itemTag.copy()));
+                            SavedIndexItemEntry entry = buildEntry(id, page, slot, now, now, stack, nbtByteSize(itemTag));
+                            entry.dataVersion = item.dataVersion() > 0 ? item.dataVersion() : currentDataVersion();
+                            this.indexCache.items.add(entry);
+                            this.onIndexEntryAdded(entry);
+                            this.withItemCacheWrite(() -> this.itemCache.put(id, stack.copy()));
+                            importedItems++;
+                        }
+                        this.withChunkWrite(() -> this.writeChunk(chunk));
+                        importedPages++;
+                    }
+                    if (importedPages > 0) {
+                        emitImportProgress(progress, "finalize", importedPages, imports.size(), importedItems);
+                        this.syncPageMetadata(this.indexCache);
+                        this.rebuildPageStats(this.indexCache.items);
+                        this.markIndexDirty();
+                        this.flushIndexNow();
+                        this.runtimeCaches.invalidateHotPageCache();
+                    }
+                    result.complete(new StorageImportResult(importedPages, importedItems));
+                });
+            } catch (RuntimeException exception) {
+                result.completeExceptionally(exception);
+                throw exception;
+            }
+        });
+        return result;
+    }
+
+    private static void emitImportProgress(
+            Consumer<StorageImportProgress> progress,
+            String phase,
+            int current,
+            int total,
+            int items
+    ) {
+        if (progress != null) {
+            progress.accept(new StorageImportProgress(phase, current, total, items));
+        }
+    }
+
+    public void enqueueMovePage(String pageId, int offset) {
+        if (offset == 0) {
             return;
         }
-
-        try (Stream<Path> files = Files.list(dataDir)) {
-            for (Path file : (Iterable<Path>) files::iterator) {
-                String filename = file.getFileName().toString();
-                if (!filename.endsWith(".nbt")) {
-                    continue;
-                }
-                String chunkId = filename.substring(0, filename.length() - 4);
-                int chunkIndex = chunkIndexFromId(chunkId);
-                if (chunkIndex < 0) {
-                    continue;
-                }
-                boolean trailing = chunkIndex > maxReferencedChunkIndex;
-                boolean unreferenced = !referencedChunkIds.contains(chunkId);
-                if (!trailing || !unreferenced) {
-                    continue;
-                }
-                try {
-                    Files.deleteIfExists(file);
-                    this.withChunkWrite(() -> this.chunkCache.remove(chunkId));
-                    removed++;
-                } catch (IOException ignored) {
+        String targetPageId = pageId == null ? "" : pageId;
+        this.enqueueWrite(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            int from = pageIndexById(this.indexCache, targetPageId);
+            if (from < 0) {
+                return;
+            }
+            SavedPageEntry page = this.indexCache.pages.get(from);
+            int currentOrder = page.order;
+            int targetOrder = Math.max(0, currentOrder + offset);
+            SavedPageEntry swap = this.pageByNumber(this.indexCache, targetOrder + 1);
+            if (swap != null && page.id.equals(swap.id)) {
+                return;
+            }
+            page.order = targetOrder;
+            if (swap != null) {
+                if (this.isPlaceholderPage(this.indexCache, swap)) {
+                    this.indexCache.pages.removeIf(candidate -> candidate != null && swap.id.equals(candidate.id));
+                } else {
+                    swap.order = currentOrder;
                 }
             }
-        } catch (IOException ignored) {
-        }
-        if (removed > 0) {
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
             this.runtimeCaches.invalidateHotPageCache();
-        }
+        }));
+    }
+
+    public CompletableFuture<Boolean> enqueueDeletePageNumber(int pageNumber) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        int targetOrder = Math.max(0, pageNumber - 1);
+        this.enqueueWrite(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageByNumber(this.indexCache, targetOrder + 1);
+            boolean placeholder = page == null || this.isPlaceholderPage(this.indexCache, page);
+            if (!placeholder) {
+                this.indexCache.items.removeIf(entry -> entry != null && page.id.equals(entry.pageId));
+                this.withChunkWrite(() -> this.writeChunk(new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())));
+            } else if (targetOrder >= this.maxStoredPage(this.indexCache)) {
+                result.complete(false);
+                return;
+            }
+            if (page != null) {
+                this.indexCache.pages.removeIf(candidate -> candidate != null && page.id.equals(candidate.id));
+            }
+            boolean shifted = false;
+            for (SavedPageEntry candidate : this.indexCache.pages) {
+                if (candidate != null && candidate.order > targetOrder) {
+                    candidate.order--;
+                    shifted = true;
+                }
+            }
+            if (page == null && !shifted) {
+                result.complete(false);
+                return;
+            }
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+            result.complete(true);
+        }));
+        return result;
     }
 
     public void enqueueApplySlotMutations(
@@ -362,6 +687,8 @@ public final class SavedItemStorageService {
     private static SavedIndexItemEntry buildEntry(
             String id,
             String chunkId,
+            String pageId,
+            int page,
             int slotInChunk,
             long savedAt,
             long updatedAt,
@@ -370,12 +697,15 @@ public final class SavedItemStorageService {
     ) {
         SavedIndexItemEntry entry = new SavedIndexItemEntry();
         entry.id = id;
+        entry.pageId = pageId == null ? "" : pageId;
         entry.chunkId = chunkId;
         entry.slotInChunk = slotInChunk;
-        entry.page = chunkIndexFromId(chunkId) + 1;
+        entry.page = Math.max(1, page);
         entry.slotInPage = slotInChunk;
         entry.savedAt = savedAt;
         entry.updatedAt = updatedAt;
+        entry.minecraftVersion = currentMinecraftVersion();
+        entry.dataVersion = currentDataVersion();
         entry.itemRegistryKey = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         entry.stackCount = Math.max(1, stack.getCount());
         entry.nbtBytes = Math.max(0, nbtBytes);
@@ -388,6 +718,28 @@ public final class SavedItemStorageService {
             }
         }
         return entry;
+    }
+
+    private static SavedIndexItemEntry buildEntry(
+            String id,
+            SavedPageEntry page,
+            int slotInChunk,
+            long savedAt,
+            long updatedAt,
+            ItemStack stack,
+            int nbtBytes
+    ) {
+        return buildEntry(
+                id,
+                page.chunkId,
+                page.id,
+                page.order + 1,
+                slotInChunk,
+                savedAt,
+                updatedAt,
+                stack,
+                nbtBytes
+        );
     }
 
     private static SavedIndexItemEntry copy(SavedIndexItemEntry source) {
@@ -418,27 +770,16 @@ public final class SavedItemStorageService {
         return -1;
     }
 
-    private @Nullable SavedIndexItemEntry findEntryAtSlot(List<SavedIndexItemEntry> entries, int page, int slotInPage) {
+    private @Nullable SavedIndexItemEntry findEntryAtSlot(List<SavedIndexItemEntry> entries, String pageId, int slotInPage) {
         for (SavedIndexItemEntry entry : entries) {
             if (entry == null) {
                 continue;
             }
-            if (entry.page == page && entry.slotInPage == slotInPage) {
+            if (pageId.equals(entry.pageId) && entry.slotInPage == slotInPage) {
                 return entry;
             }
         }
         return null;
-    }
-
-    private int maxPage(List<SavedIndexItemEntry> entries) {
-        int maxChunk = 0;
-        for (SavedIndexItemEntry entry : entries) {
-            if (entry == null) {
-                continue;
-            }
-            maxChunk = Math.max(maxChunk, chunkIndexFromId(entry.chunkId));
-        }
-        return maxChunk + 1;
     }
 
     private PageResult pagedResult(List<SavedIndexItemEntry> entries, int requestedPage, boolean searchMode) {
@@ -453,7 +794,7 @@ public final class SavedItemStorageService {
             entry.slotInPage = index - from;
             pageEntries.add(entry);
         }
-        return new PageResult(pageEntries, page, maxPage, searchMode, total);
+        return new PageResult(pageEntries, page, maxPage, searchMode, total, "", "", "", "");
     }
 
     private static int clampSlot(int slotInPage) {
@@ -470,7 +811,7 @@ public final class SavedItemStorageService {
         this.ensureIndexLoaded();
         String normalizedQuery = queryRaw == null ? "" : queryRaw.trim();
         StorageSortMode mode = sortMode == null ? StorageSortMode.REGULAR : sortMode;
-        PageResult result = this.withIndexRead(() -> {
+        PageResult result = this.withIndexWrite(() -> {
             StorageSearchQuery query = StorageSearchParser.parse(normalizedQuery);
             return query.isEmpty()
                     ? this.page(this.indexCache, requestedPage, mode, reverseSort)
@@ -502,8 +843,23 @@ public final class SavedItemStorageService {
         this.ensureIndexLoaded();
         this.withIndexWrite(() -> {
             SavedIndexFileModel index = this.indexCache;
+            SavedPageEntry pageEntry = this.pageByNumber(index, page);
+            boolean needsPage = pageEntry != null;
+            for (SlotMutation mutation : mutations) {
+                if (mutation != null && !mutation.targetStack.isEmpty()) {
+                    needsPage = true;
+                    break;
+                }
+            }
+            if (!needsPage) {
+                return;
+            }
+            if (pageEntry == null) {
+                pageEntry = this.ensurePersistentPageByNumber(index, page);
+            }
+            SavedPageEntry targetPageEntry = pageEntry;
             this.withChunkWrite(() -> {
-                String targetChunkId = chunkId(page - 1);
+                String targetChunkId = targetPageEntry.chunkId;
                 SavedChunkCodec.SavedChunkData chunk = this.readChunk(targetChunkId);
                 Map<Integer, SlotMutation> latestBySlot = new HashMap<>();
                 for (SlotMutation mutation : mutations) {
@@ -515,7 +871,7 @@ public final class SavedItemStorageService {
                 for (SlotMutation mutation : latestBySlot.values()) {
                     int slot = clampSlot(mutation.slotInPage);
                     ItemStack targetStack = mutation.targetStack;
-                    SavedIndexItemEntry existing = this.resolveMutationEntry(index.items, page, slot, mutation.entryId);
+                    SavedIndexItemEntry existing = this.resolveMutationEntry(index.items, targetPageEntry.id, slot, mutation.entryId);
 
                     if (targetStack.isEmpty()) {
                         if (existing == null) {
@@ -545,7 +901,7 @@ public final class SavedItemStorageService {
                         SavedChunkCodec.SavedChunkData existingChunk = this.readChunk(existing.chunkId);
                         SavedChunkCodec.SavedChunkEntry current = existingChunk.entries().get(existing.slotInChunk);
                         long savedAt = current == null ? existing.savedAt : current.savedAt();
-                        if (savedAt <= 0L) {
+                        if (savedAt == 0L) {
                             savedAt = now;
                         }
                         existingChunk.entries().put(existing.slotInChunk, new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
@@ -555,7 +911,16 @@ public final class SavedItemStorageService {
                         } else {
                             this.writeChunk(existingChunk);
                         }
-                        SavedIndexItemEntry refreshed = buildEntry(existing.id, existing.chunkId, existing.slotInChunk, savedAt, now, targetStack, encodedNbtBytes);
+                        SavedPageEntry existingPage = this.pageById(index, existing.pageId);
+                        SavedIndexItemEntry refreshed = buildEntry(
+                                existing.id,
+                                existingPage == null ? targetPageEntry : existingPage,
+                                existing.slotInChunk,
+                                savedAt,
+                                now,
+                                targetStack,
+                                encodedNbtBytes
+                        );
                         this.replaceEntry(index.items, refreshed);
                         this.withItemCacheWrite(() -> this.itemCache.put(existing.id, targetStack.copy()));
                         indexChanged = true;
@@ -564,7 +929,7 @@ public final class SavedItemStorageService {
 
                     String id = UUID.randomUUID().toString();
                     chunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, encodedItemTag.copy()));
-                    SavedIndexItemEntry created = buildEntry(id, targetChunkId, slot, now, now, targetStack, encodedNbtBytes);
+                    SavedIndexItemEntry created = buildEntry(id, targetPageEntry, slot, now, now, targetStack, encodedNbtBytes);
                     index.items.add(created);
                     this.onIndexEntryAdded(created);
                     this.withItemCacheWrite(() -> this.itemCache.put(id, targetStack.copy()));
@@ -576,6 +941,9 @@ public final class SavedItemStorageService {
                     this.writeChunk(chunk);
                 }
                 if (indexChanged) {
+                    this.pruneEmptyDefaultPages(index);
+                    this.syncPageMetadata(index);
+                    this.rebuildPageStats(index.items);
                     this.markIndexDirty();
                     this.flushIndexIfDue();
                 }
@@ -597,6 +965,11 @@ public final class SavedItemStorageService {
             if (existing == null) {
                 return StorageReplaceResult.failure("Original saved entry is missing.");
             }
+            SavedPageEntry existingPage = this.pageById(index, existing.pageId);
+            if (existingPage == null) {
+                existingPage = this.ensurePersistentPageByNumber(index, existing.page);
+            }
+            SavedPageEntry pageEntry = existingPage;
             this.withChunkWrite(() -> {
                 CompoundTag encodedItemTag = this.encodeItemTag(replacement, registryAccess);
                 int encodedNbtBytes = nbtByteSize(encodedItemTag);
@@ -604,12 +977,12 @@ public final class SavedItemStorageService {
                 SavedChunkCodec.SavedChunkData existingChunk = this.readChunk(existing.chunkId);
                 SavedChunkCodec.SavedChunkEntry current = existingChunk.entries().get(existing.slotInChunk);
                 long savedAt = current == null ? existing.savedAt : current.savedAt();
-                if (savedAt <= 0L) {
+                if (savedAt == 0L) {
                     savedAt = now;
                 }
                 existingChunk.entries().put(existing.slotInChunk, new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
                 this.writeChunk(existingChunk);
-                SavedIndexItemEntry refreshed = buildEntry(existing.id, existing.chunkId, existing.slotInChunk, savedAt, now, replacement, encodedNbtBytes);
+                SavedIndexItemEntry refreshed = buildEntry(existing.id, pageEntry, existing.slotInChunk, savedAt, now, replacement, encodedNbtBytes);
                 this.replaceEntry(index.items, refreshed);
                 this.withItemCacheWrite(() -> this.itemCache.put(existing.id, replacement.copy()));
                 this.markIndexDirty();
@@ -622,7 +995,7 @@ public final class SavedItemStorageService {
 
     private SavedIndexItemEntry resolveMutationEntry(
             List<SavedIndexItemEntry> entries,
-            int page,
+            String pageId,
             int slotInPage,
             String entryId
     ) {
@@ -632,7 +1005,7 @@ public final class SavedItemStorageService {
                 return byId;
             }
         }
-        return this.findEntryAtSlot(entries, page, slotInPage);
+        return this.findEntryAtSlot(entries, pageId, slotInPage);
     }
 
     private void ensureIndexLoaded() {
@@ -642,6 +1015,7 @@ public final class SavedItemStorageService {
         this.withIndexWrite(() -> {
             if (this.indexCache == null) {
                 this.indexCache = this.foundation.loadSavedIndex();
+                this.syncPageMetadata(this.indexCache);
                 this.rebuildPageStats(this.indexCache.items);
                 this.indexDirty = false;
                 if (this.backfillMissingNbtBytes(this.indexCache)) {
@@ -650,6 +1024,198 @@ public final class SavedItemStorageService {
                 }
             }
         });
+    }
+
+    private void syncPageMetadata(SavedIndexFileModel index) {
+        if (index == null) {
+            return;
+        }
+        if (index.pages == null) {
+            index.pages = new ArrayList<>();
+        }
+        if (index.items == null) {
+            index.items = new ArrayList<>();
+        }
+        for (int pageIndex = 0; pageIndex < index.pages.size(); pageIndex++) {
+            SavedPageEntry page = index.pages.get(pageIndex);
+            if (page == null) {
+                page = defaultPage(pageIndex);
+                index.pages.set(pageIndex, page);
+            }
+            page.order = Math.max(0, page.order);
+            if (page.chunkId == null || page.chunkId.isBlank()) {
+                page.chunkId = nextChunkId(index);
+            }
+            if (page.id == null || page.id.isBlank()) {
+                page.id = page.chunkId;
+            }
+            if (isGeneratedDefaultName(page.name, page.order)) {
+                page.name = DEFAULT_PAGE_NAME;
+            }
+            if (page.namePlain == null || isGeneratedDefaultName(page.namePlain, page.order)) {
+                page.namePlain = page.name.isBlank() ? "" : TextComponentUtil.parseMarkup(page.name).getString();
+            }
+        }
+        index.pages.sort(Comparator.comparingInt(page -> page.order));
+
+        Map<String, SavedPageEntry> byId = pagesById(index);
+        Map<String, SavedPageEntry> byChunkId = pagesByChunkId(index);
+        for (SavedIndexItemEntry entry : index.items) {
+            if (entry == null) {
+                continue;
+            }
+            SavedPageEntry page = byId.get(entry.pageId);
+            if (page == null) {
+                page = byChunkId.get(entry.chunkId);
+            }
+            if (page == null) {
+                page = defaultPage(Math.max(0, entry.page - 1));
+                page.chunkId = entry.chunkId == null || entry.chunkId.isBlank()
+                        ? nextChunkId(index)
+                        : entry.chunkId;
+                page.id = page.chunkId;
+                index.pages.add(page);
+                byId.put(page.id, page);
+                byChunkId.put(page.chunkId, page);
+            }
+            entry.pageId = page.id;
+            entry.chunkId = page.chunkId;
+            entry.page = page.order + 1;
+            entry.pageNamePlain = page.namePlain;
+        }
+    }
+
+    private SavedPageEntry ensurePersistentPageByNumber(SavedIndexFileModel index, int pageNumber) {
+        this.syncPageMetadata(index);
+        int targetPage = Math.max(1, pageNumber);
+        SavedPageEntry existing = this.pageByNumber(index, targetPage);
+        if (existing != null) {
+            return existing;
+        }
+        SavedPageEntry page = defaultPage(targetPage - 1);
+        page.chunkId = nextChunkId(index);
+        page.id = page.chunkId;
+        page.createdAt = System.currentTimeMillis();
+        index.pages.add(page);
+        this.markIndexDirty();
+        this.syncPageMetadata(index);
+        return page;
+    }
+
+    private @Nullable SavedPageEntry pageByNumber(SavedIndexFileModel index, int pageNumber) {
+        if (index == null || index.pages == null) {
+            return null;
+        }
+        int targetOrder = Math.max(1, pageNumber) - 1;
+        for (SavedPageEntry page : index.pages) {
+            if (page != null && page.order == targetOrder) {
+                return page;
+            }
+        }
+        return null;
+    }
+
+    private SavedPageEntry pageByNumberOrVirtual(SavedIndexFileModel index, int pageNumber) {
+        SavedPageEntry page = this.pageByNumber(index, pageNumber);
+        return page == null ? virtualPage(pageNumber) : page;
+    }
+
+    private boolean isPersistedPage(SavedIndexFileModel index, String pageId) {
+        return this.pageById(index, pageId) != null;
+    }
+
+    private @Nullable SavedPageEntry pageById(SavedIndexFileModel index, String pageId) {
+        if (index == null || pageId == null || pageId.isBlank()) {
+            return null;
+        }
+        this.syncPageMetadata(index);
+        for (SavedPageEntry page : index.pages) {
+            if (pageId.equals(page.id)) {
+                return page;
+            }
+        }
+        return null;
+    }
+
+    private static int pageIndexById(SavedIndexFileModel index, String pageId) {
+        if (index == null || index.pages == null || pageId == null || pageId.isBlank()) {
+            return -1;
+        }
+        for (int indexValue = 0; indexValue < index.pages.size(); indexValue++) {
+            SavedPageEntry page = index.pages.get(indexValue);
+            if (page != null && pageId.equals(page.id)) {
+                return indexValue;
+            }
+        }
+        return -1;
+    }
+
+    private static Map<String, SavedPageEntry> pagesById(SavedIndexFileModel index) {
+        Map<String, SavedPageEntry> pages = new LinkedHashMap<>();
+        for (SavedPageEntry page : index.pages) {
+            pages.put(page.id, page);
+        }
+        return pages;
+    }
+
+    private static Map<String, SavedPageEntry> pagesByChunkId(SavedIndexFileModel index) {
+        Map<String, SavedPageEntry> pages = new LinkedHashMap<>();
+        for (SavedPageEntry page : index.pages) {
+            pages.put(page.chunkId, page);
+        }
+        return pages;
+    }
+
+    private static SavedPageEntry virtualPage(int pageNumber) {
+        int pageIndex = Math.max(1, pageNumber) - 1;
+        SavedPageEntry page = defaultPage(pageIndex);
+        page.id = "virtual-page-" + (pageIndex + 1);
+        page.chunkId = page.id;
+        return page;
+    }
+
+    private int maxKnownPage(SavedIndexFileModel index) {
+        return Math.max(1, this.maxStoredPage(index));
+    }
+
+    private int maxStoredPage(SavedIndexFileModel index) {
+        int max = 0;
+        if (index != null && index.pages != null) {
+            for (SavedPageEntry page : index.pages) {
+                if (page != null) {
+                    max = Math.max(max, page.order + 1);
+                }
+            }
+        }
+        max = Math.max(max, this.maxTrackedPage);
+        return max;
+    }
+
+    private static SavedPageEntry defaultPage(int index) {
+        SavedPageEntry page = new SavedPageEntry();
+        page.id = chunkId(index);
+        page.chunkId = page.id;
+        page.order = Math.max(0, index);
+        page.name = DEFAULT_PAGE_NAME;
+        page.namePlain = page.name;
+        return page;
+    }
+
+    private static boolean isGeneratedDefaultName(String name, int index) {
+        return name == null || name.isBlank() || generatedDefaultPageName(index).equals(name);
+    }
+
+    private static String generatedDefaultPageName(int index) {
+        return "Page " + (Math.max(0, index) + 1);
+    }
+
+    private static String nextChunkId(SavedIndexFileModel index) {
+        int chunkIndex = 0;
+        Map<String, SavedPageEntry> existing = pagesByChunkId(index);
+        while (existing.containsKey(chunkId(chunkIndex))) {
+            chunkIndex++;
+        }
+        return chunkId(chunkIndex);
     }
 
     private boolean backfillMissingNbtBytes(SavedIndexFileModel index) {
@@ -728,10 +1294,78 @@ public final class SavedItemStorageService {
     }
 
     private void updatePageStatsCache() {
-        int storedPages = Math.max(0, this.maxTrackedPage);
+        int storedPages = this.indexCache == null
+                ? Math.max(0, this.maxTrackedPage)
+                : this.maxStoredPage(this.indexCache);
         int occupiedPages = this.pageOccupancy.size();
         int emptyPages = Math.max(0, storedPages - occupiedPages);
         this.pageStatsCache = new PageStats(storedPages, occupiedPages, emptyPages);
+    }
+
+    private PageInfo pageInfo(SavedIndexFileModel index, SavedPageEntry page, boolean virtualPage) {
+        int pageNumber = page.order + 1;
+        int itemCount = 0;
+        int nbtBytes = 0;
+        long savedAt = 0L;
+        long updatedAt = 0L;
+        if (!virtualPage) {
+            for (SavedIndexItemEntry entry : index.items) {
+                if (entry == null || !page.id.equals(entry.pageId)) {
+                    continue;
+                }
+                itemCount++;
+                nbtBytes += Math.max(0, entry.nbtBytes);
+                if (entry.savedAt > 0L) {
+                    savedAt = savedAt == 0L ? entry.savedAt : Math.min(savedAt, entry.savedAt);
+                }
+                updatedAt = Math.max(updatedAt, entry.updatedAt);
+            }
+        }
+        if (savedAt == 0L) {
+            savedAt = page.createdAt > 0L ? page.createdAt : page.updatedAt;
+        }
+        return new PageInfo(
+                page.id,
+                page.chunkId,
+                pageNumber,
+                page.name,
+                page.namePlain,
+                itemCount,
+                nbtBytes,
+                savedAt,
+                Math.max(updatedAt, page.updatedAt),
+                virtualPage,
+                virtualPage || this.isPlaceholderPage(index, page)
+        );
+    }
+
+    private boolean isPlaceholderPage(SavedIndexFileModel index, SavedPageEntry page) {
+        if (page == null || page.id == null || page.id.isBlank()) {
+            return true;
+        }
+        for (SavedIndexItemEntry entry : index.items) {
+            if (entry != null && page.id.equals(entry.pageId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void pruneEmptyDefaultPages(SavedIndexFileModel index) {
+        if (index == null || index.pages == null || index.pages.isEmpty()) {
+            return;
+        }
+        Map<String, Boolean> occupied = new HashMap<>();
+        for (SavedIndexItemEntry entry : index.items) {
+            if (entry != null && entry.pageId != null && !entry.pageId.isBlank()) {
+                occupied.put(entry.pageId, true);
+            }
+        }
+        index.pages.removeIf(page -> page != null
+                && !occupied.containsKey(page.id)
+                && page.updatedAt <= 0L
+                && DEFAULT_PAGE_NAME.equals(page.name)
+                && DEFAULT_PAGE_NAME.equals(page.namePlain));
     }
 
     private void markIndexDirty() {
@@ -842,7 +1476,9 @@ public final class SavedItemStorageService {
                     : pendingId(base.currentPage(), slot);
             SavedIndexItemEntry overlay = buildEntry(
                     id,
-                    chunkId(base.currentPage() - 1),
+                    base.pageChunkId(),
+                    base.pageId(),
+                    base.currentPage(),
                     slot,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
@@ -855,7 +1491,17 @@ public final class SavedItemStorageService {
 
         List<SavedIndexItemEntry> entries = new ArrayList<>(bySlot.values());
         entries.sort(Comparator.comparingInt(entry -> entry.slotInPage));
-        return new PageResult(entries, base.currentPage(), base.maxPage(), base.searchMode(), base.totalResults());
+        return new PageResult(
+                entries,
+                base.currentPage(),
+                base.maxPage(),
+                base.searchMode(),
+                base.totalResults(),
+                base.pageId(),
+                base.pageChunkId(),
+                base.pageName(),
+                base.pageNamePlain()
+        );
     }
 
     private void scheduleNeighborPrefetch(int currentPage, String queryRaw, StorageSortMode sortMode, RegistryAccess registryAccess) {
@@ -902,7 +1548,7 @@ public final class SavedItemStorageService {
             }
         }
         this.ensureIndexLoaded();
-        PageResult result = this.withIndexRead(() -> this.page(this.indexCache, Math.max(1, page), StorageSortMode.REGULAR, false));
+        PageResult result = this.withIndexWrite(() -> this.page(this.indexCache, Math.max(1, page), StorageSortMode.REGULAR, false));
         synchronized (this.prefetchStateLock) {
             if (generation != this.prefetchGeneration) {
                 return;
@@ -921,28 +1567,33 @@ public final class SavedItemStorageService {
         Map<String, ItemStack> decoded = new HashMap<>();
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         Map<SavedChunkCodec.DecodeKey, DecodeRequest> uniqueRequests = new HashMap<>();
-        Map<SavedChunkCodec.DecodeKey, List<String>> idsByKey = new HashMap<>();
+        Map<SavedChunkCodec.DecodeKey, List<DecodeRequest>> requestsByKey = new HashMap<>();
+        int currentDataVersion = currentDataVersion();
 
         for (DecodeRequest request : requests) {
-            SavedChunkCodec.DecodeKey key = new SavedChunkCodec.DecodeKey(request.tagHash(), request.tagFingerprint());
-            ItemStack memoized = this.runtimeCaches.memoizedDecodedStack(key);
+            boolean outdated = currentDataVersion > 0 && request.dataVersion() > 0 && request.dataVersion() < currentDataVersion;
+            SavedChunkCodec.DecodeKey key = new SavedChunkCodec.DecodeKey(
+                    request.tagHash(),
+                    outdated ? request.tagFingerprint() + "|entry=" + request.id() : request.tagFingerprint()
+            );
+            ItemStack memoized = outdated ? null : this.runtimeCaches.memoizedDecodedStack(key);
             if (memoized != null && !memoized.isEmpty()) {
                 decoded.put(request.id(), memoized);
                 continue;
             }
             uniqueRequests.putIfAbsent(key, request);
-            idsByKey.computeIfAbsent(key, ignored -> new ArrayList<>()).add(request.id());
+            requestsByKey.computeIfAbsent(key, ignored -> new ArrayList<>()).add(request);
         }
         if (uniqueRequests.isEmpty()) {
             return decoded;
         }
 
-        Map<SavedChunkCodec.DecodeKey, ItemStack> decodedUnique = new HashMap<>();
+        Map<SavedChunkCodec.DecodeKey, DecodedItem> decodedUnique = new HashMap<>();
         if (this.decodeThreadCount == 1 || uniqueRequests.size() == 1) {
             for (Map.Entry<SavedChunkCodec.DecodeKey, DecodeRequest> entry : uniqueRequests.entrySet()) {
-                ItemStack stack = this.decodeItemTag(entry.getValue().itemTag(), access);
-                if (!stack.isEmpty()) {
-                    decodedUnique.put(entry.getKey(), stack);
+                DecodedItem item = this.decodeItemTag(entry.getValue(), access);
+                if (!item.stack().isEmpty()) {
+                    decodedUnique.put(entry.getKey(), item);
                 }
             }
         } else {
@@ -951,28 +1602,32 @@ public final class SavedItemStorageService {
                 SavedChunkCodec.DecodeKey key = entry.getKey();
                 DecodeRequest request = entry.getValue();
                 futures.add(CompletableFuture.supplyAsync(
-                        () -> new DecodedByKey(key, this.decodeItemTag(request.itemTag(), access)),
+                        () -> new DecodedByKey(key, this.decodeItemTag(request, access)),
                         this.decodeExecutor
                 ));
             }
             for (CompletableFuture<DecodedByKey> future : futures) {
                 DecodedByKey decodedByKey = future.join();
-                if (decodedByKey != null && decodedByKey.stack() != null && !decodedByKey.stack().isEmpty()) {
-                    decodedUnique.put(decodedByKey.key(), decodedByKey.stack());
+                if (decodedByKey != null && decodedByKey.item() != null && !decodedByKey.item().stack().isEmpty()) {
+                    decodedUnique.put(decodedByKey.key(), decodedByKey.item());
                 }
             }
         }
 
-        for (Map.Entry<SavedChunkCodec.DecodeKey, ItemStack> entry : decodedUnique.entrySet()) {
+        for (Map.Entry<SavedChunkCodec.DecodeKey, DecodedItem> entry : decodedUnique.entrySet()) {
             SavedChunkCodec.DecodeKey key = entry.getKey();
-            ItemStack stack = entry.getValue();
+            DecodedItem item = entry.getValue();
+            ItemStack stack = item.stack();
             this.runtimeCaches.storeMemoizedDecodedStack(key, stack);
-            List<String> ids = idsByKey.get(key);
-            if (ids == null) {
+            List<DecodeRequest> groupedRequests = requestsByKey.get(key);
+            if (groupedRequests == null) {
                 continue;
             }
-            for (String id : ids) {
-                decoded.put(id, stack.copy());
+            for (DecodeRequest request : groupedRequests) {
+                decoded.put(request.id(), stack.copy());
+                if (item.upgradedItemTag() != null) {
+                    this.persistDataVersionUpgrade(request, item.upgradedItemTag(), item.dataVersion());
+                }
             }
         }
         return decoded;
@@ -1106,30 +1761,409 @@ public final class SavedItemStorageService {
         throw new IllegalStateException(encoded.error().map(DataResult.Error::message).orElse("Failed to encode item stack"));
     }
 
-    private ItemStack decodeItemTag(CompoundTag itemTag, RegistryAccess registryAccess) {
-        DataResult<ItemStack> decoded = ItemStack.CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                itemTag
-        );
-        return decoded.result().map(ItemStack::copy).orElse(ItemStack.EMPTY);
+    private DecodedItem decodeItemTag(DecodeRequest request, RegistryAccess registryAccess) {
+        int currentDataVersion = currentDataVersion();
+        int sourceDataVersion = request.dataVersion() > 0 ? request.dataVersion() : currentDataVersion;
+        CompoundTag itemTag = request.itemTag();
+        CompoundTag decodeTag = itemTag;
+        boolean outdated = sourceDataVersion > 0 && currentDataVersion > 0 && sourceDataVersion < currentDataVersion;
+        String dfuUpdateKey = "";
+        String preUpdateBackup = "";
+        boolean releaseDfuUpdateKey = false;
+        try {
+            if (outdated) {
+                dfuUpdateKey = storageDfuUpdateKey(request, sourceDataVersion, currentDataVersion);
+                if (!this.storageDfuInProgress.add(dfuUpdateKey)) {
+                    return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
+                }
+                releaseDfuUpdateKey = true;
+                preUpdateBackup = this.backupStorageItem(
+                        "storage_dfu_pre_update",
+                        request,
+                        itemTag,
+                        sourceDataVersion,
+                        currentDataVersion,
+                        "Automatically backed up prior to running DFU"
+                );
+                try {
+                    Tag fixed = Minecraft.getInstance().getFixerUpper().update(
+                            References.ITEM_STACK,
+                            new Dynamic<>(NbtOps.INSTANCE, itemTag.copy()),
+                            sourceDataVersion,
+                            currentDataVersion
+                    ).getValue();
+                    if (fixed instanceof CompoundTag fixedCompound) {
+                        decodeTag = fixedCompound;
+                    } else {
+                        this.removeFailedStorageItem(request);
+                        this.notifyStorageDfu(
+                                "Removed saved item after DFU returned invalid data: page "
+                                        + Math.max(1, request.page())
+                                        + ", slot "
+                                        + Math.max(1, request.slotInPage() + 1),
+                                ChatFormatting.RED
+                        );
+                        LOGGER.warn(
+                                "[Item Editor] Stored item DFU returned invalid data [page={}] [slot={}] [item={}] [fromDv={}] [toDv={}]{}",
+                                Math.max(1, request.page()),
+                                Math.max(1, request.slotInPage() + 1),
+                                itemId(itemTag),
+                                sourceDataVersion,
+                                currentDataVersion,
+                                backupLogSuffix(preUpdateBackup)
+                        );
+                        return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
+                    }
+                } catch (RuntimeException exception) {
+                    this.removeFailedStorageItem(request);
+                    this.notifyStorageDfu(
+                            "Removed saved item after DFU failed: page "
+                                    + Math.max(1, request.page())
+                                    + ", slot "
+                                    + Math.max(1, request.slotInPage() + 1),
+                            ChatFormatting.RED
+                    );
+                    LOGGER.warn(
+                            "[Item Editor] Stored item DFU failed [page={}] [slot={}] [item={}] [fromDv={}] [toDv={}] [reason={}]{}",
+                            Math.max(1, request.page()),
+                            Math.max(1, request.slotInPage() + 1),
+                            itemId(itemTag),
+                            sourceDataVersion,
+                            currentDataVersion,
+                            errorMessage(exception),
+                            backupLogSuffix(preUpdateBackup)
+                    );
+                    return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
+                }
+            }
+            DataResult<ItemStack> decoded = ItemStack.CODEC.parse(
+                    registryAccess.createSerializationContext(NbtOps.INSTANCE),
+                    decodeTag
+            );
+            ItemStack stack = decoded.result().map(ItemStack::copy).orElse(ItemStack.EMPTY);
+            if (stack.isEmpty()) {
+                String reason = decoded.error().map(DataResult.Error::message).orElse("decode failed");
+                String backup = outdated
+                        ? ""
+                        : this.backupStorageItem(
+                                "storage_decode_failed",
+                                request,
+                                itemTag,
+                                sourceDataVersion,
+                                currentDataVersion,
+                                reason
+                        );
+                this.removeFailedStorageItem(request);
+                this.notifyStorageDfu(
+                        "Removed saved item after decode failed: page "
+                                + Math.max(1, request.page())
+                                + ", slot "
+                                + Math.max(1, request.slotInPage() + 1),
+                        ChatFormatting.RED
+                );
+                decoded.error().ifPresent(error -> LOGGER.warn(
+                        "[Item Editor] Stored item decode failed [page={}] [slot={}] [item={}] [dv={}] [reason={}]{}",
+                        Math.max(1, request.page()),
+                        Math.max(1, request.slotInPage() + 1),
+                        itemId(itemTag),
+                        sourceDataVersion,
+                        error.message(),
+                        backupLogSuffix(backup)
+                ));
+                return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
+            }
+            if (!outdated) {
+                return new DecodedItem(stack, null, sourceDataVersion);
+            }
+            try {
+                this.notifyStorageDfu(
+                        "Updated saved item with DFU: page "
+                                + Math.max(1, request.page())
+                                + ", slot "
+                                + Math.max(1, request.slotInPage() + 1)
+                                + backupChatSuffix(preUpdateBackup),
+                        ChatFormatting.YELLOW
+                );
+                releaseDfuUpdateKey = false;
+                return new DecodedItem(stack, this.encodeItemTag(stack, registryAccess), currentDataVersion);
+            } catch (RuntimeException exception) {
+                this.removeFailedStorageItem(request);
+                this.notifyStorageDfu(
+                        "Removed saved item after DFU re-encode failed: page "
+                                + Math.max(1, request.page())
+                                + ", slot "
+                                + Math.max(1, request.slotInPage() + 1),
+                        ChatFormatting.RED
+                );
+                LOGGER.warn(
+                        "[Item Editor] Updated stored item re-encode failed [page={}] [slot={}] [item={}] [fromDv={}] [reason={}]{}",
+                        Math.max(1, request.page()),
+                        Math.max(1, request.slotInPage() + 1),
+                        itemId(itemTag),
+                        sourceDataVersion,
+                        errorMessage(exception),
+                        ""
+                );
+                return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
+            }
+        } finally {
+            if (releaseDfuUpdateKey) {
+                this.storageDfuInProgress.remove(dfuUpdateKey);
+            }
+        }
+    }
+
+    private void persistDataVersionUpgrade(DecodeRequest request, CompoundTag upgradedItemTag, int dataVersion) {
+        if (request == null || upgradedItemTag == null || dataVersion <= 0) {
+            return;
+        }
+        try {
+            this.withIndexWrite(() -> {
+                this.ensureIndexLoaded();
+                SavedIndexItemEntry entry = this.findEntry(this.indexCache.items, request.id());
+                if (entry == null
+                        || entry.dataVersion >= dataVersion
+                        || !Objects.equals(entry.chunkId, request.chunkId())
+                        || entry.slotInChunk != request.slotInChunk()) {
+                    return;
+                }
+                SavedChunkCodec.SavedChunkData chunk = this.readChunk(entry.chunkId);
+                SavedChunkCodec.SavedChunkEntry chunkEntry = chunk.entries().get(entry.slotInChunk);
+                if (chunkEntry == null || !Objects.equals(chunkEntry.id(), entry.id)) {
+                    return;
+                }
+                chunk.entries().put(
+                        entry.slotInChunk,
+                        new SavedChunkCodec.SavedChunkEntry(
+                                chunkEntry.id(),
+                                chunkEntry.savedAt(),
+                                chunkEntry.updatedAt(),
+                                upgradedItemTag.copy()
+                        )
+                );
+                entry.dataVersion = dataVersion;
+                entry.nbtBytes = nbtByteSize(upgradedItemTag);
+                this.writeChunk(chunk);
+                this.replaceEntry(this.indexCache.items, entry);
+                this.markIndexDirty();
+                this.flushIndexIfDue();
+            });
+        } finally {
+            this.storageDfuInProgress.remove(storageDfuUpdateKey(request, request.dataVersion(), dataVersion));
+        }
+    }
+
+    private void removeFailedStorageItem(DecodeRequest request) {
+        if (request == null || request.id() == null || request.id().isBlank()) {
+            return;
+        }
+        this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedIndexItemEntry entry = this.findEntry(this.indexCache.items, request.id());
+            if (entry == null) {
+                return;
+            }
+            SavedChunkCodec.SavedChunkData chunk = this.readChunk(entry.chunkId);
+            if (chunk.entries().remove(entry.slotInChunk) != null) {
+                this.writeChunk(chunk);
+            }
+            if (this.indexCache.items.removeIf(candidate -> candidate != null && entry.id.equals(candidate.id))) {
+                this.onIndexEntryRemoved(entry);
+                this.withItemCacheWrite(() -> this.itemCache.remove(entry.id));
+                this.rebuildPageStats(this.indexCache.items);
+                this.markIndexDirty();
+                this.flushIndexIfDue();
+                this.runtimeCaches.invalidateHotPageCache();
+            }
+        });
+    }
+
+    private void notifyStorageDfu(String message, ChatFormatting color) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        minecraft.execute(() -> {
+            if (minecraft.player != null) {
+                minecraft.player.displayClientMessage(Component.literal(prefixedMessage(message)).withStyle(color), false);
+            }
+        });
+    }
+
+    private static String prefixedMessage(String message) {
+        return message == null || message.startsWith("[Item Editor] ") ? message : "[Item Editor] " + message;
+    }
+
+    private static String storageDfuUpdateKey(DecodeRequest request, int sourceDataVersion, int targetDataVersion) {
+        if (request == null) {
+            return "";
+        }
+        return request.id()
+                + "|"
+                + sourceDataVersion
+                + "->"
+                + targetDataVersion;
+    }
+
+    private String backupStorageItem(
+            String reason,
+            DecodeRequest request,
+            CompoundTag itemTag,
+            int sourceDataVersion,
+            int targetDataVersion,
+            String message
+    ) {
+        if (request == null || itemTag == null) {
+            return "";
+        }
+        Path backup = this.backupService.backup(new StorageItemBackupService.BackupEvent(
+                "item",
+                reason,
+                "storage",
+                Math.max(1, request.page()),
+                Math.max(1, request.slotInPage() + 1),
+                request.chunkId(),
+                request.slotInChunk(),
+                request.id(),
+                sourceDataVersion,
+                targetDataVersion,
+                request.tagFingerprint(),
+                "",
+                -1,
+                -1,
+                message
+        ), itemTag);
+        return backup == null || backup.getFileName() == null ? "" : backup.getFileName().toString();
+    }
+
+    private static String backupLogSuffix(String backupFile) {
+        return backupFile == null || backupFile.isBlank() ? "" : " [backup=" + backupFile + "]";
+    }
+
+    private static String backupChatSuffix(String backupFile) {
+        return backupFile == null || backupFile.isBlank() ? "" : "; backup " + backupFile;
+    }
+
+    private Path backupPageSnapshot(int pageNumber, String reason, String note) {
+        return this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageByNumberOrVirtual(this.indexCache, pageNumber);
+            CompoundTag pageTag = this.pageBackupTag(this.indexCache, page, note);
+            return this.backupService.backup(new StorageItemBackupService.BackupEvent(
+                    "pages",
+                    reason,
+                    "storage_page",
+                    page.order + 1,
+                    -1,
+                    page.chunkId,
+                    -1,
+                    page.id,
+                    this.pageSourceDataVersion(page),
+                    currentDataVersion(),
+                    "",
+                    "",
+                    -1,
+                    -1,
+                    note
+            ), pageTag);
+        });
+    }
+
+    private CompoundTag pageBackupTag(SavedIndexFileModel index, SavedPageEntry page, String note) {
+        CompoundTag root = new CompoundTag();
+        root.putInt("schemaVersion", 1);
+        root.putString("backupType", "storage_page");
+        root.putString("note", note == null ? "" : note);
+        root.putString("minecraftVersion", currentMinecraftVersion());
+        root.putInt("dataVersion", currentDataVersion());
+        root.putLong("backupAt", System.currentTimeMillis());
+
+        CompoundTag pageTag = new CompoundTag();
+        pageTag.putString("id", page.id == null ? "" : page.id);
+        pageTag.putString("chunkId", page.chunkId == null ? "" : page.chunkId);
+        pageTag.putInt("page", page.order + 1);
+        pageTag.putString("name", page.name == null ? "" : page.name);
+        pageTag.putString("namePlain", page.namePlain == null ? "" : page.namePlain);
+        pageTag.putLong("createdAt", Math.max(0L, page.createdAt));
+        pageTag.putLong("updatedAt", Math.max(0L, page.updatedAt));
+        root.put("page", pageTag);
+
+        ListTag itemTags = new ListTag();
+        SavedChunkCodec.SavedChunkData chunk = page.chunkId == null || page.chunkId.isBlank()
+                ? new SavedChunkCodec.SavedChunkData("", new HashMap<>())
+                : this.readChunk(page.chunkId);
+        for (SavedIndexItemEntry entry : index.items) {
+            if (entry == null || !page.id.equals(entry.pageId)) {
+                continue;
+            }
+            SavedChunkCodec.SavedChunkEntry chunkEntry = chunk.entries().get(entry.slotInChunk);
+            if (chunkEntry == null) {
+                continue;
+            }
+            CompoundTag entryTag = new CompoundTag();
+            entryTag.putString("id", entry.id == null ? "" : entry.id);
+            entryTag.putInt("slotInPage", entry.slotInPage);
+            entryTag.putInt("slotInChunk", entry.slotInChunk);
+            entryTag.putLong("savedAt", Math.max(0L, entry.savedAt));
+            entryTag.putLong("updatedAt", Math.max(0L, entry.updatedAt));
+            entryTag.putString("minecraftVersion", entry.minecraftVersion == null ? "" : entry.minecraftVersion);
+            entryTag.putInt("dataVersion", Math.max(0, entry.dataVersion));
+            entryTag.putString("itemRegistryKey", entry.itemRegistryKey == null ? "" : entry.itemRegistryKey);
+            entryTag.putInt("stackCount", Math.max(1, entry.stackCount));
+            entryTag.putInt("nbtBytes", Math.max(0, entry.nbtBytes));
+            entryTag.put("item", chunkEntry.itemTag().copy());
+            itemTags.add(entryTag);
+        }
+        root.put("items", itemTags);
+        return root;
+    }
+
+    private int pageSourceDataVersion(SavedPageEntry page) {
+        int version = 0;
+        if (page == null || this.indexCache == null) {
+            return version;
+        }
+        for (SavedIndexItemEntry entry : this.indexCache.items) {
+            if (entry == null || !page.id.equals(entry.pageId) || entry.dataVersion <= 0) {
+                continue;
+            }
+            version = version == 0 ? entry.dataVersion : Math.min(version, entry.dataVersion);
+        }
+        return version;
     }
 
     private static int nbtByteSize(CompoundTag itemTag) {
         return StorageNbtSizeUtil.nbtByteSize(itemTag);
     }
 
-    private static int chunkIndexFromId(String chunkId) {
-        if (chunkId == null || chunkId.isBlank()) {
+    private static String errorMessage(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown error";
+        }
+        return throwable.getMessage() == null ? throwable.getClass().getSimpleName() : throwable.getMessage();
+    }
+
+    private static String itemId(CompoundTag itemTag) {
+        if (itemTag == null) {
+            return "<unknown>";
+        }
+        return itemTag.getString("id").filter(id -> !id.isBlank()).orElse("<unknown>");
+    }
+
+    private static String currentMinecraftVersion() {
+        try {
+            return SharedConstants.getCurrentVersion().id();
+        } catch (RuntimeException ignored) {
+            return "";
+        }
+    }
+
+    private static int currentDataVersion() {
+        try {
+            return SharedConstants.getCurrentVersion().dataVersion().version();
+        } catch (RuntimeException ignored) {
             return 0;
         }
-        if (chunkId.startsWith(CHUNK_PREFIX)) {
-            try {
-                return Math.max(0, Integer.parseInt(chunkId.substring(CHUNK_PREFIX.length())));
-            } catch (NumberFormatException ignored) {
-                return 0;
-            }
-        }
-        return 0;
     }
 
     private static String chunkId(int index) {
@@ -1149,7 +2183,11 @@ public final class SavedItemStorageService {
             int currentPage,
             int maxPage,
             boolean searchMode,
-            int totalResults
+            int totalResults,
+            String pageId,
+            String pageChunkId,
+            String pageName,
+            String pageNamePlain
     ) {
     }
 
@@ -1157,6 +2195,21 @@ public final class SavedItemStorageService {
             int storedPages,
             int occupiedPages,
             int emptyPages
+    ) {
+    }
+
+    public record PageInfo(
+            String id,
+            String chunkId,
+            int pageNumber,
+            String name,
+            String namePlain,
+            int itemCount,
+            int nbtBytes,
+            long savedAt,
+            long updatedAt,
+            boolean virtualPage,
+            boolean placeholderPage
     ) {
     }
 
@@ -1177,6 +2230,37 @@ public final class SavedItemStorageService {
         }
     }
 
+    public record ExternalPageImport(
+            String name,
+            List<ExternalItemImport> items
+    ) {
+    }
+
+    public record ExternalItemImport(
+            int slotInPage,
+            ItemStack stack,
+            @Nullable CompoundTag itemTag,
+            int dataVersion
+    ) {
+        public ExternalItemImport {
+            stack = Objects.requireNonNullElse(stack, ItemStack.EMPTY);
+        }
+    }
+
+    public record StorageImportResult(
+            int pages,
+            int items
+    ) {
+    }
+
+    public record StorageImportProgress(
+            String phase,
+            int current,
+            int total,
+            int items
+    ) {
+    }
+
     public record StorageReplaceResult(boolean success, String message) {
         public static StorageReplaceResult ok() {
             return new StorageReplaceResult(true, "");
@@ -1189,15 +2273,27 @@ public final class SavedItemStorageService {
 
     private record DecodeRequest(
             String id,
+            String chunkId,
+            int page,
+            int slotInPage,
+            int slotInChunk,
+            int dataVersion,
             CompoundTag itemTag,
             int tagHash,
             String tagFingerprint
     ) {
     }
 
+    private record DecodedItem(
+            ItemStack stack,
+            @Nullable CompoundTag upgradedItemTag,
+            int dataVersion
+    ) {
+    }
+
     private record DecodedByKey(
             SavedChunkCodec.DecodeKey key,
-            ItemStack stack
+            DecodedItem item
     ) {
     }
 
@@ -1218,12 +2314,6 @@ public final class SavedItemStorageService {
     private record PendingMutationToken(
             int page,
             Map<Integer, Long> slotSequences
-    ) {
-    }
-
-    private record IndexChunkScan(
-            Set<String> chunkIds,
-            int maxChunkIndex
     ) {
     }
 

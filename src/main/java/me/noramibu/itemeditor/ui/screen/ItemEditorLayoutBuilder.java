@@ -113,8 +113,8 @@ final class ItemEditorLayoutBuilder {
     private static final String SYMBOL_RIGHT = ">";
     private static final String SYMBOL_PLUS = "+";
     private static final String SYMBOL_MINUS = "-";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
+    private static final String SYMBOL_SECTION_EXPANDED = "-";
+    private static final String SYMBOL_SECTION_COLLAPSED = "+";
     private static final String TOOLTIP_HIDE_CATEGORIES = "Hide categories";
     private static final String TOOLTIP_SHOW_CATEGORIES = "Show categories";
     private static final String TOOLTIP_HIDE_PREVIEW = "Hide preview";

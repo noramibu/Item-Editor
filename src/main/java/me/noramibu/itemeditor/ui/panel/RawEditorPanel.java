@@ -169,10 +169,7 @@ public final class RawEditorPanel implements EditorPanel {
             optionsHeader.child(optionsButton);
             section.child(optionsHeader);
 
-            FlowLayout toolActions = UiFactory.column();
-            toolActions.child(undoButton);
-            toolActions.child(redoButton);
-            section.child(toolActions);
+            section.child(UiFactory.actionButtonRow(false, undoButton, redoButton));
         } else {
             FlowLayout topActions = UiFactory.row();
             topActions.child(optionsButton);
@@ -243,8 +240,7 @@ public final class RawEditorPanel implements EditorPanel {
             optionsPanel.child(UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.navigate"), hintWidth));
             optionsPanel.child(UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.accept"), hintWidth));
 
-            FlowLayout dataActions = controlLayout.stackActionRows() ? UiFactory.column() : UiFactory.row();
-            UIComponent formatButton = this.rawActionButton(
+            ButtonComponent formatButton = this.rawActionButton(
                     ItemEditorText.tr("dialog.apply.raw.format"),
                     controlLayout.compactControls(),
                     controlLayout.secondaryButtonWidth(),
@@ -260,7 +256,7 @@ public final class RawEditorPanel implements EditorPanel {
                             )
                     )
             );
-            UIComponent minifyButton = this.rawActionButton(
+            ButtonComponent minifyButton = this.rawActionButton(
                     ItemEditorText.tr("dialog.apply.raw.minify"),
                     controlLayout.compactControls(),
                     controlLayout.secondaryButtonWidth(),
@@ -269,9 +265,7 @@ public final class RawEditorPanel implements EditorPanel {
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> this.setRawText(state, RawItemDataUtil.minify(state.rawEditorText))
             );
-            dataActions.child(formatButton);
-            dataActions.child(minifyButton);
-            optionsPanel.child(dataActions);
+            optionsPanel.child(UiFactory.actionButtonRow(false, formatButton, minifyButton));
             section.child(optionsPanel);
         }
 
@@ -1164,8 +1158,7 @@ public final class RawEditorPanel implements EditorPanel {
         int topChildCount;
         int topHeight;
         if (controlLayout.stackActionRows()) {
-            int toolActionsHeight = (controlLayout.undoRedoButtonHeight() * 2) + sectionGap;
-            topHeight = controlLayout.actionButtonHeight() + toolActionsHeight;
+            topHeight = controlLayout.actionButtonHeight() + controlLayout.undoRedoButtonHeight();
             topChildCount = 2;
         } else {
             topHeight = Math.max(controlLayout.actionButtonHeight(), controlLayout.undoRedoButtonHeight());
@@ -1190,15 +1183,11 @@ public final class RawEditorPanel implements EditorPanel {
         int checkboxHeight = UiFactory.scaleProfile().controlHeight();
         int sliderHeight = UiFactory.scaleProfile().controlHeight();
         int captionLineHeight = UiFactory.scaleProfile().captionLineHeight() + UiFactory.scaleProfile().bodyLineSpacing();
-        int optionsActionButtonHeight = controlLayout.actionButtonHeight();
-        int optionsActionHeight = controlLayout.stackActionRows()
-                ? (optionsActionButtonHeight * 2) + panelGap
-                : optionsActionButtonHeight;
         return subCardPadding
                 + (checkboxHeight * OPTIONS_PANEL_CHECKBOX_COUNT)
                 + sliderHeight
                 + (captionLineHeight * OPTIONS_PANEL_HINT_LINE_COUNT)
-                + optionsActionHeight
+                + controlLayout.actionButtonHeight()
                 + (panelGap * OPTIONS_PANEL_CHILD_GAP_COUNT);
     }
 

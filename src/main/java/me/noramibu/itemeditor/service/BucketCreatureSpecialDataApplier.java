@@ -204,13 +204,10 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 context.messages()
         );
         setBooleanKey(bucketTag, "AgeLocked", context.special().bucketAgeLocked);
-        this.putOptionalLongTag(
+        this.putHuntingCooldownTag(
                 bucketTag,
-                "HuntingCooldown",
                 context.special().bucketHuntingCooldown,
                 ItemEditorText.str("special.bucket.hunting_cooldown"),
-                0L,
-                Long.MAX_VALUE,
                 context.messages()
         );
 
@@ -243,28 +240,25 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         }
     }
 
-    private void putOptionalLongTag(
+    private void putHuntingCooldownTag(
             CompoundTag tag,
-            String key,
             String raw,
             String fieldName,
-            long min,
-            long max,
             List<ValidationMessage> messages
     ) {
         String normalized = raw.trim();
         if (normalized.isBlank()) {
-            tag.remove(key);
+            tag.remove("HuntingCooldown");
             return;
         }
 
         try {
             long value = Long.parseLong(normalized);
-            if (value < min || value > max) {
-                messages.add(ValidationMessage.error(ItemEditorText.str("validation.range", fieldName, min, max)));
+            if (value < 0L) {
+                messages.add(ValidationMessage.error(ItemEditorText.str("validation.range", fieldName, 0L, Long.MAX_VALUE)));
                 return;
             }
-            tag.putLong(key, value);
+            tag.putLong("HuntingCooldown", value);
         } catch (NumberFormatException exception) {
             messages.add(ValidationMessage.error(ItemEditorText.str("validation.whole_number", fieldName)));
         }

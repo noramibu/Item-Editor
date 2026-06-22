@@ -7,7 +7,9 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.storage.search.StorageSearchAutocompleteUtil;
+import me.noramibu.itemeditor.ui.screen.StoragePagesScreen;
 import me.noramibu.itemeditor.ui.screen.StorageScreen;
+import me.noramibu.itemeditor.ui.screen.StorageScreenMode;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -48,6 +50,8 @@ public final class StorageCommands {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, access) -> dispatcher.register(
                 ClientCommandManager.literal("storage")
                         .executes(context -> openStorage(context, 1, "", StorageSortMode.REGULAR))
+                        .then(ClientCommandManager.literal("pages")
+                                .executes(StorageCommands::openStoragePages))
                         .then(ClientCommandManager.literal("page")
                                 .then(ClientCommandManager.argument("pageNumber", IntegerArgumentType.integer())
                                         .executes(context -> openStorage(context, IntegerArgumentType.getInteger(context, "pageNumber"), "", StorageSortMode.REGULAR))))
@@ -93,6 +97,23 @@ public final class StorageCommands {
         }
         int safePage = Math.max(1, page);
         minecraft.execute(() -> minecraft.setScreen(new StorageScreen(safePage, query, sortMode)));
+        return 1;
+    }
+
+    private static int openStoragePages(CommandContext<FabricClientCommandSource> context) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) {
+            context.getSource().sendError(Component.literal(ItemEditorText.str("storage.command.no_world")).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        minecraft.execute(() -> minecraft.setScreen(new StoragePagesScreen(
+                minecraft,
+                1,
+                "",
+                StorageSortMode.REGULAR,
+                StorageScreenMode.MANAGE,
+                null
+        )));
         return 1;
     }
 

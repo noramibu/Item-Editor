@@ -76,7 +76,7 @@ public final class SpawnEggSpecialDataSection {
         card.child(UiFactory.title(ItemEditorText.tr("special.spawn_egg.entity")).shadow(false));
 
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-        int entityActionWidth = resolveButtonWidth(context, 3, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        int entityActionWidth = resolveButtonWidth(context, 3);
         row.child(
                 UiFactory.textBox(
                                 special.spawnEggEntityId,
@@ -148,12 +148,7 @@ public final class SpawnEggSpecialDataSection {
             return "";
         }
 
-        Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(selectedType);
-        if (id == null) {
-            return "";
-        }
-
-        String entityId = id.toString();
+        String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(selectedType).toString();
         return switch (entityId) {
             case "minecraft:axolotl",
                     "minecraft:cat",
@@ -238,7 +233,7 @@ public final class SpawnEggSpecialDataSection {
 
         FlowLayout presets = compactLayout ? UiFactory.column() : UiFactory.row();
         presets.gap(6);
-        int flagsActionWidth = resolveButtonWidth(context, 2, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        int flagsActionWidth = resolveButtonWidth(context, 2);
         ButtonComponent resetFlags = UiFactory.button(Component.literal(ACTION_RESET_FLAGS), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     special.spawnEggNoAi = false;
@@ -360,7 +355,7 @@ public final class SpawnEggSpecialDataSection {
         FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
         actions.gap(6);
         int villagerActionCount = special.spawnEggVillagerTrades.isEmpty() ? 2 : 3;
-        int villagerActionWidth = resolveButtonWidth(context, villagerActionCount, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        int villagerActionWidth = resolveButtonWidth(context, villagerActionCount);
         ButtonComponent addTrade = UiFactory.button(ItemEditorText.tr("special.spawn_egg.villager.add_trade"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> special.spawnEggVillagerTrades.add(new ItemEditorState.VillagerTradeDraft()))
         );
@@ -406,7 +401,7 @@ public final class SpawnEggSpecialDataSection {
 
             FlowLayout summaryRow = compactLayout ? UiFactory.column() : UiFactory.row();
             summaryRow.gap(6);
-            int summaryActionWidth = resolveButtonWidth(context, 2, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+            int summaryActionWidth = resolveButtonWidth(context, 2);
             summaryRow.child(UiFactory.muted(Component.literal(tradeSummary(trade))));
             ButtonComponent collapseToggle = UiFactory.button(LayoutModeUtil.sectionToggleText(trade.uiCollapsed), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> trade.uiCollapsed = !trade.uiCollapsed)
@@ -449,7 +444,7 @@ public final class SpawnEggSpecialDataSection {
             ButtonComponent swapItems = UiFactory.button(Component.literal(ACTION_SWAP_BUY_SELL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> swapBuyAndSell(trade))
             );
-            int tradeActionWidth = resolveButtonWidth(context, 1, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+            int tradeActionWidth = resolveButtonWidth(context, 1);
             swapItems.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(tradeActionWidth));
             tradeCard.child(swapItems);
 
@@ -532,7 +527,7 @@ public final class SpawnEggSpecialDataSection {
                         id -> context.mutateRefresh(() -> stackDraft.itemId = id)
                 )
         );
-        int pickerButtonWidth = resolveButtonWidth(context, 4, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        int pickerButtonWidth = resolveButtonWidth(context, 4);
         pickButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(pickerButtonWidth));
         row.child(pickButton);
         container.child(row);
@@ -576,7 +571,7 @@ public final class SpawnEggSpecialDataSection {
                         id -> context.mutateRefresh(() -> setter.accept(id))
                 )
         );
-        int pickerButtonWidth = resolveButtonWidth(context, 3, ACTION_BUTTON_WIDTH_MIN, ACTION_BUTTON_WIDTH_MAX, ACTION_BUTTON_ROW_RESERVE);
+        int pickerButtonWidth = resolveButtonWidth(context, 3);
         pickButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(pickerButtonWidth));
         row.child(pickButton);
         return row;
@@ -665,18 +660,12 @@ public final class SpawnEggSpecialDataSection {
 
     private static int resolveButtonWidth(
             SpecialDataPanelContext context,
-            int buttonCount,
-            int minWidth,
-            int maxWidth,
-            int rowReserve
+            int buttonCount
     ) {
         int contentWidth = Math.max(1, context.panelWidthHint());
-        int preferred = Math.max(
-                minWidth,
-                Math.min(
-                        maxWidth,
-                        (contentWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount)
-                )
+        int preferred = Math.min(
+                ACTION_BUTTON_WIDTH_MAX,
+                (contentWidth - UiFactory.scaledPixels(ACTION_BUTTON_ROW_RESERVE)) / Math.max(1, buttonCount)
         );
         return Math.max(1, Math.min(contentWidth, preferred));
     }

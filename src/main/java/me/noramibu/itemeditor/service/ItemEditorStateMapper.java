@@ -1164,18 +1164,16 @@ public final class ItemEditorStateMapper {
     }
 
     private static <T> String joinHolderSetIds(HolderSet<T> holderSet) {
-        Optional<String> tagId = holderSet.unwrapKey().map(key -> "#" + key.location());
-        if (tagId.isPresent()) {
-            return tagId.get();
-        }
-        return String.join(
-                ", ",
-                holderSet.stream()
-                        .map(Holder::unwrapKey)
-                        .flatMap(Optional::stream)
-                        .map(key -> key.identifier().toString())
-                        .toList()
-        );
+        return holderSet.unwrapKey()
+                .map(key -> "#" + key.location())
+                .orElseGet(() -> String.join(
+                        ", ",
+                        holderSet.stream()
+                                .map(Holder::unwrapKey)
+                                .flatMap(Optional::stream)
+                                .map(key -> key.identifier().toString())
+                                .toList()
+                ));
     }
 
     private static String trimTrailingZeros(double value) {

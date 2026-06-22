@@ -22,16 +22,8 @@ import java.util.List;
 public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 520;
-    private static final int TOGGLE_BUTTON_WIDTH_MIN = 26;
-    private static final int TOGGLE_BUTTON_WIDTH_BASE = 34;
-    private static final int CLEAR_BUTTON_WIDTH_MIN = 72;
-    private static final int CLEAR_BUTTON_WIDTH_BASE = 92;
-    private static final int ACTIONS_WIDTH_RESERVE = 10;
-    private static final int ACTION_ROW_WIDTH_RESERVE = 16;
-    private static final int ADD_BUTTON_WIDTH_MIN = 112;
-    private static final int ADD_BUTTON_WIDTH_BASE = 156;
-    private static final String TOOLTIP_EXPAND_ALL = "Expand all";
-    private static final String TOOLTIP_COLLAPSE_ALL = "Collapse all";
+    private static final String TOOLTIP_EXPAND_ALL = "Expand All";
+    private static final String TOOLTIP_COLLAPSE_ALL = "Collapse All";
     private static final int SUMMARY_WIDTH_MIN = 200;
     private static final int SUMMARY_WIDTH_RESERVE = 280;
     private static final int LEVEL_STACK_WIDTH_THRESHOLD = 620;
@@ -93,16 +85,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         FlowLayout section = UiFactory.section(ItemEditorText.tr(titleKey), Component.empty());
 
         boolean hasEntries = !drafts.isEmpty();
-        int toggleWidth = Math.max(TOGGLE_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(TOGGLE_BUTTON_WIDTH_BASE));
-        int clearWidth = Math.max(CLEAR_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE));
-        int staticActionsWidth = hasEntries
-                ? (clearWidth + (toggleWidth * 2) + UiFactory.scaledPixels(ACTIONS_WIDTH_RESERVE))
-                : 0;
-        int minAddWidth = Math.max(ADD_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(ADD_BUTTON_WIDTH_BASE));
-        int minActionRowWidth = minAddWidth + staticActionsWidth + UiFactory.scaledPixels(ACTION_ROW_WIDTH_RESERVE);
-        boolean stackActions = compactLayout || contentWidth < minActionRowWidth;
-        FlowLayout actions = stackActions ? UiFactory.column() : UiFactory.row();
-        ButtonComponent addButton = UiFactory.button(
+        ButtonComponent addButton = UiFactory.positiveButton(
                 stored ? ItemEditorText.tr("enchantments.stored.add") : ItemEditorText.tr("enchantments.regular.add"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -111,30 +94,24 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                     drafts.add(draft);
                 })
         );
-        addButton.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.expand(100));
-        actions.child(addButton);
+        ButtonComponent clearButton = hasEntries
+                ? UiFactory.negativeButton(ItemEditorText.tr("enchantments.clear_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                        PanelBindings.mutateRefresh(this.screen, drafts::clear)
+                )
+                : null;
+        section.child(UiFactory.actionButtonRow(addButton, clearButton));
         if (hasEntries) {
-            ButtonComponent clearButton = UiFactory.button(ItemEditorText.tr("general.adventure.clear"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                    PanelBindings.mutateRefresh(this.screen, drafts::clear)
-            );
-            clearButton.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(clearWidth));
-            actions.child(clearButton);
-
-            ButtonComponent expandAll = UiFactory.button(LayoutModeUtil.sectionToggleText(true), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent expandAll = UiFactory.button(Component.literal(TOOLTIP_EXPAND_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(toggleWidth));
             expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
-            actions.child(expandAll);
 
-            ButtonComponent collapseAll = UiFactory.button(LayoutModeUtil.sectionToggleText(false), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent collapseAll = UiFactory.button(Component.literal(TOOLTIP_COLLAPSE_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.horizontalSizing(stackActions ? Sizing.fill(100) : Sizing.fixed(toggleWidth));
             collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL)));
-            actions.child(collapseAll);
+            section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
         }
-        section.child(actions);
         int summaryWidth = Math.max(
                 1,
                 Math.min(
@@ -146,21 +123,18 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         for (int index = 0; index < drafts.size(); index++) {
             int currentIndex = index;
             ItemEditorState.EnchantmentDraft draft = drafts.get(currentIndex);
-            FlowLayout card = UiFactory.reorderableSubCard(
+            FlowLayout card = UiFactory.reorderableCollapsibleSubCard(
                     ItemEditorText.tr(entryKey, index + 1),
+                    Component.literal(this.enchantmentSummary(draft)),
+                    summaryWidth,
+                    draft.uiCollapsed,
+                    () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed),
                     currentIndex > 0,
                     () -> PanelBindings.mutateRefresh(this.screen, () -> Collections.swap(drafts, currentIndex, currentIndex - 1)),
                     currentIndex < drafts.size() - 1,
                     () -> PanelBindings.mutateRefresh(this.screen, () -> Collections.swap(drafts, currentIndex, currentIndex + 1)),
                     () -> PanelBindings.mutateRefresh(this.screen, () -> drafts.remove(currentIndex))
             );
-
-            card.child(UiFactory.collapsibleSummaryRow(
-                    Component.literal(this.enchantmentSummary(draft)),
-                    summaryWidth,
-                    draft.uiCollapsed,
-                    () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed)
-            ));
 
             if (draft.uiCollapsed) {
                 section.child(card);
@@ -199,12 +173,12 @@ public final class EnchantmentEditorPanel implements EditorPanel {
 
             FlowLayout levelButtons = UiFactory.row();
             levelButtons.horizontalSizing(stackLevelControls ? Sizing.fill(100) : Sizing.fixed(levelButtonsWidth));
-            ButtonComponent minusLevel = UiFactory.button(Component.literal(SYMBOL_LEVEL_DECREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
+            ButtonComponent minusLevel = UiFactory.negativeButton(Component.literal(SYMBOL_LEVEL_DECREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, -1)))
             );
             minusLevel.horizontalSizing(Sizing.fill(50));
             levelButtons.child(minusLevel);
-            ButtonComponent plusLevel = UiFactory.button(Component.literal(SYMBOL_LEVEL_INCREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
+            ButtonComponent plusLevel = UiFactory.positiveButton(Component.literal(SYMBOL_LEVEL_INCREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, 1)))
             );
             plusLevel.horizontalSizing(Sizing.fill(50));

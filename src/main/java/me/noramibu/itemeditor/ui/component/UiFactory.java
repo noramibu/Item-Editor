@@ -24,6 +24,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -41,12 +42,21 @@ public final class UiFactory {
     private static final float BUTTON_TEXT_MIN_SCALE = 0.95F;
     private static final float BUTTON_TEXT_MAX_SCALE = 1.55F;
     private static final String BLANK_TEXT = " ";
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    private static final String SYMBOL_SECTION_COLLAPSED = "+";
+    private static final String SYMBOL_SECTION_EXPANDED = "-";
     private static final int REMOVE_ACTION_WIDTH_MIN = 88;
     private static final int REMOVE_ACTION_WIDTH_BASE = 108;
-    private static final double COMPACT_ACTION_ROW_SCALE_THRESHOLD = 3.0d;
-    private static final int COMPACT_ACTION_ROW_WIDTH_THRESHOLD = 1100;
+    private static final int ACTION_ROW_STACK_WIDTH_THRESHOLD = 360;
+    private static final int ACTION_POSITIVE_COLOR = 0x78D982;
+    private static final int ACTION_NEGATIVE_COLOR = 0xFF8A8A;
+    private static final int ACTION_PICKER_COLOR = 0x7FCBFF;
+
+    public enum ActionTone {
+        POSITIVE,
+        NEGATIVE,
+        PICKER,
+        NEUTRAL
+    }
 
     public enum TextPreset {
         TITLE(1.00F),
@@ -142,20 +152,6 @@ public final class UiFactory {
             flow.verticalAlignment(VerticalAlignment.CENTER);
         }
         return applyFlowContract(flow);
-    }
-
-    public static FlowLayout collapsibleSummaryRow(
-            Component summaryText,
-            int summaryMaxWidth,
-            boolean collapsed,
-            Runnable onToggle
-    ) {
-        FlowLayout summary = row();
-        summary.child(muted(summaryText, summaryMaxWidth));
-        ButtonComponent collapseToggle = button(Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), ButtonTextPreset.COMPACT, button -> onToggle.run());
-        collapseToggle.horizontalSizing(Sizing.fixed(Math.max(30, scaledPixels(36))));
-        summary.child(collapseToggle);
-        return summary;
     }
 
     public static FlowLayout card() {
@@ -260,7 +256,79 @@ public final class UiFactory {
     }
 
     public static ButtonComponent button(Component text, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
-        return createAdaptiveButton(text, buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
+        return createAdaptiveButton(semanticallyTintActionText(text), buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
+    }
+
+    public static ButtonComponent positiveButton(
+            Component text,
+            ButtonTextPreset preset,
+            Consumer<ButtonComponent> onPress
+    ) {
+        return actionToneButton(text, preset, ActionTone.POSITIVE, onPress);
+    }
+
+    public static ButtonComponent negativeButton(
+            Component text,
+            ButtonTextPreset preset,
+            Consumer<ButtonComponent> onPress
+    ) {
+        return actionToneButton(text, preset, ActionTone.NEGATIVE, onPress);
+    }
+
+    public static ButtonComponent actionToneButton(
+            Component text,
+            ButtonTextPreset preset,
+            ActionTone tone,
+            Consumer<ButtonComponent> onPress
+    ) {
+        return button(tintedActionText(text, tone), preset, onPress);
+    }
+
+    public static ButtonComponent actionRowButton(
+            Component text,
+            ButtonTextPreset preset,
+            ActionTone tone,
+            Consumer<ButtonComponent> onPress
+    ) {
+        ButtonComponent button = UIComponents.button(tintedActionText(text, tone), onPress);
+        int controlHeight = Math.max(
+                scaleProfile().controlHeight(),
+                scaledPixels(preset.buttonPreset.minHeight)
+        );
+        button.verticalSizing(Sizing.fixed(controlHeight));
+        applyButtonPreset(button, preset.buttonPreset);
+        return button;
+    }
+
+    public static FlowLayout actionButtonRow(ButtonComponent... buttons) {
+        return actionButtonRow(true, buttons);
+    }
+
+    public static FlowLayout actionButtonRow(boolean stackWhenNarrow, ButtonComponent... buttons) {
+        boolean stack = stackWhenNarrow && shouldStackActionButtonRow();
+        FlowLayout row = stack ? column() : row();
+        row.gap(Math.max(1, scaleProfile().tightSpacing()));
+        if (buttons == null) {
+            return row;
+        }
+        int buttonCount = 0;
+        for (ButtonComponent button : buttons) {
+            if (button != null) {
+                buttonCount++;
+            }
+        }
+        int buttonWidth = 100;
+        if (!stack && buttonCount > 1) {
+            buttonWidth = Math.max(1, (100 - buttonCount) / buttonCount);
+        }
+        for (ButtonComponent button : buttons) {
+            if (button == null) {
+                continue;
+            }
+            button.horizontalSizing(Sizing.fill(buttonWidth));
+            row.child(button);
+        }
+        return row;
     }
 
     public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
@@ -319,6 +387,34 @@ public final class UiFactory {
         return card;
     }
 
+    public static FlowLayout reorderableCollapsibleSubCard(
+            Component title,
+            Component summary,
+            int summaryMaxWidth,
+            boolean collapsed,
+            Runnable onToggle,
+            boolean canMoveUp,
+            Runnable onMoveUp,
+            boolean canMoveDown,
+            Runnable onMoveDown,
+            Runnable onRemove
+    ) {
+        FlowLayout card = subCard();
+        card.child(reorderableCollapsibleHeader(
+                title,
+                summary,
+                summaryMaxWidth,
+                collapsed,
+                onToggle,
+                canMoveUp,
+                onMoveUp,
+                canMoveDown,
+                onMoveDown,
+                onRemove
+        ));
+        return card;
+    }
+
     public static FlowLayout reorderableHeader(
             Component title,
             boolean canMoveUp,
@@ -332,25 +428,55 @@ public final class UiFactory {
         titleRow.child(title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
         header.child(titleRow);
 
-        boolean compactActions = useCompactActionRow();
-        FlowLayout actionRow = compactActions ? column() : row();
-        boolean hasActions = false;
-        if (onMoveUp != null) {
-            actionRow.child(actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp));
-            hasActions = true;
-        }
-        if (onMoveDown != null) {
-            actionRow.child(actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown));
-            hasActions = true;
-        }
-        if (onRemove != null) {
-            actionRow.child(actionButton(ItemEditorText.tr("common.remove"), true, onRemove));
-            hasActions = true;
-        }
-        if (hasActions) {
+        FlowLayout actionRow = actionButtonRow(
+                onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp),
+                onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown),
+                onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove)
+        );
+        if (!actionRow.children().isEmpty()) {
             header.child(actionRow);
         }
         return header;
+    }
+
+    public static FlowLayout reorderableCollapsibleHeader(
+            Component title,
+            Component summary,
+            int summaryMaxWidth,
+            boolean collapsed,
+            Runnable onToggle,
+            boolean canMoveUp,
+            Runnable onMoveUp,
+            boolean canMoveDown,
+            Runnable onMoveDown,
+            Runnable onRemove
+    ) {
+        FlowLayout header = column().gap(Math.max(1, scaleProfile().tightSpacing()));
+        FlowLayout titleRow = row();
+        titleRow.child(title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
+        titleRow.child(collapseToggleButton(collapsed, onToggle));
+        header.child(titleRow);
+        header.child(muted(summary, summaryMaxWidth));
+
+        FlowLayout actionRow = actionButtonRow(
+                onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp),
+                onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown),
+                onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove)
+        );
+        if (!actionRow.children().isEmpty()) {
+            header.child(actionRow);
+        }
+        return header;
+    }
+
+    public static ButtonComponent collapseToggleButton(boolean collapsed, Runnable onToggle) {
+        ButtonComponent collapseToggle = button(
+                Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
+                ButtonTextPreset.COMPACT,
+                button -> onToggle.run()
+        );
+        collapseToggle.horizontalSizing(Sizing.fixed(Math.max(30, scaledPixels(36))));
+        return collapseToggle;
     }
 
     public static Component fitToWidth(Component text, int maxPixelWidth) {
@@ -522,15 +648,13 @@ public final class UiFactory {
 
     private static ButtonComponent actionButton(Component label, boolean enabled, Runnable onPress) {
         boolean removeAction = label != null && label.getString().equalsIgnoreCase(ItemEditorText.str("common.remove"));
-        ButtonComponent button = button(
+        ButtonComponent button = actionToneButton(
                 label,
                 removeAction ? ButtonTextPreset.STANDARD : ButtonTextPreset.COMPACT,
+                removeAction ? ActionTone.NEGATIVE : ActionTone.NEUTRAL,
                 component -> onPress.run()
         );
-        boolean compactActionRow = useCompactActionRow();
-        if (compactActionRow) {
-            button.horizontalSizing(Sizing.fill(100));
-        } else if (removeAction) {
+        if (removeAction) {
             int removeWidth = Math.max(REMOVE_ACTION_WIDTH_MIN, scaledPixels(REMOVE_ACTION_WIDTH_BASE));
             button.horizontalSizing(Sizing.fixed(removeWidth));
         }
@@ -538,10 +662,67 @@ public final class UiFactory {
         return button;
     }
 
-    private static boolean useCompactActionRow() {
-        var window = Minecraft.getInstance().getWindow();
-        return window.getGuiScale() >= COMPACT_ACTION_ROW_SCALE_THRESHOLD
-                || window.getGuiScaledWidth() < COMPACT_ACTION_ROW_WIDTH_THRESHOLD;
+    private static Component tintedActionText(Component text, ActionTone tone) {
+        Component safeText = text == null ? Component.empty() : text;
+        if (tone == null || tone == ActionTone.NEUTRAL) {
+            return safeText;
+        }
+        int color = switch (tone) {
+            case POSITIVE -> ACTION_POSITIVE_COLOR;
+            case NEGATIVE -> ACTION_NEGATIVE_COLOR;
+            case PICKER -> ACTION_PICKER_COLOR;
+            case NEUTRAL -> throw new IllegalStateException("Neutral action tone should not be tinted");
+        };
+        return safeText.copy().withColor(color);
+    }
+
+    private static Component semanticallyTintActionText(Component text) {
+        ActionTone tone = inferActionTone(text);
+        return tone == ActionTone.NEUTRAL ? text : tintedActionText(text, tone);
+    }
+
+    private static ActionTone inferActionTone(Component text) {
+        if (text == null || text.getStyle().getColor() != null) {
+            return ActionTone.NEUTRAL;
+        }
+        String label = text.getString().trim().toLowerCase(Locale.ROOT);
+        if (label.equals("+")
+                || label.equals("true")
+                || label.equals("add")
+                || label.startsWith("add ")
+                || label.startsWith("create")
+                || label.startsWith("import")
+                || label.startsWith("paste")) {
+            return ActionTone.POSITIVE;
+        }
+        if (label.equals("-")
+                || label.equals("x")
+                || label.equals("false")
+                || label.equals("remove")
+                || label.startsWith("remove ")
+                || label.startsWith("clear")
+                || label.startsWith("reset")
+                || label.startsWith("delete")
+                || label.startsWith("discard")) {
+            return ActionTone.NEGATIVE;
+        }
+        if (label.equals("pick")
+                || label.startsWith("pick ")
+                || label.equals("select")
+                || label.startsWith("select ")
+                || label.equals("choose")
+                || label.startsWith("choose ")
+                || label.equals("browse")
+                || label.startsWith("browse ")
+                || label.equals("open")
+                || label.startsWith("open ")) {
+            return ActionTone.PICKER;
+        }
+        return ActionTone.NEUTRAL;
+    }
+
+    private static boolean shouldStackActionButtonRow() {
+        return Minecraft.getInstance().getWindow().getGuiScaledWidth() < ACTION_ROW_STACK_WIDTH_THRESHOLD;
     }
 
     private static ButtonComponent createAdaptiveButton(Component text, float preferredScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {

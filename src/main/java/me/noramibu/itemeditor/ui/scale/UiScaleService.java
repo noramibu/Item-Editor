@@ -95,7 +95,6 @@ public final class UiScaleService {
     }
 
     private static UiScaleProfile compute(int width, int height, double guiScale) {
-        double areaFactor = Math.sqrt((Math.max(1d, width) * Math.max(1d, height)) / (BASE_WIDTH * (double) BASE_HEIGHT));
         double widthFactor = width / (double) BASE_WIDTH;
         double heightFactor = height / (double) BASE_HEIGHT;
         double aspectPenalty = widthFactor < WIDTH_ASPECT_PENALTY_THRESHOLD ? HEIGHT_COMPRESSION_FACTOR : 1.0d;
@@ -103,7 +102,7 @@ public final class UiScaleService {
                 ? GUI_SCALE_HIGH_COMPENSATION
                 : guiScale <= GUI_SCALE_LOW_THRESHOLD ? GUI_SCALE_LOW_COMPENSATION : 1.0d;
 
-        double scale = areaFactor * aspectPenalty * guiScaleCompensation;
+        double scale = areaScale(width, height) * aspectPenalty * guiScaleCompensation;
         if (heightFactor < HEIGHT_COMPRESSION_THRESHOLD) {
             scale *= HEIGHT_COMPRESSION_FACTOR;
         }
@@ -151,6 +150,10 @@ public final class UiScaleService {
 
     private static int clampInt(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static double areaScale(int width, int height) {
+        return Math.sqrt((Math.max(1d, width) * Math.max(1d, height)) / (BASE_WIDTH * (double) BASE_HEIGHT));
     }
 
     private static int scaleMetric(int base, double scale, int min, int max) {

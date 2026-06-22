@@ -50,14 +50,14 @@ public final class AtomicFileUtil {
                 try (Reader reader = Files.newBufferedReader(backup, StandardCharsets.UTF_8)) {
                     T recovered = codec.read(reader);
                     writeJson(file, codec, recovered);
-                    LOGGER.warn("Recovered '{}' from backup '{}'", file, backup);
+                    LOGGER.warn("[Item Editor] Recovered '{}' from backup '{}'", file, backup);
                     return recovered;
                 } catch (Exception backupFailure) {
-                    LOGGER.warn("Failed to recover '{}' from backup '{}'", file, backup, backupFailure);
+                    LOGGER.warn("[Item Editor] Failed to recover '{}' from backup '{}'", file, backup, backupFailure);
                 }
             }
 
-            LOGGER.warn("Failed to read '{}', restoring defaults", file, primaryFailure);
+            LOGGER.warn("[Item Editor] Failed to read '{}', restoring defaults", file, primaryFailure);
             T fallback = fallbackSupplier.get();
             writeJson(file, codec, fallback);
             return fallback;
@@ -68,7 +68,7 @@ public final class AtomicFileUtil {
         try {
             writeAtomically(file, writer -> codec.write(writer, value));
         } catch (IOException exception) {
-            LOGGER.error("Failed to write json '{}'", file, exception);
+            LOGGER.error("[Item Editor] Failed to write json '{}'", file, exception);
         }
     }
 
@@ -84,13 +84,13 @@ public final class AtomicFileUtil {
                 try (BufferedInputStream stream = new BufferedInputStream(Files.newInputStream(backup, StandardOpenOption.READ))) {
                     CompoundTag recovered = NbtIo.read(new DataInputStream(stream));
                     writeNbt(file, recovered);
-                    LOGGER.warn("Recovered NBT '{}' from backup '{}'", file, backup);
+                    LOGGER.warn("[Item Editor] Recovered NBT '{}' from backup '{}'", file, backup);
                     return recovered;
                 } catch (Exception backupFailure) {
-                    LOGGER.warn("Failed backup NBT recovery for '{}'", file, backupFailure);
+                    LOGGER.warn("[Item Editor] Failed backup NBT recovery for '{}'", file, backupFailure);
                 }
             }
-            LOGGER.warn("Failed to read NBT '{}'", file, primaryFailure);
+            LOGGER.warn("[Item Editor] Failed to read NBT '{}'", file, primaryFailure);
             return fallbackSupplier.get();
         }
     }
@@ -103,7 +103,7 @@ public final class AtomicFileUtil {
         try {
             writeAtomicallyNbt(file, value == null ? new CompoundTag() : value, fsync);
         } catch (IOException exception) {
-            LOGGER.error("Failed to write NBT '{}'", file, exception);
+            LOGGER.error("[Item Editor] Failed to write NBT '{}'", file, exception);
         }
     }
 

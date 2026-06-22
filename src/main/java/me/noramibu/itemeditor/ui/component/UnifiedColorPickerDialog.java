@@ -652,9 +652,7 @@ public final class UnifiedColorPickerDialog {
             savedList.child(ColorPickerUiUtil.savedPresetRow(
                     savedPresetLabel(applyLabel.apply(preset, savedApplyButtonWidth), selectedPreset),
                     applyHint == null ? Component.empty() : applyHint.apply(preset),
-                    () -> {
-                        apply.accept(preset);
-                    },
+                    () -> apply.accept(preset),
                     edit == null ? null : () -> edit.accept(preset),
                     editHint,
                     index > 0,

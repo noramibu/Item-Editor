@@ -56,16 +56,25 @@ public final class AdvancedItemSpecialDataSection {
     private static final int COMPACT_REMOVE_BUTTON_BASE = 88;
     private static final int COMPACT_FIXED_PICK_BUTTON_MIN = 46;
     private static final int COMPACT_FIXED_PICK_BUTTON_BASE = 56;
+    private static final int PICKER_ROW_INLINE_MIN_WIDTH = 360;
+    private static final int PICKER_ROW_INPUT_MIN_WIDTH = 180;
     private static final int BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD = 420;
+    private static final int BLOCK_STATE_VALUE_WIDTH_PERCENT = 76;
+    private static final int BLOCK_STATE_VALUE_WITH_RESET_WIDTH_PERCENT = 56;
+    private static final int PICKER_ROW_INPUT_WIDTH_PERCENT = 82;
+    private static final int PICKER_ROW_BUTTON_WIDTH_PERCENT = 16;
     private static final int SECTION_ROW_GAP = 10;
     private static final int FLAGS_ROW_GAP = 12;
     private static final int COLLAPSIBLE_HEADER_TITLE_RESERVE = 26;
     private static final int COMPACT_FIELD_LABEL_RESERVE = 44;
     private static final int PANEL_WIDTH_SAFETY_RESERVE = 20;
-    private static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    private static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    private static final String SYMBOL_SECTION_COLLAPSED = "+";
+    private static final String SYMBOL_SECTION_EXPANDED = "-";
     private static final String SYMBOL_STEP_DECREMENT = "-";
     private static final String SYMBOL_STEP_INCREMENT = "+";
+    private static final String ACTION_EXPAND_ALL = "Expand All";
+    private static final String ACTION_COLLAPSE_ALL = "Collapse All";
+    private static final String ACTION_CLEAR_ALL = "Clear All";
     private static final String TOOLTIP_EXPAND_ALL_BEES = "Expand all bees";
     private static final String TOOLTIP_COLLAPSE_ALL_BEES = "Collapse all bees";
     private static final String TOOLTIP_EXPAND_ALL_PROJECTILES = "Expand all projectiles";
@@ -93,10 +102,6 @@ public final class AdvancedItemSpecialDataSection {
     private AdvancedItemSpecialDataSection() {
     }
 
-    public static boolean supportsFoodConsumable(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
     public static boolean supportsContainerMetadata(ItemStack stack, RegistryAccess registryAccess) {
         return ItemEditorCapabilities.supportsAnyComponent(
                 stack,
@@ -121,10 +126,6 @@ public final class AdvancedItemSpecialDataSection {
                 || stack.is(Items.CROSSBOW);
     }
 
-    public static boolean supportsCustomData(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
     public static boolean supportsMapAdvanced(ItemStack stack, RegistryAccess registryAccess) {
         return ItemEditorCapabilities.supportsAnyComponent(
                 stack,
@@ -138,28 +139,8 @@ public final class AdvancedItemSpecialDataSection {
                 || stack.is(Items.FILLED_MAP);
     }
 
-    public static boolean supportsEquipmentCombat(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
-    public static boolean supportsComponentTweaksNaming(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
-    public static boolean supportsComponentTweaksRegistry(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
     public static boolean supportsBlockState(ItemStack stack) {
         return hasBlockStateProperties(stack);
-    }
-
-    public static boolean supportsComponentTweaksBlock(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
-    public static boolean supportsComponentTweaksBehavior(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
     }
 
     public static FlowLayout buildComponentTweakNamingSection(SpecialDataPanelContext context) {
@@ -277,91 +258,51 @@ public final class AdvancedItemSpecialDataSection {
                     int compactGroupWidth = compactGroupFieldWidth();
                     int animationButtonWidth = narrowLayout ? clampWidth(guiWidth(), 0.11, 110, 180) : compactPickerButtonWidth();
                     FlowLayout content = UiFactory.column();
-                    if (narrowLayout) {
-                        FlowLayout foodValueRow = responsiveRow();
-        foodValueRow.gap(SECTION_ROW_GAP);
-                        foodValueRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.food.nutrition"),
-                                special.foodNutrition,
-                                value -> special.foodNutrition = value,
-                                compactNumberWidth
-                        ));
-                        foodValueRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.food.saturation"),
-                                special.foodSaturation,
-                                value -> special.foodSaturation = value,
-                                compactNumberWidth
-                        ));
-                        equalizeExistingRowChildren(foodValueRow);
-                        content.child(foodValueRow);
-                        content.child(UiFactory.checkbox(
-                                ItemEditorText.tr("special.advanced.food.can_always_eat"),
-                                special.foodCanAlwaysEat,
-                                context.bindToggle(value -> special.foodCanAlwaysEat = value)
-                        ));
+                    FlowLayout foodRow = responsiveRow();
+                    foodRow.gap(SECTION_ROW_GAP);
+                    distributeRowChildren(
+                            foodRow,
+                            compactTextField(
+                                    context,
+                                    ItemEditorText.tr("special.advanced.food.nutrition"),
+                                    special.foodNutrition,
+                                    value -> special.foodNutrition = value,
+                                    compactNumberWidth
+                            ),
+                            compactTextField(
+                                    context,
+                                    ItemEditorText.tr("special.advanced.food.saturation"),
+                                    special.foodSaturation,
+                                    value -> special.foodSaturation = value,
+                                    compactNumberWidth
+                            )
+                    );
+                    content.child(foodRow);
+                    content.child(UiFactory.checkbox(
+                            ItemEditorText.tr("special.advanced.food.can_always_eat"),
+                            special.foodCanAlwaysEat,
+                            context.bindToggle(value -> special.foodCanAlwaysEat = value)
+                    ).horizontalSizing(Sizing.fill(100)));
 
-                        FlowLayout consumableTopRow = responsiveRow();
-        consumableTopRow.gap(SECTION_ROW_GAP);
-                        consumableTopRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.consumable.consume_seconds"),
-                                special.consumableConsumeSeconds,
-                                value -> special.consumableConsumeSeconds = value,
-                                compactNumberWidth
-                        ));
-                        consumableTopRow.child(compactAnimationPicker(context, special, animationButtonWidth));
-                        equalizeExistingRowChildren(consumableTopRow);
-                        content.child(consumableTopRow);
-                        content.child(UiFactory.checkbox(
-                                ItemEditorText.tr("special.advanced.consumable.has_particles"),
-                                special.consumableHasParticles,
-                                context.bindToggle(value -> special.consumableHasParticles = value)
-                        ));
-                    } else {
-                        FlowLayout foodRow = responsiveRow();
-        foodRow.gap(SECTION_ROW_GAP);
-                        foodRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.food.nutrition"),
-                                special.foodNutrition,
-                                value -> special.foodNutrition = value,
-                                compactNumberWidth
-                        ));
-                        foodRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.food.saturation"),
-                                special.foodSaturation,
-                                value -> special.foodSaturation = value,
-                                compactNumberWidth
-                        ));
-                        foodRow.child(UiFactory.checkbox(
-                                ItemEditorText.tr("special.advanced.food.can_always_eat"),
-                                special.foodCanAlwaysEat,
-                                context.bindToggle(value -> special.foodCanAlwaysEat = value)
-                        ));
-                        equalizeExistingRowChildren(foodRow);
-                        content.child(foodRow);
-
-                        FlowLayout consumableRow = responsiveRow();
-        consumableRow.gap(SECTION_ROW_GAP);
-                        consumableRow.child(compactTextField(
-                                context,
-                                ItemEditorText.tr("special.advanced.consumable.consume_seconds"),
-                                special.consumableConsumeSeconds,
-                                value -> special.consumableConsumeSeconds = value,
-                                compactNumberWidth
-                        ));
-                        consumableRow.child(compactAnimationPicker(context, special, animationButtonWidth));
-                        consumableRow.child(UiFactory.checkbox(
-                                ItemEditorText.tr("special.advanced.consumable.has_particles"),
-                                special.consumableHasParticles,
-                                context.bindToggle(value -> special.consumableHasParticles = value)
-                        ));
-                        equalizeExistingRowChildren(consumableRow);
-                        content.child(consumableRow);
-                    }
+                    FlowLayout consumableRow = responsiveRow();
+                    consumableRow.gap(SECTION_ROW_GAP);
+                    distributeRowChildren(
+                            consumableRow,
+                            compactTextField(
+                                    context,
+                                    ItemEditorText.tr("special.advanced.consumable.consume_seconds"),
+                                    special.consumableConsumeSeconds,
+                                    value -> special.consumableConsumeSeconds = value,
+                                    compactNumberWidth
+                            ),
+                            compactAnimationPicker(context, special, animationButtonWidth)
+                    );
+                    content.child(consumableRow);
+                    content.child(UiFactory.checkbox(
+                            ItemEditorText.tr("special.advanced.consumable.has_particles"),
+                            special.consumableHasParticles,
+                            context.bindToggle(value -> special.consumableHasParticles = value)
+                    ).horizontalSizing(Sizing.fill(100)));
 
                     content.child(compactIdField(
                             context,
@@ -590,7 +531,13 @@ public final class AdvancedItemSpecialDataSection {
         FlowLayout field = UiFactory.column();
         field.gap(2);
         int panelWidth = guiWidth();
-        int preferredLabelWidth = Math.max(40, Math.min(labelWidth, Math.max(80, panelWidth - UiFactory.scaledPixels(COMPACT_FIELD_LABEL_RESERVE))));
+        int availableLabelWidth = Math.max(
+                80,
+                panelWidth - UiFactory.scaledPixels(COMPACT_FIELD_LABEL_RESERVE)
+        );
+        int preferredLabelWidth = prefersStackedCompactRows()
+                ? availableLabelWidth
+                : Math.max(40, Math.min(labelWidth, availableLabelWidth));
         int effectiveLabelWidth = Math.max(1, Math.min(panelWidth, preferredLabelWidth));
         Component fittedLabel = UiFactory.fitToWidth(label, effectiveLabelWidth);
         var labelComponent = UiFactory.muted(fittedLabel, effectiveLabelWidth);
@@ -675,6 +622,16 @@ public final class AdvancedItemSpecialDataSection {
         return guiWidth() <= STACKED_COMPACT_WIDTH_THRESHOLD || guiScale >= STACKED_COMPACT_SCALE_THRESHOLD;
     }
 
+    private static boolean usesStackedPickerRows() {
+        int requiredInlineWidth = Math.max(
+                PICKER_ROW_INLINE_MIN_WIDTH,
+                UiFactory.scaledPixels(PICKER_ROW_INPUT_MIN_WIDTH)
+                        + compactFixedPickButtonWidth()
+                        + UiFactory.scaledPixels(SECTION_ROW_GAP)
+        );
+        return guiWidth() < requiredInlineWidth;
+    }
+
     private static boolean usesStackedBlockStateRows() {
         return guiWidth() <= UiFactory.scaledPixels(BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD);
     }
@@ -698,8 +655,9 @@ public final class AdvancedItemSpecialDataSection {
             }
             return;
         }
+        int childWidth = distributedRowChildWidth(children.length);
         for (UIComponent child : children) {
-            child.horizontalSizing(Sizing.expand(100));
+            child.horizontalSizing(Sizing.fill(childWidth));
             row.child(child);
         }
     }
@@ -715,9 +673,14 @@ public final class AdvancedItemSpecialDataSection {
             }
             return;
         }
+        int childWidth = distributedRowChildWidth(count);
         for (UIComponent child : row.children()) {
-            child.horizontalSizing(Sizing.expand(100));
+            child.horizontalSizing(Sizing.fill(childWidth));
         }
+    }
+
+    private static int distributedRowChildWidth(int childCount) {
+        return Math.max(1, (100 - Math.max(1, childCount)) / Math.max(1, childCount));
     }
 
     private static FlowLayout buildOnConsumeEffectsEditor(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
@@ -1097,7 +1060,6 @@ public final class AdvancedItemSpecialDataSection {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(ItemEditorText.tr("special.advanced.container_meta.bees_title")).shadow(false));
 
-        FlowLayout actions = responsiveRow();
         ButtonComponent addButton = UiFactory.button(ItemEditorText.tr("special.advanced.container_meta.bees_add"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     ItemEditorState.BeeOccupantDraft draft = new ItemEditorState.BeeOccupantDraft();
@@ -1106,29 +1068,23 @@ public final class AdvancedItemSpecialDataSection {
                 })
         );
         addButton.horizontalSizing(Sizing.fill(100));
-        actions.child(addButton);
+        card.child(addButton);
         if (!special.beesOccupants.isEmpty()) {
-            ButtonComponent expandAll = UiFactory.button(Component.literal(SYMBOL_SECTION_COLLAPSED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent expandAll = UiFactory.button(Component.literal(ACTION_EXPAND_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
             expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL_BEES)));
-            actions.child(expandAll);
 
-            ButtonComponent collapseAll = UiFactory.button(Component.literal(SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent collapseAll = UiFactory.button(Component.literal(ACTION_COLLAPSE_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
             collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL_BEES)));
-            actions.child(collapseAll);
 
-            ButtonComponent clearAll = UiFactory.button(ItemEditorText.tr("general.adventure.clear"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent clearAll = UiFactory.button(Component.literal(ACTION_CLEAR_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(special.beesOccupants::clear)
             );
-            clearAll.horizontalSizing(Sizing.fixed(compactClearButtonWidth()));
-            actions.child(clearAll);
+            card.child(UiFactory.actionButtonRow(expandAll, collapseAll, clearAll));
         }
-        card.child(actions);
 
         if (special.beesOccupants.isEmpty()) {
             card.child(UiFactory.muted(ItemEditorText.tr("special.advanced.container_meta.bees_empty"), CONTAINER_META_BEES_EMPTY_HINT_WIDTH));
@@ -1197,9 +1153,8 @@ public final class AdvancedItemSpecialDataSection {
 
     public static FlowLayout buildCrossbow(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
-        FlowLayout section = UiFactory.section(ItemEditorText.tr("special.advanced.crossbow.title"), Component.empty());
         List<String> availableItems = itemIds(context);
-        section.child(collapsibleCard(
+        return collapsibleCard(
                 context,
                 ItemEditorText.tr("special.advanced.crossbow.title"),
                 special.uiCrossbowCollapsed,
@@ -1209,7 +1164,6 @@ public final class AdvancedItemSpecialDataSection {
                     int idWidth = compactIdTextWidth();
                     int countWidth = compactTinyFieldWidth();
 
-                    FlowLayout actions = responsiveRow();
                     ButtonComponent addButton = UiFactory.button(ItemEditorText.tr("special.advanced.crossbow.add_projectile"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                             context.mutateRefresh(() -> {
                                 ItemEditorState.ChargedProjectileDraft draft = new ItemEditorState.ChargedProjectileDraft();
@@ -1218,57 +1172,50 @@ public final class AdvancedItemSpecialDataSection {
                             })
                     );
                     addButton.horizontalSizing(Sizing.fill(100));
-                    actions.child(addButton);
                     if (!special.chargedProjectiles.isEmpty()) {
-                        ButtonComponent expandAll = UiFactory.button(Component.literal(SYMBOL_SECTION_COLLAPSED), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                                context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = false))
-                        );
-                        expandAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
-                        expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL_PROJECTILES)));
-                        actions.child(expandAll);
-
-                        ButtonComponent collapseAll = UiFactory.button(Component.literal(SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                                context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = true))
-                        );
-                        collapseAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
-                        collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL_PROJECTILES)));
-                        actions.child(collapseAll);
-
-                        ButtonComponent clearAll = UiFactory.button(ItemEditorText.tr("general.adventure.clear"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                        ButtonComponent clearAll = UiFactory.button(Component.literal(ACTION_CLEAR_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                                 context.mutateRefresh(special.chargedProjectiles::clear)
                         );
-                        clearAll.horizontalSizing(Sizing.fixed(compactClearButtonWidth()));
-                        actions.child(clearAll);
+                        content.child(UiFactory.actionButtonRow(addButton, clearAll));
+
+                        ButtonComponent expandAll = UiFactory.button(Component.literal(ACTION_EXPAND_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                                context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = false))
+                        );
+                        expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL_PROJECTILES)));
+
+                        ButtonComponent collapseAll = UiFactory.button(Component.literal(ACTION_COLLAPSE_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                                context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = true))
+                        );
+                        collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL_PROJECTILES)));
+
+                        content.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+                    } else {
+                        content.child(addButton);
                     }
-                    content.child(actions);
 
                     if (special.chargedProjectiles.isEmpty()) {
-                    content.child(UiFactory.muted(ItemEditorText.tr("special.advanced.crossbow.empty"), CROSSBOW_EMPTY_HINT_WIDTH));
+                        content.child(UiFactory.muted(
+                                ItemEditorText.tr("special.advanced.crossbow.empty"),
+                                CROSSBOW_EMPTY_HINT_WIDTH
+                        ));
                         return content;
                     }
 
                     for (int index = 0; index < special.chargedProjectiles.size(); index++) {
                         int currentIndex = index;
                         ItemEditorState.ChargedProjectileDraft draft = special.chargedProjectiles.get(index);
-                        FlowLayout card = context.createReorderableCard(
+                        FlowLayout card = UiFactory.reorderableCollapsibleSubCard(
                                 ItemEditorText.tr("special.advanced.crossbow.projectile", index + 1),
+                                Component.literal(projectileSummary(draft)),
+                                CROSSBOW_PROJECTILE_SUMMARY_HINT_WIDTH,
+                                draft.uiCollapsed,
+                                () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed),
                                 currentIndex > 0,
-                                () -> swapEntries(special.chargedProjectiles, currentIndex, currentIndex - 1),
+                                () -> context.mutateRefresh(() -> swapEntries(special.chargedProjectiles, currentIndex, currentIndex - 1)),
                                 currentIndex < special.chargedProjectiles.size() - 1,
-                                () -> swapEntries(special.chargedProjectiles, currentIndex, currentIndex + 1),
-                                () -> special.chargedProjectiles.remove(currentIndex)
+                                () -> context.mutateRefresh(() -> swapEntries(special.chargedProjectiles, currentIndex, currentIndex + 1)),
+                                () -> context.mutateRefresh(() -> special.chargedProjectiles.remove(currentIndex))
                         );
-
-                        FlowLayout summaryRow = responsiveRow();
-            UIComponent summary = UiFactory.muted(Component.literal(projectileSummary(draft)), CROSSBOW_PROJECTILE_SUMMARY_HINT_WIDTH);
-                        summary.horizontalSizing(Sizing.expand(100));
-                        summaryRow.child(summary);
-                        ButtonComponent collapseToggle = UiFactory.button(Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                                context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)
-                        );
-                        collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
-                        summaryRow.child(collapseToggle);
-                        card.child(summaryRow);
 
                         if (!draft.uiCollapsed) {
                             card.child(compactIdField(
@@ -1305,8 +1252,7 @@ public final class AdvancedItemSpecialDataSection {
 
                     return content;
                 }
-        ));
-        return section;
+        );
     }
 
     public static FlowLayout buildMapAdvanced(SpecialDataPanelContext context) {
@@ -1454,7 +1400,6 @@ public final class AdvancedItemSpecialDataSection {
         int idWidth = compactIdTextWidth();
         int numberWidth = compactNumericFieldWidth();
 
-        FlowLayout actions = responsiveRow();
         ButtonComponent addButton = UiFactory.button(ItemEditorText.tr("special.advanced.map.add_decoration"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     ItemEditorState.MapDecorationDraft draft = new ItemEditorState.MapDecorationDraft();
@@ -1463,29 +1408,23 @@ public final class AdvancedItemSpecialDataSection {
                 })
         );
         addButton.horizontalSizing(Sizing.fill(100));
-        actions.child(addButton);
+        card.child(addButton);
         if (!special.mapDecorations.isEmpty()) {
-            ButtonComponent expandAll = UiFactory.button(Component.literal(SYMBOL_SECTION_COLLAPSED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent expandAll = UiFactory.button(Component.literal(ACTION_EXPAND_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
             expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL_DECORATIONS)));
-            actions.child(expandAll);
 
-            ButtonComponent collapseAll = UiFactory.button(Component.literal(SYMBOL_SECTION_EXPANDED), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent collapseAll = UiFactory.button(Component.literal(ACTION_COLLAPSE_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
             collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL_DECORATIONS)));
-            actions.child(collapseAll);
 
-            ButtonComponent clearAll = UiFactory.button(ItemEditorText.tr("general.adventure.clear"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent clearAll = UiFactory.button(Component.literal(ACTION_CLEAR_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(special.mapDecorations::clear)
             );
-            clearAll.horizontalSizing(Sizing.fixed(compactClearButtonWidth()));
-            actions.child(clearAll);
+            card.child(UiFactory.actionButtonRow(expandAll, collapseAll, clearAll));
         }
-        card.child(actions);
 
         if (special.mapDecorations.isEmpty()) {
             card.child(UiFactory.muted(ItemEditorText.tr("special.advanced.map.decorations_empty"), MAP_DECORATIONS_EMPTY_HINT_WIDTH));
@@ -2057,7 +1996,11 @@ public final class AdvancedItemSpecialDataSection {
                 )
         );
         valueButton.active(!property.values().isEmpty());
-        valueButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100));
+        valueButton.horizontalSizing(stacked
+                ? Sizing.fill(100)
+                : Sizing.fill(hasOverride
+                        ? BLOCK_STATE_VALUE_WITH_RESET_WIDTH_PERCENT
+                        : BLOCK_STATE_VALUE_WIDTH_PERCENT));
         row.child(valueButton);
 
         if (hasOverride) {
@@ -2437,10 +2380,11 @@ public final class AdvancedItemSpecialDataSection {
             List<String> entries,
             String pickerTitle
     ) {
-        boolean stacked = prefersStackedCompactRows();
-        FlowLayout row = stacked ? UiFactory.column() : responsiveRow();
+        boolean stacked = usesStackedPickerRows();
+        FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
+        row.gap(SECTION_ROW_GAP);
         UIComponent input = UiFactory.textBox(value, text -> context.mutate(() -> setter.accept(IdFieldNormalizer.normalize(text))))
-                .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100));
+                .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fill(PICKER_ROW_INPUT_WIDTH_PERCENT));
         row.child(input);
         ButtonComponent pickButton = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.openSearchablePicker(
@@ -2451,8 +2395,7 @@ public final class AdvancedItemSpecialDataSection {
                         id -> context.mutateRefresh(() -> setter.accept(id))
                 )
         );
-        int pickWidth = compactFixedPickButtonWidth();
-        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(pickWidth));
+        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fill(PICKER_ROW_BUTTON_WIDTH_PERCENT));
         row.child(pickButton);
         return row;
     }
@@ -2465,10 +2408,11 @@ public final class AdvancedItemSpecialDataSection {
             List<String> entries,
             String pickerTitle
     ) {
-        boolean stacked = prefersStackedCompactRows();
-        FlowLayout row = stacked ? UiFactory.column() : responsiveRow();
+        boolean stacked = usesStackedPickerRows();
+        FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
+        row.gap(SECTION_ROW_GAP);
         UIComponent input = UiFactory.textBox(value, context.bindText(setter))
-                .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100));
+                .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fill(PICKER_ROW_INPUT_WIDTH_PERCENT));
         row.child(input);
         ButtonComponent pickButton = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD, button ->
                 context.openSearchablePicker(
@@ -2479,7 +2423,7 @@ public final class AdvancedItemSpecialDataSection {
                         id -> context.mutateRefresh(() -> setter.accept(appendIdentifierListValue(currentValueSupplier.get(), id)))
                 )
         );
-        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(compactFixedPickButtonWidth()));
+        pickButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fill(PICKER_ROW_BUTTON_WIDTH_PERCENT));
         row.child(pickButton);
         return row;
     }

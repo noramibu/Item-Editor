@@ -81,6 +81,7 @@ import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.saveddata.maps.MapDecorationType;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1735,49 +1736,49 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return holder;
     }
 
-    private Optional<HolderSet<DamageType>> parseOptionalDamageTypeHolderSet(
+    private OptionalDamageTypeHolderSetResult parseOptionalDamageTypeHolderSet(
             Registry<DamageType> registry,
             String raw,
             String label,
             List<ValidationMessage> messages
     ) {
         if (raw == null || raw.isBlank()) {
-            return Optional.empty();
+            return OptionalDamageTypeHolderSetResult.valid(null);
         }
 
         List<String> values = this.splitIdentifierList(raw);
         if (values.isEmpty()) {
-            return Optional.empty();
+            return OptionalDamageTypeHolderSetResult.valid(null);
         }
         if (values.size() == 1 && values.getFirst().startsWith("#")) {
             Identifier tagId = IdFieldNormalizer.parse(values.getFirst().substring(1));
             if (tagId == null) {
                 this.reportMissingRegistry(label, values.getFirst(), messages);
-                return null;
+                return OptionalDamageTypeHolderSetResult.invalid();
             }
             TagKey<DamageType> tagKey = TagKey.create(Registries.DAMAGE_TYPE, tagId);
             Optional<HolderSet.Named<DamageType>> tag = registry.get(tagKey);
             if (tag.isEmpty()) {
                 this.reportMissingRegistry(label, values.getFirst(), messages);
-                return null;
+                return OptionalDamageTypeHolderSetResult.invalid();
             }
-            return Optional.of(tag.get());
+            return OptionalDamageTypeHolderSetResult.valid(tag.get());
         }
 
         List<Holder<DamageType>> holders = new ArrayList<>();
         for (String value : values) {
             if (value.startsWith("#")) {
                 messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
-                return null;
+                return OptionalDamageTypeHolderSetResult.invalid();
             }
             Holder<DamageType> holder = RegistryUtil.resolveHolder(registry, value);
             if (holder == null) {
                 this.reportMissingRegistry(label, value, messages);
-                return null;
+                return OptionalDamageTypeHolderSetResult.invalid();
             }
             holders.add(holder);
         }
-        return Optional.of(HolderSet.direct(holders));
+        return OptionalDamageTypeHolderSetResult.valid(HolderSet.direct(holders));
     }
 
     private Optional<TagKey<DamageType>> parseOptionalDamageTypeTagKey(
@@ -1832,20 +1833,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                     ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_factor"),
                     context.messages()
             );
-            Optional<HolderSet<DamageType>> type = this.parseOptionalDamageTypeHolderSet(
+            OptionalDamageTypeHolderSetResult type = this.parseOptionalDamageTypeHolderSet(
                     damageTypeRegistry,
                     draft.typeIds,
                     ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_types"),
                     context.messages()
             );
-            if (angle == null || base == null || factor == null || type == null) {
+            if (angle == null || base == null || factor == null || !type.valid()) {
                 return null;
             }
             if (angle <= 0.0F) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
                 return null;
             }
-            reductions.add(new BlocksAttacks.DamageReduction(angle, type, base, factor));
+            reductions.add(new BlocksAttacks.DamageReduction(angle, type.value(), base, factor));
         }
         return reductions;
     }
@@ -1888,6 +1889,23 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return null;
         }
         return new BlocksAttacks.ItemDamageFunction(threshold, base, factor);
+    }
+
+    private record OptionalDamageTypeHolderSetResult(
+            @Nullable HolderSet<DamageType> holderSet,
+            boolean valid
+    ) {
+        private Optional<HolderSet<DamageType>> value() {
+            return Optional.ofNullable(this.holderSet);
+        }
+
+        private static OptionalDamageTypeHolderSetResult valid(@Nullable HolderSet<DamageType> value) {
+            return new OptionalDamageTypeHolderSetResult(value, true);
+        }
+
+        private static OptionalDamageTypeHolderSetResult invalid() {
+            return new OptionalDamageTypeHolderSetResult(null, false);
+        }
     }
 
     private Float parseFloatField(String raw, float fallback, String label, List<ValidationMessage> messages) {
@@ -1982,75 +2000,70 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         Registry<MobEffect> effectRegistry = context.registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         Registry<SoundEvent> soundRegistry = context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT);
 
-        for (int index = 0; index < drafts.size(); index++) {
-            ItemEditorState.ConsumableEffectDraft draft = drafts.get(index);
+        for (ItemEditorState.ConsumableEffectDraft draft : drafts) {
             String normalizedType = draft.type == null ? "" : draft.type.trim();
             if (normalizedType.isBlank()) {
                 normalizedType = ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS;
             }
 
-            if (Objects.equals(normalizedType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
-                effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
-                continue;
-            }
+            switch (normalizedType) {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS -> effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
+                case ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS -> {
+                    Float probability = draft.probability.isBlank()
+                            ? Float.valueOf(1.0F)
+                            : ValidationUtil.parseFloat(
+                                    draft.probability,
+                                    ItemEditorText.str("special.advanced.consumable.effect_probability"),
+                                    context.messages()
+                            );
+                    if (probability == null) {
+                        return null;
+                    }
+                    if (probability < 0.0F || probability > 1.0F) {
+                        context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                                "preview.validation.component_failed",
+                                ItemEditorText.str("special.advanced.consumable.effect_probability")
+                        )));
+                        return null;
+                    }
 
-            if (Objects.equals(normalizedType, ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS)) {
-                Float probability = draft.probability.isBlank()
-                        ? Float.valueOf(1.0F)
-                        : ValidationUtil.parseFloat(
-                        draft.probability,
-                        ItemEditorText.str("special.advanced.consumable.effect_probability"),
-                        context.messages()
-                );
-                if (probability == null) {
-                    return null;
+                    List<MobEffectInstance> mobEffects = this.parsePotionEffectInstances(
+                            draft.effects,
+                            effectRegistry,
+                            context.messages()
+                    );
+
+                    if (mobEffects.isEmpty()) {
+                        context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                                "preview.validation.component_failed",
+                                effectsLabel
+                        )));
+                        return null;
+                    }
+
+                    effects.add(new ApplyStatusEffectsConsumeEffect(mobEffects, probability));
                 }
-                if (probability < 0.0F || probability > 1.0F) {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND -> {
+                    Holder<SoundEvent> effectSound = this.resolveSoundHolder(
+                            soundRegistry,
+                            draft.soundId,
+                            null,
+                            ItemEditorText.str("special.advanced.consumable.effect_sound"),
+                            context.messages()
+                    );
+                    if (effectSound == null) {
+                        return null;
+                    }
+                    effects.add(new PlaySoundConsumeEffect(effectSound));
+                }
+                default -> {
                     context.messages().add(ValidationMessage.error(ItemEditorText.str(
                             "preview.validation.component_failed",
-                            ItemEditorText.str("special.advanced.consumable.effect_probability")
+                            ItemEditorText.str("special.advanced.consumable.effect_type")
                     )));
                     return null;
                 }
-
-                List<MobEffectInstance> mobEffects = this.parsePotionEffectInstances(
-                        draft.effects,
-                        effectRegistry,
-                        context.messages()
-                );
-
-                if (mobEffects.isEmpty()) {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                            "preview.validation.component_failed",
-                            effectsLabel
-                    )));
-                    return null;
-                }
-
-                effects.add(new ApplyStatusEffectsConsumeEffect(mobEffects, probability));
-                continue;
             }
-
-            if (Objects.equals(normalizedType, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
-                Holder<SoundEvent> effectSound = this.resolveSoundHolder(
-                        soundRegistry,
-                        draft.soundId,
-                        null,
-                        ItemEditorText.str("special.advanced.consumable.effect_sound"),
-                        context.messages()
-                );
-                if (effectSound == null) {
-                    return null;
-                }
-                effects.add(new PlaySoundConsumeEffect(effectSound));
-                continue;
-            }
-
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.consumable.effect_type")
-            )));
-            return null;
         }
 
         return effects;

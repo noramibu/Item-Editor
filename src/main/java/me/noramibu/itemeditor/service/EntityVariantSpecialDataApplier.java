@@ -19,6 +19,7 @@ import net.minecraft.world.entity.animal.parrot.Parrot;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.EitherHolder;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -51,7 +52,7 @@ final class EntityVariantSpecialDataApplier extends AbstractPreviewApplierSuppor
         this.applyEitherHolderComponent(context, DataComponents.ZOMBIE_NAUTILUS_VARIANT, Registries.ZOMBIE_NAUTILUS_VARIANT, current.entityZombieNautilusVariant, baseline.entityZombieNautilusVariant, "special.entity_variant.zombie_nautilus_variant");
     }
 
-    private <T> void applyHolderComponent(
+    private <T extends @NotNull Object> void applyHolderComponent(
             SpecialDataApplyContext context,
             DataComponentType<Holder<T>> componentType,
             ResourceKey<Registry<T>> registryKey,
@@ -105,7 +106,7 @@ final class EntityVariantSpecialDataApplier extends AbstractPreviewApplierSuppor
 
     private <T extends Enum<T> & StringRepresentable> void applyEnumComponent(
             SpecialDataApplyContext context,
-            DataComponentType<T> componentType,
+            DataComponentType<@NotNull T> componentType,
             T[] values,
             String current,
             String baseline,

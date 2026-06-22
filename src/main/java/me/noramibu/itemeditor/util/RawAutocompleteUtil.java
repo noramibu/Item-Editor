@@ -672,10 +672,7 @@ public final class RawAutocompleteUtil {
     private static boolean refineKeyPosition(String text, int cursor, boolean insideQuote, boolean currentGuess) {
         if (insideQuote) {
             Boolean keyInString = classifyActiveStringAsKey(text, cursor);
-            if (keyInString != null) {
-                return keyInString;
-            }
-            return currentGuess;
+            return Objects.requireNonNullElse(keyInString, currentGuess);
         }
         if (isLikelyValuePositionOutsideString(text, cursor)) {
             return false;

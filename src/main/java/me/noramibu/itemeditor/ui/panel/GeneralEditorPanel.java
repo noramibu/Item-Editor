@@ -95,16 +95,23 @@ public final class GeneralEditorPanel implements EditorPanel {
             UiFactory.appendFillChild(root, this.buildDurabilitySection(state, supportsDurability, supportsRepairCost, compactLayout));
         }
 
+        UiFactory.appendFillChild(root, this.buildVisualOverridesSection(state));
+        UiFactory.appendFillChild(root, this.buildItemModelSection(state, compactLayout));
         if (supportsCanBreak || supportsCanPlaceOn) {
             UiFactory.appendFillChild(root, this.buildAdventureSection(state, supportsCanBreak, supportsCanPlaceOn, compactLayout));
         }
-        UiFactory.appendFillChild(root, this.buildVisualOverridesSection(state));
-        UiFactory.appendFillChild(root, this.buildItemModelSection(state, compactLayout));
         return root;
     }
 
     private FlowLayout buildIdentitySection(ItemEditorState state, boolean compactLayout) {
-        FlowLayout identity = UiFactory.section(ItemEditorText.tr("general.identity.title"), Component.empty());
+        FlowLayout identity = this.collapsibleSection(
+                ItemEditorText.tr("general.identity.title"),
+                state.uiGeneralIdentityCollapsed,
+                value -> state.uiGeneralIdentityCollapsed = value
+        );
+        if (state.uiGeneralIdentityCollapsed) {
+            return identity;
+        }
 
         StyledTextFieldSection.BoundEditor nameSection = StyledTextFieldSection.create(
                 this.screen,
@@ -219,6 +226,19 @@ public final class GeneralEditorPanel implements EditorPanel {
         return field;
     }
 
+    private FlowLayout collapsibleSection(Component title, boolean collapsed, Consumer<Boolean> collapsedSetter) {
+        FlowLayout section = UiFactory.card();
+        FlowLayout header = UiFactory.row();
+        header.child(UiFactory.title(title).horizontalSizing(Sizing.expand(100)));
+        ButtonComponent toggle = UiFactory.button(LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.COMPACT,  button ->
+                PanelBindings.mutateRefresh(this.screen, () -> collapsedSetter.accept(!collapsed))
+        );
+        toggle.horizontalSizing(Sizing.fixed(Math.max(ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH, UiFactory.scaledPixels(ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH))));
+        header.child(toggle);
+        section.child(header);
+        return section;
+    }
+
     private int defaultMaxStackSize() {
         ItemStack original = this.screen.session().originalStack();
         ItemStack base = new ItemStack(original.getItem());
@@ -226,7 +246,14 @@ public final class GeneralEditorPanel implements EditorPanel {
     }
 
     private FlowLayout buildDurabilitySection(ItemEditorState state, boolean supportsDurability, boolean supportsRepairCost, boolean compactLayout) {
-        FlowLayout durability = UiFactory.section(ItemEditorText.tr("general.durability.title"), Component.empty());
+        FlowLayout durability = this.collapsibleSection(
+                ItemEditorText.tr("general.durability.title"),
+                state.uiGeneralDurabilityCollapsed,
+                value -> state.uiGeneralDurabilityCollapsed = value
+        );
+        if (state.uiGeneralDurabilityCollapsed) {
+            return durability;
+        }
         int numericWidth = DURABILITY_NUMERIC_FIELD_WIDTH;
 
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
@@ -267,7 +294,14 @@ public final class GeneralEditorPanel implements EditorPanel {
     }
 
     private FlowLayout buildAdventureSection(ItemEditorState state, boolean supportsCanBreak, boolean supportsCanPlaceOn, boolean compactLayout) {
-        FlowLayout adventure = UiFactory.section(ItemEditorText.tr("general.adventure.title"), Component.empty());
+        FlowLayout adventure = this.collapsibleSection(
+                ItemEditorText.tr("general.adventure.title"),
+                state.uiGeneralAdventureCollapsed,
+                value -> state.uiGeneralAdventureCollapsed = value
+        );
+        if (state.uiGeneralAdventureCollapsed) {
+            return adventure;
+        }
         List<String> blockIds = BuiltInRegistries.BLOCK.keySet().stream().map(Identifier::toString).sorted().toList();
 
         if (supportsCanBreak) {
@@ -447,7 +481,14 @@ public final class GeneralEditorPanel implements EditorPanel {
     }
 
     private FlowLayout buildVisualOverridesSection(ItemEditorState state) {
-        FlowLayout visual = UiFactory.section(ItemEditorText.tr("general.visual_overrides.title"), Component.empty());
+        FlowLayout visual = this.collapsibleSection(
+                ItemEditorText.tr("general.visual_overrides.title"),
+                state.uiGeneralVisualOverridesCollapsed,
+                value -> state.uiGeneralVisualOverridesCollapsed = value
+        );
+        if (state.uiGeneralVisualOverridesCollapsed) {
+            return visual;
+        }
         visual.child(this.responsiveCheckboxLine(
                 ItemEditorText.tr("general.glint_override.enable"),
                 state.glintOverrideEnabled,
@@ -462,7 +503,14 @@ public final class GeneralEditorPanel implements EditorPanel {
     }
 
     private FlowLayout buildItemModelSection(ItemEditorState state, boolean compactLayout) {
-        FlowLayout itemModel = UiFactory.section(ItemEditorText.tr("general.item_model.title"), Component.empty());
+        FlowLayout itemModel = this.collapsibleSection(
+                ItemEditorText.tr("general.item_model.title"),
+                state.uiGeneralItemModelCollapsed,
+                value -> state.uiGeneralItemModelCollapsed = value
+        );
+        if (state.uiGeneralItemModelCollapsed) {
+            return itemModel;
+        }
         itemModel.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         int contentWidth = this.availableContentWidth();
         int pickItemModelWidth = Math.max(

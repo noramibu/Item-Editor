@@ -17,6 +17,7 @@ public final class ItemApplyService {
         }
 
         int selectedSlot = minecraft.player.getInventory().getSelectedSlot();
+        ItemStack previous = minecraft.player.getInventory().getItem(selectedSlot).copy();
         ItemStack copy = stack.copy();
 
         var singleplayerServer = minecraft.getSingleplayerServer();
@@ -39,11 +40,11 @@ public final class ItemApplyService {
             return ApplyResult.success(ItemEditorText.str("apply.singleplayer_success"));
         }
 
-        if (minecraft.player.hasInfiniteMaterials() && minecraft.gameMode != null) {
-            minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
-            minecraft.gameMode.handleCreativeModeItemAdd(copy, 36 + selectedSlot);
+        minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
+        if (ClientInventorySyncService.syncSlot(minecraft, selectedSlot, copy)) {
             return ApplyResult.success(ItemEditorText.str("apply.creative_success"));
         }
+        minecraft.player.getInventory().setItem(selectedSlot, previous);
 
         return ApplyResult.failure(ItemEditorText.str("apply.multiplayer_preview_only"));
     }

@@ -81,6 +81,21 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
         storage.horizontalSizing(Sizing.fill(100));
         card.child(storage);
 
+        var otherMods = UiFactory.button(
+                ItemEditorText.tr("storage.import_other_mods"),
+                UiFactory.ButtonTextPreset.LARGE,
+                button -> this.minecraft.setScreen(new OtherModsImportScreen(
+                        this.minecraft,
+                        1,
+                        "",
+                        StorageSortMode.REGULAR,
+                        StorageScreenMode.MANAGE,
+                        this
+                ))
+        );
+        otherMods.horizontalSizing(Sizing.fill(100));
+        card.child(otherMods);
+
         this.statusLabel = UiFactory.message(Component.literal(" "), 0xA9B5C0).maxWidth(UiFactory.scaledPixels(230));
         card.child(this.statusLabel);
 
@@ -150,7 +165,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
         String message = ItemEditorText.str("import.file_picker_failed", failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
         this.setStatus(Component.literal(message), 0xFF8A8A);
         if (this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(Component.literal(message).withStyle(ChatFormatting.RED), false);
+            this.minecraft.player.displayClientMessage(Component.literal("[Item Editor] " + message).withStyle(ChatFormatting.RED), false);
         }
     }
 

@@ -150,10 +150,6 @@ public final class ItemEditorCapabilities {
         return detectSpecialDataFocus(stack) != SpecialDataFocus.GENERAL;
     }
 
-    public static boolean supportsComponents(ItemStack stack, RegistryAccess registryAccess) {
-        return true;
-    }
-
     public static boolean supportsAnyComponent(ItemStack stack, RegistryAccess registryAccess, String... componentIds) {
         if (componentIds == null) {
             return false;
@@ -206,13 +202,6 @@ public final class ItemEditorCapabilities {
                 || block instanceof ShulkerBoxBlock
                 || block instanceof HopperBlock
                 || block instanceof DispenserBlock;
-    }
-
-    private static boolean hasBlockStateProperties(ItemStack stack) {
-        if (!(stack.getItem() instanceof BlockItem blockItem)) {
-            return false;
-        }
-        return !blockItem.getBlock().defaultBlockState().getProperties().isEmpty();
     }
 
     private static boolean hasSignBlockEntityData(ItemStack stack) {

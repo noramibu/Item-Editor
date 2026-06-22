@@ -1,7 +1,9 @@
 package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
+import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
@@ -28,8 +30,10 @@ public final class FlagsEditorPanel implements EditorPanel {
     private static final int OPTION_COLUMN_RESERVE = 20;
     private static final int INLINE_CHECKBOX_SIZE_BASE = 18;
     private static final int INLINE_CHECKBOX_SIZE_MIN = 14;
-    private static final String HIDE_ALL_LISTED_TEXT = "Hide all listed";
-    private static final String SHOW_ALL_LISTED_TEXT = "Show all listed";
+    private static final int BOTTOM_PADDING_BASE = 12;
+    private static final String SELECT_ALL_TEXT = "Select All";
+    private static final String DESELECT_ALL_TEXT = "De-select All";
+    private static final String REVERT_ALL_TEXT = "Revert All";
 
     private static final List<FlagOption> OPTIONS = allVanillaOptions();
 
@@ -45,6 +49,7 @@ public final class FlagsEditorPanel implements EditorPanel {
         int contentWidth = Math.max(1, this.screen.editorContentWidthHint());
         boolean compactLayout = this.useCompactLayout(contentWidth);
         FlowLayout root = UiFactory.column();
+        root.padding(Insets.bottom(UiFactory.scaledPixels(BOTTOM_PADDING_BASE)));
 
         FlowLayout global = UiFactory.section(ItemEditorText.tr("flags.tooltip.title"), Component.empty());
         global.child(UiFactory.checkbox(
@@ -55,26 +60,41 @@ public final class FlagsEditorPanel implements EditorPanel {
         UiFactory.appendFillChild(root, global);
 
         FlowLayout common = UiFactory.section(ItemEditorText.tr("flags.hidden.title"), Component.empty());
-        FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
-        UIComponent hideAllButton = UiFactory.button(Component.literal(HIDE_ALL_LISTED_TEXT), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                PanelBindings.mutateRefresh(this.screen, () -> {
+        ButtonComponent selectAllButton = UiFactory.actionToneButton(
+                Component.literal(SELECT_ALL_TEXT),
+                UiFactory.ButtonTextPreset.STANDARD,
+                UiFactory.ActionTone.POSITIVE,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> {
                     for (FlagOption option : OPTIONS) {
                         state.hiddenTooltipComponents.add(option.id());
                     }
                 })
         );
-        UIComponent showAllButton = UiFactory.button(Component.literal(SHOW_ALL_LISTED_TEXT), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                PanelBindings.mutateRefresh(this.screen, () -> {
+        ButtonComponent deselectAllButton = UiFactory.actionToneButton(
+                Component.literal(DESELECT_ALL_TEXT),
+                UiFactory.ButtonTextPreset.STANDARD,
+                UiFactory.ActionTone.NEGATIVE,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> {
                     for (FlagOption option : OPTIONS) {
                         state.hiddenTooltipComponents.remove(option.id());
                     }
                 })
         );
-        hideAllButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
-        showAllButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
-        actions.child(hideAllButton);
-        actions.child(showAllButton);
-        common.child(actions);
+        ButtonComponent revertAllButton = UiFactory.actionToneButton(
+                Component.literal(REVERT_ALL_TEXT),
+                UiFactory.ButtonTextPreset.STANDARD,
+                UiFactory.ActionTone.PICKER,
+                button -> PanelBindings.mutateRefresh(this.screen, () -> {
+                    for (FlagOption option : OPTIONS) {
+                        if (state.hiddenTooltipComponents.contains(option.id())) {
+                            state.hiddenTooltipComponents.remove(option.id());
+                        } else {
+                            state.hiddenTooltipComponents.add(option.id());
+                        }
+                    }
+                })
+        );
+        common.child(UiFactory.actionButtonRow(selectAllButton, deselectAllButton, revertAllButton));
 
         if (compactLayout) {
             FlowLayout optionsColumn = UiFactory.column();

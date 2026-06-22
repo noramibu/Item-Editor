@@ -10,6 +10,7 @@ public final class SavedIndexFileModel {
     public int schemaVersion = StorageConstants.SAVED_INDEX_SCHEMA_VERSION;
     public int pageSize = StorageConstants.PAGE_SIZE;
     public int chunkSize = StorageConstants.CHUNK_SIZE;
+    public List<SavedPageEntry> pages = new ArrayList<>();
     public List<SavedIndexItemEntry> items = new ArrayList<>();
 }
 

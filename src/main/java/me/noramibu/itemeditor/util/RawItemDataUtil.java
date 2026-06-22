@@ -7,7 +7,6 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonSyntaxException;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import me.noramibu.itemeditor.editor.ValidationMessage;
@@ -244,13 +243,6 @@ public final class RawItemDataUtil {
             }
             Tag converted = JsonOps.INSTANCE.convertTo(NbtOps.INSTANCE, json);
             return parseItemTag(unwrapItemChild(converted), registryAccess);
-        } catch (JsonSyntaxException exception) {
-            return new ParseResult(
-                    null,
-                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage(),
-                    -1,
-                    -1
-            );
         } catch (RuntimeException exception) {
             return new ParseResult(
                     null,

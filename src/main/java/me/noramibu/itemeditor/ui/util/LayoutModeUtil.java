@@ -6,8 +6,8 @@ import net.minecraft.network.chat.Component;
 public final class LayoutModeUtil {
 
     public static final double DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
-    public static final String SYMBOL_SECTION_COLLAPSED = "[+]";
-    public static final String SYMBOL_SECTION_EXPANDED = "[-]";
+    public static final String SYMBOL_SECTION_COLLAPSED = "+";
+    public static final String SYMBOL_SECTION_EXPANDED = "-";
 
     private LayoutModeUtil() {
     }

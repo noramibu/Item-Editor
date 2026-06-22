@@ -67,6 +67,11 @@ public final class ItemEditorState {
     public boolean uiPreviewRailCollapsed;
     public boolean uiPreviewTooltipCollapsed;
     public boolean uiPreviewValidationCollapsed;
+    public boolean uiGeneralIdentityCollapsed;
+    public boolean uiGeneralDurabilityCollapsed;
+    public boolean uiGeneralVisualOverridesCollapsed;
+    public boolean uiGeneralItemModelCollapsed;
+    public boolean uiGeneralAdventureCollapsed = true;
     public final List<RawEditorHistoryEntry> uiRawEditorUndoHistory = new ArrayList<>();
     public final List<RawEditorHistoryEntry> uiRawEditorRedoHistory = new ArrayList<>();
     public final BookData book = new BookData();

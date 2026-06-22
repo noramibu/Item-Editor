@@ -10,6 +10,7 @@ public final class StoragePaths {
     private final Path dataDirectory;
     private final Path savedDirectory;
     private final Path savedDataDirectory;
+    private final Path storageBackupsDirectory;
 
     public StoragePaths(Minecraft minecraft) {
         Path gameDir = minecraft.gameDirectory.toPath();
@@ -17,6 +18,7 @@ public final class StoragePaths {
         this.dataDirectory = this.root.resolve("data");
         this.savedDirectory = this.root.resolve("saved");
         this.savedDataDirectory = this.savedDirectory.resolve("data");
+        this.storageBackupsDirectory = this.root.resolve("backups").resolve("storage");
     }
 
     public Path root() {
@@ -33,6 +35,10 @@ public final class StoragePaths {
 
     public Path savedDataDirectory() {
         return this.savedDataDirectory;
+    }
+
+    public Path storageBackupsDirectory() {
+        return this.storageBackupsDirectory;
     }
 
     public Path colorsFile() {

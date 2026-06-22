@@ -78,7 +78,7 @@ public final class PostApplyVerificationService {
         RegistryAccess registryAccess = client.level != null ? client.level.registryAccess() : RegistryAccess.EMPTY;
         ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(pending.expectedStack, current, registryAccess);
         if (diff.error() != null) {
-            LOGGER.warn("Post-apply verification failed to compute diff for slot {}: {}", pending.slot, diff.error());
+            LOGGER.warn("[Item Editor] Post-apply verification failed to compute diff for slot {}: {}", pending.slot, diff.error());
             return new VerificationResult(false, ItemEditorText.str("apply.verify.error"), List.of());
         }
 
@@ -100,13 +100,13 @@ public final class PostApplyVerificationService {
 
     private static void logDetailedDiff(PendingVerification pending, ItemComponentDiffUtil.Result diff) {
         LOGGER.warn(
-                "Post-apply verification mismatch: slot={}, differences={}",
+                "[Item Editor] Post-apply verification mismatch: slot={}, differences={}",
                 pending.slot,
                 diff.entries().size()
         );
         for (ItemComponentDiffUtil.Entry entry : diff.entries()) {
             LOGGER.warn(
-                    " - key='{}', type={}, expectedLength={}, serverLength={}\n   expected:\n{}\n   server:\n{}",
+                    "[Item Editor] - key='{}', type={}, expectedLength={}, serverLength={}\n   expected:\n{}\n   server:\n{}",
                     entry.key(),
                     entry.type(),
                     safeLength(entry.originalValue()),

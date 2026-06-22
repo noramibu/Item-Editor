@@ -29,27 +29,27 @@ public final class ComponentsEditorPanel implements EditorPanel {
         FlowLayout root = UiFactory.column();
         List<ComponentSection> sections = List.of(
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksNaming(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildComponentTweakNamingSection(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsFoodConsumable(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildFoodConsumable(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBehavior(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildComponentTweakBehaviorSection(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksRegistry(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildComponentTweakRegistrySection(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsEquipmentCombat(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildEquipmentCombat(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsComponentTweaksBlock(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildComponentTweakBlockSection(this.context)
                 ),
                 new ComponentSection(
@@ -73,7 +73,7 @@ public final class ComponentsEditorPanel implements EditorPanel {
                         () -> AdvancedItemSpecialDataSection.buildContainerMetadata(this.context)
                 ),
                 new ComponentSection(
-                        () -> AdvancedItemSpecialDataSection.supportsCustomData(stack, registryAccess),
+                        () -> true,
                         () -> AdvancedItemSpecialDataSection.buildCustomData(this.context)
                 )
         );

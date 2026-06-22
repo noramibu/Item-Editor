@@ -63,6 +63,19 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
         storageButton.horizontalSizing(Sizing.fill(100));
         card.child(storageButton);
 
+        var storagePagesButton = UiFactory.button(ItemEditorText.tr("storage.pages.title"), UiFactory.ButtonTextPreset.LARGE, button ->
+                this.minecraft.setScreen(new StoragePagesScreen(
+                        this.minecraft,
+                        1,
+                        "",
+                        StorageSortMode.REGULAR,
+                        StorageScreenMode.MANAGE,
+                        new ItemEntryScreen(this.minecraft)
+                ))
+        );
+        storagePagesButton.horizontalSizing(Sizing.fill(100));
+        card.child(storagePagesButton);
+
         var importButton = UiFactory.button(ItemEditorText.tr("entry.import"), UiFactory.ButtonTextPreset.LARGE, button -> {
             if (!this.canCreateItems()) {
                 this.showCreativeRequired();

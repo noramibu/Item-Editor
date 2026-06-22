@@ -470,7 +470,7 @@ final class ItemEditorDialogController {
         if (minecraft.player == null) {
             return;
         }
-        minecraft.player.displayClientMessage(Component.literal(message).withStyle(color), false);
+        minecraft.player.displayClientMessage(Component.literal(prefixedMessage(message)).withStyle(color), false);
     }
 
     private void sendOverlayMessage(Minecraft minecraft, String message, ChatFormatting color) {
@@ -549,12 +549,16 @@ final class ItemEditorDialogController {
                 return;
             }
             minecraft.player.displayClientMessage(
-                    Component.literal(verification.message()).withStyle(ChatFormatting.YELLOW),
+                    Component.literal(prefixedMessage(verification.message())).withStyle(ChatFormatting.YELLOW),
                     false
             );
         });
 
         this.closeWithoutPrompt();
+    }
+
+    private static String prefixedMessage(String message) {
+        return message == null || message.startsWith("[Item Editor] ") ? message : "[Item Editor] " + message;
     }
 
     private void performStorageSave(ItemEditorSessionOrigin.Storage origin, ItemStack preview, boolean placeAfterSave) {

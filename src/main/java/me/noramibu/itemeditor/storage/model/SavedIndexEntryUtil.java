@@ -10,16 +10,20 @@ public final class SavedIndexEntryUtil {
     public static SavedIndexItemEntry copy(SavedIndexItemEntry source) {
         SavedIndexItemEntry copy = new SavedIndexItemEntry();
         copy.id = source.id;
+        copy.pageId = source.pageId;
         copy.chunkId = source.chunkId;
         copy.slotInChunk = source.slotInChunk;
         copy.page = source.page;
         copy.slotInPage = source.slotInPage;
         copy.savedAt = source.savedAt;
         copy.updatedAt = source.updatedAt;
+        copy.minecraftVersion = source.minecraftVersion;
+        copy.dataVersion = source.dataVersion;
         copy.itemRegistryKey = source.itemRegistryKey;
         copy.stackCount = Math.max(1, source.stackCount);
         copy.nbtBytes = Math.max(0, source.nbtBytes);
         copy.customNamePlain = source.customNamePlain;
+        copy.pageNamePlain = source.pageNamePlain;
         copy.lorePlain = source.lorePlain == null ? new ArrayList<>() : new ArrayList<>(source.lorePlain);
         return copy;
     }
