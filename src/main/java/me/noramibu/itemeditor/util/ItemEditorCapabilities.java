@@ -63,6 +63,14 @@ public final class ItemEditorCapabilities {
                 || (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER);
     }
 
+    public static boolean supportsCommandBlockData(ItemStack stack) {
+        TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        return stack.is(Items.COMMAND_BLOCK)
+                || stack.is(Items.REPEATING_COMMAND_BLOCK)
+                || stack.is(Items.CHAIN_COMMAND_BLOCK)
+                || (blockEntityData != null && blockEntityData.type() == BlockEntityType.COMMAND_BLOCK);
+    }
+
     public static boolean supportsArmorStandData(ItemStack stack) {
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
         return stack.is(Items.ARMOR_STAND)
@@ -131,6 +139,7 @@ public final class ItemEditorCapabilities {
             case CONTAINER -> ItemEditorText.tr("category.special_data.container.title");
             case BUNDLE -> ItemEditorText.tr("category.special_data.bundle.title");
             case SIGN -> ItemEditorText.tr("category.special_data.sign.title");
+            case COMMAND_BLOCK -> ItemEditorText.tr("category.special_data.command_block.title");
             case SPAWNER -> ItemEditorText.tr("category.special_data.spawner.title");
             case ARMOR_STAND -> ItemEditorText.tr("category.special_data.armor_stand.title");
             case ITEM_FRAME -> ItemEditorText.tr("category.special_data.item_frame.title");
@@ -219,6 +228,9 @@ public final class ItemEditorCapabilities {
         }
         if (supportsSignData(stack)) {
             return SpecialDataFocus.SIGN;
+        }
+        if (supportsCommandBlockData(stack)) {
+            return SpecialDataFocus.COMMAND_BLOCK;
         }
         if (supportsSpawnerData(stack)) {
             return SpecialDataFocus.SPAWNER;
@@ -327,6 +339,7 @@ public final class ItemEditorCapabilities {
         CONTAINER,
         BUNDLE,
         SIGN,
+        COMMAND_BLOCK,
         SPAWNER,
         ARMOR_STAND,
         ITEM_FRAME,

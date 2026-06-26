@@ -1849,7 +1849,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
         int contentWidth = Math.max(1, this.contentWidth());
         int thumb = (int) Math.round((trackWidth * (double) contentWidth) / (double) (contentWidth + maxHorizontal));
-        return Math.max(HORIZONTAL_SCROLLBAR_MIN_THUMB, Math.min(trackWidth, thumb));
+        return Math.clamp(thumb, HORIZONTAL_SCROLLBAR_MIN_THUMB, Math.max(HORIZONTAL_SCROLLBAR_MIN_THUMB, trackWidth));
     }
 
     private int drawSyntaxToken(

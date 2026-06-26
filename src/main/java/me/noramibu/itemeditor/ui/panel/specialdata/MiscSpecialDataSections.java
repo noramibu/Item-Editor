@@ -31,13 +31,11 @@ import java.util.function.Supplier;
 
 public final class MiscSpecialDataSections {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 26;
-    private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 34;
+    private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 36;
+    private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 42;
     private static final int PROFILE_NAME_FIELD_WIDTH = 220;
     private static final int PROFILE_UUID_FIELD_WIDTH = 260;
     private static final int MAP_POST_PICKER_WIDTH = 190;
-    private static final int JUKEBOX_AUTOCOMPLETE_HINT_WIDTH = 280;
-    private static final int JUKEBOX_AUTOCOMPLETE_FIT_WIDTH = 280;
     private static final int PROFILE_ACTION_BUTTON_WIDTH_MIN = 86;
     private static final int PROFILE_ACTION_BUTTON_WIDTH_MAX = 168;
     private static final int PROFILE_ACTION_BUTTON_ROW_RESERVE = 12;
@@ -47,8 +45,6 @@ public final class MiscSpecialDataSections {
 
     private MiscSpecialDataSections() {
     }
-
-    private static final int JUKEBOX_AUTOCOMPLETE_LIMIT = 8;
 
     public static boolean supportsDyed(ItemStack stack) {
         return stack.has(DataComponents.DYED_COLOR)
@@ -239,10 +235,9 @@ public final class MiscSpecialDataSections {
                 special.jukeboxSongId,
                 context.bindText(value -> special.jukeboxSongId = IdFieldNormalizer.normalize(value))
         ));
-        input.child(buildJukeboxAutocomplete(context, special, songIds));
 
         input.child(UiFactory.button(
-                PickerFieldFactory.selectedOrFallback(special.jukeboxSongId, ItemEditorText.tr("special.misc.jukebox.select_song")), UiFactory.ButtonTextPreset.STANDARD, 
+                ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,
                 button -> context.openSearchablePicker(
                         ItemEditorText.str("special.misc.jukebox.id"),
                         "",
@@ -262,8 +257,7 @@ public final class MiscSpecialDataSections {
 
     public static FlowLayout buildMap(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
-        FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.map.title"), Component.empty());
-        section.child(collapsibleCard(
+        return collapsibleCard(
                 context,
                 ItemEditorText.tr("special.misc.map.title"),
                 special.uiMapBasicCollapsed,
@@ -295,9 +289,7 @@ public final class MiscSpecialDataSections {
                     content.child(row);
                     return content;
                 }
-        ));
-
-        return section;
+        );
     }
 
     private static FlowLayout collapsibleCard(
@@ -329,14 +321,12 @@ public final class MiscSpecialDataSections {
     }
 
     private static int resolveProfileActionButtonWidth(int contentWidth) {
-        int preferred = Math.max(
+        int preferred = Math.clamp(
+                (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2,
                 PROFILE_ACTION_BUTTON_WIDTH_MIN,
-                Math.min(
-                        PROFILE_ACTION_BUTTON_WIDTH_MAX,
-                        (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2
-                )
+                PROFILE_ACTION_BUTTON_WIDTH_MAX
         );
-        return Math.max(1, Math.min(contentWidth, preferred));
+        return Math.clamp(preferred, 1, Math.max(1, contentWidth));
     }
 
     private static boolean isMusicDisc(ItemStack stack) {
@@ -366,34 +356,4 @@ public final class MiscSpecialDataSections {
         return ids;
     }
 
-    private static FlowLayout buildJukeboxAutocomplete(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special,
-            List<String> songIds
-    ) {
-        FlowLayout suggestions = UiFactory.column().gap(1);
-        String query = IdFieldNormalizer.normalize(special.jukeboxSongId);
-        if (query.isBlank()) {
-            return suggestions;
-        }
-
-        List<String> matches = songIds.stream()
-                .filter(id -> id.contains(query))
-                .limit(JUKEBOX_AUTOCOMPLETE_LIMIT)
-                .toList();
-        if (matches.isEmpty()) {
-            suggestions.child(UiFactory.muted(ItemEditorText.tr("special.misc.jukebox.autocomplete.none"), JUKEBOX_AUTOCOMPLETE_HINT_WIDTH));
-            return suggestions;
-        }
-
-        for (String match : matches) {
-            var suggestion = UiFactory.button(UiFactory.fitToWidth(Component.literal(match), JUKEBOX_AUTOCOMPLETE_FIT_WIDTH), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                    context.mutateRefresh(() -> special.jukeboxSongId = match)
-            );
-            suggestion.horizontalSizing(Sizing.fill(100));
-            suggestion.tooltip(List.of(Component.literal(match)));
-            suggestions.child(suggestion);
-        }
-        return suggestions;
-    }
 }

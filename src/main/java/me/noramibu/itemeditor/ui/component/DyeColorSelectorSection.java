@@ -1,6 +1,7 @@
 package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
+import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
@@ -14,12 +15,10 @@ import java.util.function.Consumer;
 public final class DyeColorSelectorSection {
 
     private static final List<DyeColor> DYE_COLORS = List.of(DyeColor.values());
-    private static final int COLORS_PER_ROW = 8;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int SELECTED_COLOR_HINT_WIDTH = 260;
-    private static final int CHIP_BUTTON_WIDTH_MIN = 22;
-    private static final int CHIP_BUTTON_WIDTH_MAX = 46;
+    private static final int COLORS_PER_ROW_MAX = 16;
+    private static final int COLORS_PER_ROW_MIN = 4;
+    private static final int CHIP_BUTTON_WIDTH_MIN = 20;
+    private static final int CHIP_BUTTON_WIDTH_MAX = 42;
     private static final int PALETTE_HORIZONTAL_BUDGET = 20;
 
     private DyeColorSelectorSection() {
@@ -63,12 +62,10 @@ public final class DyeColorSelectorSection {
             SpecialDataPanelContext context,
             Component label,
             Component helpText,
-            Component selectedFallbackText,
             String selectedColor,
             Consumer<DyeColor> onSelected
     ) {
         FlowLayout content = UiFactory.column().gap(2);
-        content.child(UiFactory.muted(buttonLabel(selectedColor, selectedFallbackText), SELECTED_COLOR_HINT_WIDTH));
         content.child(colorPalette(context, selectedColor, onSelected));
         return UiFactory.field(label, helpText, content);
     }
@@ -129,19 +126,19 @@ public final class DyeColorSelectorSection {
 
     private static FlowLayout colorPalette(SpecialDataPanelContext context, String selectedColor, Consumer<DyeColor> onSelected) {
         FlowLayout palette = UiFactory.column().gap(2);
-        boolean compactLayout = context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-        int chipButtonWidth = resolveChipButtonWidth(context);
+        int colorsPerRow = colorsPerRow(context);
+        int chipButtonWidth = resolveChipButtonWidth(context, colorsPerRow);
         DyeColor selected = parse(selectedColor);
-        for (int start = 0; start < DYE_COLORS.size(); start += COLORS_PER_ROW) {
-            FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-            int end = Math.min(start + COLORS_PER_ROW, DYE_COLORS.size());
+        for (int start = 0; start < DYE_COLORS.size(); start += colorsPerRow) {
+            FlowLayout row = UiFactory.row();
+            int end = Math.min(start + colorsPerRow, DYE_COLORS.size());
             for (int index = start; index < end; index++) {
                 DyeColor color = DYE_COLORS.get(index);
-                ButtonComponent chip = UiFactory.button(shortLabel(color), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                ButtonComponent chip = UIComponents.button(shortLabel(color), button ->
                         context.mutateRefresh(() -> onSelected.accept(color))
                 );
-                chip.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(chipButtonWidth));
+                UiFactory.applyButtonPreset(chip, UiFactory.ButtonPreset.COMPACT);
+                chip.horizontalSizing(Sizing.fixed(chipButtonWidth));
                 if (selected != null && selected == color) {
                     chip.active(false);
                 }
@@ -153,7 +150,15 @@ public final class DyeColorSelectorSection {
         return palette;
     }
 
-    private static int resolveChipButtonWidth(SpecialDataPanelContext context) {
+    private static int colorsPerRow(SpecialDataPanelContext context) {
+        int minWidth = Math.max(CHIP_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(CHIP_BUTTON_WIDTH_MIN));
+        int spacing = Math.max(1, UiFactory.scaleProfile().spacing());
+        int available = Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(PALETTE_HORIZONTAL_BUDGET));
+        int columns = Math.max(1, (available + spacing) / (minWidth + spacing));
+        return Math.clamp(columns, COLORS_PER_ROW_MIN, COLORS_PER_ROW_MAX);
+    }
+
+    private static int resolveChipButtonWidth(SpecialDataPanelContext context, int colorsPerRow) {
         int minWidth = Math.max(CHIP_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(CHIP_BUTTON_WIDTH_MIN));
         int maxWidth = Math.max(minWidth, UiFactory.scaledPixels(CHIP_BUTTON_WIDTH_MAX));
         int spacing = Math.max(1, UiFactory.scaleProfile().spacing());
@@ -161,10 +166,10 @@ public final class DyeColorSelectorSection {
                 minWidth,
                 context.panelWidthHint()
                         - UiFactory.scaledPixels(PALETTE_HORIZONTAL_BUDGET)
-                        - ((COLORS_PER_ROW - 1) * spacing)
+                        - ((colorsPerRow - 1) * spacing)
         );
-        int perChip = Math.max(minWidth, available / COLORS_PER_ROW);
-        return Math.max(minWidth, Math.min(maxWidth, perChip));
+        int perChip = Math.max(minWidth, available / colorsPerRow);
+        return Math.clamp(perChip, minWidth, maxWidth);
     }
 
     public static String toTitleCase(String raw) {

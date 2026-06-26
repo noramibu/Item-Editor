@@ -2,9 +2,11 @@ package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -43,6 +45,10 @@ public final class ItemPreviewService {
                 || hasText(state.special.potionCustomName)
                 || state.special.potionEffects.stream().anyMatch(effect -> hasText(effect.effectId)))) {
             preview = preview.transmuteCopy(Items.TIPPED_ARROW, preview.getCount());
+        }
+        Item commandBlockItem = commandBlockItem(state.special.commandBlockItemId);
+        if (commandBlockItem != null && ItemEditorCapabilities.supportsCommandBlockData(originalStack)) {
+            preview = preview.transmuteCopy(commandBlockItem, preview.getCount());
         }
         List<ValidationMessage> messages = new ArrayList<>();
 
@@ -95,6 +101,15 @@ public final class ItemPreviewService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static Item commandBlockItem(String itemId) {
+        return switch (itemId == null ? "" : itemId) {
+            case "minecraft:command_block" -> Items.COMMAND_BLOCK;
+            case "minecraft:chain_command_block" -> Items.CHAIN_COMMAND_BLOCK;
+            case "minecraft:repeating_command_block" -> Items.REPEATING_COMMAND_BLOCK;
+            default -> null;
+        };
     }
 
     public record PreviewBuildResult(ItemStack previewStack, List<ValidationMessage> messages) {

@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
@@ -86,6 +87,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private final StorageSortMode returnSortMode;
     private final StorageScreenMode returnMode;
     private final Screen returnScreen;
+    private final Consumer<ItemStack> pickedStackConsumer;
     private LabelComponent statusLabel;
     private LabelComponent summaryLabel;
     private FlowLayout pageList;
@@ -101,6 +103,18 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             StorageScreenMode returnMode,
             Screen returnScreen
     ) {
+        this(minecraft, returnPage, returnQuery, returnSortMode, returnMode, returnScreen, null);
+    }
+
+    public StoragePagesScreen(
+            Minecraft minecraft,
+            int returnPage,
+            String returnQuery,
+            StorageSortMode returnSortMode,
+            StorageScreenMode returnMode,
+            Screen returnScreen,
+            Consumer<ItemStack> pickedStackConsumer
+    ) {
         super(ItemEditorText.tr("storage.pages.title"));
         this.minecraft = minecraft;
         this.returnPage = Math.max(1, returnPage);
@@ -109,6 +123,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         this.returnSortMode = returnSortMode == null ? StorageSortMode.REGULAR : returnSortMode;
         this.returnMode = returnMode == null ? StorageScreenMode.MANAGE : returnMode;
         this.returnScreen = returnScreen;
+        this.pickedStackConsumer = pickedStackConsumer;
     }
 
     @Override
@@ -846,7 +861,14 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void openStoragePage(int page) {
-        this.minecraft.setScreen(new StorageScreen(page, this.returnQuery, this.returnSortMode, this.returnMode, this.returnScreen));
+        this.minecraft.setScreen(new StorageScreen(
+                page,
+                this.returnQuery,
+                this.returnSortMode,
+                this.returnMode,
+                this.returnScreen,
+                this.pickedStackConsumer
+        ));
     }
 
     private void openOtherModsImport() {

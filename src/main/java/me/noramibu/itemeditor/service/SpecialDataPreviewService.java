@@ -13,6 +13,7 @@ public final class SpecialDataPreviewService {
             new ContainerSpecialDataApplier(),
             new BundleSpecialDataApplier(),
             new SignSpecialDataApplier(),
+            new CommandBlockSpecialDataApplier(),
             new SpawnerSpecialDataApplier(),
             new ArmorStandSpecialDataApplier(),
             new ItemFrameSpecialDataApplier(),

@@ -1660,7 +1660,7 @@ public final class SavedItemStorageService {
     }
 
     private static int clampInt(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private <T> T withIndexRead(Supplier<T> action) {

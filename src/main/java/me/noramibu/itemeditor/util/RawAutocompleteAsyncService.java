@@ -64,7 +64,7 @@ public final class RawAutocompleteAsyncService {
     }
 
     private boolean editTouchesQuotedObjectKey(String text, int start, int end) {
-        int probe = Math.max(0, Math.min(start, text.length()));
+        int probe = Math.clamp(start, 0, text.length());
         if (!this.insideStringAt(text, probe) && probe > 0 && this.insideStringAt(text, probe - 1)) {
             probe--;
         }

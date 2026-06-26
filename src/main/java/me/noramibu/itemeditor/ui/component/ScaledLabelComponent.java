@@ -15,7 +15,7 @@ public final class ScaledLabelComponent extends LabelComponent {
     }
 
     public ScaledLabelComponent textScale(float scale) {
-        this.textScale = Math.max(0.5F, Math.min(2.0F, scale));
+        this.textScale = Math.clamp(scale, 0.5F, 2.0F);
         this.notifyParentIfMounted();
         return this;
     }

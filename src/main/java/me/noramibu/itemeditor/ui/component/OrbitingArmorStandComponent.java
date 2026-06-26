@@ -29,6 +29,6 @@ public final class OrbitingArmorStandComponent extends EntityComponent<@NotNull 
     }
 
     private static float clampPitch(float value) {
-        return Math.max(-80.0F, Math.min(80.0F, value));
+        return Math.clamp(value, -80.0F, 80.0F);
     }
 }

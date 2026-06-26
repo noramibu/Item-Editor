@@ -197,6 +197,6 @@ public final class ColorTokenListEditor {
 
     private static Sizing resolveBoundedButtonSizing(int baseWidth) {
         int scaled = UiFactory.scaledPixels(baseWidth);
-        return Sizing.fixed(Math.max(MIN_BUTTON_WIDTH, Math.min(MAX_BUTTON_WIDTH, scaled)));
+        return Sizing.fixed(Math.clamp(scaled, MIN_BUTTON_WIDTH, MAX_BUTTON_WIDTH));
     }
 }

@@ -170,7 +170,7 @@ final class ItemEditorLayoutBuilder {
         boolean fullViewportShell = guiScale >= GUI_SCALE_HIGH_THRESHOLD;
         this.shellWidth = fullViewportShell
                 ? Math.max(1, this.screen.screenWidth())
-                : Math.max(1, Math.min(SHELL_MAX_WIDTH, this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2)));
+                : Math.clamp(this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2), 1, SHELL_MAX_WIDTH);
         int outerPadding = fullViewportShell ? 0 : UiFactory.scaledPixels(SHELL_SIDE_PADDING / 2);
         int verticalPadding = fullViewportShell ? 0 : this.scaledMin(2, 2);
         int bottomSafetyExtra = guiScale >= GUI_SCALE_VERY_HIGH_THRESHOLD
@@ -197,9 +197,11 @@ final class ItemEditorLayoutBuilder {
                 UiFactory.scaleProfile().controlHeight() + (UiFactory.scaleProfile().padding() * 2) + UiFactory.scaledPixels(8)
         );
         int minimumBodyHeight = 1;
-        int topBarHeightCandidate = Math.min(
-                estimatedTopBarHeight,
-                Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT), (int) Math.round(availableShellHeight * TOP_BAR_HEIGHT_MAX_RATIO))
+        int hardMinimumTopBarHeight = UiFactory.scaledPixels(PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT);
+        int topBarHeightCandidate = Math.clamp(
+                (int) Math.round(availableShellHeight * TOP_BAR_HEIGHT_MAX_RATIO),
+                Math.min(hardMinimumTopBarHeight, estimatedTopBarHeight),
+                estimatedTopBarHeight
         );
         int topBarMaxHeight = Math.max(1, availableShellHeight - shellGap - minimumBodyHeight);
         int topBarHeight = Math.min(topBarHeightCandidate, topBarMaxHeight);
@@ -563,8 +565,8 @@ final class ItemEditorLayoutBuilder {
             return this.fitPreviewHeights(
                     tooltipHeight,
                     validationHeight,
-                    Math.min(tooltipCollapsedHeight, Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), available / 2)),
-                    Math.min(validationCollapsedHeight, Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), available / 2)),
+                    Math.clamp(available / 2, Math.min(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), tooltipCollapsedHeight), tooltipCollapsedHeight),
+                    Math.clamp(available / 2, Math.min(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), validationCollapsedHeight), validationCollapsedHeight),
                     available,
                     verticalGap
             );
@@ -576,7 +578,7 @@ final class ItemEditorLayoutBuilder {
             return this.fitPreviewHeights(
                     tooltipHeight,
                     validationHeight,
-                    Math.min(tooltipCollapsedHeight, Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), available - verticalGap)),
+                    Math.clamp(available - verticalGap, Math.min(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), tooltipCollapsedHeight), tooltipCollapsedHeight),
                     validationMinExpanded,
                     available,
                     verticalGap
@@ -590,7 +592,7 @@ final class ItemEditorLayoutBuilder {
                     tooltipHeight,
                     validationHeight,
                     tooltipMinExpanded,
-                    Math.min(validationCollapsedHeight, Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), available - verticalGap)),
+                    Math.clamp(available - verticalGap, Math.min(UiFactory.scaledPixels(PREVIEW_SECTION_COLLAPSED_FIT_MIN_HEIGHT), validationCollapsedHeight), validationCollapsedHeight),
                     available,
                     verticalGap
             );
@@ -625,11 +627,11 @@ final class ItemEditorLayoutBuilder {
         int combined = tooltip + validation + verticalGap;
         if (combined > available) {
             int overflow = combined - available;
-            int reduceTooltip = Math.min(overflow, Math.max(0, tooltip - tooltipMin));
+            int reduceTooltip = Math.clamp(tooltip - tooltipMin, 0, overflow);
             tooltip -= reduceTooltip;
             overflow -= reduceTooltip;
             if (overflow > 0) {
-                int reduceValidation = Math.min(overflow, Math.max(0, validation - validationMin));
+                int reduceValidation = Math.clamp(validation - validationMin, 0, overflow);
                 validation -= reduceValidation;
             }
         }
@@ -637,11 +639,11 @@ final class ItemEditorLayoutBuilder {
         if (combined > available) {
             int hardMin = Math.max(UiFactory.scaledPixels(PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT), UiFactory.scaleProfile().controlHeight());
             int overflow = combined - available;
-            int reduceTooltip = Math.min(overflow, Math.max(0, tooltip - hardMin));
+            int reduceTooltip = Math.clamp(tooltip - hardMin, 0, overflow);
             tooltip -= reduceTooltip;
             overflow -= reduceTooltip;
             if (overflow > 0) {
-                int reduceValidation = Math.min(overflow, Math.max(0, validation - hardMin));
+                int reduceValidation = Math.clamp(validation - hardMin, 0, overflow);
                 validation -= reduceValidation;
                 overflow -= reduceValidation;
             }
@@ -652,9 +654,9 @@ final class ItemEditorLayoutBuilder {
         combined = tooltip + validation + verticalGap;
         if (combined > available) {
             int contentBudget = Math.max(1, available - verticalGap);
-            tooltip = Math.max(1, Math.min(tooltip, contentBudget));
+            tooltip = Math.clamp(contentBudget, 1, Math.max(1, tooltip));
             int remaining = Math.max(1, contentBudget - tooltip);
-            validation = Math.max(1, Math.min(validation, remaining));
+            validation = Math.clamp(remaining, 1, Math.max(1, validation));
             combined = tooltip + validation + verticalGap;
             if (combined > available) {
                 validation = 1;
@@ -725,11 +727,11 @@ final class ItemEditorLayoutBuilder {
         if (!previewCollapsed && editorWidth < editorMin) {
             int deficit = editorMin - editorWidth;
             int previewHardFloor = Math.max(WIDE_PREVIEW_HARD_FLOOR_MIN, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_HARD_FLOOR_RATIO, WIDE_PREVIEW_HARD_FLOOR_FALLBACK) * previewScale));
-            int previewCut = Math.min(deficit, Math.max(0, previewWidth - previewHardFloor));
+            int previewCut = Math.clamp(previewWidth - previewHardFloor, 0, deficit);
             previewWidth -= previewCut;
             deficit -= previewCut;
 
-            int tabsCut = Math.min(deficit, Math.max(0, tabsWidth - tabsMin));
+            int tabsCut = Math.clamp(tabsWidth - tabsMin, 0, deficit);
             tabsWidth -= tabsCut;
         }
 
@@ -741,12 +743,12 @@ final class ItemEditorLayoutBuilder {
             int tabsHardMin = categoriesCollapsed ? 0 : this.widthByRatio(available, WIDE_TABS_HARD_MIN_RATIO, WIDE_TABS_HARD_MIN_FALLBACK);
 
             if (!previewCollapsed) {
-                int previewCut = Math.min(deficit, Math.max(0, previewWidth - previewHardMin));
+                int previewCut = Math.clamp(previewWidth - previewHardMin, 0, deficit);
                 previewWidth -= previewCut;
                 deficit -= previewCut;
             }
 
-            int tabsCut = Math.min(deficit, Math.max(0, tabsWidth - tabsHardMin));
+            int tabsCut = Math.clamp(tabsWidth - tabsHardMin, 0, deficit);
             tabsWidth -= tabsCut;
         }
 
@@ -755,15 +757,15 @@ final class ItemEditorLayoutBuilder {
             previewWidth = Math.max(0, previewWidth + editorWidthBeforeCap);
         }
 
-        tabsWidth = Math.min(available, Math.max(0, tabsWidth));
-        previewWidth = Math.min(Math.max(0, available - tabsWidth), Math.max(0, previewWidth));
+        tabsWidth = Math.clamp(tabsWidth, 0, available);
+        previewWidth = Math.clamp(Math.max(0, previewWidth), 0, Math.max(0, available - tabsWidth));
         editorWidth = Math.max(0, available - tabsWidth - previewWidth);
 
         return new WideLayoutMetrics(tabsWidth, editorWidth, previewWidth);
     }
 
     private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private int widthByRatio(int sourceWidth, double ratio, int fallbackMin) {
@@ -812,7 +814,7 @@ final class ItemEditorLayoutBuilder {
         int titleWidth;
         int applyModeWidth;
         if (titleFullWidth + applyModeFullWidth <= textBudget) {
-            titleWidth = Math.max(minSegmentWidth, Math.min(textBudget - minSegmentWidth, titleFullWidth));
+            titleWidth = Math.clamp(titleFullWidth, minSegmentWidth, Math.max(minSegmentWidth, textBudget - minSegmentWidth));
             applyModeWidth = Math.max(minSegmentWidth, textBudget - titleWidth);
         } else {
             int titleTargetWidth = compact
@@ -836,10 +838,10 @@ final class ItemEditorLayoutBuilder {
     private ButtonComponent topActionButton(Component fullText, int maxTextWidth, int buttonWidth, int buttonHeight, Consumer<ButtonComponent> onPress) {
         Component fitted = UiFactory.fitToWidth(fullText, maxTextWidth);
         ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
-        int minWidth = Math.min(buttonWidth, Math.max(TOP_ACTION_BUTTON_ABSOLUTE_MIN_WIDTH, UiFactory.scaledPixels(TOP_ACTION_BUTTON_ADAPTIVE_MIN_FALLBACK)));
+        int minWidth = Math.clamp(UiFactory.scaledPixels(TOP_ACTION_BUTTON_ADAPTIVE_MIN_FALLBACK), Math.min(TOP_ACTION_BUTTON_ABSOLUTE_MIN_WIDTH, buttonWidth), buttonWidth);
         int labelWidth = Math.max(1, this.componentTextWidth(fitted));
         int horizontalPadding = Math.max(TOP_ACTION_BUTTON_LABEL_PADDING_MIN, UiFactory.scaledPixels(TOP_ACTION_BUTTON_LABEL_PADDING_BASE));
-        int adaptiveWidth = Math.max(minWidth, Math.min(buttonWidth, labelWidth + horizontalPadding));
+        int adaptiveWidth = Math.clamp(labelWidth + horizontalPadding, minWidth, buttonWidth);
         button.horizontalSizing(Sizing.fixed(adaptiveWidth));
         button.verticalSizing(Sizing.fixed(buttonHeight));
         button.tooltip(List.of(fullText));
@@ -865,7 +867,7 @@ final class ItemEditorLayoutBuilder {
                 : UiFactory.scaledPixels(TOP_ACTION_BUTTON_TEXT_PADDING_REGULAR);
         int minAdaptive = compact ? TOP_ACTION_BUTTON_MIN_WIDTH - 4 : TOP_ACTION_BUTTON_MIN_WIDTH;
         int maxAdaptive = compact ? TOP_ACTION_BUTTON_MAX_WIDTH_COMPACT : TOP_ACTION_BUTTON_MAX_WIDTH;
-        int upperBound = Math.max(minAdaptive, Math.min(maxAdaptive, targetButtonWidth));
+        int upperBound = Math.clamp(targetButtonWidth, minAdaptive, maxAdaptive);
         for (int index = 0; index < labels.length; index++) {
             int adaptive = this.componentTextWidth(labels[index]) + basePadding;
             desiredWidths[index] = this.clamp(adaptive, minAdaptive, upperBound);

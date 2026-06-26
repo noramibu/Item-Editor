@@ -64,9 +64,10 @@ public final class FireworkSpecialDataSection {
                 context.mutateRefresh(() -> special.rocketExplosions.add(new ItemEditorState.FireworkExplosionDraft()))
         );
         int contentWidth = context.panelWidthHint();
-        int addExplosionWidth = Math.max(
+        int addExplosionWidth = Math.clamp(
+                contentWidth / 2,
                 ADD_EXPLOSION_BUTTON_MIN,
-                Math.min(ADD_EXPLOSION_BUTTON_MAX, contentWidth / 2)
+                ADD_EXPLOSION_BUTTON_MAX
         );
         addExplosionWidth = Math.min(contentWidth, addExplosionWidth);
         applyResponsiveButtonSizing(
@@ -165,13 +166,11 @@ public final class FireworkSpecialDataSection {
         boolean compactLayout = isCompactLayout(context);
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         int contentWidth = context.panelWidthHint();
-        int quickPickButtonWidth = Math.max(
+        int quickPickButtonWidth = Math.clamp(
+                (contentWidth - UiFactory.scaledPixels(SHAPE_QUICK_PICK_ROW_RESERVE) - UiFactory.scaledPixels(SHAPE_LABEL_WIDTH))
+                        / SHAPE_QUICK_PICK_BUTTON_COUNT,
                 SHAPE_QUICK_PICK_BUTTON_MIN,
-                Math.min(
-                        SHAPE_QUICK_PICK_BUTTON_MAX,
-                        (contentWidth - UiFactory.scaledPixels(SHAPE_QUICK_PICK_ROW_RESERVE) - UiFactory.scaledPixels(SHAPE_LABEL_WIDTH))
-                                / SHAPE_QUICK_PICK_BUTTON_COUNT
-                )
+                SHAPE_QUICK_PICK_BUTTON_MAX
         );
         quickPickButtonWidth = Math.min(contentWidth, quickPickButtonWidth);
         row.child(UiFactory.muted(ItemEditorText.tr("special.firework.material.shape"), SHAPE_LABEL_WIDTH));

@@ -91,7 +91,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
             return ItemStack.EMPTY;
         }
 
-        int maxStackSize = Math.max(1, new ItemStack(item).getMaxStackSize());
+        int maxStackSize = this.maxStackSize(draft, item);
         Integer count = ValidationUtil.parseInt(draft.count, ItemEditorText.str("special.container.count"), 1, maxStackSize, messages);
         if (count == null) {
             return ItemStack.EMPTY;
@@ -103,8 +103,16 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
         return new ItemStack(item, count);
     }
 
+    private int maxStackSize(ItemEditorState.ContainerEntryDraft draft, Item item) {
+        if (draft.templateStack != null && !draft.templateStack.isEmpty() && draft.templateStack.is(item)) {
+            return Math.max(1, draft.templateStack.getMaxStackSize());
+        }
+        return Math.max(1, new ItemStack(item).getMaxStackSize());
+    }
+
     private boolean sameBundleEntries(List<ItemEditorState.ContainerEntryDraft> current, List<ItemEditorState.ContainerEntryDraft> baseline) {
         return this.sameList(current, baseline, (left, right) -> Objects.equals(left.itemId, right.itemId)
-                && Objects.equals(left.count, right.count));
+                && Objects.equals(left.count, right.count)
+                && ItemStack.matches(left.templateStack, right.templateStack));
     }
 }

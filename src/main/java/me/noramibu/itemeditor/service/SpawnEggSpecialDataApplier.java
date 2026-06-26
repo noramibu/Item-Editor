@@ -1,19 +1,21 @@
 package me.noramibu.itemeditor.service;
 
+import com.mojang.serialization.DataResult;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.component.TypedEntityData;
 
@@ -38,25 +40,16 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             return;
         }
 
-        CompoundTag entityTag = new CompoundTag();
-        TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        if (originalData != null) {
-            entityTag = originalData.copyTagWithoutId();
-        }
-
-        setBooleanKey(entityTag, "NoAI", context.special().spawnEggNoAi);
-        setBooleanKey(entityTag, "Silent", context.special().spawnEggSilent);
-        setBooleanKey(entityTag, "NoGravity", context.special().spawnEggNoGravity);
-        setBooleanKey(entityTag, "Glowing", context.special().spawnEggGlowing);
-        setBooleanKey(entityTag, "Invulnerable", context.special().spawnEggInvulnerable);
-        setBooleanKey(entityTag, "PersistenceRequired", context.special().spawnEggPersistenceRequired);
-        setBooleanKey(entityTag, "CustomNameVisible", context.special().spawnEggCustomNameVisible);
-        this.applyCustomName(entityTag, context.special().spawnEggCustomName);
-        if (!this.applyHealth(entityTag, context)) {
+        CompoundTag entityTag = EntitySpawnDataUtil.applyEntity(
+                context.special().spawnEggEntity,
+                context,
+                ItemEditorText.str("special.spawn_egg.entity")
+        );
+        if (entityTag == null) {
             return;
         }
 
-        EntityType<?> entityType = this.resolveEntityType(context, context.special().spawnEggEntityId);
+        EntityType<?> entityType = this.resolveEntityType(context, context.special().spawnEggEntity.entityId);
         if (entityType == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
                     "preview.validation.component_failed",
@@ -69,6 +62,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             return;
         }
 
+        entityTag.remove("id");
         context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(entityType, entityTag));
     }
 
@@ -99,46 +93,6 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         }
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
         return originalData == null ? null : originalData.type();
-    }
-
-    private void applyCustomName(CompoundTag entityTag, String rawName) {
-        if (rawName == null || rawName.isBlank()) {
-            entityTag.remove("CustomName");
-            return;
-        }
-        entityTag.store(
-                "CustomName",
-                ComponentSerialization.CODEC,
-                this.withPlainBaseline(TextComponentUtil.parseMarkup(rawName))
-        );
-    }
-
-    private boolean applyHealth(CompoundTag entityTag, SpecialDataApplyContext context) {
-        String raw = context.special().spawnEggHealth == null ? "" : context.special().spawnEggHealth.trim();
-        if (raw.isBlank()) {
-            entityTag.remove("Health");
-            return true;
-        }
-
-        Float health = ValidationUtil.parseFloat(
-                raw,
-                ItemEditorText.str("special.spawn_egg.health"),
-                context.messages()
-        );
-        if (health == null) {
-            return false;
-        }
-        if (health < 0.0F) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.range",
-                    ItemEditorText.str("special.spawn_egg.health"),
-                    0,
-                    2048
-            )));
-            return false;
-        }
-        entityTag.putFloat("Health", health);
-        return true;
     }
 
     private boolean applyVillagerDataAndTrades(
@@ -384,6 +338,11 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             int tradeIndex,
             SpecialDataApplyContext context
     ) {
+        CompoundTag templateTag = this.templateTradeStackTag(stackDraft, context);
+        if (templateTag != null) {
+            return templateTag;
+        }
+
         String itemId = normalizeId(stackDraft.itemId);
         if (itemId.isBlank()) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
@@ -431,6 +390,38 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         return stackTag;
     }
 
+    private CompoundTag templateTradeStackTag(
+            ItemEditorState.TradeStackDraft stackDraft,
+            SpecialDataApplyContext context
+    ) {
+        ItemStack template = stackDraft.templateStack;
+        if (template == null || template.isEmpty()) {
+            return null;
+        }
+
+        int count = parseIntOrDefault(stackDraft.count, template.getCount());
+        ItemStack copy = template.copyWithCount(Math.clamp(count, 1, 127));
+        DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(
+                context.registryAccess().createSerializationContext(NbtOps.INSTANCE),
+                copy
+        );
+        return encoded.result()
+                .filter(CompoundTag.class::isInstance)
+                .map(CompoundTag.class::cast)
+                .orElse(null);
+    }
+
+    private static int parseIntOrDefault(String raw, int fallback) {
+        if (raw == null || raw.trim().isBlank()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
     private static Integer parseOptionalIntOrDefault(
             String raw,
             String field,
@@ -466,16 +457,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private boolean sameSpawnEggData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {
-        return Objects.equals(current.spawnEggEntityId, baseline.spawnEggEntityId)
-                && current.spawnEggNoAi == baseline.spawnEggNoAi
-                && current.spawnEggSilent == baseline.spawnEggSilent
-                && current.spawnEggNoGravity == baseline.spawnEggNoGravity
-                && current.spawnEggGlowing == baseline.spawnEggGlowing
-                && current.spawnEggInvulnerable == baseline.spawnEggInvulnerable
-                && current.spawnEggPersistenceRequired == baseline.spawnEggPersistenceRequired
-                && current.spawnEggCustomNameVisible == baseline.spawnEggCustomNameVisible
-                && Objects.equals(current.spawnEggCustomName, baseline.spawnEggCustomName)
-                && Objects.equals(current.spawnEggHealth, baseline.spawnEggHealth)
+        return EntitySpawnDataUtil.sameEntity(current.spawnEggEntity, baseline.spawnEggEntity)
                 && Objects.equals(current.spawnEggVillagerTypeId, baseline.spawnEggVillagerTypeId)
                 && Objects.equals(current.spawnEggVillagerProfessionId, baseline.spawnEggVillagerProfessionId)
                 && Objects.equals(current.spawnEggVillagerLevel, baseline.spawnEggVillagerLevel)
@@ -483,16 +465,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private boolean isSpawnEggDataDefault(ItemEditorState.SpecialData special) {
-        return special.spawnEggEntityId.isBlank()
-                && !special.spawnEggNoAi
-                && !special.spawnEggSilent
-                && !special.spawnEggNoGravity
-                && !special.spawnEggGlowing
-                && !special.spawnEggInvulnerable
-                && !special.spawnEggPersistenceRequired
-                && !special.spawnEggCustomNameVisible
-                && special.spawnEggCustomName.isBlank()
-                && special.spawnEggHealth.isBlank()
+        return EntitySpawnDataUtil.isEntityDefault(special.spawnEggEntity)
                 && special.spawnEggVillagerTypeId.isBlank()
                 && special.spawnEggVillagerProfessionId.isBlank()
                 && special.spawnEggVillagerLevel.isBlank()
@@ -527,14 +500,13 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
     private static boolean tradeStackDiffers(ItemEditorState.TradeStackDraft left, ItemEditorState.TradeStackDraft right) {
         return !Objects.equals(left.itemId, right.itemId)
-                || !Objects.equals(left.count, right.count);
+                || !Objects.equals(left.count, right.count)
+                || !ItemStack.isSameItemSameComponents(left.templateStack, right.templateStack)
+                || safeCount(left.templateStack) != safeCount(right.templateStack);
     }
 
-    private static void setBooleanKey(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
+    private static int safeCount(ItemStack stack) {
+        return stack == null || stack.isEmpty() ? 0 : stack.getCount();
     }
+
 }

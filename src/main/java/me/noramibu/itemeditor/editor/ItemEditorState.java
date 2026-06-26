@@ -3,6 +3,8 @@ package me.noramibu.itemeditor.editor;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.world.entity.EquipmentSlotGroup;
@@ -11,6 +13,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
 import java.util.ArrayList;
@@ -139,7 +142,7 @@ public final class ItemEditorState {
         public String level = "1";
         public boolean uiCollapsed = true;
 
-        public static EnchantmentDraft fromEntry(Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment, int level) {
+        public static EnchantmentDraft fromEntry(Holder<Enchantment> enchantment, int level) {
             EnchantmentDraft draft = new EnchantmentDraft();
             draft.enchantmentId = enchantment.unwrapKey().map(key -> key.identifier().toString()).orElse("");
             draft.level = Integer.toString(level);
@@ -176,9 +179,9 @@ public final class ItemEditorState {
     public static final class SpecialData {
         public final List<ContainerEntryDraft> containerEntries = new ArrayList<>();
         public int selectedContainerSlot = -1;
-        public int draggingContainerSlot = -1;
         public final List<ContainerEntryDraft> bundleEntries = new ArrayList<>();
         public int selectedBundleIndex = -1;
+        public int bundleEditorPage;
         public String lockItemId = "";
         public String lockPredicateSnbt = "";
         public String containerLootTableId = "";
@@ -216,6 +219,8 @@ public final class ItemEditorState {
         public boolean uiComponentTweaksRegistryCollapsed = true;
         public boolean uiComponentTweaksBlockCollapsed = true;
         public boolean uiComponentTweaksBehaviorCollapsed = true;
+        public boolean uiDamageResistantTypesCollapsed;
+        public boolean uiBlocksAttacksBypassedByTypesCollapsed;
         public final List<ChargedProjectileDraft> chargedProjectiles = new ArrayList<>();
         public String itemName = "";
         public String maxStackSize = "";
@@ -225,6 +230,7 @@ public final class ItemEditorState {
         public String tooltipStyleId = "";
         public String damageTypeId = "";
         public String damageResistantTypeIds = "";
+        public boolean allowDamageResistantTagExpansion;
         public String noteBlockSoundId = "";
         public String breakSoundId = "";
         public String paintingVariantId = "";
@@ -232,6 +238,7 @@ public final class ItemEditorState {
         public String blocksAttacksBlockDelaySeconds = "";
         public String blocksAttacksDisableCooldownScale = "";
         public String blocksAttacksBypassedByTypeIds = "";
+        public boolean allowBlocksAttacksBypassedByTagExpansion;
         public String blocksAttacksItemDamageThreshold = "";
         public String blocksAttacksItemDamageBase = "";
         public String blocksAttacksItemDamageFactor = "";
@@ -258,7 +265,6 @@ public final class ItemEditorState {
 
         public final SignData sign = new SignData();
 
-        public String spawnerEntityId = "";
         public String spawnerDelay = "";
         public String spawnerMinSpawnDelay = "";
         public String spawnerMaxSpawnDelay = "";
@@ -266,8 +272,23 @@ public final class ItemEditorState {
         public String spawnerMaxNearbyEntities = "";
         public String spawnerRequiredPlayerRange = "";
         public String spawnerSpawnRange = "";
+        public final SpawnerSpawnDataDraft spawnerSpawnData = new SpawnerSpawnDataDraft();
         public boolean spawnerUsePotentials;
         public final List<SpawnerPotentialDraft> spawnerPotentials = new ArrayList<>();
+
+        public String commandBlockItemId = "";
+        public String commandBlockCommand = "";
+        public String commandBlockCustomName = "";
+        public boolean commandBlockAuto;
+        public boolean commandBlockPowered;
+        public boolean commandBlockConditionMet;
+        public boolean commandBlockTrackOutput = true;
+        public boolean commandBlockUpdateLastExecution = true;
+        public String commandBlockSuccessCount = "";
+        public String commandBlockLastExecution = "";
+        public String commandBlockLastOutput = "";
+        public CompoundTag commandBlockOriginalTag = new CompoundTag();
+        public boolean uiCommandBlockRuntimeCollapsed = true;
 
         public boolean armorStandSmall;
         public boolean armorStandShowArms;
@@ -293,16 +314,7 @@ public final class ItemEditorState {
         public String itemFrameDropChance = "";
         public String itemFrameFacing = "";
 
-        public String spawnEggEntityId = "";
-        public boolean spawnEggNoAi;
-        public boolean spawnEggSilent;
-        public boolean spawnEggNoGravity;
-        public boolean spawnEggGlowing;
-        public boolean spawnEggInvulnerable;
-        public boolean spawnEggPersistenceRequired;
-        public boolean spawnEggCustomNameVisible;
-        public String spawnEggCustomName = "";
-        public String spawnEggHealth = "";
+        public final EntitySpawnDraft spawnEggEntity = new EntitySpawnDraft();
         public String spawnEggVillagerTypeId = "";
         public String spawnEggVillagerProfessionId = "";
         public String spawnEggVillagerLevel = "";
@@ -405,7 +417,6 @@ public final class ItemEditorState {
 
         public String bannerBaseColor = "";
         public final List<BannerLayerDraft> bannerLayers = new ArrayList<>();
-        public int draggingBannerLayer = -1;
 
         public String fireworkFlightDuration = "1";
         public final List<FireworkExplosionDraft> rocketExplosions = new ArrayList<>();
@@ -413,8 +424,32 @@ public final class ItemEditorState {
     }
 
     public static final class SpawnerPotentialDraft {
-        public String entityId = "";
+        public final SpawnerSpawnDataDraft spawnData = new SpawnerSpawnDataDraft();
         public String weight = "1";
+        public boolean uiCollapsed = true;
+    }
+
+    public static final class SpawnerSpawnDataDraft {
+        public final EntitySpawnDraft entity = new EntitySpawnDraft();
+        public String blockLightMin = "";
+        public String blockLightMax = "";
+        public String skyLightMin = "";
+        public String skyLightMax = "";
+        public CompoundTag originalDataTag = new CompoundTag();
+    }
+
+    public static final class EntitySpawnDraft {
+        public String entityId = "";
+        public boolean noAi;
+        public boolean silent;
+        public boolean noGravity;
+        public boolean glowing;
+        public boolean invulnerable;
+        public boolean persistenceRequired;
+        public boolean customNameVisible;
+        public String customName = "";
+        public String health = "";
+        public CompoundTag originalEntityTag = new CompoundTag();
     }
 
     public static final class ArmorStandPoseDraft {
@@ -447,7 +482,7 @@ public final class ItemEditorState {
         public static ContainerEntryDraft fromSlot(int slotIndex, ItemStack stack) {
             ContainerEntryDraft draft = new ContainerEntryDraft();
             draft.slot = Integer.toString(slotIndex);
-            draft.itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            draft.itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
             draft.count = Integer.toString(stack.getCount());
             draft.templateStack = stack.copy();
             return draft;
@@ -508,6 +543,7 @@ public final class ItemEditorState {
     public static final class BannerLayerDraft {
         public String patternId = "";
         public String color = "";
+        public boolean uiCollapsed;
 
         public static BannerLayerDraft fromLayer(BannerPatternLayers.Layer layer) {
             BannerLayerDraft draft = new BannerLayerDraft();
@@ -531,7 +567,7 @@ public final class ItemEditorState {
 
         public static ChargedProjectileDraft fromStack(ItemStack stack) {
             ChargedProjectileDraft draft = new ChargedProjectileDraft();
-            draft.itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            draft.itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
             draft.count = Integer.toString(stack.getCount());
             return draft;
         }
@@ -554,6 +590,7 @@ public final class ItemEditorState {
     public static final class TradeStackDraft {
         public String itemId = "";
         public String count = "1";
+        public ItemStack templateStack = ItemStack.EMPTY;
     }
 
     public static final class ConsumableEffectDraft {
@@ -570,6 +607,7 @@ public final class ItemEditorState {
 
     public static final class BlocksAttacksDamageReductionDraft {
         public String typeIds = "";
+        public boolean allowTagExpansion;
         public String horizontalBlockingAngle = "90";
         public String base = "0";
         public String factor = "1";

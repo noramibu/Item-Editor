@@ -80,9 +80,9 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final int RESPONSIVE_SIGNATURE_SEED = 17;
     private static final int RESPONSIVE_SIGNATURE_MULTIPLIER = 31;
     private static final int EDITOR_CONTENT_HINT_CHROME_BASE = 4;
-    private static final int RESPONSIVE_RELAYOUT_DELAY_TICKS = 0;
     private static final int RESPONSIVE_RELAYOUT_PASS_BUDGET = 4;
     private static final int RESPONSIVE_RELAYOUT_MAX_WAIT_TICKS = 40;
+    private static final int PANEL_SCROLL_RESTORE_RETRY_TICKS = 8;
     private static final int COLOR_MODE_CREATIVE = 0x7ED67A;
     private static final int COLOR_MODE_SINGLEPLAYER = 0xF2C26B;
     private static final int COLOR_MODE_MULTIPLAYER = 0xFF8A8A;
@@ -116,13 +116,14 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private boolean categoriesRailCollapsed;
     private boolean previewRailCollapsed;
     private boolean pendingInitialResponsiveRefresh;
-    private int initialRelayoutDelayTicks;
     private int initialRelayoutPassBudget;
     private int initialRelayoutWaitTicks;
     private boolean initialRelayoutRanAtLeastOnce;
     private Double pendingPanelScrollOffset;
     private Double pendingTooltipScrollOffset;
     private Double pendingMessageScrollOffset;
+    private Double deferredPanelScrollOffset;
+    private int deferredPanelScrollRestoreTicks;
 
     public ItemEditorScreen(ItemEditorSession session) {
         super(ItemEditorText.tr("screen.title"));
@@ -262,7 +263,29 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     public <T> void openDropdown(ButtonComponent anchor, List<T> values, Function<T, String> labelMapper, Consumer<T> selectionConsumer) {
-        if (this.rootLayout == null || values.isEmpty()) {
+        this.openDropdown(anchor, values, labelMapper, selectionConsumer, null, null);
+    }
+
+    public <T> void openClearableDropdown(
+            ButtonComponent anchor,
+            Component clearLabel,
+            Runnable clearAction,
+            List<T> values,
+            Function<T, String> labelMapper,
+            Consumer<T> selectionConsumer
+    ) {
+        this.openDropdown(anchor, values, labelMapper, selectionConsumer, clearLabel, clearAction);
+    }
+
+    private <T> void openDropdown(
+            ButtonComponent anchor,
+            List<T> values,
+            Function<T, String> labelMapper,
+            Consumer<T> selectionConsumer,
+            Component clearLabel,
+            Runnable clearAction
+    ) {
+        if (this.rootLayout == null || (values.isEmpty() && clearAction == null)) {
             return;
         }
 
@@ -270,7 +293,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         int viewportHeight = this.screenHeight();
         int hardCapTextWidth = Math.max(0, DROPDOWN_MAX_ESTIMATED_WIDTH - UiFactory.scaledPixels(DROPDOWN_WIDTH_CHROME_RESERVE));
         int sampledLimit = Math.min(values.size(), DROPDOWN_WIDTH_SAMPLE_LIMIT);
-        int maxTextWidth = 0;
+        int maxTextWidth = clearLabel == null ? 0 : this.minecraft.font.width(clearLabel);
         for (int index = 0; index < sampledLimit; index++) {
             maxTextWidth = Math.max(maxTextWidth, this.dropdownLabelWidth(values.get(index), labelMapper));
             if (maxTextWidth >= hardCapTextWidth) {
@@ -321,14 +344,24 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                 StackLayout::child,
                 menuX,
                 menuY,
-                menu -> values.forEach(value ->
-                        menu.button(Component.literal(this.dropdownLabelText(value, labelMapper)), dropdownComponent -> {
-                            selectionConsumer.accept(value);
+                menu -> {
+                    if (clearAction != null) {
+                        menu.button(clearLabel == null ? ItemEditorText.tr("common.none") : clearLabel, dropdownComponent -> {
+                            clearAction.run();
                             dropdownComponent.remove();
                             this.refreshCurrentPanel();
                             this.refreshPreview();
-                        })
-                )
+                        });
+                    }
+                    values.forEach(value ->
+                            menu.button(Component.literal(this.dropdownLabelText(value, labelMapper)), dropdownComponent -> {
+                                selectionConsumer.accept(value);
+                                dropdownComponent.remove();
+                                this.refreshCurrentPanel();
+                                this.refreshPreview();
+                            })
+                    );
+                }
         );
         dropdown.closeWhenNotHovered(false);
     }
@@ -404,9 +437,15 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public void resize(int width, int height) {
-        this.pendingPanelScrollOffset = ScrollStateUtil.offset(this.panelScroll);
-        this.pendingTooltipScrollOffset = ScrollStateUtil.offset(this.tooltipScroll);
-        this.pendingMessageScrollOffset = ScrollStateUtil.offset(this.messageScroll);
+        if (this.pendingPanelScrollOffset == null) {
+            this.pendingPanelScrollOffset = ScrollStateUtil.offset(this.panelScroll);
+        }
+        if (this.pendingTooltipScrollOffset == null) {
+            this.pendingTooltipScrollOffset = ScrollStateUtil.offset(this.tooltipScroll);
+        }
+        if (this.pendingMessageScrollOffset == null) {
+            this.pendingMessageScrollOffset = ScrollStateUtil.offset(this.messageScroll);
+        }
         this.clearDialog();
         if (this.uiAdapter != null) {
             this.uiAdapter.dispose();
@@ -463,6 +502,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.session.tick();
         this.dialogController.tick();
         this.runPendingInitialResponsiveRefresh();
+        this.runDeferredPanelScrollRestore();
     }
 
     void attachDialog(FlowLayout dialog) {
@@ -629,6 +669,12 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.minecraft.execute(() -> ScrollStateUtil.restore(this.panelScroll, scrollAmount));
     }
 
+    public void preservePanelScrollOnNextBuild(double scrollAmount) {
+        this.pendingPanelScrollOffset = scrollAmount;
+        this.deferredPanelScrollOffset = scrollAmount;
+        this.deferredPanelScrollRestoreTicks = PANEL_SCROLL_RESTORE_RETRY_TICKS;
+    }
+
     public double panelScrollOffset() {
         return ScrollStateUtil.offset(this.panelScroll);
     }
@@ -664,13 +710,13 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         int available = Math.max(1, shellWidth - (bodyGap * 2) - toggleWidth);
         int estimatedTabs = 0;
         if (!this.categoriesRailCollapsed) {
-            int preferredTabs = Math.max(ESTIMATED_TABS_MIN, Math.min(ESTIMATED_TABS_MAX, (int) Math.round(available * ESTIMATED_TABS_RATIO)));
+            int preferredTabs = Math.clamp((int) Math.round(available * ESTIMATED_TABS_RATIO), ESTIMATED_TABS_MIN, ESTIMATED_TABS_MAX);
             estimatedTabs = Math.min(available, preferredTabs);
         }
         int estimatedPreview = 0;
         if (!this.previewRailCollapsed) {
             int previewBudget = available - estimatedTabs;
-            int preferredPreview = Math.max(ESTIMATED_PREVIEW_MIN, Math.min(ESTIMATED_PREVIEW_MAX, (int) Math.round(available * ESTIMATED_PREVIEW_RATIO)));
+            int preferredPreview = Math.clamp((int) Math.round(available * ESTIMATED_PREVIEW_RATIO), ESTIMATED_PREVIEW_MIN, ESTIMATED_PREVIEW_MAX);
             estimatedPreview = Math.min(previewBudget, preferredPreview);
         }
         int unmeasuredReserve = Math.max(
@@ -703,7 +749,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     void requestResponsiveRelayout() {
         this.pendingInitialResponsiveRefresh = true;
-        this.initialRelayoutDelayTicks = RESPONSIVE_RELAYOUT_DELAY_TICKS;
         this.initialRelayoutPassBudget = RESPONSIVE_RELAYOUT_PASS_BUDGET;
         this.initialRelayoutWaitTicks = 0;
         this.initialRelayoutRanAtLeastOnce = false;
@@ -711,10 +756,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     private void runPendingInitialResponsiveRefresh() {
         if (!this.pendingInitialResponsiveRefresh) {
-            return;
-        }
-        if (this.initialRelayoutDelayTicks > 0) {
-            this.initialRelayoutDelayTicks--;
             return;
         }
         boolean widthsReady = this.categoryController.hasMeasuredResponsiveWidths();
@@ -741,6 +782,17 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.initialRelayoutPassBudget--;
         if (this.initialRelayoutPassBudget <= 0) {
             this.pendingInitialResponsiveRefresh = false;
+        }
+    }
+
+    private void runDeferredPanelScrollRestore() {
+        if (this.deferredPanelScrollOffset == null || this.deferredPanelScrollRestoreTicks <= 0) {
+            return;
+        }
+        ScrollStateUtil.restore(this.panelScroll, this.deferredPanelScrollOffset);
+        this.deferredPanelScrollRestoreTicks--;
+        if (this.deferredPanelScrollRestoreTicks <= 0) {
+            this.deferredPanelScrollOffset = null;
         }
     }
 

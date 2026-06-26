@@ -212,8 +212,8 @@ public final class GeneralEditorPanel implements EditorPanel {
         int dynamicCap = compactLayout
                 ? Math.max(1, contentWidth - UiFactory.scaledPixels(FIELD_LABEL_COMPACT_RESERVE))
                 : Math.max(1, contentWidth - UiFactory.scaledPixels(FIELD_LABEL_REGULAR_RESERVE));
-        int preferredLabelWidth = Math.max(FIELD_LABEL_WIDTH_MIN, Math.min(labelWidth, Math.max(FIELD_LABEL_DYNAMIC_MIN, dynamicCap)));
-        int effectiveLabelWidth = Math.max(1, Math.min(contentWidth, preferredLabelWidth));
+        int preferredLabelWidth = Math.clamp(Math.max(FIELD_LABEL_DYNAMIC_MIN, dynamicCap), FIELD_LABEL_WIDTH_MIN, Math.max(FIELD_LABEL_WIDTH_MIN, labelWidth));
+        int effectiveLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, contentWidth));
         Component fittedLabel = UiFactory.fitToWidth(label, effectiveLabelWidth);
         LabelComponent labelComponent = UiFactory.muted(fittedLabel, effectiveLabelWidth);
         labelComponent.horizontalSizing(Sizing.fill(100));
@@ -513,9 +513,10 @@ public final class GeneralEditorPanel implements EditorPanel {
         }
         itemModel.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         int contentWidth = this.availableContentWidth();
-        int pickItemModelWidth = Math.max(
+        int pickItemModelWidth = Math.clamp(
+                contentWidth / ITEM_MODEL_PICK_BUTTON_WIDTH_DIVISOR,
                 ITEM_MODEL_PICK_BUTTON_WIDTH_MIN,
-                Math.min(ITEM_MODEL_PICK_BUTTON_WIDTH_MAX, contentWidth / ITEM_MODEL_PICK_BUTTON_WIDTH_DIVISOR)
+                ITEM_MODEL_PICK_BUTTON_WIDTH_MAX
         );
         int idRowGap = Math.max(1, UiFactory.scaleProfile().tightSpacing());
         int minIdInputWidth = UiFactory.scaledPixels(ITEM_MODEL_ID_INPUT_MIN_WIDTH);
@@ -618,7 +619,7 @@ public final class GeneralEditorPanel implements EditorPanel {
 
         int contentWidth = this.availableContentWidth();
         int labelWidth = Math.max(RESPONSIVE_CHECKBOX_LABEL_MIN_WIDTH, contentWidth - UiFactory.scaledPixels(RESPONSIVE_CHECKBOX_LABEL_RESERVE));
-        labelWidth = Math.max(1, Math.min(contentWidth, labelWidth));
+        labelWidth = Math.clamp(labelWidth, 1, Math.max(1, contentWidth));
         Component fitted = UiFactory.fitToWidth(text, labelWidth);
         LabelComponent label = UiFactory.muted(fitted, labelWidth);
         if (!fitted.getString().equals(text.getString())) {

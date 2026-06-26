@@ -447,8 +447,8 @@ public final class RichTextDocument {
     }
 
     private IntRange clampRange(int start, int end) {
-        int clampedStart = Math.max(0, Math.min(start, this.length()));
-        int clampedEnd = Math.max(clampedStart, Math.min(end, this.length()));
+        int clampedStart = Math.clamp(start, 0, this.length());
+        int clampedEnd = Math.clamp(end, clampedStart, this.length());
         return new IntRange(clampedStart, clampedEnd);
     }
 

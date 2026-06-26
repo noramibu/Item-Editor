@@ -29,7 +29,7 @@ public final class ColorInterpolationUtil {
             return colors.getFirst() & 0xFFFFFF;
         }
 
-        float clamped = Math.max(0f, Math.min(1f, progress));
+        float clamped = Math.clamp(progress, 0f, 1f);
         float scaled = clamped * (colors.size() - 1);
         int startIndex = Math.min(colors.size() - 2, (int) Math.floor(scaled));
         int endIndex = startIndex + 1;

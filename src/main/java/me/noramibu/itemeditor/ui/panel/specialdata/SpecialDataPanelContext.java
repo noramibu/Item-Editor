@@ -73,6 +73,17 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         this.screen.openDropdown(anchor, values, labelMapper, selectionConsumer);
     }
 
+    public <T> void openClearableDropdown(
+            ButtonComponent anchor,
+            Component clearLabel,
+            Runnable clearAction,
+            List<T> values,
+            Function<T, String> labelMapper,
+            Consumer<T> selectionConsumer
+    ) {
+        this.screen.openClearableDropdown(anchor, clearLabel, clearAction, values, labelMapper, selectionConsumer);
+    }
+
     public void openSearchablePicker(
             String title,
             String body,
@@ -119,7 +130,7 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
 
         int selectedColor = this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD, 
+                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
                 button -> this.screen.openUnifiedColorPickerDialog(
                         pickerTitle,
                         UnifiedColorPickerDialog.Options.plainColor(this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor)),
@@ -130,11 +141,12 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         if (compactLayout) {
             pickButton.horizontalSizing(Sizing.fill(100));
         } else {
-            int buttonWidth = Math.max(
+            int buttonWidth = Math.clamp(
+                    this.panelWidthHint() / 3,
                     PICK_BUTTON_WIDTH_MIN,
-                    Math.min(PICK_BUTTON_WIDTH_MAX, this.panelWidthHint() / 3)
+                    PICK_BUTTON_WIDTH_MAX
             );
-            buttonWidth = Math.max(1, Math.min(this.panelWidthHint(), buttonWidth));
+            buttonWidth = Math.clamp(buttonWidth, 1, Math.max(1, this.panelWidthHint()));
             Component fullText = Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor);
             Component fitted = UiFactory.fitToWidth(
                     fullText,

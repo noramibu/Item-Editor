@@ -1,153 +1,216 @@
-﻿# Item Editor - Component & NBT
+﻿<p align="center">
+  <img src="https://raw.githubusercontent.com/noramibu/Item-Editor/main/src/main/resources/assets/itemeditor/icon.png" alt="Item Editor Logo" width="150">
+</p>
 
-A powerful client-side in-game item component editor and custom NBT modifier for Minecraft Fabric.
+<h1 align="center">Item Editor</h1>
 
-Item Editor opens a comprehensive GUI for the item currently held by the player, allowing you to safely modify item data on a draft before applying changes. Designed as a modern alternative to traditional raw NBT data editors, this mod natively utilizes Minecraft's modern data components system instead of relying solely on outdated raw-NBT workflows. It features dynamic custom UI editors for modifying item properties, metadata, and component tags for special item types, including books, banners, custom fireworks, containers, signs, potions, and more.
+<p align="center">
+  <strong>A powerful client-side in-game component and NBT editor for Minecraft: Java using the Fabric mod-loader.</strong>
+</p>
 
-## Links
+<div align="center">
 
-- [Modrinth](https://modrinth.com/project/item-editor)
-- [GitHub](https://github.com/noramibu/Item-Editor)
-- [Discord](https://discord.gg/FaxbR9eEFW)
+[![Modrinth Downloads](https://img.shields.io/modrinth/dt/FFDotM4D?style=for-the-badge&logo=Modrinth&label=Modrinth&color=1bd96a)](https://modrinth.com/project/item-editor)
+[![GitHub Source](https://img.shields.io/badge/Source-181717?style=for-the-badge&logo=GitHub&label=GitHub)](https://github.com/noramibu/Item-Editor)
+[![Discord Join](https://img.shields.io/badge/Join-5865F2?style=for-the-badge&logo=Discord&label=Discord)](https://discord.gg/FaxbR9eEFW)
+
+</div>
+
+---
+
+## Overview
+
+Item Editor opens a comprehensive GUI for the currently held item, allowing you to safely modify item data on a draft before applying changes. Designed as a modern alternative to traditional raw NBT data editors, this mod utilizes Minecraft's modern data component system instead of relying solely on outdated raw-NBT workflows.
+
+It features dynamic custom UI editors for modifying item properties, metadata, and components, including menus for special item types such as books, banners, custom fireworks, containers, signs, potions, and more.
+
+---
+
+## Key Features
+- **Draft-first Editing** - Safe modifications with live preview
+- **Modern Component System** - Native support for Minecraft 1.20.5+ data components
+- **Dynamic Editors** - Specialized UIs for books, banners, fireworks, containers, villager trades, command blocks and more
+- **Raw NBT Fallback** - Full text editor with syntax highlighting and validation
+- **Built-in Storage** - Save, search, and organize items, and import saved items from other mods
+- **Multiplayer Compatible** - Does not require a server-side plugin to function, only requires creative mode.
+
+---
 
 ## Installation
 
-1. Install Fabric Loader.
-2. Put these files into your `mods` folder:
-- `Item Editor` jar
-- Fabric API
-- owo-lib
-3. Start the game.
-4. Open the editor from Controls under `Item Editor` (default key: `I`).
+### Requirements
+- **Minecraft Fabric** (compatible version)
+- **Fabric API**
+- **owo-lib**
 
-## Supported Languages
+### Steps
+1. Install [Fabric Loader](https://fabricmc.net/use/)
+2. Download the following files:
+    - [Item Editor](https://modrinth.com/project/item-editor) (this mod)
+    - [Fabric API](https://modrinth.com/mod/fabric-api)
+    - [owo-lib](https://modrinth.com/mod/owo-lib)
+3. Place all `.jar` files into your `mods` folder
+4. Launch the game
+5. Open the editor via **Controls → Item Editor** (default key: `I`)
 
-- English (`en_us`)
-- Spanish (`es_es`)
-- Russian (`ru_ru`)
-- Simplified Chinese (`zh_cn`)
-- Traditional Chinese (`zh_tw`)
-- Hindi (`hi_in`)
+---
 
 ## Core Workflow
 
-- Draft-first editing (all edits are made on a temporary copy of the held item).
-- Live feedback (preview updates while editing, with validation shown inline).
-- Safe apply flow (`Save / Apply` shows a diff/verification flow).
-- Discard safety (close/reset asks for confirmation when needed).
+Item Editor uses a **draft-first editing** system to ensure safe, predictable modifications:
+
+| Feature | Description|
+|---------|------------|
+| **Draft Editing** | All edits are made on a temporary copy of the held item|
+| **Live Feedback** | Preview updates while editing, with validation shown inline|
+| **Safe Apply** | `Save / Apply` shows a diff/verification flow before committing|
+| **Discard Safety** | Close/Reset asks for confirmation when needed|
+
+---
 
 ## Editor Categories
 
-Current categories are:
-
-- General
-- Components (dynamic)
-- Display
-- Attributes
-- Enchantments
-- Flags
-- Book
-- Raw Editor
-- Special Data (dynamic)
-
 ### General
-
-- Styled custom name editing (format, presets, gradient, color picker).
-- Item core values (count, rarity, durability/damage, repair cost, unbreakable).
-- Adventure predicates (`can_break` / `can_place_on`) with searchable block picking and list controls.
-- Model/visual fields (glint override, item model id, custom model values).
+- **Custom Name Editing:** Styled formatting with presets, gradients, and color picker
+- **Core Values:** Count, Rarity, Durability/Damage, Repair Cost, Unbreakable
+- **Visual/Model Fields:** Glint override, Item Model, Custom Model values
+- **Adventure Predicates:** Can Break / Can Place On with searchable block picking
 
 ### Components
 
-Shown only when the held item supports advanced components.
+**Always Available**
+- **Name/Stack/Flags:** Item Name, Glider, Death Protection
+- **Food/Consumable:** Nutrition, Saturation, Use Behavior
+- **Combat Behavior:** Animation Type & Duration, Hit Sounds with searchable sound picking
+- **Registry Components:** Damage Type, Note Block & Break Sound, Painting Variant
+- **Equipment / Combat:** Equipment Slot, Equip and Shearing Sounds, Asset ID, Camera Overlay, Weapon & Tool settings, Attack Range
+- **Block Attacks:** Block Attacks timings, Damage Reduction, Item Damage
+- **Custom Data:** Raw Editor for Custom Data compounds
 
-- Food/consumable related values.
-- Use behavior fields (`use_effects`, `use_remainder`, `use_cooldown`).
-- Container-related metadata (lock, loot, bees, pot decorations).
-- Combat/data components (`equippable`, `weapon`, `tool`, `repairable`, `attack_range`, charged projectiles).
-- Advanced map data (`map_id`, decorations, lodestone tracking).
-- Additional component tweaks for naming, tooltip, registry ids, block/behavior fields.
+
+**Item Specific**
+- **Block State:** Block State properties
+- **Charged Projectiles:** Item ID, Count
+- **Map Metadata:** Map Color, Post-Processing (Lock/Scale)
+- **Advanced Map:** Map ID, Decorations, Lodestone Tracker
+- **Container Metadata:** Lock ID, Loot Table, Bee Occupants, Pot Decorations
 
 ### Display
-
-- Rich multi-line lore editor with formatting toolbar.
-- Color/gradient styling tools.
-- Related visual sub-sections when supported (like dyed color/trim/profile fields).
+- Rich multi-line editor with formatting toolbar
+- Color/Gradient styling, Head & Sprite insertion and rendering
+- Save system for your favorite colors, gradients and shadows
 
 ### Attributes
-
-- Add/remove/reorder attribute modifiers.
-- Modifier fields (attribute, amount, operation, slot, id).
-- Effective preview and reset-to-original workflow.
+- Add, Edit or Remove Attributes
+- Menu for each Attribute, with Attribute, Amount, Operation, Slot, and Modifier ID fields
+- Summarizes current attribute values and allows resetting to original
 
 ### Enchantments
-
-- Regular + stored enchantment editing.
-- Searchable picker, reorder/remove/add.
-- Level controls with safe/unsafe behavior support.
+- Searchable Enchantment picker and Level adjuster
+- Reorder or remove Enchantments
+- Allow "unsafe" enchantment levels over the survival limit
 
 ### Flags
-
-- Tooltip visibility controls.
-- Hide full tooltip and hidden-component toggles.
-- Quick hide/show actions.
-
-### Book
-
-- Writable/written mode flow.
-- Page editor with limits/validation.
-- Add/remove/reorder/navigate pages.
-- Title/author/generation editing when relevant.
+- Hide all or specific components from the tooltip or hide the entire tooltip
 
 ### Raw Editor
-
-- Full raw text editor for item data when you want direct control.
-- Format/minify tools and editor options (wrap/scroll style, font size, and display options).
-- Syntax-aware editing with clearer inline error targeting.
-- Better handling for long/minified text.
-- Smarter suggestions while editing.
-- Undo/redo workflow for safer raw editing sessions.
+- Full raw text editor for direct control
+- Format/Minify tools in editor options
+- Syntax-aware editing with inline error targeting and validation
+- Collapse components at multiple levels
+- Smart suggestions while editing
 
 ### Special Data
+*Dynamic category. Sections appear only for compatible items.*
+- **Written Book/Writable Book/Sign:** Rich multi-line editor with formatting toolbar, even insertion, and preview
+- **Potion/Suspicious Stew:** Potion ID, Color, Custom Name, Custom Effect with searchable picker
+- **Firework Explosion:** Add Explosions, editing Shape, Material, Colors, Fade Colors, Trail and Twinkle
+- **Banner/Shield:** Creator with Layer Picker, Color Picker, and Preview
+- **Container/Bundle:** Add and Modify Slots of Chests, Shulkers and Bundles
+- **Spawner/Spawn Egg/Bucket:** Add and Modify Entity Data
+- **Armor Stand:** Pose with Presets and Preview, Custom Name, Inventory Locks, Scale
+- **Item Frame:** Custom Name, Flags, Item Rotation, Drop Chance, Facing
+- **Command Block:** Type, Command, Custom Name, Activation, Output / Runtime State
 
-Dynamic category. Sections appear only for compatible items.
+### Storage
+Save items into a built-in storage menu:
+- **Browse/Search/Sort:** Filter saved items by Item, Name, Lore, Amount, Size, and Modification Date
+- **Sort Modes:** Regular Slot, Saved Time, Alphabetical, Stack Count, or Size
+- **Page Organization:** Set custom page names and orders
+- **Import:** Bring saved items from other mods (NBT Editor, Librarian)
+- **Access:** Open via `/storage` command, or via `O` keybind (rebindable)
 
-- Potion/suspicious stew/firework editors.
-- Banner/shield editor with layer workflow.
-- Container/bundle/sign/spawner related editors.
-- Bucket creature and other item-specific editors.
-- New dedicated editors for Armor Stand, Item Frame, and Spawn Egg (including villager trade data).
-- Armor Stand editor includes pose-focused controls and quick preset-based workflows.
-- Item Frame editor includes facing/rotation and behavior-focused controls.
-- Spawn Egg editor includes entity-focused settings and villager trade editing where relevant.
-
-## Storage
-
-- Save items into built-in storage pages.
-- Browse/search/sort saved items.
-- Search by item/name/lore and other metadata.
-- Sort modes include regular ordering and metadata-based ordering.
-- Command access via `/storage`.
-
+---
 
 ## Screenshots
 
 <div align="center">
-  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/c609dca904a5f0a4435a8e4a205bd590b8e39470.png" alt="General Editor" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/4a5e54b2688d95c6111c7af9f2e5d19fc11c77be.png" alt="General Editor" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/4e1fc4db42082d2f314ea23b0505c8800f1b8a9c.png" alt="Lore Editor" width="420" />
 </div>
 
 <div align="center">
-  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/a7961c5ab0533bd2551a164e0c22779c3df35f2e.png" alt="Lore Editor" width="420" />
-</div>
-
-<div align="center">
-  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/40503432cef7f5496b853f236c2c125298743844.png" alt="Banner Editor" width="420" />
-</div>
-
-<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/70b08ab32e1b42552dbaa84bfbcdf1acfca6e760.png" alt="Banner Editor" width="420" />
   <img src="https://cdn.modrinth.com/data/FFDotM4D/images/2af18c8809472030b85bcf0350e99de531fad85d.png" alt="Book Editor" width="420" />
 </div>
 
 <div align="center">
-  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/de1f3cca86eaeebc60803064fae60a140e68242c.png" alt="Container Editor" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/d2ec293faac69a0cb3105edbd0cf0f9cf8a09544.png" alt="Enchants" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/770c3541c025a23498118464c8ac9b3650450746.png" alt="Armor Stand Editor" width="420" />
 </div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/7161db8e3660b78ad4c4dffe8e98b59a49615332.png" alt="Raw Editor" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/9a7aa731749755886f99dea535e24d8911469206.png" alt="Sign Editor" width="420" />
+</div>
+
+<div align="center">
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/cb1fdbd2701f22801d49a2a2eb08810bba2b7223.png" alt="Storage" width="420" />
+  <img src="https://cdn.modrinth.com/data/FFDotM4D/images/ace4a0eb199c27305ae927bf6e71b30b6f9857b6.png" alt="Storage Pages" width="420" />
+</div>
+
+---
+
+## Supported Languages
+
+| Language | Native name | Code |
+|----------|-------------|------|
+| English | English | `en_us` |
+| Spanish | Español | `es_es` |
+| Russian | Русский | `ru_ru` |
+| Simplified Chinese | 简体中文 | `zh_cn` |
+| Traditional Chinese | 繁體中文 | `zh_tw` |
+| Hindi | हिन्दी | `hi_in` |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please feel free to:
+- Report bugs via [GitHub Issues](https://github.com/noramibu/Item-Editor/issues)
+- Submit feature requests
+- Join the [Discord](https://discord.gg/FaxbR9eEFW) for discussion
+
+---
+
+### NBT Library
+
+If you are interested in item making, NBT etc, also check out NBT Library. The NBT Library is focused on a "quality over quantity" approach, providing meticulously curated hotbars full of items, kits, books, and more for your creative servers and single-player worlds.
+<br><small> Also thanks a lot to Kaddicus for his countless helps while developing this mod, without him this mod would be a simple Lore Editor.<small>
+
+- [Website](https://kadthehunter.github.io/NBT-Library/)
+- [Discord](https://discord.gg/cfq25qURfv)
+
+---
+
+## License
+
+This project is licensed under the terms of the license specified in the [LICENSE](LICENSE) file.
+
+---
+
+<p align="center">
+  <a href="https://modrinth.com/project/item-editor">Modrinth</a> •
+  <a href="https://github.com/noramibu/Item-Editor">GitHub</a> •
+  <a href="https://discord.gg/FaxbR9eEFW">Discord</a>
+</p>

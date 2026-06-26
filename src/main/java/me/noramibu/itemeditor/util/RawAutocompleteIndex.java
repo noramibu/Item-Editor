@@ -301,7 +301,7 @@ public final class RawAutocompleteIndex {
     }
 
     private int clamp(int cursor) {
-        return Math.max(0, Math.min(cursor, this.text.length()));
+        return Math.clamp(cursor, 0, this.text.length());
     }
 
     private static int internKey(List<String> keyTable, String key) {

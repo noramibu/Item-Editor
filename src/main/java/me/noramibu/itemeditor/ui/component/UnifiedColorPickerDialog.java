@@ -865,7 +865,7 @@ public final class UnifiedColorPickerDialog {
         if (maxInputWidth < minimumWidth) {
             return maxInputWidth;
         }
-        return Math.max(minimumWidth, Math.min(preferredWidth, maxInputWidth));
+        return Math.clamp(maxInputWidth, minimumWidth, preferredWidth);
     }
 
     private static int stopSelectButtonWidth(int rowWidth) {
@@ -926,7 +926,7 @@ public final class UnifiedColorPickerDialog {
 
     private static int pickerSize(int available) {
         int scaled = (int) Math.round(available * PICKER_SIZE_SCALE);
-        return Math.max(PICKER_MIN_SIZE, Math.min(PICKER_MAX_SIZE, scaled));
+        return Math.clamp(scaled, PICKER_MIN_SIZE, PICKER_MAX_SIZE);
     }
 
     private static Component selectedStopTitle(PickerState state) {
@@ -1216,7 +1216,7 @@ public final class UnifiedColorPickerDialog {
         }
 
         private void select(int index) {
-            this.selectedIndex = Math.max(0, Math.min(index, this.colors.size() - 1));
+            this.selectedIndex = Math.clamp(index, 0, Math.max(0, this.colors.size() - 1));
         }
 
         private void addAfterSelected() {

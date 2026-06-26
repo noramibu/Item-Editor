@@ -31,9 +31,9 @@ public final class FlagsEditorPanel implements EditorPanel {
     private static final int INLINE_CHECKBOX_SIZE_BASE = 18;
     private static final int INLINE_CHECKBOX_SIZE_MIN = 14;
     private static final int BOTTOM_PADDING_BASE = 12;
-    private static final String SELECT_ALL_TEXT = "Select All";
-    private static final String DESELECT_ALL_TEXT = "De-select All";
-    private static final String REVERT_ALL_TEXT = "Revert All";
+    private static final String KEY_SELECT_ALL = "common.select_all";
+    private static final String KEY_DESELECT_ALL = "common.deselect_all";
+    private static final String KEY_REVERT_ALL = "common.revert_all";
 
     private static final List<FlagOption> OPTIONS = allVanillaOptions();
 
@@ -61,7 +61,7 @@ public final class FlagsEditorPanel implements EditorPanel {
 
         FlowLayout common = UiFactory.section(ItemEditorText.tr("flags.hidden.title"), Component.empty());
         ButtonComponent selectAllButton = UiFactory.actionToneButton(
-                Component.literal(SELECT_ALL_TEXT),
+                ItemEditorText.tr(KEY_SELECT_ALL),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.POSITIVE,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -71,7 +71,7 @@ public final class FlagsEditorPanel implements EditorPanel {
                 })
         );
         ButtonComponent deselectAllButton = UiFactory.actionToneButton(
-                Component.literal(DESELECT_ALL_TEXT),
+                ItemEditorText.tr(KEY_DESELECT_ALL),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.NEGATIVE,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -81,7 +81,7 @@ public final class FlagsEditorPanel implements EditorPanel {
                 })
         );
         ButtonComponent revertAllButton = UiFactory.actionToneButton(
-                Component.literal(REVERT_ALL_TEXT),
+                ItemEditorText.tr(KEY_REVERT_ALL),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.PICKER,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -142,7 +142,7 @@ public final class FlagsEditorPanel implements EditorPanel {
     private int clampLabelWidth(int contentWidth) {
         int available = Math.max(1, contentWidth - UiFactory.scaledPixels(FLAG_CHECKBOX_RESERVE));
         int preferred = Math.max(OPTION_LABEL_WIDTH_MIN, available);
-        return Math.max(1, Math.min(contentWidth, preferred));
+        return Math.clamp(preferred, 1, Math.max(1, contentWidth));
     }
 
     private UIComponent checkboxForOption(ItemEditorState state, FlagOption option, int labelWidth) {

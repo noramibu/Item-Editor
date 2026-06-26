@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import com.mojang.serialization.DataResult;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -12,6 +13,7 @@ import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.SnbtPrinterTagVisitor;
@@ -21,8 +23,9 @@ import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
-import net.minecraft.server.network.Filterable;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.network.Filterable;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.damagesource.DamageType;
@@ -308,7 +311,7 @@ public final class ItemEditorStateMapper {
             state.special.noteBlockSoundId = noteBlockSound.toString();
         }
 
-        Holder<net.minecraft.sounds.SoundEvent> breakSound = stack.get(DataComponents.BREAK_SOUND);
+        Holder<SoundEvent> breakSound = stack.get(DataComponents.BREAK_SOUND);
         if (breakSound != null) {
             setIdFromHolder(breakSound, id -> state.special.breakSoundId = id);
         }
@@ -395,7 +398,7 @@ public final class ItemEditorStateMapper {
         TooltipDisplay tooltipDisplay = stack.getOrDefault(DataComponents.TOOLTIP_DISPLAY, TooltipDisplay.DEFAULT);
         state.hideTooltip = tooltipDisplay.hideTooltip();
         tooltipDisplay.hiddenComponents().forEach(componentType -> {
-            var key = net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(componentType);
+            var key = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(componentType);
             if (key != null) {
                 state.hiddenTooltipComponents.add(key.toString());
             }
@@ -485,17 +488,15 @@ public final class ItemEditorStateMapper {
         if (bundleContents != null) {
             int index = 0;
             for (ItemStack entryStack : bundleContents.items()) {
-                Item entryItem = entryStack.getItem();
-                if (entryItem == Items.AIR) {
+                if (entryStack.isEmpty() || entryStack.is(Items.AIR)) {
                     continue;
                 }
                 int templateCount = Math.max(1, entryStack.getCount());
                 ItemEditorState.ContainerEntryDraft draft = new ItemEditorState.ContainerEntryDraft();
                 draft.slot = Integer.toString(index);
-                draft.itemId = identifierOrEmpty(BuiltInRegistries.ITEM.getKey(entryItem));
+                draft.itemId = identifierOrEmpty(BuiltInRegistries.ITEM.getKey(entryStack.getItem()));
                 draft.count = Integer.toString(templateCount);
-                int safePreviewCount = Math.max(1, Math.min(templateCount, entryItem.getDefaultMaxStackSize()));
-                draft.templateStack = new ItemStack(entryItem, safePreviewCount);
+                draft.templateStack = entryStack.copyWithCount(templateCount);
                 state.special.bundleEntries.add(draft);
                 index++;
             }
@@ -510,6 +511,9 @@ public final class ItemEditorStateMapper {
         }
 
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        if (ItemEditorCapabilities.supportsCommandBlockData(stack)) {
+            state.special.commandBlockItemId = commandBlockItemId(stack);
+        }
         if (blockEntityData != null
                 && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
             var blockTag = blockEntityData.copyTagWithoutId();
@@ -523,6 +527,9 @@ public final class ItemEditorStateMapper {
         if (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER) {
             this.readSpawnerData(blockEntityData.copyTagWithoutId(), state.special);
         }
+        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.COMMAND_BLOCK) {
+            this.readCommandBlockData(blockEntityData.copyTagWithoutId(), state.special);
+        }
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
         if (entityData != null && entityData.type() == EntityType.ARMOR_STAND) {
             this.readArmorStandData(entityData.copyTagWithoutId(), state.special);
@@ -532,7 +539,7 @@ public final class ItemEditorStateMapper {
             this.readItemFrameData(entityData.copyTagWithoutId(), state.special);
         }
         if (ItemEditorCapabilities.supportsSpawnEggData(stack)) {
-            this.readSpawnEggData(stack, entityData, state.special);
+            this.readSpawnEggData(stack, entityData, state.special, registryAccess);
         }
 
         PotionContents potionContents = stack.get(DataComponents.POTION_CONTENTS);
@@ -867,7 +874,7 @@ public final class ItemEditorStateMapper {
         return rebuilt;
     }
 
-    private void readSpawnerData(net.minecraft.nbt.CompoundTag blockTag, ItemEditorState.SpecialData special) {
+    private void readSpawnerData(CompoundTag blockTag, ItemEditorState.SpecialData special) {
         special.spawnerDelay = readOptionalInt(blockTag, "Delay");
         special.spawnerMinSpawnDelay = readOptionalInt(blockTag, "MinSpawnDelay");
         special.spawnerMaxSpawnDelay = readOptionalInt(blockTag, "MaxSpawnDelay");
@@ -876,12 +883,14 @@ public final class ItemEditorStateMapper {
         special.spawnerRequiredPlayerRange = readOptionalInt(blockTag, "RequiredPlayerRange");
         special.spawnerSpawnRange = readOptionalInt(blockTag, "SpawnRange");
 
-        net.minecraft.nbt.CompoundTag spawnDataTag = blockTag.getCompoundOrEmpty("SpawnData");
-        net.minecraft.nbt.CompoundTag spawnEntityTag = spawnDataTag.getCompoundOrEmpty("entity");
-        special.spawnerEntityId = spawnEntityTag.getStringOr("id", "");
-        if (special.spawnerEntityId.isBlank()) {
-            special.spawnerEntityId = spawnDataTag.getStringOr("id", "");
+        CompoundTag spawnDataTag = blockTag.getCompoundOrEmpty("SpawnData");
+        special.spawnerSpawnData.originalDataTag = spawnDataTag.copy();
+        CompoundTag spawnEntityTag = spawnDataTag.getCompoundOrEmpty("entity");
+        if (spawnEntityTag.isEmpty() && !spawnDataTag.getStringOr("id", "").isBlank()) {
+            spawnEntityTag.putString("id", spawnDataTag.getStringOr("id", ""));
         }
+        EntitySpawnDataUtil.readEntity(spawnEntityTag, special.spawnerSpawnData.entity);
+        this.readSpawnerSpawnRules(spawnDataTag, special.spawnerSpawnData);
 
         ListTag potentialsTag = blockTag.getListOrEmpty("SpawnPotentials");
         if (!potentialsTag.isEmpty()) {
@@ -897,7 +906,12 @@ public final class ItemEditorStateMapper {
                 }
 
                 ItemEditorState.SpawnerPotentialDraft draft = new ItemEditorState.SpawnerPotentialDraft();
-                draft.entityId = entityId;
+                if (entityTag.isEmpty() && !entityId.isBlank()) {
+                    entityTag.putString("id", entityId);
+                }
+                draft.spawnData.originalDataTag = dataTag.copy();
+                EntitySpawnDataUtil.readEntity(entityTag, draft.spawnData.entity);
+                this.readSpawnerSpawnRules(dataTag, draft.spawnData);
                 int weight = Math.max(1, potentialTag.getIntOr("weight", 1));
                 draft.weight = Integer.toString(weight);
                 special.spawnerPotentials.add(draft);
@@ -905,7 +919,57 @@ public final class ItemEditorStateMapper {
         }
     }
 
-    private void readArmorStandData(net.minecraft.nbt.CompoundTag entityTag, ItemEditorState.SpecialData special) {
+    private void readCommandBlockData(CompoundTag blockTag, ItemEditorState.SpecialData special) {
+        special.commandBlockOriginalTag = blockTag.copy();
+        special.commandBlockCommand = blockTag.getStringOr("Command", "");
+        special.commandBlockAuto = blockTag.getBooleanOr("auto", false);
+        special.commandBlockPowered = blockTag.getBooleanOr("powered", false);
+        special.commandBlockConditionMet = blockTag.getBooleanOr("conditionMet", false);
+        special.commandBlockTrackOutput = blockTag.getBooleanOr("TrackOutput", true);
+        special.commandBlockUpdateLastExecution = blockTag.getBooleanOr("UpdateLastExecution", true);
+        special.commandBlockSuccessCount = readOptionalInt(blockTag, "SuccessCount");
+        special.commandBlockLastExecution = readLastExecution(blockTag);
+        blockTag.read("CustomName", ComponentSerialization.CODEC)
+                .ifPresent(component -> special.commandBlockCustomName = TextComponentUtil.toMarkup(component));
+        blockTag.read("LastOutput", ComponentSerialization.CODEC)
+                .ifPresent(component -> special.commandBlockLastOutput = TextComponentUtil.toMarkup(component));
+    }
+
+    private void readSpawnerSpawnRules(
+            CompoundTag spawnDataTag,
+            ItemEditorState.SpawnerSpawnDataDraft draft
+    ) {
+        CompoundTag rulesTag = spawnDataTag.getCompoundOrEmpty("custom_spawn_rules");
+        this.readLightLimit(rulesTag, "block_light_limit", value -> {
+            draft.blockLightMin = value;
+            draft.blockLightMax = value;
+        }, (min, max) -> {
+            draft.blockLightMin = min;
+            draft.blockLightMax = max;
+        });
+        this.readLightLimit(rulesTag, "sky_light_limit", value -> {
+            draft.skyLightMin = value;
+            draft.skyLightMax = value;
+        }, (min, max) -> {
+            draft.skyLightMin = min;
+            draft.skyLightMax = max;
+        });
+    }
+
+    private void readLightLimit(
+            CompoundTag rulesTag,
+            String key,
+            java.util.function.Consumer<String> exactSetter,
+            java.util.function.BiConsumer<String, String> rangeSetter
+    ) {
+        rulesTag.getInt(key).ifPresent(value -> exactSetter.accept(Integer.toString(value)));
+        rulesTag.getCompound(key).ifPresent(range -> rangeSetter.accept(
+                readOptionalInt(range, "min_inclusive"),
+                readOptionalInt(range, "max_inclusive")
+        ));
+    }
+
+    private void readArmorStandData(CompoundTag entityTag, ItemEditorState.SpecialData special) {
         special.armorStandSmall = entityTag.getBooleanOr("Small", false);
         special.armorStandShowArms = entityTag.getBooleanOr("ShowArms", false);
         special.armorStandNoBasePlate = entityTag.getBooleanOr("NoBasePlate", false);
@@ -918,7 +982,7 @@ public final class ItemEditorStateMapper {
                 .ifPresent(component -> special.armorStandCustomName = TextComponentUtil.toMarkup(component));
         special.armorStandDisabledSlots = readOptionalInt(entityTag, "DisabledSlots");
 
-        net.minecraft.nbt.CompoundTag poseTag = entityTag.getCompoundOrEmpty("Pose");
+        CompoundTag poseTag = entityTag.getCompoundOrEmpty("Pose");
         this.readPosePart(
                 poseTag,
                 "Head",
@@ -964,7 +1028,7 @@ public final class ItemEditorStateMapper {
 
         ListTag attributes = entityTag.getListOrEmpty("attributes");
         for (int index = 0; index < attributes.size(); index++) {
-            net.minecraft.nbt.CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
+            CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
             String id = attributeTag.getStringOr("id", "");
             if (!"minecraft:scale".equals(id)) {
                 continue;
@@ -975,7 +1039,7 @@ public final class ItemEditorStateMapper {
         }
     }
 
-    private void readItemFrameData(net.minecraft.nbt.CompoundTag entityTag, ItemEditorState.SpecialData special) {
+    private void readItemFrameData(CompoundTag entityTag, ItemEditorState.SpecialData special) {
         special.itemFrameInvisible = entityTag.getBooleanOr("Invisible", false);
         special.itemFrameFixed = entityTag.getBooleanOr("Fixed", false);
         special.itemFrameNoGravity = entityTag.getBooleanOr("NoGravity", false);
@@ -992,16 +1056,17 @@ public final class ItemEditorStateMapper {
     private void readSpawnEggData(
             ItemStack stack,
             TypedEntityData<EntityType<?>> entityData,
-            ItemEditorState.SpecialData special
+            ItemEditorState.SpecialData special,
+            RegistryAccess registryAccess
     ) {
         if (entityData != null) {
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(entityData.type());
-            special.spawnEggEntityId = identifierOrEmpty(key);
+            special.spawnEggEntity.entityId = identifierOrEmpty(key);
         } else if (stack.getItem() instanceof SpawnEggItem spawnEggItem) {
             EntityType<?> spawnEggType = spawnEggItem.getType(stack);
             if (spawnEggType != null) {
                 var key = BuiltInRegistries.ENTITY_TYPE.getKey(spawnEggType);
-                special.spawnEggEntityId = identifierOrEmpty(key);
+                special.spawnEggEntity.entityId = identifierOrEmpty(key);
             }
         }
 
@@ -1009,36 +1074,31 @@ public final class ItemEditorStateMapper {
             return;
         }
 
-        net.minecraft.nbt.CompoundTag entityTag = entityData.copyTagWithoutId();
-        special.spawnEggNoAi = entityTag.getBooleanOr("NoAI", false);
-        special.spawnEggSilent = entityTag.getBooleanOr("Silent", false);
-        special.spawnEggNoGravity = entityTag.getBooleanOr("NoGravity", false);
-        special.spawnEggGlowing = entityTag.getBooleanOr("Glowing", false);
-        special.spawnEggInvulnerable = entityTag.getBooleanOr("Invulnerable", false);
-        special.spawnEggPersistenceRequired = entityTag.getBooleanOr("PersistenceRequired", false);
-        special.spawnEggCustomNameVisible = entityTag.getBooleanOr("CustomNameVisible", false);
-        entityTag.read("CustomName", ComponentSerialization.CODEC)
-                .ifPresent(component -> special.spawnEggCustomName = TextComponentUtil.toMarkup(component));
-        entityTag.getFloat("Health")
-                .ifPresent(value -> special.spawnEggHealth = trimTrailingZeros(value));
-        this.readVillagerDataAndTrades(entityTag, special);
+        CompoundTag entityTag = entityData.copyTagWithoutId();
+        entityTag.putString("id", special.spawnEggEntity.entityId);
+        EntitySpawnDataUtil.readEntity(entityTag, special.spawnEggEntity);
+        this.readVillagerDataAndTrades(entityTag, special, registryAccess);
     }
 
-    private void readVillagerDataAndTrades(net.minecraft.nbt.CompoundTag entityTag, ItemEditorState.SpecialData special) {
-        net.minecraft.nbt.CompoundTag villagerData = entityTag.getCompoundOrEmpty("VillagerData");
+    private void readVillagerDataAndTrades(
+            CompoundTag entityTag,
+            ItemEditorState.SpecialData special,
+            RegistryAccess registryAccess
+    ) {
+        CompoundTag villagerData = entityTag.getCompoundOrEmpty("VillagerData");
         special.spawnEggVillagerTypeId = villagerData.getStringOr("type", "");
         special.spawnEggVillagerProfessionId = villagerData.getStringOr("profession", "");
         special.spawnEggVillagerLevel = readOptionalInt(villagerData, "level");
 
         special.spawnEggVillagerTrades.clear();
-        net.minecraft.nbt.CompoundTag offersTag = entityTag.getCompoundOrEmpty("Offers");
+        CompoundTag offersTag = entityTag.getCompoundOrEmpty("Offers");
         ListTag recipesTag = offersTag.getListOrEmpty("Recipes");
         for (int index = 0; index < recipesTag.size(); index++) {
-            net.minecraft.nbt.CompoundTag recipeTag = recipesTag.getCompoundOrEmpty(index);
+            CompoundTag recipeTag = recipesTag.getCompoundOrEmpty(index);
             ItemEditorState.VillagerTradeDraft draft = new ItemEditorState.VillagerTradeDraft();
-            this.readTradeStack(recipeTag, "buy", draft.buy);
-            this.readTradeStack(recipeTag, "buyB", draft.buyB);
-            this.readTradeStack(recipeTag, "sell", draft.sell);
+            this.readTradeStack(recipeTag, "buy", draft.buy, registryAccess);
+            this.readTradeStack(recipeTag, "buyB", draft.buyB, registryAccess);
+            this.readTradeStack(recipeTag, "sell", draft.sell, registryAccess);
             draft.maxUses = readOptionalInt(recipeTag, "maxUses");
             draft.uses = readOptionalInt(recipeTag, "uses");
             draft.villagerXp = readOptionalInt(recipeTag, "xp");
@@ -1052,14 +1112,30 @@ public final class ItemEditorStateMapper {
     }
 
     private void readTradeStack(
-            net.minecraft.nbt.CompoundTag recipeTag,
+            CompoundTag recipeTag,
             String key,
-            ItemEditorState.TradeStackDraft stackDraft
+            ItemEditorState.TradeStackDraft stackDraft,
+            RegistryAccess registryAccess
     ) {
-        net.minecraft.nbt.CompoundTag stackTag = recipeTag.getCompoundOrEmpty(key);
+        CompoundTag stackTag = recipeTag.getCompoundOrEmpty(key);
         stackDraft.itemId = stackTag.getStringOr("id", "");
         stackTag.getInt("count").ifPresent(value -> stackDraft.count = Integer.toString(value));
         stackTag.getByte("count").ifPresent(value -> stackDraft.count = Integer.toString(value));
+        DataResult<ItemStack> decoded = ItemStack.CODEC.parse(
+                registryAccess.createSerializationContext(NbtOps.INSTANCE),
+                stackTag
+        );
+        decoded.result().ifPresent(stack -> stackDraft.templateStack = stack.copy());
+    }
+
+    private static String commandBlockItemId(ItemStack stack) {
+        if (stack.is(Items.REPEATING_COMMAND_BLOCK)) {
+            return "minecraft:repeating_command_block";
+        }
+        if (stack.is(Items.CHAIN_COMMAND_BLOCK)) {
+            return "minecraft:chain_command_block";
+        }
+        return "minecraft:command_block";
     }
 
     private void readConsumableEffects(List<ConsumeEffect> effects, List<ItemEditorState.ConsumableEffectDraft> target) {
@@ -1099,7 +1175,7 @@ public final class ItemEditorStateMapper {
     }
 
     private void readPosePart(
-            net.minecraft.nbt.CompoundTag poseTag,
+            CompoundTag poseTag,
             String key,
             ItemEditorState.RotationDraft rotation,
             float defaultX,
@@ -1111,8 +1187,12 @@ public final class ItemEditorStateMapper {
         rotation.z = trimTrailingZeros(values.getFloatOr(2, defaultZ));
     }
 
-    private static String readOptionalInt(net.minecraft.nbt.CompoundTag tag, String key) {
+    private static String readOptionalInt(CompoundTag tag, String key) {
         return tag.getInt(key).map(String::valueOf).orElse("");
+    }
+
+    private static String readLastExecution(CompoundTag tag) {
+        return tag.getLong("LastExecution").map(String::valueOf).orElse("");
     }
 
     private static void setIdFromHolder(Holder<?> holder, Consumer<String> setter) {

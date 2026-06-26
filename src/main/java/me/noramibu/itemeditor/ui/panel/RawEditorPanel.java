@@ -633,11 +633,12 @@ public final class RawEditorPanel implements EditorPanel {
         int compactControlHeight = Math.max(12, (int) Math.round(baseControlHeight * CONTROL_COMPACT_HEIGHT_RATIO));
         int actionButtonHeight = compactControls ? compactControlHeight : baseControlHeight;
         int secondaryButtonWidth = compactControls
-                ? Math.max(CONTROL_SECONDARY_BUTTON_MIN, Math.min(CONTROL_SECONDARY_BUTTON_MAX, scaledWidth / CONTROL_SECONDARY_BUTTON_DIVISOR))
+                ? Math.clamp(scaledWidth / CONTROL_SECONDARY_BUTTON_DIVISOR, CONTROL_SECONDARY_BUTTON_MIN, CONTROL_SECONDARY_BUTTON_MAX)
                 : -1;
-        int undoRedoButtonWidth = Math.max(
+        int undoRedoButtonWidth = Math.clamp(
+                scaledWidth / CONTROL_UNDO_REDO_BUTTON_DIVISOR,
                 CONTROL_UNDO_REDO_BUTTON_MIN,
-                Math.min(CONTROL_UNDO_REDO_BUTTON_MAX, scaledWidth / CONTROL_UNDO_REDO_BUTTON_DIVISOR)
+                CONTROL_UNDO_REDO_BUTTON_MAX
         );
         return new ControlLayout(
                 compactControls,
@@ -1150,7 +1151,7 @@ public final class RawEditorPanel implements EditorPanel {
     private int resolveEditorHeight(int viewportHeight, ControlLayout controlLayout, boolean optionsExpanded) {
         int availableHeight = Math.max(1, viewportHeight);
         int editorHeight = availableHeight - this.nonEditorHeight(controlLayout, optionsExpanded);
-        return Math.max(editorHeight, Math.min(EDITOR_MIN_HEIGHT, availableHeight));
+        return Math.clamp(EDITOR_MIN_HEIGHT, editorHeight, availableHeight);
     }
 
     private int nonEditorHeight(ControlLayout controlLayout, boolean optionsExpanded) {

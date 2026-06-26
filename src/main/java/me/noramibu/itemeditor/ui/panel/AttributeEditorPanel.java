@@ -52,8 +52,8 @@ public final class AttributeEditorPanel implements EditorPanel {
     private static final int MODIFIER_ID_GENERATE_PERCENT = 16;
     private static final String SYMBOL_STEP_DECREMENT = "-";
     private static final String SYMBOL_STEP_INCREMENT = "+";
-    private static final String TOOLTIP_EXPAND_ALL = "Expand All";
-    private static final String TOOLTIP_COLLAPSE_ALL = "Collapse All";
+    private static final String KEY_EXPAND_ALL = "common.expand_all";
+    private static final String KEY_COLLAPSE_ALL = "common.collapse_all";
     private static final String ACTION_DUPLICATE = "Duplicate";
     private static final String ACTION_RESET_THIS = "Reset This";
     private static final String ACTION_GENERATE = "Generate";
@@ -108,17 +108,17 @@ public final class AttributeEditorPanel implements EditorPanel {
         );
         intro.child(UiFactory.actionButtonRow(addButton, resetButton));
         if (!state.attributeModifiers.isEmpty()) {
-            Component expandText = Component.literal(TOOLTIP_EXPAND_ALL);
+            Component expandText = ItemEditorText.tr(KEY_EXPAND_ALL);
             ButtonComponent expandAll = this.introActionButton(expandText, UiFactory.ActionTone.NEUTRAL, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
+            expandAll.tooltip(List.of(expandText));
 
-            Component collapseText = Component.literal(TOOLTIP_COLLAPSE_ALL);
+            Component collapseText = ItemEditorText.tr(KEY_COLLAPSE_ALL);
             ButtonComponent collapseAll = this.introActionButton(collapseText, UiFactory.ActionTone.NEUTRAL, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL)));
+            collapseAll.tooltip(List.of(collapseText));
             intro.child(UiFactory.actionButtonRow(expandAll, collapseAll));
         }
         root.child(intro);

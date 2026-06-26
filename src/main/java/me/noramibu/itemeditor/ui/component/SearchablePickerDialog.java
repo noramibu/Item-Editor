@@ -23,11 +23,11 @@ public final class SearchablePickerDialog {
     private static final int LINE_TEXT_MARGIN = 48;
     private static final int BUTTON_RESERVE_EXTRA = 16;
     private static final int COMPACT_BUTTON_WIDTH_THRESHOLD = 360;
-    private static final int HEADER_RESERVE_EMPTY_BODY = 96;
-    private static final int HEADER_RESERVE_WITH_BODY = 116;
+    private static final int HEADER_RESERVE_EMPTY_BODY = 78;
+    private static final int HEADER_RESERVE_WITH_BODY = 98;
     private static final int FOOTER_ROWS = 1;
-    private static final int RESULTS_MIN_HEIGHT = 136;
-    private static final int DIALOG_MIN_HEIGHT = 240;
+    private static final int RESULTS_MIN_HEIGHT = 84;
+    private static final int DIALOG_MIN_HEIGHT = 180;
     private static final int LABEL_WIDTH_MIN = 160;
     private static final int LABEL_WIDTH_RESERVE = 24;
     private static final int LABEL_SCROLLBAR_INSET_BASE = 8;
@@ -88,7 +88,7 @@ public final class SearchablePickerDialog {
                 LABEL_WIDTH_MIN,
                 lineTextWidth - LABEL_WIDTH_RESERVE - UiFactory.scrollContentInset(LABEL_SCROLLBAR_INSET_BASE)
         );
-        int maxLabelWidth = Math.max(1, Math.min(lineTextWidth, preferredLabelWidth));
+        int maxLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, lineTextWidth));
         FlowLayout results = UiFactory.column();
         results.gap(RESULTS_GAP);
 

@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 
 public final class StorageScreen extends ContainerScreen {
 
@@ -90,6 +91,7 @@ public final class StorageScreen extends ContainerScreen {
             .withZone(ZoneId.systemDefault());
     private static final Component HINT_OPEN_EDITOR = Component.literal("I on hovered item: open editor");
     private static final Component HINT_PICK_OPEN_EDITOR = ItemEditorText.tr("storage.pick_hint");
+    private static final Component HINT_PICK_STACK = ItemEditorText.tr("storage.pick_stack_hint");
     private static final Component HINT_VANILLA = Component.literal("Left/Right/Drag behaves like vanilla chest");
     private static final Component HINT_SYNC = Component.literal("Edit slots in regular sort with no search filter");
     private static final Component HINT_SEARCH = Component.literal("Live search updates as you type");
@@ -101,6 +103,7 @@ public final class StorageScreen extends ContainerScreen {
     private final Map<Integer, ItemStack> playerInventoryBeforeInteraction = new HashMap<>();
     private StorageScreenMode mode;
     private final Screen returnScreen;
+    private final Consumer<ItemStack> pickedStackConsumer;
 
     private int currentPage;
     private String currentQuery;
@@ -146,7 +149,18 @@ public final class StorageScreen extends ContainerScreen {
             StorageScreenMode mode,
             Screen returnScreen
     ) {
-        this(new SimpleContainer(SLOT_COUNT), requireInventory(), initialPage, initialQuery, initialSortMode, mode, returnScreen);
+        this(initialPage, initialQuery, initialSortMode, mode, returnScreen, null);
+    }
+
+    public StorageScreen(
+            int initialPage,
+            String initialQuery,
+            StorageSortMode initialSortMode,
+            StorageScreenMode mode,
+            Screen returnScreen,
+            Consumer<ItemStack> pickedStackConsumer
+    ) {
+        this(new SimpleContainer(SLOT_COUNT), requireInventory(), initialPage, initialQuery, initialSortMode, mode, returnScreen, pickedStackConsumer);
     }
 
     private StorageScreen(
@@ -156,12 +170,14 @@ public final class StorageScreen extends ContainerScreen {
             String initialQuery,
             StorageSortMode initialSortMode,
             StorageScreenMode mode,
-            Screen returnScreen
+            Screen returnScreen,
+            Consumer<ItemStack> pickedStackConsumer
     ) {
         super(ChestMenu.sixRows(0, inventory, storageContainer), inventory, ItemEditorText.tr("storage.title"));
         this.storageContainer = storageContainer;
         this.mode = mode == null ? StorageScreenMode.MANAGE : mode;
         this.returnScreen = returnScreen;
+        this.pickedStackConsumer = pickedStackConsumer;
         this.currentPage = Math.max(1, initialPage);
         this.currentQuery = initialQuery == null ? "" : initialQuery;
         this.sortMode = initialSortMode == null ? StorageSortMode.REGULAR : initialSortMode;
@@ -189,6 +205,9 @@ public final class StorageScreen extends ContainerScreen {
     @Override
     protected void slotClicked(@Nullable Slot slot, int slotId, int button, @NotNull ClickType input) {
         if (this.isPickMode()) {
+            if (button == 0 && slot != null && slot.hasItem() && this.pickClickedStack(slot, slotId)) {
+                return;
+            }
             if (button == 0 && slot != null && this.isStorageSlotId(slotId) && slot.hasItem()) {
                 this.openStorageItem(slot.index);
             }
@@ -271,6 +290,10 @@ public final class StorageScreen extends ContainerScreen {
             Slot hovered = this.hoveredSlot;
             if (hovered != null && hovered.hasItem()) {
                 if (this.isPickMode()) {
+                    int slotId = this.menu.slots.indexOf(hovered);
+                    if (this.pickClickedStack(hovered, slotId)) {
+                        return true;
+                    }
                     int storageSlot = this.hoveredStorageSlotIndex();
                     return storageSlot >= 0 && this.openStorageItem(storageSlot);
                 }
@@ -300,7 +323,7 @@ public final class StorageScreen extends ContainerScreen {
         boolean typingInInputs = (this.searchInput != null && this.searchInput.isFocused())
                 || (this.jumpInput != null && this.jumpInput.isFocused());
         if (this.isPickMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
-            this.minecraft.setScreen(this.returnScreen);
+            this.returnToPreviousScreen();
             return true;
         }
         boolean inventoryCloseKey = this.minecraft.options.keyInventory.matches(input);
@@ -408,6 +431,7 @@ public final class StorageScreen extends ContainerScreen {
         y += BUTTON_HEIGHT + GAP;
 
         this.modeButton = this.addPanelButton(this.panelX, y, halfWidth, this.modeButtonLabel(), this::toggleMode);
+        this.modeButton.active = !this.isSelectionMode();
         this.modeButton.setTooltip(Tooltip.create(this.modeButtonTooltip()));
         this.addPanelButton(this.panelX + halfWidth + GAP, y, halfWidth, ItemEditorText.tr("storage.pages.button"), this::openPages);
         this.panelTextStartY = y + BUTTON_HEIGHT + 4;
@@ -474,7 +498,7 @@ public final class StorageScreen extends ContainerScreen {
         int leftSpace = Math.max(0, (this.leftPos - PANEL_MARGIN) - PANEL_MARGIN);
         boolean useRight = rightSpace >= leftSpace;
         int space = useRight ? rightSpace : leftSpace;
-        this.panelWidth = Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_HARD_MIN_WIDTH, space));
+        this.panelWidth = Math.clamp(space, PANEL_HARD_MIN_WIDTH, PANEL_MAX_WIDTH);
         if (useRight) {
             this.panelX = rightStart;
         } else {
@@ -684,7 +708,7 @@ public final class StorageScreen extends ContainerScreen {
         y += 6;
         y = this.drawPanelLine(context, textX, y, this.feedbackLabel, this.feedbackColor);
         y = this.drawPanelLine(context, textX, y, HINT_SEARCH, COLOR_HINT);
-        y = this.drawPanelLine(context, textX, y, this.isPickMode() ? HINT_PICK_OPEN_EDITOR : HINT_OPEN_EDITOR, COLOR_HINT);
+        y = this.drawPanelLine(context, textX, y, this.pickHint(), COLOR_HINT);
         if (!this.isPickMode()) {
             y = this.drawPanelLine(context, textX, y, HINT_VANILLA, COLOR_HINT);
             this.drawPanelLine(context, textX, y, HINT_SYNC, COLOR_HINT);
@@ -862,6 +886,9 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void toggleMode() {
+        if (this.isSelectionMode()) {
+            return;
+        }
         if (this.isPickMode()) {
             this.mode = StorageScreenMode.MANAGE;
             this.currentQuery = "";
@@ -906,6 +933,7 @@ public final class StorageScreen extends ContainerScreen {
             return;
         }
         this.modeButton.setMessage(this.fitPanelButtonLabel(this.modeButtonLabel(), this.modeButton.getWidth()));
+        this.modeButton.active = !this.isSelectionMode();
         this.modeButton.setTooltip(Tooltip.create(this.modeButtonTooltip()));
     }
 
@@ -919,15 +947,29 @@ public final class StorageScreen extends ContainerScreen {
                 this.currentQuery,
                 this.sortMode,
                 this.mode,
-                this.returnScreen
+                this.returnScreen,
+                this.pickedStackConsumer
         ));
     }
 
+    private Component pickHint() {
+        if (!this.isPickMode()) {
+            return HINT_OPEN_EDITOR;
+        }
+        return this.pickedStackConsumer == null ? HINT_PICK_OPEN_EDITOR : HINT_PICK_STACK;
+    }
+
     private Component modeButtonLabel() {
+        if (this.isSelectionMode()) {
+            return Component.literal("Mode: Selection");
+        }
         return Component.literal(this.isPickMode() ? "Mode: Import" : "Mode: Regular");
     }
 
     private Component modeButtonTooltip() {
+        if (this.isSelectionMode()) {
+            return Component.literal("Selection mode is fixed while picking an item.");
+        }
         return Component.literal(this.isPickMode()
                 ? "Click to switch to Regular Mode."
                 : "Click to switch to Import Mode.");
@@ -1153,8 +1195,32 @@ public final class StorageScreen extends ContainerScreen {
         return true;
     }
 
+    private boolean pickClickedStack(Slot slot, int slotId) {
+        if (this.pickedStackConsumer == null || slot == null || !slot.hasItem()) {
+            return false;
+        }
+        if (slotId < 0 || slotId >= this.menu.slots.size()) {
+            return false;
+        }
+        this.pickedStackConsumer.accept(slot.getItem().copy());
+        this.returnToPreviousScreen();
+        return true;
+    }
+
+    private void returnToPreviousScreen() {
+        if (this.returnScreen instanceof ItemEditorScreen itemEditorScreen) {
+            itemEditorScreen.resize(this.width, this.height);
+            itemEditorScreen.requestResponsiveRelayout();
+        }
+        this.minecraft.setScreen(this.returnScreen);
+    }
+
     private boolean isPickMode() {
         return this.mode == StorageScreenMode.PICK_FOR_EDIT;
+    }
+
+    private boolean isSelectionMode() {
+        return this.pickedStackConsumer != null;
     }
 
     private boolean isStorageSlotId(int slotId) {

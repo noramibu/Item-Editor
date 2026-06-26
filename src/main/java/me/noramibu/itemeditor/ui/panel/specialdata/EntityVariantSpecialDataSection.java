@@ -202,8 +202,8 @@ public final class EntityVariantSpecialDataSection {
     }
 
     private static String selectedEntityId(ItemStack stack, ItemEditorState.SpecialData special) {
-        if (special.spawnEggEntityId != null && !special.spawnEggEntityId.isBlank()) {
-            return IdFieldNormalizer.normalize(special.spawnEggEntityId);
+        if (special.spawnEggEntity.entityId != null && !special.spawnEggEntity.entityId.isBlank()) {
+            return IdFieldNormalizer.normalize(special.spawnEggEntity.entityId);
         }
         if (stack.getItem() instanceof SpawnEggItem spawnEggItem) {
             EntityType<?> type = spawnEggItem.getType(stack);

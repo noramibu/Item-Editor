@@ -394,9 +394,10 @@ public final class RichTextTokenDialog {
                     .selectorWidth(OBJECT_PICKER_SELECTOR_WIDTH)
                     .selectorPadding(OBJECT_PICKER_SELECTOR_PADDING);
             int objectPickerSize = UiFactory.scaledPixels(compactButtons ? OBJECT_PICKER_HEIGHT_COMPACT : OBJECT_PICKER_HEIGHT_NORMAL);
-            int objectPickerWidth = Math.min(
-                    UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX),
-                    Math.max(objectPickerSize, textWidth)
+            int objectPickerWidth = Math.clamp(
+                    textWidth,
+                    objectPickerSize,
+                    Math.max(objectPickerSize, UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX))
             );
             ColorPickerUiUtil.applyPickerSizing(
                     picker,
@@ -406,12 +407,10 @@ public final class RichTextTokenDialog {
             ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(objectColor.get(), OBJECT_SWATCH_SIZE);
             TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(objectColor.get()), ignored -> errorLabel.text(Component.empty()));
             hexInput.setMaxLength(7);
-            int hexInputWidth = Math.max(
+            int hexInputWidth = Math.clamp(
+                    textWidth - UiFactory.scaledPixels(OBJECT_HEX_ROW_LEFT_RESERVE),
                     UiFactory.scaledPixels(OBJECT_HEX_INPUT_MIN_WIDTH),
-                    Math.min(
-                            UiFactory.scaledPixels(OBJECT_HEX_INPUT_MAX_WIDTH),
-                            textWidth - UiFactory.scaledPixels(OBJECT_HEX_ROW_LEFT_RESERVE)
-                    )
+                    UiFactory.scaledPixels(OBJECT_HEX_INPUT_MAX_WIDTH)
             );
             hexInput.horizontalSizing(UiFactory.fixed(hexInputWidth));
 
@@ -629,7 +628,7 @@ public final class RichTextTokenDialog {
     }
 
     private static int valueFieldWidth(int textWidth) {
-        return Math.max(1, Math.min(textWidth, UiFactory.scaledPixels(VALUE_FIELD_WIDTH_MAX)));
+        return Math.clamp(UiFactory.scaledPixels(VALUE_FIELD_WIDTH_MAX), 1, Math.max(1, textWidth));
     }
 
     private static FieldSpec eventTextField(String initialText) {

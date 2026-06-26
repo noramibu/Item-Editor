@@ -902,7 +902,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 this.renderStructuredEvents,
                 this.renderStructuredObjects
         );
-        int targetLineIndex = Math.max(0, Math.min(currentIndex + offset, this.displayLines.size() - 1));
+        int targetLineIndex = Math.clamp(currentIndex + offset, 0, Math.max(0, this.displayLines.size() - 1));
         RichTextLayoutUtil.LineLayout targetLine = this.displayLines.get(targetLineIndex);
         this.editBox.setSelecting(selecting);
         this.editBox.seekCursor(Whence.ABSOLUTE, RichTextLayoutUtil.positionForVisualX(
@@ -1022,7 +1022,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         if (this.lineWrapWidthOverride <= 0) {
             return innerWidth;
         }
-        return Math.max(2, Math.min(innerWidth, this.lineWrapWidthOverride));
+        return Math.clamp(this.lineWrapWidthOverride, 2, innerWidth);
     }
 
     private int measuredTextViewportHeight() {

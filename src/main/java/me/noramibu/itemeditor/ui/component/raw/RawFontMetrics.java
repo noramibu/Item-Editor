@@ -155,7 +155,7 @@ public final class RawFontMetrics implements RawEditorTextMeasurer {
         }
 
         scale *= (this.fontSizePercent / 100.0F);
-        return Math.max(TEXT_SCALE_MIN, Math.min(TEXT_SCALE_MAX, scale));
+        return Math.clamp(scale, TEXT_SCALE_MIN, TEXT_SCALE_MAX);
     }
 
     private float baseScaleForGuiScale(double guiScale) {

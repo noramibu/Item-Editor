@@ -26,7 +26,7 @@ public final class ScrollStateUtil {
     public static void restore(ScrollContainer<?> scroll, double scrollAmount) {
         if (scroll == null) return;
 
-        double clamped = Math.max(0, Math.min(scrollAmount, max(scroll)));
+        double clamped = Math.clamp(scrollAmount, 0, max(scroll));
         setField(scroll, "scrollOffset", clamped);
         setField(scroll, "currentScrollPosition", clamped);
         setField(scroll, "lastScrollPosition", -1);

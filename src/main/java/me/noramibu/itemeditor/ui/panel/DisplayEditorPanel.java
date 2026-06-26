@@ -169,7 +169,7 @@ public final class DisplayEditorPanel implements EditorPanel {
             editor.document(empty);
             commitDocument.accept(empty);
         });
-        int preferredClearWidth = Math.max(CLEAR_BUTTON_WIDTH_MIN, Math.min(CLEAR_BUTTON_WIDTH_MAX, UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE)));
+        int preferredClearWidth = Math.clamp(UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE), CLEAR_BUTTON_WIDTH_MIN, CLEAR_BUTTON_WIDTH_MAX);
         int clearWidth = Math.min(contentWidth, preferredClearWidth);
         clearLore.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
         if (!compactLayout) {
@@ -260,7 +260,7 @@ public final class DisplayEditorPanel implements EditorPanel {
         int target = (int) Math.round(guiHeight * Math.clamp(ratio, LORE_RATIO_MIN, LORE_RATIO_MAX));
         int min = Math.max(LORE_EDITOR_HEIGHT_MIN, UiFactory.scaledPixels(LORE_EDITOR_MIN_SCALED));
         int max = Math.max(min, UiFactory.scaledPixels(LORE_EDITOR_MAX_SCALED));
-        return Math.max(min, Math.min(max, target));
+        return Math.clamp(target, min, max);
     }
 
     private double resolveLoreHeightRatio(com.mojang.blaze3d.platform.Window window, int guiHeight, int guiWidth) {

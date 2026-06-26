@@ -99,7 +99,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
 
         FlowLayout shell = UiFactory.card();
-        shell.horizontalSizing(Sizing.fixed(Math.min(SHELL_MAX_WIDTH, Math.max(260, this.width - 24))));
+        shell.horizontalSizing(Sizing.fixed(Math.clamp(this.width - 24, 260, SHELL_MAX_WIDTH)));
         shell.verticalSizing(Sizing.fixed(Math.max(180, this.height - 24)));
         shell.gap(UiFactory.scaledPixels(5));
 
@@ -461,7 +461,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
             int sidePadding = UiFactory.scaledPixels(GRID_SIDE_PADDING);
             int availableWidth = Math.max(cell, this.width - UiFactory.scaledScrollbarThickness(SCROLLBAR_THICKNESS));
             int columnAreaWidth = Math.max(cell, availableWidth - (sidePadding * 2));
-            int columns = Math.max(1, Math.min(Math.max(1, this.items.size()), columnAreaWidth / Math.max(1, cell)));
+            int columns = Math.clamp(columnAreaWidth / Math.max(1, cell), 1, Math.max(1, this.items.size()));
             int usedWidth = columns * cell;
             int balancedPadding = Math.max(0, (availableWidth - usedWidth) / 2);
             int startX = this.x + balancedPadding;

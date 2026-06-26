@@ -93,14 +93,14 @@ final class DialogUiUtil {
 
     static int dialogWidth(int preferredWidth) {
         int available = Math.max(VIEWPORT_MIN, Math.max(VIEWPORT_MIN, guiWidth()) - overlayInset());
-        int minimum = Math.min(Math.max(MIN_DIALOG_WIDTH, VIEWPORT_MIN), available);
-        return Math.max(minimum, Math.min(preferredWidth, available));
+        int minimum = Math.clamp(MIN_DIALOG_WIDTH, VIEWPORT_MIN, available);
+        return Math.clamp(preferredWidth, minimum, available);
     }
 
     static int dialogHeight(int preferredHeight, int minHeight) {
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight());
-        int minimum = Math.min(Math.max(MIN_DIALOG_HEIGHT, minHeight), available);
-        return Math.max(minimum, Math.min(preferredHeight, available));
+        int minimum = Math.clamp(MIN_DIALOG_HEIGHT, minHeight, available);
+        return Math.clamp(preferredHeight, minimum, available);
     }
 
     static int availableDialogContentHeight(int reservedHeight, int minHeight) {
@@ -111,21 +111,21 @@ final class DialogUiUtil {
                 VIEWPORT_MIN,
                 viewport - Math.max(DIALOG_HARDCAP_MIN_RESERVE, UiFactory.scaledPixels(DIALOG_HARDCAP_SCALED_RESERVE))
         );
-        int minimum = Math.min(Math.max(VIEWPORT_MIN, minHeight), hardCap);
-        return Math.max(minimum, Math.min(available, hardCap));
+        int minimum = Math.clamp(VIEWPORT_MIN, minHeight, hardCap);
+        return Math.clamp(available, minimum, hardCap);
     }
 
     static int dialogTextWidth(int dialogWidth, int horizontalPadding) {
         int available = Math.max(VIEWPORT_MIN, dialogWidth - horizontalPadding);
         int preferred = Math.max(MIN_TEXT_WIDTH, available);
-        return Math.max(VIEWPORT_MIN, Math.min(dialogWidth, preferred));
+        return Math.clamp(preferred, VIEWPORT_MIN, Math.max(VIEWPORT_MIN, dialogWidth));
     }
 
     static int scrollHeight(int preferredHeight) {
         int reserved = Math.max(MIN_SCROLL_RESERVED_HEIGHT, (int) Math.round(viewportHeight() * SCROLL_RESERVED_HEIGHT_RATIO));
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight() - reserved);
         int minimum = Math.min(MIN_SCROLL_HEIGHT, available);
-        return Math.max(minimum, Math.min(preferredHeight, available));
+        return Math.clamp(preferredHeight, minimum, available);
     }
 
     static boolean compactButtons(int dialogWidth, int widthThreshold) {
@@ -294,7 +294,7 @@ final class DialogUiUtil {
     }
 
     private static int clampFooterButtonWidth(int minWidth, int maxWidth, int candidateWidth) {
-        return Math.max(minWidth, Math.min(maxWidth, candidateWidth));
+        return Math.clamp(candidateWidth, minWidth, maxWidth);
     }
 
     private static FlowLayout footerActionRow() {
@@ -327,7 +327,7 @@ final class DialogUiUtil {
 
     private static int overlayPadding() {
         int computed = (int) Math.round(Math.min(guiWidth(), guiHeight()) * OVERLAY_PADDING_RATIO);
-        return Math.max(MIN_OVERLAY_PADDING, Math.min(MAX_OVERLAY_PADDING, computed));
+        return Math.clamp(computed, MIN_OVERLAY_PADDING, MAX_OVERLAY_PADDING);
     }
 
     private static int overlayInset() {

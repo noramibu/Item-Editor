@@ -7,6 +7,7 @@ import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.panel.specialdata.BannerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BundleSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BucketCreatureSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.CommandBlockSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.EntityVariantSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.FireworkSpecialDataSection;
@@ -54,6 +55,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
         if (this.addIf(root, ContainerSpecialDataSection.supports(stack), () -> ContainerSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, BundleSpecialDataSection.supports(stack), () -> BundleSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, SignSpecialDataSection.supports(stack), () -> SignSpecialDataSection.build(this.context))) sectionCount++;
+        if (this.addIf(root, CommandBlockSpecialDataSection.supports(stack), () -> CommandBlockSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, SpawnerSpecialDataSection.supports(stack), () -> SpawnerSpecialDataSection.build(this.context))) sectionCount++;
 
         if (sectionCount == 0) {

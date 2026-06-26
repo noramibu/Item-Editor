@@ -37,7 +37,8 @@ public final class RawEditorRenderer {
             int startX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), from, measurer);
             int endX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), to, measurer);
             if (selection.end() > row.documentEnd()) {
-                endX = Math.min(contentLeft + contentWidth, Math.max(endX + 2, startX + 1));
+                int contentRight = contentLeft + contentWidth;
+                endX = Math.clamp(endX + 2, Math.min(startX + 1, contentRight), contentRight);
             }
             startX = Math.max(contentLeft, startX);
             endX = Math.min(contentLeft + contentWidth, endX);
@@ -103,7 +104,7 @@ public final class RawEditorRenderer {
             if (markLineEnd && row.localEnd() == line.length()) {
                 int caretOffset = document.lineStart(lineIndex) + row.localEnd();
                 int caretX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), caretOffset, measurer);
-                int startX = Math.max(contentLeft, Math.min(contentLeft + contentWidth, caretX));
+                int startX = Math.clamp(caretX, contentLeft, contentLeft + contentWidth);
                 int endX = Math.min(contentLeft + contentWidth, startX + Math.max(2, underlineHeight * 2));
                 rectangles.add(new RenderRect(startX, underlineY, endX, underlineY + underlineHeight));
             }

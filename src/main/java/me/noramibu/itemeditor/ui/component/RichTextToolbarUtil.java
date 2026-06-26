@@ -368,7 +368,7 @@ public final class RichTextToolbarUtil {
         int safety = UiFactory.scaledPixels(forcedCompact ? 12 : 18);
         int preferredMin = forcedCompact ? 160 : 200;
         int available = Math.max(1, contentWidth - sideInsets - safety);
-        return Math.min(contentWidth, Math.max(preferredMin, available));
+        return Math.clamp(available, Math.min(preferredMin, contentWidth), contentWidth);
     }
 
     private static int toolbarButtonWidth(ButtonComponent button, int maxRowWidth) {
@@ -376,11 +376,11 @@ public final class RichTextToolbarUtil {
         int textWidth = Minecraft.getInstance().font.width(text);
         int chromePadding = toolbarButtonChromePadding(maxRowWidth);
         int minWidth = toolbarButtonMinWidth(maxRowWidth);
-        int maxWidth = Math.max(minWidth, Math.min(toolbarButtonMaxWidth(maxRowWidth), maxRowWidth));
-        int fitted = Math.max(minWidth, Math.min(maxWidth, textWidth + chromePadding));
+        int maxWidth = Math.clamp(maxRowWidth, minWidth, Math.max(minWidth, toolbarButtonMaxWidth(maxRowWidth)));
+        int fitted = Math.clamp(textWidth + chromePadding, minWidth, maxWidth);
         int current = button.width();
         if (current > 0) {
-            fitted = Math.max(fitted, Math.min(maxWidth, current));
+            fitted = Math.clamp(current, fitted, maxWidth);
         }
         return fitted;
     }

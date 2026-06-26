@@ -22,8 +22,8 @@ import java.util.List;
 public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 520;
-    private static final String TOOLTIP_EXPAND_ALL = "Expand All";
-    private static final String TOOLTIP_COLLAPSE_ALL = "Collapse All";
+    private static final String KEY_EXPAND_ALL = "common.expand_all";
+    private static final String KEY_COLLAPSE_ALL = "common.collapse_all";
     private static final int SUMMARY_WIDTH_MIN = 200;
     private static final int SUMMARY_WIDTH_RESERVE = 280;
     private static final int LEVEL_STACK_WIDTH_THRESHOLD = 620;
@@ -101,23 +101,23 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                 : null;
         section.child(UiFactory.actionButtonRow(addButton, clearButton));
         if (hasEntries) {
-            ButtonComponent expandAll = UiFactory.button(Component.literal(TOOLTIP_EXPAND_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            Component expandText = ItemEditorText.tr(KEY_EXPAND_ALL);
+            ButtonComponent expandAll = UiFactory.button(expandText, UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.tooltip(List.of(Component.literal(TOOLTIP_EXPAND_ALL)));
+            expandAll.tooltip(List.of(expandText));
 
-            ButtonComponent collapseAll = UiFactory.button(Component.literal(TOOLTIP_COLLAPSE_ALL), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            Component collapseText = ItemEditorText.tr(KEY_COLLAPSE_ALL);
+            ButtonComponent collapseAll = UiFactory.button(collapseText, UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.tooltip(List.of(Component.literal(TOOLTIP_COLLAPSE_ALL)));
+            collapseAll.tooltip(List.of(collapseText));
             section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
         }
-        int summaryWidth = Math.max(
+        int summaryWidth = Math.clamp(
+                Math.max(SUMMARY_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(SUMMARY_WIDTH_RESERVE)),
                 1,
-                Math.min(
-                        contentWidth,
-                        Math.max(SUMMARY_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(SUMMARY_WIDTH_RESERVE))
-                )
+                Math.max(1, contentWidth)
         );
 
         for (int index = 0; index < drafts.size(); index++) {
@@ -159,7 +159,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                     enchantmentButton
             ));
 
-            int levelFieldWidth = Math.max(LEVEL_FIELD_WIDTH_MIN, Math.min(LEVEL_FIELD_WIDTH_MAX, contentWidth / LEVEL_FIELD_WIDTH_DIVISOR));
+            int levelFieldWidth = Math.clamp(contentWidth / LEVEL_FIELD_WIDTH_DIVISOR, LEVEL_FIELD_WIDTH_MIN, LEVEL_FIELD_WIDTH_MAX);
             int levelButtonsWidth = Math.max(LEVEL_BUTTONS_WIDTH_MIN, UiFactory.scaledPixels(LEVEL_BUTTONS_WIDTH_BASE));
             int staticStackThreshold = UiFactory.scaledPixels(LEVEL_STACK_WIDTH_THRESHOLD);
             int dynamicStackThreshold = levelFieldWidth + levelButtonsWidth + UiFactory.scaledPixels(LEVEL_ROW_WIDTH_RESERVE);

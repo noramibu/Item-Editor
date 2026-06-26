@@ -332,7 +332,7 @@ public final class UiFactory {
     }
 
     public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
-        float preferredScale = Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, textScale));
+        float preferredScale = Math.clamp(textScale, BUTTON_TEXT_MIN_SCALE, BUTTON_TEXT_MAX_SCALE);
         return createAdaptiveButton(fullText, preferredScale, preset.buttonPreset, onPress);
     }
 
@@ -558,7 +558,7 @@ public final class UiFactory {
         Component displayText = text;
         if (text != null && !text.getString().isBlank()) {
             int viewportBound = Math.max(CHECKBOX_VIEWPORT_TEXT_WIDTH_MIN, guiScaledWidth() / 4);
-            int maxTextWidth = Math.max(80, Math.min(responsiveBodyTextWidth(), viewportBound));
+            int maxTextWidth = Math.clamp(viewportBound, 80, Math.max(80, responsiveBodyTextWidth()));
             displayText = fitToWidth(text, maxTextWidth);
         }
 
@@ -588,12 +588,12 @@ public final class UiFactory {
 
     public static int responsiveFieldTextWidth() {
         UiScaleProfile profile = scaleProfile();
-        return Math.max(FIELD_TEXT_MIN, Math.min(FIELD_TEXT_MAX + 120, profile.fieldTextWidth()));
+        return Math.clamp(profile.fieldTextWidth(), FIELD_TEXT_MIN, FIELD_TEXT_MAX + 120);
     }
 
     public static int responsiveBodyTextWidth() {
         UiScaleProfile profile = scaleProfile();
-        return Math.max(BODY_TEXT_MIN, Math.min(BODY_TEXT_MAX + 200, profile.bodyTextWidth()));
+        return Math.clamp(profile.bodyTextWidth(), BODY_TEXT_MIN, BODY_TEXT_MAX + 200);
     }
 
     public static int responsiveSquareSize(double widthRatio, double heightRatio, int min, int max) {
@@ -603,7 +603,7 @@ public final class UiFactory {
         int widthBased = (int) Math.round(scaledWidth * widthRatio);
         int heightBased = (int) Math.round(scaledHeight * heightRatio);
         int responsive = Math.min(widthBased, heightBased);
-        return Math.max(min, Math.min(max, responsive));
+        return Math.clamp(responsive, min, max);
     }
 
     public static UiScaleProfile scaleProfile() {
@@ -623,12 +623,12 @@ public final class UiFactory {
 
     public static int scaledScrollbarThickness(int baseThickness) {
         int scaled = scaledPixels(baseThickness);
-        return Math.max(6, Math.min(14, scaled));
+        return Math.clamp(scaled, 6, 14);
     }
 
     public static int scaledScrollStep(int baseStep) {
         int scaled = scaledPixels(baseStep);
-        return Math.max(8, Math.min(32, scaled));
+        return Math.clamp(scaled, 8, 32);
     }
 
     public static int scrollContentInset(int scrollbarBaseThickness) {
@@ -730,8 +730,8 @@ public final class UiFactory {
         int horizontalPadding = Math.max(8, scaledPixels(preset.horizontalPadding));
         int minWidth = Math.max(16, scaledPixels(preset.minWidth));
         int viewportBound = Math.max(minWidth, (int) Math.round(guiScaledWidth() * 0.28d));
-        int maxWidth = Math.max(minWidth, Math.min(scaledPixels(320), viewportBound));
-        float normalizedScale = Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, preferredScale));
+        int maxWidth = Math.clamp(viewportBound, minWidth, Math.max(minWidth, scaledPixels(320)));
+        float normalizedScale = Math.clamp(preferredScale, BUTTON_TEXT_MIN_SCALE, BUTTON_TEXT_MAX_SCALE);
         int adaptivePadding = horizontalPadding + (normalizedScale > 1.10F ? scaledPixels(2) : 0);
         String fullLabel = safeText.getString();
         int fittedTextBudget = Math.max(8, maxWidth - adaptivePadding);
@@ -739,10 +739,7 @@ public final class UiFactory {
         ButtonComponent button = UIComponents.button(displayText, onPress);
         int renderedTextWidth = Math.max(1, Minecraft.getInstance().font.width(displayText.getString()));
         button.horizontalSizing(Sizing.fixed(
-                Math.max(
-                        minWidth,
-                        Math.min(maxWidth, renderedTextWidth + adaptivePadding)
-                )
+                Math.clamp(renderedTextWidth + adaptivePadding, minWidth, maxWidth)
         ));
         int controlHeight = Math.max(scaleProfile().controlHeight(), scaledPixels(preset.minHeight));
         button.verticalSizing(Sizing.fixed(controlHeight));
@@ -760,8 +757,8 @@ public final class UiFactory {
     private static LabelComponent styledText(Component text, TextPreset preset, float scaleFactor) {
         UiScaleProfile profile = scaleProfile();
         int bodyLineSpacing = Math.max(0, profile.bodyLineSpacing());
-        float normalizedFactor = Math.max(0.5F, Math.min(2.0F, scaleFactor));
-        float textScale = Math.max(0.5F, Math.min(2.0F, baseScaleForPreset(preset) * normalizedFactor));
+        float normalizedFactor = Math.clamp(scaleFactor, 0.5F, 2.0F);
+        float textScale = Math.clamp(baseScaleForPreset(preset) * normalizedFactor, 0.5F, 2.0F);
         LabelComponent label = new ScaledLabelComponent(text).textScale(textScale);
         return switch (preset) {
             case TITLE -> label
@@ -790,7 +787,7 @@ public final class UiFactory {
     }
 
     private static float buttonTextScale(TextPreset preset) {
-        return Math.max(BUTTON_TEXT_MIN_SCALE, Math.min(BUTTON_TEXT_MAX_SCALE, baseScaleForPreset(preset)));
+        return Math.clamp(baseScaleForPreset(preset), BUTTON_TEXT_MIN_SCALE, BUTTON_TEXT_MAX_SCALE);
     }
 
     private static Component safeMessageText(Component text) {

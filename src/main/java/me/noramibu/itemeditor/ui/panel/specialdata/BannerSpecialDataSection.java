@@ -55,12 +55,6 @@ public final class BannerSpecialDataSection {
     private static final int PREVIEW_SIZE_NARROW_MAX = 144;
     private static final int NARROW_LAYOUT_WIDTH_THRESHOLD = 980;
     private static final int LAYER_COLOR_CHIP_SIZE = 10;
-    private static final int DRAG_HINT_WIDTH = 300;
-    private static final int ACTION_BUTTON_WIDTH_BASE = 96;
-    private static final int ACTION_BUTTON_WIDTH_MIN = 72;
-    private static final int ACTION_BUTTON_WIDTH_MAX = 136;
-    private static final int ACTION_BUTTON_TEXT_MIN = 20;
-    private static final int ACTION_BUTTON_TEXT_RESERVE = 10;
 
     private BannerSpecialDataSection() {
     }
@@ -75,9 +69,6 @@ public final class BannerSpecialDataSection {
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         boolean compactLayout = isCompactLayout(context);
-        if (special.draggingBannerLayer < 0 || special.draggingBannerLayer >= special.bannerLayers.size()) {
-            special.draggingBannerLayer = -1;
-        }
         FlowLayout section = UiFactory.section(
                 ItemEditorText.tr(isShieldContext(context) ? "special.banner.shield_title" : "special.banner.title"),
                 Component.empty()
@@ -88,30 +79,34 @@ public final class BannerSpecialDataSection {
         section.child(buildLayerPreviewStrip(context, special));
         section.child(buildBaseColorEditor(context, special));
 
-        Component addLayerText = ItemEditorText.tr("special.banner.add_layer");
-        section.child(boundedActionButton(addLayerText, compactLayout, () ->
-                context.mutateRefresh(() -> {
+        ButtonComponent addLayer = boundedActionButton(
+                ItemEditorText.tr("special.banner.add_layer"),
+                () -> context.mutateRefresh(() -> {
                     if (isShieldContext(context) && special.bannerBaseColor.isBlank()) {
                         special.bannerBaseColor = DyeColor.WHITE.name();
                     }
-                    special.draggingBannerLayer = -1;
                     ItemEditorState.BannerLayerDraft draft = new ItemEditorState.BannerLayerDraft();
                     draft.color = DyeColor.WHITE.name();
                     special.bannerLayers.add(draft);
                 })
-        ));
-
-        if (special.draggingBannerLayer >= 0) {
-            FlowLayout dragRow = compactLayout ? UiFactory.column() : UiFactory.row();
-            dragRow.child(UiFactory.muted(ItemEditorText.tr(
-                    "special.banner.dragging",
-                    special.draggingBannerLayer + 1
-            ), DRAG_HINT_WIDTH));
-            Component dragCancelText = ItemEditorText.tr("special.banner.drag_cancel");
-            dragRow.child(boundedActionButton(dragCancelText, compactLayout, () ->
-                    context.mutateRefresh(() -> special.draggingBannerLayer = -1)
-            ));
-            section.child(dragRow);
+        );
+        if (special.bannerLayers.isEmpty()) {
+            section.child(addLayer);
+        } else {
+            ButtonComponent expandAll = boundedActionButton(
+                    ItemEditorText.tr("common.expand_all"),
+                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, false))
+            );
+            ButtonComponent collapseAll = boundedActionButton(
+                    ItemEditorText.tr("common.collapse_all"),
+                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, true))
+            );
+            if (compactLayout) {
+                section.child(addLayer);
+                section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+            } else {
+                section.child(UiFactory.actionButtonRow(addLayer, expandAll, collapseAll));
+            }
         }
 
         for (int index = 0; index < special.bannerLayers.size(); index++) {
@@ -344,7 +339,6 @@ public final class BannerSpecialDataSection {
                 context,
                 ItemEditorText.tr("special.banner.base_color"),
                 Component.empty(),
-                ItemEditorText.tr("special.banner.select_base_color"),
                 special.bannerBaseColor,
                 color -> special.bannerBaseColor = color.name()
         ));
@@ -361,7 +355,10 @@ public final class BannerSpecialDataSection {
         boolean compactLayout = isCompactLayout(context);
         ItemEditorState.BannerLayerDraft draft = special.bannerLayers.get(index);
         FlowLayout card = UiFactory.subCard();
-        card.child(buildLayerHeader(context, special, index));
+        card.child(buildLayerHeader(context, special, draft, index));
+        if (draft.uiCollapsed) {
+            return card;
+        }
 
         card.child(PickerFieldFactory.searchableField(
                 context,
@@ -379,7 +376,6 @@ public final class BannerSpecialDataSection {
                 context,
                 ItemEditorText.tr("special.banner.color"),
                 Component.empty(),
-                ItemEditorText.tr("special.banner.select_color"),
                 draft.color,
                 color -> draft.color = color.name()
         ));
@@ -389,51 +385,46 @@ public final class BannerSpecialDataSection {
     private static FlowLayout buildLayerHeader(
             SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
+            ItemEditorState.BannerLayerDraft draft,
             int index
     ) {
-        boolean compactLayout = isCompactLayout(context);
-        FlowLayout header = compactLayout ? UiFactory.column() : UiFactory.row();
-        header.child(UiFactory.title(ItemEditorText.tr("special.banner.layer", index + 1)).shadow(false));
+        FlowLayout header = UiFactory.column();
+        header.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
 
+        FlowLayout titleRow = UiFactory.row();
+        titleRow.child(UiFactory.title(ItemEditorText.tr("special.banner.layer", index + 1))
+                .shadow(false)
+                .horizontalSizing(Sizing.expand(100)));
+        titleRow.child(UiFactory.collapseToggleButton(
+                draft.uiCollapsed,
+                () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)
+        ));
+        header.child(titleRow);
+
+        List<ButtonComponent> actions = new ArrayList<>();
         if (index > 0) {
-            header.child(boundedActionButton(ItemEditorText.tr("common.up"), compactLayout, () ->
+            actions.add(boundedActionButton(ItemEditorText.tr("common.up"), () ->
                     context.mutateRefresh(() -> {
-                        special.draggingBannerLayer = -1;
                         Collections.swap(special.bannerLayers, index, index - 1);
                     })
             ));
         }
         if (index < special.bannerLayers.size() - 1) {
-            header.child(boundedActionButton(ItemEditorText.tr("common.down"), compactLayout, () ->
+            actions.add(boundedActionButton(ItemEditorText.tr("common.down"), () ->
                     context.mutateRefresh(() -> {
-                        special.draggingBannerLayer = -1;
                         Collections.swap(special.bannerLayers, index, index + 1);
                     })
             ));
         }
 
-        String dragLabel = dragActionLabel(special.draggingBannerLayer, index);
-        header.child(boundedActionButton(Component.literal(dragLabel), compactLayout, () ->
-                context.mutateRefresh(() -> handleDragAction(special, index))
+        actions.add(boundedActionButton(ItemEditorText.tr("special.banner.duplicate"), () ->
+                context.mutateRefresh(() -> special.bannerLayers.add(index + 1, copyLayer(special.bannerLayers.get(index))))
         ));
 
-        header.child(boundedActionButton(ItemEditorText.tr("special.banner.duplicate"), compactLayout, () ->
-                context.mutateRefresh(() -> {
-                    special.draggingBannerLayer = -1;
-                    special.bannerLayers.add(index + 1, copyLayer(special.bannerLayers.get(index)));
-                })
+        actions.add(boundedActionButton(ItemEditorText.tr("common.remove"), () ->
+                context.mutateRefresh(() -> special.bannerLayers.remove(index))
         ));
-
-        header.child(boundedActionButton(ItemEditorText.tr("common.remove"), compactLayout, () ->
-                context.mutateRefresh(() -> {
-                    special.bannerLayers.remove(index);
-                    if (special.draggingBannerLayer == index) {
-                        special.draggingBannerLayer = -1;
-                    } else if (special.draggingBannerLayer > index) {
-                        special.draggingBannerLayer--;
-                    }
-                })
-        ));
+        header.child(UiFactory.actionButtonRow(false, actions.toArray(ButtonComponent[]::new)));
 
         return header;
     }
@@ -442,44 +433,16 @@ public final class BannerSpecialDataSection {
         return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
-    private static String dragActionLabel(int draggingLayer, int layerIndex) {
-        if (draggingLayer < 0) {
-            return ItemEditorText.str("special.banner.drag");
-        }
-        if (draggingLayer == layerIndex) {
-            return ItemEditorText.str("special.banner.drag_cancel");
-        }
-        return ItemEditorText.str("special.banner.drop_here");
-    }
-
-    private static void handleDragAction(ItemEditorState.SpecialData special, int targetIndex) {
-        if (targetIndex < 0 || targetIndex >= special.bannerLayers.size()) {
-            special.draggingBannerLayer = -1;
-            return;
-        }
-
-        int sourceIndex = special.draggingBannerLayer;
-        if (sourceIndex < 0) {
-            special.draggingBannerLayer = targetIndex;
-            return;
-        }
-        if (sourceIndex == targetIndex) {
-            special.draggingBannerLayer = -1;
-            return;
-        }
-
-        ItemEditorState.BannerLayerDraft source = special.bannerLayers.remove(sourceIndex);
-        int insertIndex = sourceIndex < targetIndex ? targetIndex : targetIndex + 1;
-        insertIndex = Math.clamp(insertIndex, 0, special.bannerLayers.size());
-        special.bannerLayers.add(insertIndex, source);
-        special.draggingBannerLayer = -1;
-    }
-
     private static ItemEditorState.BannerLayerDraft copyLayer(ItemEditorState.BannerLayerDraft source) {
         ItemEditorState.BannerLayerDraft copy = new ItemEditorState.BannerLayerDraft();
         copy.patternId = source.patternId;
         copy.color = source.color;
+        copy.uiCollapsed = source.uiCollapsed;
         return copy;
+    }
+
+    private static void setBannerLayersCollapsed(ItemEditorState.SpecialData special, boolean collapsed) {
+        special.bannerLayers.forEach(layer -> layer.uiCollapsed = collapsed);
     }
 
     private static List<String> availablePatternIds(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
@@ -527,20 +490,10 @@ public final class BannerSpecialDataSection {
         return pretty + " (" + normalized + ")";
     }
 
-    private static ButtonComponent boundedActionButton(Component fullText, boolean compactLayout, Runnable action) {
-        int buttonWidth = Math.max(
-                ACTION_BUTTON_WIDTH_MIN,
-                Math.min(ACTION_BUTTON_WIDTH_MAX, UiFactory.scaledPixels(ACTION_BUTTON_WIDTH_BASE))
-        );
-        Component fitted = UiFactory.fitToWidth(
-                fullText,
-                Math.max(ACTION_BUTTON_TEXT_MIN, buttonWidth - UiFactory.scaledPixels(ACTION_BUTTON_TEXT_RESERVE))
-        );
-        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, component -> action.run());
-        button.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(buttonWidth));
-        if (!fitted.getString().equals(fullText.getString())) {
-            button.tooltip(List.of(fullText));
-        }
+    private static ButtonComponent boundedActionButton(Component fullText, Runnable action) {
+        ButtonComponent button = UIComponents.button(fullText, component -> action.run());
+        UiFactory.applyButtonPreset(button, UiFactory.ButtonPreset.COMPACT);
+        button.horizontalSizing(Sizing.fill(100));
         return button;
     }
 }

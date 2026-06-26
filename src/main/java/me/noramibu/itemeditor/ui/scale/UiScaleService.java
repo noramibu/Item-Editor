@@ -149,7 +149,7 @@ public final class UiScaleService {
     }
 
     private static int clampInt(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private static double areaScale(int width, int height) {

@@ -815,7 +815,7 @@ public final class ArmorStandSpecialDataSection {
                 Math.min(PRESET_BUTTON_WIDTH_MIN, availableWidth),
                 Math.min(PRESET_BUTTON_WIDTH_MAX, availableWidth)
         );
-        int buttonsPerRow = Math.max(1, Math.min(PRESET_BUTTONS_PER_ROW_MAX, (availableWidth + spacing) / Math.max(1, desiredButtonWidth + spacing)));
+        int buttonsPerRow = Math.clamp((availableWidth + spacing) / Math.max(1, desiredButtonWidth + spacing), 1, PRESET_BUTTONS_PER_ROW_MAX);
         int rowButtonWidth = Math.min(availableWidth, desiredButtonWidth);
         FlowLayout rows = UiFactory.column();
         rows.gap(POSE_COMPACT_GAP);
@@ -912,9 +912,11 @@ public final class ArmorStandSpecialDataSection {
     }
 
     private static int previewSize(int previewColumnWidth) {
-        return Math.min(
-                UiFactory.responsiveSquareSize(0.16, 0.30, 82, 200),
-                Math.max(56, previewColumnWidth - PREVIEW_COLUMN_RESERVE)
+        int responsiveSize = UiFactory.responsiveSquareSize(0.16, 0.30, 82, 200);
+        return Math.clamp(
+                previewColumnWidth - PREVIEW_COLUMN_RESERVE,
+                Math.min(56, responsiveSize),
+                responsiveSize
         );
     }
 
@@ -922,7 +924,7 @@ public final class ArmorStandSpecialDataSection {
         int available = inlineMeta
                 ? previewColumnWidth / 3
                 : previewColumnWidth - PREVIEW_COLUMN_RESERVE;
-        return Math.max(48, Math.min(PREVIEW_HINT_WIDTH_MAX, available));
+        return Math.clamp(available, 48, PREVIEW_HINT_WIDTH_MAX);
     }
 
     private static int previewColumnWidth(SpecialDataPanelContext context) {
@@ -931,9 +933,9 @@ public final class ArmorStandSpecialDataSection {
         int available = Math.max(1, panelWidth - gap);
         int maxByPoseColumn = Math.max(1, available - POSE_COLUMN_WIDTH_MIN);
         int candidate = (int) Math.round(panelWidth * PREVIEW_COLUMN_WIDTH_RATIO);
-        int preferredMin = Math.min(PREVIEW_COLUMN_WIDTH_MIN, Math.max(1, available / 3));
+        int preferredMin = Math.clamp(available / 3, 1, PREVIEW_COLUMN_WIDTH_MIN);
         int preferred = clampWidth(candidate, preferredMin, Math.min(PREVIEW_COLUMN_WIDTH_MAX, available));
-        return Math.max(1, Math.min(preferred, maxByPoseColumn));
+        return Math.clamp(maxByPoseColumn, 1, preferred);
     }
 
     private static int poseColumnWidth(SpecialDataPanelContext context, int previewColumnWidth) {
@@ -1092,12 +1094,10 @@ public final class ArmorStandSpecialDataSection {
 
     private static int resolvePoseResetButtonWidth(int panelWidthHint) {
         int contentWidth = Math.max(1, panelWidthHint);
-        int preferred = Math.max(
+        int preferred = Math.clamp(
+                (contentWidth - UiFactory.scaledPixels(POSE_RESET_BUTTON_ROW_RESERVE)) / 5,
                 POSE_RESET_BUTTON_WIDTH_MIN,
-                Math.min(
-                        POSE_RESET_BUTTON_WIDTH_MAX,
-                        (contentWidth - UiFactory.scaledPixels(POSE_RESET_BUTTON_ROW_RESERVE)) / 5
-                )
+                POSE_RESET_BUTTON_WIDTH_MAX
         );
         return Math.min(contentWidth, preferred);
     }
@@ -1116,8 +1116,8 @@ public final class ArmorStandSpecialDataSection {
 
     private static int clampWidth(int value, int minWidth, int maxWidth) {
         int safeMax = Math.max(1, maxWidth);
-        int safeMin = Math.max(1, Math.min(minWidth, safeMax));
-        return Math.max(safeMin, Math.min(safeMax, value));
+        int safeMin = Math.clamp(safeMax, 1, minWidth);
+        return Math.clamp(value, safeMin, safeMax);
     }
 
     private static float parseOrDefault(String raw, float fallback) {
