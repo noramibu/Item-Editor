@@ -93,14 +93,12 @@ final class DialogUiUtil {
 
     static int dialogWidth(int preferredWidth) {
         int available = Math.max(VIEWPORT_MIN, Math.max(VIEWPORT_MIN, guiWidth()) - overlayInset());
-        int minimum = Math.clamp(MIN_DIALOG_WIDTH, VIEWPORT_MIN, available);
-        return Math.clamp(preferredWidth, minimum, available);
+        return clampUi(preferredWidth, MIN_DIALOG_WIDTH, available);
     }
 
     static int dialogHeight(int preferredHeight, int minHeight) {
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight());
-        int minimum = Math.clamp(MIN_DIALOG_HEIGHT, minHeight, available);
-        return Math.clamp(preferredHeight, minimum, available);
+        return clampUi(preferredHeight, Math.max(MIN_DIALOG_HEIGHT, minHeight), available);
     }
 
     static int availableDialogContentHeight(int reservedHeight, int minHeight) {
@@ -111,21 +109,19 @@ final class DialogUiUtil {
                 VIEWPORT_MIN,
                 viewport - Math.max(DIALOG_HARDCAP_MIN_RESERVE, UiFactory.scaledPixels(DIALOG_HARDCAP_SCALED_RESERVE))
         );
-        int minimum = Math.clamp(VIEWPORT_MIN, minHeight, hardCap);
-        return Math.clamp(available, minimum, hardCap);
+        return clampUi(available, Math.max(VIEWPORT_MIN, minHeight), hardCap);
     }
 
     static int dialogTextWidth(int dialogWidth, int horizontalPadding) {
         int available = Math.max(VIEWPORT_MIN, dialogWidth - horizontalPadding);
         int preferred = Math.max(MIN_TEXT_WIDTH, available);
-        return Math.clamp(preferred, VIEWPORT_MIN, Math.max(VIEWPORT_MIN, dialogWidth));
+        return clampUi(preferred, VIEWPORT_MIN, dialogWidth);
     }
 
     static int scrollHeight(int preferredHeight) {
         int reserved = Math.max(MIN_SCROLL_RESERVED_HEIGHT, (int) Math.round(viewportHeight() * SCROLL_RESERVED_HEIGHT_RATIO));
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight() - reserved);
-        int minimum = Math.min(MIN_SCROLL_HEIGHT, available);
-        return Math.clamp(preferredHeight, minimum, available);
+        return clampUi(preferredHeight, MIN_SCROLL_HEIGHT, available);
     }
 
     static boolean compactButtons(int dialogWidth, int widthThreshold) {
@@ -294,7 +290,13 @@ final class DialogUiUtil {
     }
 
     private static int clampFooterButtonWidth(int minWidth, int maxWidth, int candidateWidth) {
-        return Math.clamp(candidateWidth, minWidth, maxWidth);
+        return clampUi(candidateWidth, minWidth, maxWidth);
+    }
+
+    private static int clampUi(int value, int min, int max) {
+        int safeMax = Math.max(VIEWPORT_MIN, max);
+        int safeMin = Math.min(Math.max(VIEWPORT_MIN, min), safeMax);
+        return Math.clamp(value, safeMin, safeMax);
     }
 
     private static FlowLayout footerActionRow() {

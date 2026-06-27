@@ -1151,7 +1151,7 @@ public final class RawEditorPanel implements EditorPanel {
     private int resolveEditorHeight(int viewportHeight, ControlLayout controlLayout, boolean optionsExpanded) {
         int availableHeight = Math.max(1, viewportHeight);
         int editorHeight = availableHeight - this.nonEditorHeight(controlLayout, optionsExpanded);
-        return Math.clamp(EDITOR_MIN_HEIGHT, editorHeight, availableHeight);
+        return Math.clamp(editorHeight, Math.min(EDITOR_MIN_HEIGHT, availableHeight), availableHeight);
     }
 
     private int nonEditorHeight(ControlLayout controlLayout, boolean optionsExpanded) {
