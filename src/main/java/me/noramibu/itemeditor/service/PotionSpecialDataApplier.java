@@ -1,6 +1,7 @@
 package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -21,7 +22,12 @@ final class PotionSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.samePotionData(context.state(), context.baselineState())) {
+        this.applyPotionContents(context);
+        this.applyPotionDurationScale(context);
+    }
+
+    private void applyPotionContents(SpecialDataApplyContext context) {
+        if (this.samePotionContents(context.state(), context.baselineState())) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.POTION_CONTENTS);
             return;
         }
@@ -50,19 +56,49 @@ final class PotionSpecialDataApplier extends AbstractPreviewApplierSupport imple
         ));
     }
 
-    private boolean samePotionData(ItemEditorState state, ItemEditorState baselineState) {
+    private void applyPotionDurationScale(SpecialDataApplyContext context) {
+        if (Objects.equals(context.special().potionDurationScale, context.baselineSpecial().potionDurationScale)) {
+            this.restoreOriginalComponent(
+                    context.originalStack(),
+                    context.previewStack(),
+                    DataComponents.POTION_DURATION_SCALE
+            );
+            return;
+        }
+
+        if (context.special().potionDurationScale.isBlank()) {
+            this.clearToPrototype(context.previewStack(), DataComponents.POTION_DURATION_SCALE);
+            return;
+        }
+
+        Float scale = ValidationUtil.parseFloat(
+                context.special().potionDurationScale,
+                ItemEditorText.str("special.potion.duration_scale"),
+                context.messages()
+        );
+        if (scale == null) {
+            return;
+        }
+        if (!Float.isFinite(scale) || scale <= 0.0F) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.positive_decimal",
+                    ItemEditorText.str("special.potion.duration_scale")
+            )));
+            return;
+        }
+        context.previewStack().set(DataComponents.POTION_DURATION_SCALE, scale);
+    }
+
+    private boolean samePotionContents(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.special.potionId, baselineState.special.potionId)
                 && Objects.equals(state.special.potionCustomColor, baselineState.special.potionCustomColor)
                 && Objects.equals(state.special.potionCustomName, baselineState.special.potionCustomName)
-                && this.samePotionEffects(state.special.potionEffects, baselineState.special.potionEffects);
-    }
-
-    private boolean samePotionEffects(List<ItemEditorState.PotionEffectDraft> current, List<ItemEditorState.PotionEffectDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.effectId, right.effectId)
-                && Objects.equals(left.duration, right.duration)
-                && Objects.equals(left.amplifier, right.amplifier)
-                && left.ambient == right.ambient
-                && left.visible == right.visible
-                && left.showIcon == right.showIcon);
+                && this.sameList(state.special.potionEffects, baselineState.special.potionEffects,
+                        (left, right) -> Objects.equals(left.effectId, right.effectId)
+                                && Objects.equals(left.duration, right.duration)
+                                && Objects.equals(left.amplifier, right.amplifier)
+                                && left.ambient == right.ambient
+                                && Objects.equals(left.visible, right.visible)
+                                && Objects.equals(left.showIcon, right.showIcon));
     }
 }

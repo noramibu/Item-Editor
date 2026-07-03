@@ -120,14 +120,7 @@ public final class TextColorPresets {
     }
 
     public static List<Integer> normalizeGradientStops(List<Integer> colors) {
-        List<Integer> normalized = new ArrayList<>();
-        if (colors != null) {
-            for (Integer color : colors) {
-                if (color != null) {
-                    normalized.add(color & 0xFFFFFF);
-                }
-            }
-        }
+        List<Integer> normalized = normalizedRawStops(colors);
         if (normalized.isEmpty()) {
             return List.of(0xFFFFFF, 0x55FFFF);
         }
@@ -153,6 +146,10 @@ public final class TextColorPresets {
     }
 
     public static List<Integer> normalizeShadowStops(List<Integer> colors) {
+        return List.copyOf(normalizedRawStops(colors));
+    }
+
+    private static List<Integer> normalizedRawStops(List<Integer> colors) {
         List<Integer> normalized = new ArrayList<>();
         if (colors != null) {
             for (Integer color : colors) {
@@ -161,7 +158,7 @@ public final class TextColorPresets {
                 }
             }
         }
-        return List.copyOf(normalized);
+        return normalized;
     }
 
     public static List<Integer> normalizeShadowStopsOrDefault(List<Integer> colors) {
@@ -178,9 +175,6 @@ public final class TextColorPresets {
     }
 
     public record Preset(String id, String label, int rgb) {
-        public String label() {
-            return this.label;
-        }
     }
 
     public record CustomColorPreset(String id, String name, int rgb) {

@@ -13,6 +13,7 @@ import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
+import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -59,13 +60,9 @@ public final class GeneralEditorPanel implements EditorPanel {
     private static final String SYMBOL_MOVE_DOWN = "v";
     private static final String SYMBOL_REMOVE = "x";
     private static final String SYMBOL_ADD = "+";
-    private static final int INLINE_CHECKBOX_SIZE_BASE = 18;
-    private static final int INLINE_CHECKBOX_SIZE_MIN = 14;
     private static final int ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH = 36;
     private static final int ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH = 42;
     private static final int ADVENTURE_STACK_CONTROLS_WIDTH_THRESHOLD = 520;
-    private static final int RESPONSIVE_CHECKBOX_LABEL_RESERVE = 220;
-    private static final int RESPONSIVE_CHECKBOX_LABEL_MIN_WIDTH = 120;
     private static final int ADVENTURE_ENTRY_LABEL_MIN_WIDTH = 120;
     private static final int ADVENTURE_ENTRY_LABEL_INLINE_RESERVE = 220;
     private static final int ENTRY_ACTION_BUTTON_SIZE_BASE = 32;
@@ -153,8 +150,12 @@ public final class GeneralEditorPanel implements EditorPanel {
 
         double guiScale = this.screen.session().minecraft().getWindow().getGuiScale();
         int scaledWidth = this.screen.session().minecraft().getWindow().getGuiScaledWidth();
+        boolean compactScale = LayoutModeUtil.isCompactScale(
+                guiScale,
+                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
+        );
         boolean stackAsColumns = compactLayout
-                && (scaledWidth < STACK_COLUMNS_WIDTH_THRESHOLD || guiScale >= LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD);
+                && (scaledWidth < STACK_COLUMNS_WIDTH_THRESHOLD || compactScale);
         FlowLayout stackRow = stackAsColumns ? UiFactory.column() : UiFactory.row();
         stackRow.gap(Math.max(2, UiFactory.scaleProfile().tightSpacing()));
         stackRow.margins(Insets.top(STACK_ROW_MARGIN_TOP));
@@ -489,15 +490,26 @@ public final class GeneralEditorPanel implements EditorPanel {
         if (state.uiGeneralVisualOverridesCollapsed) {
             return visual;
         }
-        visual.child(this.responsiveCheckboxLine(
+        ButtonComponent glintButton = UiFactory.actionToneButton(
+                TriStateBooleanUi.label(state.glintOverride),
+                UiFactory.ButtonTextPreset.STANDARD,
+                TriStateBooleanUi.tone(state.glintOverride),
+                anchor -> this.screen.openDropdown(
+                        anchor,
+                        TriStateBooleanUi.VALUES,
+                        TriStateBooleanUi::text,
+                        selected -> PanelBindings.mutateRefresh(
+                                this.screen,
+                                () -> state.glintOverride = selected
+                        )
+                )
+        );
+        glintButton.horizontalSizing(Sizing.fill(100));
+        visual.child(this.compactField(
                 ItemEditorText.tr("general.glint_override.enable"),
-                state.glintOverrideEnabled,
-                PanelBindings.toggle(this.screen, value -> state.glintOverrideEnabled = value)
-        ));
-        visual.child(this.responsiveCheckboxLine(
-                ItemEditorText.tr("general.glint_override.force"),
-                state.glintOverride,
-                PanelBindings.toggle(this.screen, value -> state.glintOverride = value)
+                glintButton,
+                ITEM_MODEL_VALUE_LABEL_WIDTH,
+                true
         ));
         return visual;
     }
@@ -574,14 +586,12 @@ public final class GeneralEditorPanel implements EditorPanel {
                 ITEM_MODEL_VALUE_LABEL_WIDTH,
                 true
         ));
-
-        FlowLayout customModelFlags = compactLayout ? UiFactory.column() : UiFactory.row();
-        customModelFlags.child(UiFactory.checkbox(ItemEditorText.tr("general.item_model.flag_enable"), state.customModelFlagEnabled, PanelBindings.toggle(this.screen, value -> state.customModelFlagEnabled = value)));
-        customModelFlags.child(UiFactory.checkbox(ItemEditorText.tr("general.item_model.flag_value"), state.customModelFlag, PanelBindings.toggle(this.screen, value -> state.customModelFlag = value)));
-        if (!compactLayout) {
-            this.distributeRowChildren(customModelFlags);
-        }
-        itemModel.child(customModelFlags);
+        itemModel.child(this.compactField(
+                ItemEditorText.tr("general.item_model.flag_value"),
+                this.itemModelTextBox(state.customModelFlags, PanelBindings.text(this.screen, value -> state.customModelFlags = value)).horizontalSizing(Sizing.fill(100)),
+                ITEM_MODEL_VALUE_LABEL_WIDTH,
+                true
+        ));
         return itemModel;
     }
 
@@ -607,27 +617,6 @@ public final class GeneralEditorPanel implements EditorPanel {
                 this.availableContentWidth(),
                 COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
         );
-    }
-
-    private FlowLayout responsiveCheckboxLine(Component text, boolean checked, Consumer<Boolean> onChanged) {
-        FlowLayout row = UiFactory.row();
-
-        var checkbox = UiFactory.checkbox(Component.empty(), checked, onChanged);
-        int checkboxSize = Math.max(INLINE_CHECKBOX_SIZE_MIN, UiFactory.scaledPixels(INLINE_CHECKBOX_SIZE_BASE));
-        checkbox.horizontalSizing(Sizing.fixed(checkboxSize));
-        row.child(checkbox);
-
-        int contentWidth = this.availableContentWidth();
-        int labelWidth = Math.max(RESPONSIVE_CHECKBOX_LABEL_MIN_WIDTH, contentWidth - UiFactory.scaledPixels(RESPONSIVE_CHECKBOX_LABEL_RESERVE));
-        labelWidth = Math.clamp(labelWidth, 1, Math.max(1, contentWidth));
-        Component fitted = UiFactory.fitToWidth(text, labelWidth);
-        LabelComponent label = UiFactory.muted(fitted, labelWidth);
-        if (!fitted.getString().equals(text.getString())) {
-            label.tooltip(List.of(text));
-        }
-        label.horizontalSizing(Sizing.expand(100));
-        row.child(label);
-        return row;
     }
 
     private void distributeRowChildren(FlowLayout row) {

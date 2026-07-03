@@ -4,6 +4,7 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerEntryDraftUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -237,7 +238,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
 
         List<ItemEditorState.ContainerEntryDraft> preserved = this.special.containerEntries.stream()
                 .filter(draft -> {
-                    Integer slot = parseSlot(draft.slot);
+                    Integer slot = ContainerEntryDraftUtil.parseSlot(draft.slot);
                     return slot == null || slot < 0 || slot >= this.editableSlots;
                 })
                 .toList();
@@ -250,7 +251,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
             }
         }
         this.special.containerEntries.addAll(preserved);
-        this.special.containerEntries.sort(Comparator.comparingInt(ContainerEditorScreen::slotOrMax));
+        this.special.containerEntries.sort(Comparator.comparingInt(ContainerEntryDraftUtil::slotOrMax));
     }
 
     private void switchBundlePage(int delta) {
@@ -356,7 +357,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
         int rows = rowsFor(originalStack);
         SimpleContainer container = new SimpleContainer(rows * COLUMNS);
         for (ItemEditorState.ContainerEntryDraft draft : special.containerEntries) {
-            Integer slot = parseSlot(draft.slot);
+            Integer slot = ContainerEntryDraftUtil.parseSlot(draft.slot);
             if (slot != null && slot >= 0 && slot < container.getContainerSize()) {
                 container.setItem(slot, stackForDraft(draft));
             }
@@ -381,7 +382,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
 
     private static ItemStack stackForDraft(ItemEditorState.ContainerEntryDraft draft) {
         if (draft.templateStack != null && !draft.templateStack.isEmpty()) {
-            int count = Math.max(1, ContainerEntryDraftUtil.parseIntOrDefault(
+            int count = Math.max(1, ValidationUtil.parseIntOrDefault(
                     draft.count,
                     draft.templateStack.getCount()
             ));
@@ -391,7 +392,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
         if (item == null || item == Items.AIR) {
             return ItemStack.EMPTY;
         }
-        int count = Math.max(1, ContainerEntryDraftUtil.parseIntOrDefault(draft.count, 1));
+        int count = Math.max(1, ValidationUtil.parseIntOrDefault(draft.count, 1));
         return new ItemStack(item, count);
     }
 
@@ -422,16 +423,6 @@ public final class ContainerEditorScreen extends ContainerScreen {
             case 5 -> MenuType.GENERIC_9x5;
             default -> MenuType.GENERIC_9x6;
         };
-    }
-
-    private static int slotOrMax(ItemEditorState.ContainerEntryDraft draft) {
-        Integer slot = parseSlot(draft.slot);
-        return slot == null ? Integer.MAX_VALUE : slot;
-    }
-
-    private static Integer parseSlot(String rawSlot) {
-        int parsed = ContainerEntryDraftUtil.parseIntOrDefault(rawSlot, Integer.MIN_VALUE);
-        return parsed == Integer.MIN_VALUE ? null : parsed;
     }
 
     private static void syncBundleSlots(List<ItemEditorState.ContainerEntryDraft> entries) {

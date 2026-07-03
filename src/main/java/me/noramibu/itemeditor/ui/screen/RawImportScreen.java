@@ -6,16 +6,14 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.service.ItemImportService;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.client.Minecraft;
@@ -27,10 +25,6 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
 public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
-
     private final Minecraft minecraft;
     private final Screen returnScreen;
     private final ItemImportService importService = new ItemImportService();
@@ -51,7 +45,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     @Override
     protected void build(StackLayout root) {
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout shell = UiFactory.card();
         shell.horizontalSizing(Sizing.fixed(Math.max(280, this.width - 24)));
@@ -66,7 +60,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
         this.editor = new RawTextAreaComponent(Sizing.fill(100), Sizing.expand(100), "");
         shell.child(this.editor);
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), 0xA9B5C0).maxWidth(Math.max(100, this.width - 60));
+        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
         shell.child(this.statusLabel);
 
         FlowLayout actions = UiFactory.row();
@@ -76,14 +70,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
         actions.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen)));
         shell.child(actions);
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(shell);
-        root.child(centered);
+        UiFactory.centerInRoot(root, shell, 8);
     }
 
     @Override
@@ -98,12 +85,12 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private void importText() {
         RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), 0xFF8A8A);
+            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), UiColors.DANGER);
             this.editor.setErrorLocation(parsed.line(), parsed.column(), 1);
             return;
         }
         if (parsed.stack().isEmpty()) {
-            this.setStatus(ItemEditorText.tr("import.empty_item"), 0xFF8A8A);
+            this.setStatus(ItemEditorText.tr("import.empty_item"), UiColors.DANGER);
             return;
         }
         this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, parsed.stack())));
@@ -112,11 +99,11 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private void formatText() {
         RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), 0xFF8A8A);
+            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), UiColors.DANGER);
             return;
         }
         this.editor.text(RawItemDataUtil.serialize(parsed.stack(), this.registryAccess()));
-        this.setStatus(ItemEditorText.tr("raw_editor.status.valid"), 0x7ED67A);
+        this.setStatus(ItemEditorText.tr("raw_editor.status.valid"), UiColors.SUCCESS);
     }
 
     private void minifyText() {

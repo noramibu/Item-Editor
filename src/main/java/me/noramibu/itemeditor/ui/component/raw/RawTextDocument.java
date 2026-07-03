@@ -70,6 +70,12 @@ public final class RawTextDocument {
 
     public int lineIndexForOffset(int offset) {
         int target = Math.clamp(offset, 0, this.text.length());
+        if (target > 0) {
+            int exactLineStart = Arrays.binarySearch(this.lineStarts, target);
+            if (exactLineStart >= 0) {
+                return exactLineStart;
+            }
+        }
         int low = 0;
         int high = this.lineStarts.length - 1;
         while (low <= high) {
@@ -105,40 +111,52 @@ public final class RawTextDocument {
 
     public int previousWordBoundary(int offset) {
         int cursor = Math.clamp(offset, 0, this.text.length());
-        while (cursor > 0 && Character.isWhitespace(this.text.charAt(cursor - 1))) {
-            cursor--;
+        if (cursor == 0) {
+            return 0;
         }
-        while (cursor > 0
-                && !Character.isWhitespace(this.text.charAt(cursor - 1))
-                && !isWordCharacter(this.text.charAt(cursor - 1))) {
-            cursor--;
+
+        char previous = this.text.charAt(cursor - 1);
+        if (isLineBreak(previous)) {
+            return cursor - 1;
         }
-        while (cursor > 0 && Character.isWhitespace(this.text.charAt(cursor - 1))) {
-            cursor--;
+        if (isInlineWhitespace(previous)) {
+            while (cursor > 0 && isInlineWhitespace(this.text.charAt(cursor - 1))) {
+                cursor--;
+            }
+            return cursor;
         }
-        while (cursor > 0 && isWordCharacter(this.text.charAt(cursor - 1))) {
-            cursor--;
+        if (isWordCharacter(previous)) {
+            while (cursor > 0 && isWordCharacter(this.text.charAt(cursor - 1))) {
+                cursor--;
+            }
+            return cursor;
         }
-        return cursor;
+        return cursor - 1;
     }
 
     public int nextWordBoundary(int offset) {
         int cursor = Math.clamp(offset, 0, this.text.length());
-        while (cursor < this.text.length() && Character.isWhitespace(this.text.charAt(cursor))) {
-            cursor++;
+        if (cursor == this.text.length()) {
+            return cursor;
         }
-        while (cursor < this.text.length()
-                && !Character.isWhitespace(this.text.charAt(cursor))
-                && !isWordCharacter(this.text.charAt(cursor))) {
-            cursor++;
+
+        char current = this.text.charAt(cursor);
+        if (isLineBreak(current)) {
+            return cursor + 1;
         }
-        while (cursor < this.text.length() && Character.isWhitespace(this.text.charAt(cursor))) {
-            cursor++;
+        if (isInlineWhitespace(current)) {
+            while (cursor < this.text.length() && isInlineWhitespace(this.text.charAt(cursor))) {
+                cursor++;
+            }
+            return cursor;
         }
-        while (cursor < this.text.length() && isWordCharacter(this.text.charAt(cursor))) {
-            cursor++;
+        if (isWordCharacter(current)) {
+            while (cursor < this.text.length() && isWordCharacter(this.text.charAt(cursor))) {
+                cursor++;
+            }
+            return cursor;
         }
-        return cursor;
+        return cursor + 1;
     }
 
     public void setSelection(int anchor, int caret) {
@@ -255,6 +273,7 @@ public final class RawTextDocument {
 
         boolean incremental = changed
                 && safeEditStart >= 0
+                && !touchesLineBreak(removed, safeReplacement)
                 && this.rebuildLineStartsIncremental(previousLength, safeEditStart, safeEditEnd, safeReplacement);
         if (!incremental) {
             this.rebuildLineStarts();
@@ -483,6 +502,10 @@ public final class RawTextDocument {
         return count;
     }
 
+    private static boolean touchesLineBreak(String removed, String replacement) {
+        return newlineCount(removed) > 0 || newlineCount(replacement) > 0;
+    }
+
     private static boolean isWordCharacter(char value) {
         return Character.isLetterOrDigit(value)
                 || value == '_'
@@ -490,6 +513,14 @@ public final class RawTextDocument {
                 || value == '-'
                 || value == '.'
                 || value == '/';
+    }
+
+    private static boolean isLineBreak(char value) {
+        return value == '\n' || value == '\r';
+    }
+
+    private static boolean isInlineWhitespace(char value) {
+        return Character.isWhitespace(value) && !isLineBreak(value);
     }
 
     public record Selection(int start, int end) {

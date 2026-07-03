@@ -13,4 +13,3 @@ public final class StorageConstants {
     private StorageConstants() {
     }
 }
-

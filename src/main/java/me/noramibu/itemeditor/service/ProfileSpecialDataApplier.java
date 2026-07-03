@@ -51,15 +51,13 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         if (!textureValue.isBlank()) {
-            UUID resolvedId = profileUuid == null ? Util.NIL_UUID : profileUuid;
-            Property texturesProperty = textureSignature.isBlank()
-                    ? new Property("textures", textureValue)
-                    : new Property("textures", textureValue, textureSignature);
             var mutableProperties = LinkedHashMultimap.<String, Property>create();
-            mutableProperties.put("textures", texturesProperty);
-            PropertyMap properties = new PropertyMap(mutableProperties);
-            GameProfile profile = new GameProfile(resolvedId, profileName, properties);
-            context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createResolved(profile));
+            mutableProperties.put("textures", textureSignature.isBlank()
+                    ? new Property("textures", textureValue)
+                    : new Property("textures", textureValue, textureSignature));
+            context.previewStack().set(DataComponents.PROFILE, ResolvableProfile.createResolved(
+                    new GameProfile(profileUuid == null ? Util.NIL_UUID : profileUuid, profileName, new PropertyMap(mutableProperties))
+            ));
             return;
         }
 
@@ -79,7 +77,7 @@ final class ProfileSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
     private static UUID tryParseUuid(String raw) {
         try {
-            return UUID.fromString(raw.trim());
+            return UUID.fromString(raw);
         } catch (IllegalArgumentException exception) {
             return null;
         }

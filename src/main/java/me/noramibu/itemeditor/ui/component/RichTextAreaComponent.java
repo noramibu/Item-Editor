@@ -565,6 +565,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             if (this.document.isEmpty() && !this.isFocused() && !this.placeholder.isBlank()) {
                 this.renderer.renderPlaceholder(context, this.placeholder, viewportX, baseY, this.placeholderColor);
             } else {
+                String sourceText = this.document.plainText();
                 for (int lineIndex = 0; lineIndex < this.displayLines.size(); lineIndex++) {
                     RichTextLayoutUtil.LineLayout line = this.displayLines.get(lineIndex);
                     int lineY = baseY + lineIndex * LINE_HEIGHT;
@@ -581,7 +582,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                                 selection.start(),
                                 selection.end(),
                                 this.selectionColor,
-                                this.document.plainText(),
+                                sourceText,
                                 this.renderStructuredEvents,
                                 this.renderStructuredObjects
                         );
@@ -589,11 +590,13 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
                     this.renderer.renderLine(
                             context,
+                            this.document,
                             line,
                             baseX,
                             lineY,
                             this.defaultTextColor,
                             this.renderStructuredEvents,
+                            this.renderStructuredObjects,
                             this.eventOverlayRanges
                     );
                     if (this.showSoftWrapMarkers && this.isSoftWrappedLine(lineIndex)) {
@@ -1458,10 +1461,6 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     public boolean displayCharCount() {
         return this.logicalCounterEnabled;
-    }
-
-    public int heightOffset() {
-        return this.logicalCounterEnabled ? 10 : 0;
     }
 
     private void recordUndo(HistoryState before) {

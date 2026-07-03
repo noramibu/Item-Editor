@@ -159,15 +159,12 @@ public final class RawFontMetrics implements RawEditorTextMeasurer {
     }
 
     private float baseScaleForGuiScale(double guiScale) {
-        int guiScaleTier = guiScale >= TEXT_SCALE_THRESHOLD_GS5 ? 3
-                : guiScale >= TEXT_SCALE_THRESHOLD_GS4 ? 2
-                : guiScale >= TEXT_SCALE_THRESHOLD_GS3 ? 1
-                : 0;
-        return switch (guiScaleTier) {
-            case 3 -> TEXT_SCALE_GS5;
-            case 2 -> TEXT_SCALE_GS4;
-            case 1 -> TEXT_SCALE_GS3;
-            default -> 1.0F;
-        };
+        if (guiScale >= TEXT_SCALE_THRESHOLD_GS5) {
+            return TEXT_SCALE_GS5;
+        }
+        if (guiScale >= TEXT_SCALE_THRESHOLD_GS4) {
+            return TEXT_SCALE_GS4;
+        }
+        return guiScale >= TEXT_SCALE_THRESHOLD_GS3 ? TEXT_SCALE_GS3 : 1.0F;
     }
 }

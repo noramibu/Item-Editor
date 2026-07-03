@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -44,20 +45,33 @@ final class RichTextRenderer {
 
     void renderLine(
             GuiGraphics context,
+            RichTextDocument document,
             RichTextLayoutUtil.LineLayout line,
             int baseX,
             int lineY,
             int color,
             boolean renderStructuredEvents,
+            boolean renderStructuredObjects,
             List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges
     ) {
-        if (line.start() == line.end()) {
-            return;
-        }
         if (renderStructuredEvents) {
             this.renderEventAttachmentOverlay(context, line, baseX, lineY, eventOverlayRanges);
         }
-        context.drawString(this.font, line.component(), baseX, lineY, color, hasShadowColor(line.component()));
+        int[] positions = line.positions();
+        float[] boundaries = line.boundaries();
+        for (int index = 0; index + 1 < positions.length; index++) {
+            if (boundaries[index + 1] <= boundaries[index]) {
+                continue;
+            }
+            Component component = RichTextLayoutUtil.renderedDocumentComponentForRange(
+                    document,
+                    positions[index],
+                    positions[index + 1],
+                    renderStructuredEvents,
+                    renderStructuredObjects
+            );
+            context.drawString(this.font, component, baseX + Math.round(boundaries[index]), lineY, color, hasShadowColor(component));
+        }
     }
 
     private static boolean hasShadowColor(Component component) {

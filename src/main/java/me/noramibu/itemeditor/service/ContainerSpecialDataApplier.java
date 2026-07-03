@@ -23,7 +23,11 @@ final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport im
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameContainerEntries(context.special().containerEntries, context.baselineSpecial().containerEntries)) {
+        if (this.sameList(context.special().containerEntries, context.baselineSpecial().containerEntries,
+                (left, right) -> Objects.equals(left.slot, right.slot)
+                        && Objects.equals(left.itemId, right.itemId)
+                        && Objects.equals(left.count, right.count)
+                        && ItemStack.matches(left.templateStack, right.templateStack))) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.CONTAINER);
             return;
         }
@@ -75,7 +79,7 @@ final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport im
             }
         }
 
-        if (slotStacks.isEmpty() || maxSlot < 0) {
+        if (slotStacks.isEmpty()) {
             this.clearToPrototype(context.previewStack(), DataComponents.CONTAINER);
             return;
         }
@@ -106,12 +110,5 @@ final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport im
             return Math.max(1, draft.templateStack.getMaxStackSize());
         }
         return Math.max(1, new ItemStack(item).getMaxStackSize());
-    }
-
-    private boolean sameContainerEntries(List<ItemEditorState.ContainerEntryDraft> current, List<ItemEditorState.ContainerEntryDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.slot, right.slot)
-                && Objects.equals(left.itemId, right.itemId)
-                && Objects.equals(left.count, right.count)
-                && ItemStack.matches(left.templateStack, right.templateStack));
     }
 }

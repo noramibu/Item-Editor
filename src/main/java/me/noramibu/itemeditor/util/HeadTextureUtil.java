@@ -18,16 +18,17 @@ public final class HeadTextureUtil {
         }
 
         String value = raw.trim();
-        if (looksJson(value)) {
+        if (value.startsWith("{") && value.endsWith("}")) {
             return encodeBase64(value);
         }
 
-        if (looksTextureUrl(value)) {
-            return encodeBase64(textureJson(normalizeTextureUrl(value)));
+        String hostPath = stripScheme(value);
+        if (hostPath.toLowerCase(Locale.ROOT).startsWith("textures.minecraft.net/texture/")) {
+            return encodeBase64(textureJson("https://" + hostPath));
         }
 
-        if (looksTextureHash(value)) {
-            return encodeBase64(textureJson(textureUrlFromHash(value)));
+        if (HASH_PATTERN.matcher(value).matches()) {
+            return encodeBase64(textureJson("https://textures.minecraft.net/texture/" + value.toLowerCase(Locale.ROOT)));
         }
 
         return value;
@@ -44,31 +45,6 @@ public final class HeadTextureUtil {
         } catch (IllegalArgumentException exception) {
             return false;
         }
-    }
-
-    private static boolean looksTextureHash(String value) {
-        return HASH_PATTERN.matcher(value).matches();
-    }
-
-    private static boolean looksTextureUrl(String value) {
-        String hostPath = stripScheme(value.trim()).toLowerCase(Locale.ROOT);
-        return hostPath.startsWith("textures.minecraft.net/texture/");
-    }
-
-    private static boolean looksJson(String value) {
-        return value.startsWith("{") && value.endsWith("}");
-    }
-
-    private static String normalizeTextureUrl(String value) {
-        String hostPath = stripScheme(value.trim());
-        if (hostPath.toLowerCase(Locale.ROOT).startsWith("textures.minecraft.net/texture/")) {
-            return "https://" + hostPath;
-        }
-        return value.trim();
-    }
-
-    private static String textureUrlFromHash(String hash) {
-        return "https://textures.minecraft.net/texture/" + hash.toLowerCase(Locale.ROOT);
     }
 
     private static String textureJson(String url) {

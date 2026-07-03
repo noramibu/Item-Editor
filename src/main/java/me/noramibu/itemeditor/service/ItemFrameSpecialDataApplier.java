@@ -3,11 +3,9 @@ package me.noramibu.itemeditor.service;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
@@ -38,12 +36,12 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
             entityTag = originalData.copyTagWithoutId();
         }
 
-        setBooleanKey(entityTag, "Invisible", context.special().itemFrameInvisible);
-        setBooleanKey(entityTag, "Fixed", context.special().itemFrameFixed);
-        setBooleanKey(entityTag, "NoGravity", context.special().itemFrameNoGravity);
-        setBooleanKey(entityTag, "Invulnerable", context.special().itemFrameInvulnerable);
-        setBooleanKey(entityTag, "CustomNameVisible", context.special().itemFrameCustomNameVisible);
-        this.applyCustomName(entityTag, context.special().itemFrameCustomName);
+        NbtTagUtil.setBooleanKey(entityTag, "Invisible", context.special().itemFrameInvisible);
+        NbtTagUtil.setBooleanKey(entityTag, "Fixed", context.special().itemFrameFixed);
+        NbtTagUtil.setBooleanKey(entityTag, "NoGravity", context.special().itemFrameNoGravity);
+        NbtTagUtil.setBooleanKey(entityTag, "Invulnerable", context.special().itemFrameInvulnerable);
+        NbtTagUtil.setBooleanKey(entityTag, "CustomNameVisible", context.special().itemFrameCustomNameVisible);
+        NbtTagUtil.setTextComponentKey(entityTag, "CustomName", context.special().itemFrameCustomName);
         this.putOptionalIntTag(
                 entityTag,
                 "ItemRotation",
@@ -71,18 +69,6 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
         context.previewStack().set(
                 DataComponents.ENTITY_DATA,
                 TypedEntityData.of(resolveItemFrameType(context), entityTag)
-        );
-    }
-
-    private void applyCustomName(CompoundTag entityTag, String rawName) {
-        if (rawName == null || rawName.isBlank()) {
-            entityTag.remove("CustomName");
-            return;
-        }
-        entityTag.store(
-                "CustomName",
-                ComponentSerialization.CODEC,
-                this.withPlainBaseline(TextComponentUtil.parseMarkup(rawName))
         );
     }
 
@@ -114,25 +100,19 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
     }
 
     private boolean supportsItemFrameData(SpecialDataApplyContext context) {
-        if (context.previewStack().is(Items.ITEM_FRAME) || context.previewStack().is(Items.GLOW_ITEM_FRAME)) {
-            return true;
-        }
-        TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
-        if (isItemFrameType(previewData)) {
-            return true;
-        }
-        TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        return isItemFrameType(originalData);
+        return context.previewStack().is(Items.ITEM_FRAME)
+                || context.previewStack().is(Items.GLOW_ITEM_FRAME)
+                || isItemFrameType(context.previewStack().get(DataComponents.ENTITY_DATA))
+                || isItemFrameType(context.originalStack().get(DataComponents.ENTITY_DATA));
     }
 
     private static EntityType<?> resolveItemFrameType(SpecialDataApplyContext context) {
-        TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
-        if (isItemFrameType(previewData)) {
-            return previewData.type();
+        TypedEntityData<EntityType<?>> data = context.previewStack().get(DataComponents.ENTITY_DATA);
+        if (!isItemFrameType(data)) {
+            data = context.originalStack().get(DataComponents.ENTITY_DATA);
         }
-        TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        if (isItemFrameType(originalData)) {
-            return originalData.type();
+        if (isItemFrameType(data)) {
+            return data.type();
         }
         if (context.previewStack().is(Items.GLOW_ITEM_FRAME) || context.originalStack().is(Items.GLOW_ITEM_FRAME)) {
             return EntityType.GLOW_ITEM_FRAME;
@@ -167,13 +147,5 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
                 && special.itemFrameRotation.isBlank()
                 && special.itemFrameDropChance.isBlank()
                 && special.itemFrameFacing.isBlank();
-    }
-
-    private static void setBooleanKey(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
     }
 }

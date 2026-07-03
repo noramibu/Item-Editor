@@ -4,29 +4,35 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
+import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
+import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
-import me.noramibu.itemeditor.util.IdFieldNormalizer;
+import me.noramibu.itemeditor.ui.util.UiColors;
+import me.noramibu.itemeditor.util.InstrumentDetails;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.Instrument;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.MapPostProcessing;
-import net.minecraft.world.item.equipment.trim.TrimMaterial;
-import net.minecraft.world.item.equipment.trim.TrimPattern;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.withCurrentId;
 import java.util.function.Supplier;
 
 public final class MiscSpecialDataSections {
@@ -42,6 +48,9 @@ public final class MiscSpecialDataSections {
     private static final int PROFILE_ACTION_BUTTON_TEXT_MIN = 20;
     private static final int PROFILE_ACTION_BUTTON_TEXT_RESERVE = 10;
     private static final int PROFILE_IDENTITY_ROW_RESERVE = 12;
+    private static final int INSTRUMENT_PICK_BUTTON_WIDTH = 84;
+    private static final int INSTRUMENT_NUMBER_FIELD_WIDTH = 150;
+    private static final int INSTRUMENT_DESCRIPTION_EDITOR_HEIGHT = 54;
 
     private MiscSpecialDataSections() {
     }
@@ -56,6 +65,10 @@ public final class MiscSpecialDataSections {
                 || stack.is(Items.WOLF_ARMOR);
     }
 
+    public static boolean supportsDye(ItemStack stack) {
+        return ItemEditorCapabilities.supportsDyeData(stack);
+    }
+
     public static boolean supportsTrim(ItemStack stack) {
         return stack.has(DataComponents.TRIM) || stack.is(ItemTags.TRIMMABLE_ARMOR);
     }
@@ -66,12 +79,6 @@ public final class MiscSpecialDataSections {
 
     public static boolean supportsInstrument(ItemStack stack) {
         return stack.has(DataComponents.INSTRUMENT) || stack.is(Items.GOAT_HORN);
-    }
-
-    public static boolean supportsJukebox(ItemStack stack) {
-        return stack.has(DataComponents.JUKEBOX_PLAYABLE)
-                || stack.is(Items.JUKEBOX)
-                || isMusicDisc(stack);
     }
 
     public static boolean supportsMap(ItemStack stack) {
@@ -95,41 +102,86 @@ public final class MiscSpecialDataSections {
         return section;
     }
 
+    public static FlowLayout buildDye(SpecialDataPanelContext context) {
+        ItemEditorState.SpecialData special = context.special();
+        return collapsibleCard(
+                context,
+                ItemEditorText.tr("special.dye.title"),
+                special.uiDyeCollapsed,
+                value -> special.uiDyeCollapsed = value,
+                () -> {
+                    FlowLayout content = UiFactory.column();
+                    content.child(DyeColorSelectorSection.build(
+                            context,
+                            ItemEditorText.tr("special.dye.color"),
+                            Component.empty(),
+                            ItemEditorText.tr("special.dye.unset").copy().withColor(UiColors.PICKER),
+                            special.dyeColor,
+                            Math.clamp(context.panelWidthHint() / 2, 120, 240),
+                            ItemEditorText.tr("special.dye.quick_pick"),
+                            color -> special.dyeColor = color.name()
+                    ));
+                    ButtonComponent clear = UiFactory.negativeButton(
+                            ItemEditorText.tr("common.reset"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> context.mutateRefresh(() -> special.dyeColor = "")
+                    );
+                    clear.active(!special.dyeColor.isBlank());
+                    clear.horizontalSizing(Sizing.fill(100));
+                    content.child(clear);
+                    return content;
+                }
+        );
+    }
+
     public static FlowLayout buildTrim(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
-        Registry<TrimMaterial> materialRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.TRIM_MATERIAL);
-        Registry<TrimPattern> patternRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.TRIM_PATTERN);
-        List<String> materialIds = RegistryUtil.ids(materialRegistry);
-        List<String> patternIds = RegistryUtil.ids(patternRegistry);
+        List<String> materialIds = context.registryIds(Registries.TRIM_MATERIAL);
+        List<String> patternIds = context.registryIds(Registries.TRIM_PATTERN);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.trim.title"), Component.empty());
 
-        section.child(PickerFieldFactory.searchableField(
+        section.child(trimPickerField(
                 context,
-                ItemEditorText.tr("special.misc.trim.material_id"),
-                Component.empty(),
-                PickerFieldFactory.selectedOrFallback(special.trimMaterialId, ItemEditorText.tr("special.misc.trim.select_material")),
-                -1,
-                ItemEditorText.str("special.misc.trim.material_id"),
-                "",
+                "material_id",
+                "select_material",
+                special.trimMaterialId,
                 materialIds,
-                id -> id,
-                id -> context.mutateRefresh(() -> special.trimMaterialId = id)
+                id -> special.trimMaterialId = id
         ));
 
-        section.child(PickerFieldFactory.searchableField(
+        section.child(trimPickerField(
                 context,
-                ItemEditorText.tr("special.misc.trim.pattern_id"),
-                Component.empty(),
-                PickerFieldFactory.selectedOrFallback(special.trimPatternId, ItemEditorText.tr("special.misc.trim.select_pattern")),
-                -1,
-                ItemEditorText.str("special.misc.trim.pattern_id"),
-                "",
+                "pattern_id",
+                "select_pattern",
+                special.trimPatternId,
                 patternIds,
-                id -> id,
-                id -> context.mutateRefresh(() -> special.trimPatternId = id)
+                id -> special.trimPatternId = id
         ));
         return section;
+    }
+
+    private static FlowLayout trimPickerField(
+            SpecialDataPanelContext context,
+            String fieldKey,
+            String emptyKey,
+            String value,
+            List<String> ids,
+            Consumer<String> setter
+    ) {
+        String labelKey = "special.misc.trim." + fieldKey;
+        return PickerFieldFactory.searchableField(
+                context,
+                ItemEditorText.tr(labelKey),
+                Component.empty(),
+                PickerFieldFactory.selectedOrFallback(value, ItemEditorText.tr("special.misc.trim." + emptyKey)),
+                -1,
+                ItemEditorText.str(labelKey),
+                "",
+                ids,
+                id -> id,
+                id -> context.mutateRefresh(() -> setter.accept(id))
+        );
     }
 
     public static FlowLayout buildProfile(SpecialDataPanelContext context) {
@@ -166,7 +218,11 @@ public final class MiscSpecialDataSections {
 
         FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
         int contentWidth = context.panelWidthHint();
-        int profileActionButtonWidth = resolveProfileActionButtonWidth(contentWidth);
+        int profileActionButtonWidth = Math.clamp(Math.clamp(
+                (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2,
+                PROFILE_ACTION_BUTTON_WIDTH_MIN,
+                PROFILE_ACTION_BUTTON_WIDTH_MAX
+        ), 1, Math.max(1, contentWidth));
         Component useLocalSkinText = ItemEditorText.tr("special.misc.profile.use_local_skin");
         var useLocalSkinButton = ButtonFitUtil.fixedWidthFittedButton(
                 useLocalSkinText,
@@ -216,43 +272,113 @@ public final class MiscSpecialDataSections {
 
     public static FlowLayout buildInstrument(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
+        Registry<Instrument> instrumentRegistry = instrumentRegistry(context);
+        boolean compactLayout = isCompactLayout(context);
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.instrument.title"), Component.empty());
-        section.child(UiFactory.field(
+
+        section.child(PickerFieldFactory.searchableTextField(
+                context,
                 ItemEditorText.tr("special.misc.instrument.id"),
-                Component.empty(),
-                UiFactory.textBox(special.instrumentId, context.bindText(value -> special.instrumentId = value))
+                special.instrumentId,
+                value -> special.instrumentId = value,
+                INSTRUMENT_PICK_BUTTON_WIDTH,
+                ItemEditorText.str("special.misc.instrument.id"),
+                "",
+                instrumentIds(instrumentRegistry, special.instrumentId),
+                id -> id,
+                id -> context.mutateRefresh(() -> {
+                    special.instrumentId = id;
+                    var holder = instrumentRegistry == null ? null : RegistryUtil.resolveHolder(instrumentRegistry, id);
+                    if (holder != null) {
+                        InstrumentDetails.fromInstrument(holder.value()).applyTo(special);
+                    }
+                })
         ));
+        section.child(PickerFieldFactory.searchableTextField(
+                context,
+                ItemEditorText.tr("special.misc.instrument.sound_event"),
+                special.instrumentSoundEventId,
+                value -> special.instrumentSoundEventId = value,
+                INSTRUMENT_PICK_BUTTON_WIDTH,
+                ItemEditorText.str("special.misc.instrument.sound_event"),
+                "",
+                goatHornSoundEventIds(context, special.instrumentSoundEventId),
+                id -> id,
+                id -> context.mutateRefresh(() -> special.instrumentSoundEventId = id)
+        ));
+        section.child(instrumentDescriptionEditor(context, special));
+
+        FlowLayout values = compactLayout ? UiFactory.column() : UiFactory.row();
+        values.child(UiFactory.field(
+                ItemEditorText.tr("special.misc.instrument.use_duration"),
+                Component.empty(),
+                UiFactory.textBox(
+                        special.instrumentUseDuration,
+                        context.bindText(value -> special.instrumentUseDuration = value)
+                ).horizontalSizing(Sizing.fill(100))
+        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
+        values.child(UiFactory.field(
+                ItemEditorText.tr("special.misc.instrument.range"),
+                Component.empty(),
+                UiFactory.textBox(
+                        special.instrumentRange,
+                        context.bindText(value -> special.instrumentRange = value)
+                ).horizontalSizing(Sizing.fill(100))
+        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
+        section.child(values);
         return section;
     }
 
-    public static FlowLayout buildJukebox(SpecialDataPanelContext context) {
-        ItemEditorState.SpecialData special = context.special();
-        FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.jukebox.title"), Component.empty());
-        List<String> songIds = availableJukeboxSongIds(context, special.jukeboxSongId);
+    private static FlowLayout instrumentDescriptionEditor(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special
+    ) {
+        StyledTextFieldSection.BoundEditor editor = StyledTextFieldSection.create(
+                context.screen(),
+                RichTextDocument.fromMarkup(special.instrumentDescription),
+                Sizing.fill(100),
+                UiFactory.fixed(INSTRUMENT_DESCRIPTION_EDITOR_HEIGHT),
+                ItemEditorText.str("special.misc.instrument.description"),
+                StyledTextFieldSection.StylePreset.name(),
+                ItemEditorText.str("special.misc.instrument.description_color"),
+                ItemEditorText.str("special.misc.instrument.description_gradient"),
+                "",
+                "",
+                null,
+                document -> document.logicalLineCount() > 1
+                        ? ItemEditorText.str("special.misc.instrument.description_single_line")
+                        : null,
+                document -> context.mutate(() ->
+                        special.instrumentDescription = TextComponentUtil.serializeEditorDocument(document)),
+                true,
+                context.panelWidthHint()
+        );
 
-        FlowLayout input = UiFactory.column().gap(2);
-        input.child(UiFactory.textBox(
-                special.jukeboxSongId,
-                context.bindText(value -> special.jukeboxSongId = IdFieldNormalizer.normalize(value))
-        ));
+        FlowLayout frame = UiFactory.framedEditorCard();
+        frame.child(editor.toolbar());
+        frame.child(editor.editor());
+        frame.child(editor.validation());
+        return UiFactory.field(ItemEditorText.tr("special.misc.instrument.description"), Component.empty(), frame);
+    }
 
-        input.child(UiFactory.button(
-                ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.openSearchablePicker(
-                        ItemEditorText.str("special.misc.jukebox.id"),
-                        "",
-                        songIds,
-                        id -> id,
-                        id -> context.mutateRefresh(() -> special.jukeboxSongId = id)
-                )
-        ).horizontalSizing(Sizing.fill(100)));
+    private static Registry<Instrument> instrumentRegistry(SpecialDataPanelContext context) {
+        try {
+            return context.screen().session().registryAccess().lookupOrThrow(Registries.INSTRUMENT);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
 
-        section.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.jukebox.id"),
-                Component.empty(),
-                input
-        ));
-        return section;
+    private static List<String> instrumentIds(Registry<Instrument> instrumentRegistry, String currentId) {
+        return withCurrentId(instrumentRegistry == null ? List.of() : RegistryUtil.ids(instrumentRegistry), currentId);
+    }
+
+    private static List<String> goatHornSoundEventIds(SpecialDataPanelContext context, String currentId) {
+        List<String> soundEventIds = context.optionalRegistryIds(Registries.SOUND_EVENT);
+        List<String> goatHornIds = soundEventIds.stream()
+                .filter(id -> id.contains("goat_horn"))
+                .toList();
+        return withCurrentId(goatHornIds.isEmpty() ? soundEventIds : goatHornIds, currentId);
     }
 
     public static FlowLayout buildMap(SpecialDataPanelContext context) {
@@ -317,43 +443,13 @@ public final class MiscSpecialDataSections {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private static int resolveProfileActionButtonWidth(int contentWidth) {
-        int preferred = Math.clamp(
-                (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2,
-                PROFILE_ACTION_BUTTON_WIDTH_MIN,
-                PROFILE_ACTION_BUTTON_WIDTH_MAX
-        );
-        return Math.clamp(preferred, 1, Math.max(1, contentWidth));
-    }
-
-    private static boolean isMusicDisc(ItemStack stack) {
-        var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return id.getPath().startsWith("music_disc_");
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static boolean isHeadItem(ItemStack stack) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         String path = id.getPath();
         return path.endsWith("_head");
-    }
-
-    private static List<String> availableJukeboxSongIds(SpecialDataPanelContext context, String currentId) {
-        List<String> ids = new ArrayList<>();
-        try {
-            Registry<?> songRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG);
-            ids.addAll(RegistryUtil.ids(songRegistry));
-        } catch (RuntimeException ignored) {
-        }
-
-        String normalizedCurrent = IdFieldNormalizer.normalize(currentId);
-        if (!normalizedCurrent.isBlank() && !ids.contains(normalizedCurrent)) {
-            ids.add(normalizedCurrent);
-        }
-        ids.sort(String::compareTo);
-        return ids;
     }
 
 }

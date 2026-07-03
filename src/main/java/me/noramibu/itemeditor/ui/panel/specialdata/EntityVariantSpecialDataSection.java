@@ -6,18 +6,14 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.RegistryUtil;
-import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
@@ -33,7 +29,6 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 import java.util.List;
@@ -57,11 +52,7 @@ public final class EntityVariantSpecialDataSection {
         ItemStack stack = context.originalStack();
         ItemEditorState.SpecialData special = context.special();
         String entityId = selectedEntityId(stack, special);
-        boolean compactLayout = LayoutModeUtil.isCompactPanel(
-                context.guiScale(),
-                context.panelWidthHint(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD
-        );
+        boolean compactLayout = context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.entity_variant.title"), Component.empty());
         FlowLayout card = UiFactory.subCard();
@@ -76,17 +67,17 @@ public final class EntityVariantSpecialDataSection {
                         serializedValues(Axolotl.Variant.values())
                 ));
         addIf(card, show(entityId, "minecraft:cat", stack.has(DataComponents.CAT_VARIANT), special.entityCatVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.cat_variant"), special.entityCatVariant, value -> special.entityCatVariant = value, registryIds(context, Registries.CAT_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.cat_variant"), special.entityCatVariant, value -> special.entityCatVariant = value, context.registryIds(Registries.CAT_VARIANT)));
         addIf(card, show(entityId, "minecraft:cat", stack.has(DataComponents.CAT_COLLAR), special.entityCatCollar), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.cat_collar"), special.entityCatCollar, value -> special.entityCatCollar = value, dyeColorValues()));
         addIf(card, show(entityId, "minecraft:chicken", stack.has(DataComponents.CHICKEN_VARIANT) || stack.is(Items.EGG), special.entityChickenVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.chicken_variant"), special.entityChickenVariant, value -> special.entityChickenVariant = value, registryIds(context, Registries.CHICKEN_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.chicken_variant"), special.entityChickenVariant, value -> special.entityChickenVariant = value, context.registryIds(Registries.CHICKEN_VARIANT)));
         addIf(card, show(entityId, "minecraft:cow", stack.has(DataComponents.COW_VARIANT), special.entityCowVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.cow_variant"), special.entityCowVariant, value -> special.entityCowVariant = value, registryIds(context, Registries.COW_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.cow_variant"), special.entityCowVariant, value -> special.entityCowVariant = value, context.registryIds(Registries.COW_VARIANT)));
         addIf(card, show(entityId, "minecraft:fox", stack.has(DataComponents.FOX_VARIANT), special.entityFoxVariant), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.fox_variant"), special.entityFoxVariant, value -> special.entityFoxVariant = value, serializedValues(Fox.Variant.values())));
         addIf(card, show(entityId, "minecraft:frog", stack.has(DataComponents.FROG_VARIANT), special.entityFrogVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.frog_variant"), special.entityFrogVariant, value -> special.entityFrogVariant = value, registryIds(context, Registries.FROG_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.frog_variant"), special.entityFrogVariant, value -> special.entityFrogVariant = value, context.registryIds(Registries.FROG_VARIANT)));
         addIf(card, show(entityId, "minecraft:horse", stack.has(DataComponents.HORSE_VARIANT), special.entityHorseVariant), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.horse_variant"), special.entityHorseVariant, value -> special.entityHorseVariant = value, serializedValues(Variant.values())));
         addIf(card, showAny(entityId, List.of("minecraft:llama", "minecraft:trader_llama"), stack.has(DataComponents.LLAMA_VARIANT), special.entityLlamaVariant), () ->
@@ -94,11 +85,11 @@ public final class EntityVariantSpecialDataSection {
         addIf(card, show(entityId, "minecraft:mooshroom", stack.has(DataComponents.MOOSHROOM_VARIANT), special.entityMooshroomVariant), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.mooshroom_variant"), special.entityMooshroomVariant, value -> special.entityMooshroomVariant = value, serializedValues(MushroomCow.Variant.values())));
         addIf(card, stack.is(Items.PAINTING) || stack.has(DataComponents.PAINTING_VARIANT) || !special.paintingVariantId.isBlank(), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.painting_variant"), special.paintingVariantId, value -> special.paintingVariantId = value, registryIds(context, Registries.PAINTING_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.painting_variant"), special.paintingVariantId, value -> special.paintingVariantId = value, context.registryIds(Registries.PAINTING_VARIANT)));
         addIf(card, show(entityId, "minecraft:parrot", stack.has(DataComponents.PARROT_VARIANT), special.entityParrotVariant), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.parrot_variant"), special.entityParrotVariant, value -> special.entityParrotVariant = value, serializedValues(Parrot.Variant.values())));
         addIf(card, show(entityId, "minecraft:pig", stack.has(DataComponents.PIG_VARIANT), special.entityPigVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.pig_variant"), special.entityPigVariant, value -> special.entityPigVariant = value, registryIds(context, Registries.PIG_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.pig_variant"), special.entityPigVariant, value -> special.entityPigVariant = value, context.registryIds(Registries.PIG_VARIANT)));
         addIf(card, show(entityId, "minecraft:rabbit", stack.has(DataComponents.RABBIT_VARIANT), special.entityRabbitVariant), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.rabbit_variant"), special.entityRabbitVariant, value -> special.entityRabbitVariant = value, serializedValues(Rabbit.Variant.values())));
         addIf(card, show(entityId, "minecraft:salmon", stack.has(DataComponents.SALMON_SIZE), special.bucketSalmonSize), () ->
@@ -114,15 +105,15 @@ public final class EntityVariantSpecialDataSection {
         addIf(card, show(entityId, "minecraft:tropical_fish", stack.has(DataComponents.TROPICAL_FISH_PATTERN_COLOR), special.bucketTropicalPatternColor), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.tropical_pattern_color"), special.bucketTropicalPatternColor, value -> special.bucketTropicalPatternColor = value, dyeColorValues()));
         addIf(card, show(entityId, "minecraft:villager", stack.has(DataComponents.VILLAGER_VARIANT), special.entityVillagerVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.villager_variant"), special.entityVillagerVariant, value -> special.entityVillagerVariant = value, registryIds(context, Registries.VILLAGER_TYPE)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.villager_variant"), special.entityVillagerVariant, value -> special.entityVillagerVariant = value, context.registryIds(Registries.VILLAGER_TYPE)));
         addIf(card, show(entityId, "minecraft:wolf", stack.has(DataComponents.WOLF_VARIANT), special.entityWolfVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.wolf_variant"), special.entityWolfVariant, value -> special.entityWolfVariant = value, registryIds(context, Registries.WOLF_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.wolf_variant"), special.entityWolfVariant, value -> special.entityWolfVariant = value, context.registryIds(Registries.WOLF_VARIANT)));
         addIf(card, show(entityId, "minecraft:wolf", stack.has(DataComponents.WOLF_SOUND_VARIANT), special.entityWolfSoundVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.wolf_sound_variant"), special.entityWolfSoundVariant, value -> special.entityWolfSoundVariant = value, registryIds(context, Registries.WOLF_SOUND_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.wolf_sound_variant"), special.entityWolfSoundVariant, value -> special.entityWolfSoundVariant = value, context.registryIds(Registries.WOLF_SOUND_VARIANT)));
         addIf(card, show(entityId, "minecraft:wolf", stack.has(DataComponents.WOLF_COLLAR), special.entityWolfCollar), () ->
                 variantField(context, compactLayout, ItemEditorText.tr("special.entity_variant.wolf_collar"), special.entityWolfCollar, value -> special.entityWolfCollar = value, dyeColorValues()));
         addIf(card, show(entityId, "minecraft:zombie_nautilus", stack.has(DataComponents.ZOMBIE_NAUTILUS_VARIANT), special.entityZombieNautilusVariant), () ->
-                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.zombie_nautilus_variant"), special.entityZombieNautilusVariant, value -> special.entityZombieNautilusVariant = value, registryIds(context, Registries.ZOMBIE_NAUTILUS_VARIANT)));
+                idField(context, compactLayout, ItemEditorText.tr("special.entity_variant.zombie_nautilus_variant"), special.entityZombieNautilusVariant, value -> special.entityZombieNautilusVariant = value, context.registryIds(Registries.ZOMBIE_NAUTILUS_VARIANT)));
 
         if (card.children().isEmpty()) {
             card.child(UiFactory.muted(ItemEditorText.tr("special.entity_variant.none"), context.panelWidthHint()));
@@ -214,14 +205,6 @@ public final class EntityVariantSpecialDataSection {
             return id.toString();
         }
         return "";
-    }
-
-    private static <T extends @NotNull Object> List<String> registryIds(
-            SpecialDataPanelContext context,
-            ResourceKey<? extends Registry<T>> registryKey
-    ) {
-        Registry<T> registry = context.screen().session().registryAccess().lookupOrThrow(registryKey);
-        return RegistryUtil.ids(registry);
     }
 
     private static <T extends Enum<T> & StringRepresentable> List<String> serializedValues(T[] values) {

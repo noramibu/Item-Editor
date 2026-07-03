@@ -13,6 +13,7 @@ import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
+import me.noramibu.itemeditor.util.ColorInterpolationUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextColorPresets;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -243,7 +244,7 @@ public final class UnifiedColorPickerDialog {
                 .showAlpha(false)
                 .selectorWidth(PICKER_SELECTOR_WIDTH)
                 .selectorPadding(PICKER_SELECTOR_PADDING);
-        ColorPickerUiUtil.applyPickerSizing(picker, pickerSize, pickerSize);
+        picker.sizing(Sizing.fixed(pickerSize), Sizing.fixed(pickerSize));
 
         ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(state.selectedRgb(), compactLayout ? SWATCH_COMPACT_SIZE : SWATCH_SIZE);
         TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(state.selectedRgb()), value -> {});
@@ -600,7 +601,7 @@ public final class UnifiedColorPickerDialog {
                     "dialog.unified_color_picker.saved_shadows",
                     savedContentWidth,
                     SAVED_EDIT_ACTION_COUNT,
-                    (preset, width) -> savedShadowButtonLabel(options.previewText(), preset.colors(), width),
+                    (preset, width) -> savedShadowButtonLabel(options.previewText(), options.shadowPreviewTextColor(), preset.colors(), width),
                     preset -> colorCodesTooltip("Shadow ", TextColorPresets.normalizeShadowStopsOrDefault(preset.colors())),
                     preset -> matchesShadowPreset(state, preset.colors()),
                     preset -> {
@@ -733,8 +734,8 @@ public final class UnifiedColorPickerDialog {
         Component label;
         if (state.shadow()) {
             label = state.mode() == PaintMode.GRADIENT
-                    ? shadowGradientLabel(text, state.resultColors())
-                    : shadowLabel(text, state.selectedRgb());
+                    ? shadowGradientLabel(text, state.resultColors(), state.options().shadowPreviewTextColor())
+                    : shadowLabel(text, state.selectedRgb(), state.options().shadowPreviewTextColor());
         } else if (state.mode() == PaintMode.GRADIENT) {
             label = TextColorPresets.gradientLabel(text, state.resultColors());
         } else {
@@ -746,11 +747,11 @@ public final class UnifiedColorPickerDialog {
         return row;
     }
 
-    private static Component shadowLabel(String text, int rgb) {
-        return Component.literal(text).withColor(0xFFFFFF).withStyle(style -> style.withShadowColor((rgb & 0xFFFFFF) | 0xFF000000));
+    private static Component shadowLabel(String text, int rgb, int foregroundRgb) {
+        return Component.literal(text).withColor(foregroundRgb & 0xFFFFFF).withStyle(style -> style.withShadowColor((rgb & 0xFFFFFF) | 0xFF000000));
     }
 
-    private static Component shadowGradientLabel(String text, List<Integer> colors) {
+    private static Component shadowGradientLabel(String text, List<Integer> colors, int foregroundRgb) {
         List<Integer> gradientColors = TextColorPresets.normalizeGradientStops(colors);
         MutableComponent root = Component.empty();
         if (text.isEmpty()) {
@@ -762,9 +763,9 @@ public final class UnifiedColorPickerDialog {
         for (int index = 0; index < text.length();) {
             int codePoint = text.codePointAt(index);
             float progress = codePointCount == 1 ? 0f : (float) colorIndex / (codePointCount - 1);
-            int shadowColor = me.noramibu.itemeditor.util.ColorInterpolationUtil.interpolateRgb(gradientColors, progress) | 0xFF000000;
+            int shadowColor = ColorInterpolationUtil.interpolateRgb(gradientColors, progress) | 0xFF000000;
             root.append(Component.literal(Character.toString(codePoint))
-                    .withColor(0xFFFFFF)
+                    .withColor(foregroundRgb & 0xFFFFFF)
                     .withStyle(style -> style.withShadowColor(shadowColor)));
             colorIndex++;
             index += Character.charCount(codePoint);
@@ -782,13 +783,13 @@ public final class UnifiedColorPickerDialog {
         return TextColorPresets.gradientLabel(fittedText, normalized);
     }
 
-    private static Component savedShadowButtonLabel(String previewText, List<Integer> colors, int buttonWidth) {
+    private static Component savedShadowButtonLabel(String previewText, int foregroundRgb, List<Integer> colors, int buttonWidth) {
         List<Integer> normalized = TextColorPresets.normalizeShadowStopsOrDefault(colors);
         String fittedText = fittedPresetPreviewText(previewText, buttonWidth, normalized.size() > 1 ? normalized.size() : 0);
         if (normalized.size() == 1) {
-            return shadowLabel(fittedText, normalized.getFirst());
+            return shadowLabel(fittedText, normalized.getFirst(), foregroundRgb);
         }
-        return shadowGradientLabel(fittedText, normalized);
+        return shadowGradientLabel(fittedText, normalized, foregroundRgb);
     }
 
     private static String fittedPresetPreviewText(String previewText, int buttonWidth) {
@@ -997,6 +998,7 @@ public final class UnifiedColorPickerDialog {
             boolean showColorPresets,
             boolean showGradientPresets,
             boolean showShadowPresets,
+            int shadowPreviewTextColor,
             String previewText
     ) {
         public Options {
@@ -1015,6 +1017,7 @@ public final class UnifiedColorPickerDialog {
             showColorPresets = showColorPresets && allowColorMode;
             showGradientPresets = showGradientPresets && allowGradientMode;
             showShadowPresets = showShadowPresets && allowShadow;
+            shadowPreviewTextColor &= 0xFFFFFF;
             previewText = normalizePreviewText(previewText);
         }
 
@@ -1029,6 +1032,7 @@ public final class UnifiedColorPickerDialog {
                     true,
                     false,
                     false,
+                    initialRgb,
                     SAMPLE_TEXT
             );
         }
@@ -1051,12 +1055,14 @@ public final class UnifiedColorPickerDialog {
                     true,
                     true,
                     true,
+                    initialRgb,
                     previewText
             );
         }
     }
 
     private static final class PickerState {
+        private final Options options;
         private final List<Integer> colors = new ArrayList<>();
         private final RememberedColors normalColor = new RememberedColors();
         private final RememberedColors normalGradient = new RememberedColors();
@@ -1072,12 +1078,17 @@ public final class UnifiedColorPickerDialog {
         private String editingShadowPresetId = "";
 
         private PickerState(Options options) {
+            this.options = options;
             this.mode = options.initialMode();
             this.shadow = options.initialShadow();
             this.showColorPresets = options.showColorPresets();
             this.showGradientPresets = options.showGradientPresets();
             this.showShadowPresets = options.showShadowPresets();
             this.replace(options.initialColors());
+        }
+
+        private Options options() {
+            return this.options;
         }
 
         private PaintMode mode() {

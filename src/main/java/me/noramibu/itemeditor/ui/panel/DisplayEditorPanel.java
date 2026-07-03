@@ -17,6 +17,7 @@ import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.panel.specialdata.MiscSpecialDataSections;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.Minecraft;
@@ -44,7 +45,6 @@ public final class DisplayEditorPanel implements EditorPanel {
     private static final int CLEAR_BUTTON_TEXT_WIDTH_RESERVE = 10;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 720;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int LORE_HEIGHT_RATIO_THRESHOLD_LARGE = 760;
     private static final int LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM = 620;
     private static final double LORE_HEIGHT_RATIO_LARGE = 0.30d;
@@ -246,9 +246,13 @@ public final class DisplayEditorPanel implements EditorPanel {
 
     private boolean useCompactLayout() {
         var window = this.screen.session().minecraft().getWindow();
-        return window.getGuiScaledWidth() < COMPACT_LAYOUT_WIDTH_THRESHOLD
-                || window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || this.screen.editorContentWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
+        return LayoutModeUtil.isCompactWindowAndContent(
+                window.getGuiScale(),
+                window.getGuiScaledWidth(),
+                COMPACT_LAYOUT_WIDTH_THRESHOLD,
+                this.screen.editorContentWidthHint(),
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
     }
 
     private int resolveLoreEditorHeight() {
@@ -270,7 +274,10 @@ public final class DisplayEditorPanel implements EditorPanel {
         if (guiWidth < LORE_WIDTH_RATIO_PENALTY_THRESHOLD) {
             ratio -= LORE_WIDTH_RATIO_PENALTY;
         }
-        if (window.getGuiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD) {
+        if (LayoutModeUtil.isCompactScale(
+                window.getGuiScale(),
+                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
+        )) {
             ratio -= LORE_SCALE_RATIO_PENALTY;
         }
         return ratio;

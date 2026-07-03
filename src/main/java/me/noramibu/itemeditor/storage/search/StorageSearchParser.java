@@ -20,67 +20,15 @@ public final class StorageSearchParser {
                 continue;
             }
             String lowered = token.toLowerCase(Locale.ROOT);
-            if (lowered.startsWith("item:")) {
-                String value = cleanValue(token.substring(5));
-                if (!value.isBlank()) {
-                    query.itemTokens.add(value.toLowerCase(Locale.ROOT));
-                }
-                continue;
-            }
-            if (lowered.startsWith("name:")) {
-                String value = cleanValue(token.substring(5));
-                if (!value.isBlank()) {
-                    query.nameTokens.add(value.toLowerCase(Locale.ROOT));
-                }
-                continue;
-            }
-            if (lowered.startsWith("lore:")) {
-                String value = cleanValue(token.substring(5));
-                if (!value.isBlank()) {
-                    query.loreTokens.add(value.toLowerCase(Locale.ROOT));
-                }
-                continue;
-            }
-            if (lowered.startsWith("before:")) {
-                Long duration = parseDurationMillis(token.substring(7));
-                if (duration != null) {
-                    query.beforeDurationsMs.add(duration);
-                }
-                continue;
-            }
-            if (lowered.startsWith("after:")) {
-                Long duration = parseDurationMillis(token.substring(6));
-                if (duration != null) {
-                    query.afterDurationsMs.add(duration);
-                }
-                continue;
-            }
-            if (lowered.startsWith("amount:")) {
-                StorageSearchQuery.NumericFilter filter = parseNumericFilter(token.substring(7));
-                if (filter != null) {
-                    query.amountFilters.add(filter);
-                }
-                continue;
-            }
-            if (lowered.startsWith("a:")) {
-                StorageSearchQuery.NumericFilter filter = parseNumericFilter(token.substring(2));
-                if (filter != null) {
-                    query.amountFilters.add(filter);
-                }
-                continue;
-            }
-            if (lowered.startsWith("size:")) {
-                StorageSearchQuery.NumericFilter filter = parseNumericFilter(token.substring(5));
-                if (filter != null) {
-                    query.nbtSizeFilters.add(filter);
-                }
-                continue;
-            }
-            if (lowered.startsWith("bytes:")) {
-                StorageSearchQuery.NumericFilter filter = parseNumericFilter(token.substring(6));
-                if (filter != null) {
-                    query.nbtSizeFilters.add(filter);
-                }
+            if (addTextFilter(lowered, token, "item:", query.itemTokens)
+                    || addTextFilter(lowered, token, "name:", query.nameTokens)
+                    || addTextFilter(lowered, token, "lore:", query.loreTokens)
+                    || addDurationFilter(lowered, token, "before:", query.beforeDurationsMs)
+                    || addDurationFilter(lowered, token, "after:", query.afterDurationsMs)
+                    || addNumericFilter(lowered, token, "amount:", query.amountFilters)
+                    || addNumericFilter(lowered, token, "a:", query.amountFilters)
+                    || addNumericFilter(lowered, token, "size:", query.nbtSizeFilters)
+                    || addNumericFilter(lowered, token, "bytes:", query.nbtSizeFilters)) {
                 continue;
             }
 
@@ -92,6 +40,44 @@ public final class StorageSearchParser {
             }
         }
         return query;
+    }
+
+    private static boolean addTextFilter(String lowered, String token, String prefix, List<String> target) {
+        if (!lowered.startsWith(prefix)) {
+            return false;
+        }
+        String value = cleanValue(token.substring(prefix.length()));
+        if (!value.isBlank()) {
+            target.add(value.toLowerCase(Locale.ROOT));
+        }
+        return true;
+    }
+
+    private static boolean addDurationFilter(String lowered, String token, String prefix, List<Long> target) {
+        if (!lowered.startsWith(prefix)) {
+            return false;
+        }
+        Long duration = parseDurationMillis(token.substring(prefix.length()));
+        if (duration != null) {
+            target.add(duration);
+        }
+        return true;
+    }
+
+    private static boolean addNumericFilter(
+            String lowered,
+            String token,
+            String prefix,
+            List<StorageSearchQuery.NumericFilter> target
+    ) {
+        if (!lowered.startsWith(prefix)) {
+            return false;
+        }
+        StorageSearchQuery.NumericFilter filter = parseNumericFilter(token.substring(prefix.length()));
+        if (filter != null) {
+            target.add(filter);
+        }
+        return true;
     }
 
     private static List<String> tokenize(String query) {

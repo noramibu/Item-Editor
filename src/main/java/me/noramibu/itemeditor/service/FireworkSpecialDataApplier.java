@@ -10,7 +10,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.Fireworks;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,13 +21,10 @@ final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport imp
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.FIREWORKS);
         } else if (context.previewStack().is(Items.FIREWORK_ROCKET) || !context.special().rocketExplosions.isEmpty()) {
             Integer flight = ValidationUtil.parseInt(context.special().fireworkFlightDuration, ItemEditorText.str("special.firework.flight_duration"), 0, 255, context.messages());
-            List<FireworkExplosion> explosions = new ArrayList<>();
-            for (ItemEditorState.FireworkExplosionDraft draft : context.special().rocketExplosions) {
-                FireworkExplosion explosion = this.buildExplosion(draft, context.messages());
-                if (explosion != null) {
-                    explosions.add(explosion);
-                }
-            }
+            List<FireworkExplosion> explosions = context.special().rocketExplosions.stream()
+                    .map(draft -> this.buildExplosion(draft, context.messages()))
+                    .filter(Objects::nonNull)
+                    .toList();
 
             if (flight != null || !explosions.isEmpty()) {
                 context.previewStack().set(DataComponents.FIREWORKS, new Fireworks(flight == null ? 0 : flight, explosions));
@@ -37,7 +33,7 @@ final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport imp
             }
         }
 
-        if (this.sameStarData(context.state(), context.baselineState())) {
+        if (this.sameExplosionDraft(context.state().special.starExplosion, context.baselineState().special.starExplosion)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.FIREWORK_EXPLOSION);
             return;
         }
@@ -78,15 +74,7 @@ final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
     private boolean sameRocketData(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.special.fireworkFlightDuration, baselineState.special.fireworkFlightDuration)
-                && this.sameExplosionDrafts(state.special.rocketExplosions, baselineState.special.rocketExplosions);
-    }
-
-    private boolean sameStarData(ItemEditorState state, ItemEditorState baselineState) {
-        return this.sameExplosionDraft(state.special.starExplosion, baselineState.special.starExplosion);
-    }
-
-    private boolean sameExplosionDrafts(List<ItemEditorState.FireworkExplosionDraft> current, List<ItemEditorState.FireworkExplosionDraft> baseline) {
-        return this.sameList(current, baseline, this::sameExplosionDraft);
+                && this.sameList(state.special.rocketExplosions, baselineState.special.rocketExplosions, this::sameExplosionDraft);
     }
 
     private boolean sameExplosionDraft(ItemEditorState.FireworkExplosionDraft current, ItemEditorState.FireworkExplosionDraft baseline) {

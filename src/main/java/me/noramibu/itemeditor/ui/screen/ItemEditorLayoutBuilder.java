@@ -49,6 +49,7 @@ final class ItemEditorLayoutBuilder {
     private static final int TOP_ACTION_BUTTON_REGULAR_TARGET_MAX = 124;
     private static final int SHELL_VERTICAL_SAFE_PADDING = 8;
     private static final int PANEL_SCROLLBAR_THICKNESS = 8;
+    private static final int PANEL_CONTENT_BOTTOM_PADDING_BASE = 12;
     private static final int PREVIEW_SCROLLBAR_THICKNESS = 7;
     private static final int TABS_SCROLL_STEP_BASE = 12;
     private static final int PANEL_SCROLL_STEP_BASE = 14;
@@ -113,8 +114,6 @@ final class ItemEditorLayoutBuilder {
     private static final String SYMBOL_RIGHT = ">";
     private static final String SYMBOL_PLUS = "+";
     private static final String SYMBOL_MINUS = "-";
-    private static final String SYMBOL_SECTION_EXPANDED = "-";
-    private static final String SYMBOL_SECTION_COLLAPSED = "+";
     private static final String TOOLTIP_HIDE_CATEGORIES = "Hide categories";
     private static final String TOOLTIP_SHOW_CATEGORIES = "Show categories";
     private static final String TOOLTIP_HIDE_PREVIEW = "Hide preview";
@@ -340,7 +339,10 @@ final class ItemEditorLayoutBuilder {
         card.gap(4);
         this.selectedCategoryLabel = UiFactory.title(this.screen.categoryTitle(this.screen.selectedModule()));
 
-        this.panelHost = UiFactory.scrollContentColumn(PANEL_SCROLLBAR_THICKNESS);
+        this.panelHost = UiFactory.scrollContentColumn(
+                PANEL_SCROLLBAR_THICKNESS,
+                UiFactory.scaledPixels(PANEL_CONTENT_BOTTOM_PADDING_BASE)
+        );
         this.panelScroll = this.configureScroll(
                 InputSafeScrollContainer.vertical(
                         Sizing.fill(100),
@@ -531,7 +533,7 @@ final class ItemEditorLayoutBuilder {
         UIComponent titleLabel = UiFactory.title(fitted, PREVIEW_SECTION_TITLE_SCALE).shadow(false).maxWidth(titleWidth).tooltip(List.of(title));
         titleLabel.horizontalSizing(Sizing.expand(100));
         header.child(titleLabel);
-        ButtonComponent toggle = UiFactory.scaledTextButton(Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),  PREVIEW_SECTION_TOGGLE_SCALE, UiFactory.ButtonTextPreset.STANDARD,  button -> {
+        ButtonComponent toggle = UiFactory.scaledTextButton(Component.literal(collapsed ? SYMBOL_PLUS : SYMBOL_MINUS),  PREVIEW_SECTION_TOGGLE_SCALE, UiFactory.ButtonTextPreset.STANDARD,  button -> {
             setter.accept(!collapsed);
             this.screen.rebuildLayout();
         });

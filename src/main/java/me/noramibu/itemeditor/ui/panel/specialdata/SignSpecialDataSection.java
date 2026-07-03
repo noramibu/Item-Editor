@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class SignSpecialDataSection {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
     private static final int BOARD_STYLE_PICKER_WIDTH = 180;
     private static final int SIGN_EDITOR_VERTICAL_PADDING_BASE = 12;
@@ -344,8 +343,7 @@ public final class SignSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static FlowLayout buildLineNumberGutter() {

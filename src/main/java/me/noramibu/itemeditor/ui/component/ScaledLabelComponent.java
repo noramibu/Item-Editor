@@ -22,14 +22,12 @@ public final class ScaledLabelComponent extends LabelComponent {
 
     @Override
     protected int determineHorizontalContentSize(Sizing sizing) {
-        int base = super.determineHorizontalContentSize(sizing);
-        return scaledSize(base);
+        return Math.max(1, (int) Math.ceil(super.determineHorizontalContentSize(sizing) * this.textScale));
     }
 
     @Override
     protected int determineVerticalContentSize(Sizing sizing) {
-        int base = super.determineVerticalContentSize(sizing);
-        return scaledSize(base) + 1;
+        return Math.max(1, (int) Math.ceil(super.determineVerticalContentSize(sizing) * this.textScale)) + 1;
     }
 
     @Override
@@ -56,7 +54,4 @@ public final class ScaledLabelComponent extends LabelComponent {
         }
     }
 
-    private int scaledSize(int base) {
-        return Math.max(1, (int) Math.ceil(base * this.textScale));
-    }
 }

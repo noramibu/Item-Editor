@@ -82,11 +82,8 @@ final class BannerSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
     private boolean sameBannerData(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.special.bannerBaseColor, baselineState.special.bannerBaseColor)
-                && this.sameBannerLayers(state.special.bannerLayers, baselineState.special.bannerLayers);
-    }
-
-    private boolean sameBannerLayers(List<ItemEditorState.BannerLayerDraft> current, List<ItemEditorState.BannerLayerDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.patternId, right.patternId)
-                && Objects.equals(left.color, right.color));
+                && this.sameList(state.special.bannerLayers, baselineState.special.bannerLayers,
+                        (left, right) -> Objects.equals(left.patternId, right.patternId)
+                                && Objects.equals(left.color, right.color));
     }
 }

@@ -4,41 +4,29 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
-import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.screen.StorageScreen;
-import me.noramibu.itemeditor.ui.screen.StorageScreenMode;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.RegistryUtil;
-import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.valueOrDefault;
 
 public final class SpawnEggSpecialDataSection {
 
     private static final int VILLAGER_ID_WIDTH = 220;
     private static final int ENTITY_ID_FIELD_WIDTH = 280;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
-    private static final String ACTION_DUPLICATE = "Duplicate";
-    private static final String ACTION_RESET_FLAGS = "Reset Flags";
-    private static final String ACTION_DISPLAY_PRESET = "Display Preset";
-    private static final String ACTION_CLEAR_ALL = "Clear All";
-    private static final String ACTION_SWAP_BUY_SELL = "Swap Buy/Sell";
-    private static final String ACTION_RESET_TRADE = "Reset Trade";
     private static final int ACTION_BUTTON_WIDTH_MAX = 176;
     private static final int ACTION_BUTTON_ROW_RESERVE = 12;
 
@@ -80,7 +68,7 @@ public final class SpawnEggSpecialDataSection {
                 context.openSearchablePicker(
                         ItemEditorText.str("special.spawn_egg.entity"),
                         "",
-                        entityTypeIds(context),
+                        context.registryIds(Registries.ENTITY_TYPE),
                         id -> id,
                         id -> setSelectedEntity(context, special, id)
                 )
@@ -209,7 +197,7 @@ public final class SpawnEggSpecialDataSection {
         FlowLayout presets = compactLayout ? UiFactory.column() : UiFactory.row();
         presets.gap(6);
         int flagsActionWidth = resolveButtonWidth(context, 2);
-        ButtonComponent resetFlags = UiFactory.button(Component.literal(ACTION_RESET_FLAGS), UiFactory.ButtonTextPreset.STANDARD,  button ->
+        ButtonComponent resetFlags = UiFactory.button(Component.literal("Reset Flags"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     special.spawnEggEntity.noAi = false;
                     special.spawnEggEntity.silent = false;
@@ -222,7 +210,7 @@ public final class SpawnEggSpecialDataSection {
         );
         resetFlags.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(flagsActionWidth));
         presets.child(resetFlags);
-        ButtonComponent displayPreset = UiFactory.button(Component.literal(ACTION_DISPLAY_PRESET), UiFactory.ButtonTextPreset.STANDARD,  button ->
+        ButtonComponent displayPreset = UiFactory.button(Component.literal("Display Preset"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     special.spawnEggEntity.noAi = true;
                     special.spawnEggEntity.silent = true;
@@ -257,7 +245,7 @@ public final class SpawnEggSpecialDataSection {
                 ItemEditorText.tr("special.spawn_egg.villager.type"),
                 special.spawnEggVillagerTypeId,
                 value -> special.spawnEggVillagerTypeId = value,
-                villagerTypeIds(context),
+                context.registryIds(Registries.VILLAGER_TYPE),
                 ItemEditorText.str("special.spawn_egg.villager.select_type")
         );
         typeField.horizontalSizing(Sizing.fill(compactLayout ? 100 : 40));
@@ -267,7 +255,7 @@ public final class SpawnEggSpecialDataSection {
                 ItemEditorText.tr("special.spawn_egg.villager.profession"),
                 special.spawnEggVillagerProfessionId,
                 value -> special.spawnEggVillagerProfessionId = value,
-                villagerProfessionIds(context),
+                context.registryIds(Registries.VILLAGER_PROFESSION),
                 ItemEditorText.str("special.spawn_egg.villager.select_profession")
         );
         professionField.horizontalSizing(Sizing.fill(compactLayout ? 100 : 40));
@@ -285,31 +273,32 @@ public final class SpawnEggSpecialDataSection {
         card.child(villagerDataRow);
 
         card.child(UiFactory.title(ItemEditorText.tr("special.spawn_egg.villager.trades")).shadow(false));
-        ButtonComponent addTrade = UiFactory.button(ItemEditorText.tr("special.spawn_egg.villager.add_trade"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                context.mutateRefresh(() -> special.spawnEggVillagerTrades.add(new ItemEditorState.VillagerTradeDraft()))
-        );
-        ButtonComponent clearTrades = null;
-        if (!special.spawnEggVillagerTrades.isEmpty()) {
-            clearTrades = UiFactory.button(Component.literal(ACTION_CLEAR_ALL), UiFactory.ButtonTextPreset.STANDARD, button ->
-                    context.mutateRefresh(special.spawnEggVillagerTrades::clear)
-            );
-        }
-        card.child(UiFactory.actionButtonRow(addTrade, clearTrades));
+        card.child(UiFactory.actionButtonRow(
+                UiFactory.button(ItemEditorText.tr("special.spawn_egg.villager.add_trade"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                        context.mutateRefresh(() -> special.spawnEggVillagerTrades.add(new ItemEditorState.VillagerTradeDraft()))
+                ),
+                special.spawnEggVillagerTrades.isEmpty()
+                        ? null
+                        : UiFactory.button(ItemEditorText.tr("common.clear_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                                context.mutateRefresh(special.spawnEggVillagerTrades::clear)
+                        )
+        ));
 
         if (special.spawnEggVillagerTrades.isEmpty()) {
             card.child(UiFactory.muted(ItemEditorText.tr("special.spawn_egg.villager.trades_empty")));
             return card;
         }
 
-        ButtonComponent expandAll = UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                context.mutateRefresh(() -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = false))
-        );
-        ButtonComponent collapseAll = UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                context.mutateRefresh(() -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = true))
-        );
-        card.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+        card.child(UiFactory.actionButtonRow(
+                UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                        context.mutateRefresh(() -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = false))
+                ),
+                UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                        context.mutateRefresh(() -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = true))
+                )
+        ));
 
-        List<String> itemIds = itemIds(context);
+        List<String> itemIds = context.itemIdsWithoutAir();
         for (int index = 0; index < special.spawnEggVillagerTrades.size(); index++) {
             FlowLayout tradeCard = tradeCard(context, special, index);
             ItemEditorState.VillagerTradeDraft trade = special.spawnEggVillagerTrades.get(index);
@@ -340,13 +329,14 @@ public final class SpawnEggSpecialDataSection {
                     itemIds,
                     ItemEditorText.str("special.spawn_egg.villager.trade.sell")
             ));
-            ButtonComponent swapItems = UiFactory.button(Component.literal(ACTION_SWAP_BUY_SELL), UiFactory.ButtonTextPreset.STANDARD, button ->
-                    context.mutateRefresh(() -> swapBuyAndSell(trade))
-            );
-            ButtonComponent resetTrade = UiFactory.button(Component.literal(ACTION_RESET_TRADE), UiFactory.ButtonTextPreset.STANDARD, button ->
-                    context.mutateRefresh(() -> resetTrade(trade))
-            );
-            tradeCard.child(UiFactory.actionButtonRow(swapItems, resetTrade));
+            tradeCard.child(UiFactory.actionButtonRow(
+                    UiFactory.button(Component.literal("Swap Buy/Sell"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                            context.mutateRefresh(() -> swapBuyAndSell(trade))
+                    ),
+                    UiFactory.button(Component.literal("Reset Trade"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                            context.mutateRefresh(() -> resetTrade(trade))
+                    )
+            ));
 
             tradeCard.child(tradeValueRows(context, trade));
 
@@ -381,43 +371,24 @@ public final class SpawnEggSpecialDataSection {
         card.child(UiFactory.muted(Component.literal(tradeSummary(trade))));
 
         ButtonComponent upButton = UiFactory.button(ItemEditorText.tr("common.up"), UiFactory.ButtonTextPreset.COMPACT, button ->
-                context.mutateRefresh(() -> swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex - 1))
+                context.mutateRefresh(() -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex - 1))
         );
         upButton.active(currentIndex > 0);
         ButtonComponent downButton = UiFactory.button(ItemEditorText.tr("common.down"), UiFactory.ButtonTextPreset.COMPACT, button ->
-                context.mutateRefresh(() -> swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex + 1))
+                context.mutateRefresh(() -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex + 1))
         );
         downButton.active(currentIndex < special.spawnEggVillagerTrades.size() - 1);
-        ButtonComponent duplicateButton = UiFactory.button(Component.literal(ACTION_DUPLICATE), UiFactory.ButtonTextPreset.COMPACT, button ->
-                context.mutateRefresh(() -> special.spawnEggVillagerTrades.add(currentIndex + 1, copyTrade(trade)))
-        );
-        ButtonComponent removeButton = UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                context.mutateRefresh(() -> special.spawnEggVillagerTrades.remove(currentIndex))
-        );
-        card.child(UiFactory.actionButtonRow(upButton, downButton, duplicateButton, removeButton));
+        card.child(UiFactory.actionButtonRow(
+                upButton,
+                downButton,
+                UiFactory.button(ItemEditorText.tr("common.duplicate"), UiFactory.ButtonTextPreset.COMPACT, button ->
+                        context.mutateRefresh(() -> special.spawnEggVillagerTrades.add(currentIndex + 1, copyTrade(trade)))
+                ),
+                UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                        context.mutateRefresh(() -> special.spawnEggVillagerTrades.remove(currentIndex))
+                )
+        ));
         return card;
-    }
-
-    private static List<String> entityTypeIds(SpecialDataPanelContext context) {
-        Registry<EntityType<?>> registry = context.screen().session().registryAccess().lookupOrThrow(Registries.ENTITY_TYPE);
-        return RegistryUtil.ids(registry);
-    }
-
-    private static List<String> villagerTypeIds(SpecialDataPanelContext context) {
-        Registry<?> registry = context.screen().session().registryAccess().lookupOrThrow(Registries.VILLAGER_TYPE);
-        return RegistryUtil.ids(registry);
-    }
-
-    private static List<String> villagerProfessionIds(SpecialDataPanelContext context) {
-        Registry<?> registry = context.screen().session().registryAccess().lookupOrThrow(Registries.VILLAGER_PROFESSION);
-        return RegistryUtil.ids(registry);
-    }
-
-    private static List<String> itemIds(SpecialDataPanelContext context) {
-        Registry<Item> registry = context.screen().session().registryAccess().lookupOrThrow(Registries.ITEM);
-        List<String> ids = new ArrayList<>(RegistryUtil.ids(registry));
-        ids.removeIf(id -> Objects.equals(id, "minecraft:air"));
-        return ids;
     }
 
     private static FlowLayout tradeItemField(
@@ -444,7 +415,7 @@ public final class SpawnEggSpecialDataSection {
                 stackDraft.count,
                 context.bindText(value -> stackDraft.count = value)
         ).horizontalSizing(Sizing.fill(compactLayout ? 100 : 10)));
-        ButtonComponent pickButton = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD, button ->
+        row.child(UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD, button ->
                 context.openSearchablePicker(
                         pickerTitle,
                         "",
@@ -455,30 +426,9 @@ public final class SpawnEggSpecialDataSection {
                             stackDraft.templateStack = ItemStack.EMPTY;
                         })
                 )
-        );
-        pickButton.horizontalSizing(Sizing.fill(compactLayout ? 100 : 15));
-        row.child(pickButton);
-        ButtonComponent inventoryPickButton = UiFactory.button(
-                ItemEditorText.tr("special.spawn_egg.villager.trade.pick_inventory"),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> {
-                    double panelScroll = context.screen().panelScrollOffset();
-                    context.screen().session().minecraft().setScreen(new StorageScreen(
-                            1,
-                            "",
-                            StorageSortMode.REGULAR,
-                            StorageScreenMode.PICK_FOR_EDIT,
-                            context.screen(),
-                            stack -> {
-                                context.mutateRefresh(() -> setTradeStackFromInventory(stackDraft, stack));
-                                context.screen().preservePanelScrollOnNextBuild(panelScroll);
-                                context.screen().restorePanelScroll(panelScroll);
-                            }
-                    ));
-                }
-        );
-        inventoryPickButton.horizontalSizing(Sizing.fill(compactLayout ? 100 : 25));
-        row.child(inventoryPickButton);
+        ).horizontalSizing(Sizing.fill(compactLayout ? 100 : 15)));
+        row.child(context.storagePickButton(stack -> setTradeStackFromInventory(stackDraft, stack))
+                .horizontalSizing(Sizing.fill(compactLayout ? 100 : 25)));
         container.child(row);
         return container;
     }
@@ -587,16 +537,7 @@ public final class SpawnEggSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private static <T> void swapEntries(List<T> drafts, int left, int right) {
-        if (left < 0 || right < 0 || left >= drafts.size() || right >= drafts.size()) {
-            return;
-        }
-        T draft = drafts.get(left);
-        drafts.set(left, drafts.get(right));
-        drafts.set(right, draft);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static ItemEditorState.VillagerTradeDraft copyTrade(ItemEditorState.VillagerTradeDraft source) {
@@ -647,10 +588,10 @@ public final class SpawnEggSpecialDataSection {
     }
 
     private static String tradeSummary(ItemEditorState.VillagerTradeDraft trade) {
-        String buyId = trade.buy.itemId == null || trade.buy.itemId.isBlank() ? "?" : trade.buy.itemId;
-        String buyCount = trade.buy.count == null || trade.buy.count.isBlank() ? "1" : trade.buy.count;
-        String sellId = trade.sell.itemId == null || trade.sell.itemId.isBlank() ? "?" : trade.sell.itemId;
-        String sellCount = trade.sell.count == null || trade.sell.count.isBlank() ? "1" : trade.sell.count;
+        String buyId = valueOrDefault(trade.buy.itemId, "?");
+        String buyCount = valueOrDefault(trade.buy.count, "1");
+        String sellId = valueOrDefault(trade.sell.itemId, "?");
+        String sellCount = valueOrDefault(trade.sell.count, "1");
         return buyCount + "x " + buyId + " -> " + sellCount + "x " + sellId;
     }
 

@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
@@ -17,6 +18,7 @@ import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.ui.scale.UiScaleProfile;
 import me.noramibu.itemeditor.ui.scale.UiScaleService;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -49,7 +51,7 @@ public final class UiFactory {
     private static final int ACTION_ROW_STACK_WIDTH_THRESHOLD = 360;
     private static final int ACTION_POSITIVE_COLOR = 0x78D982;
     private static final int ACTION_NEGATIVE_COLOR = 0xFF8A8A;
-    private static final int ACTION_PICKER_COLOR = 0x7FCBFF;
+    private static final int ACTION_PICKER_COLOR = UiColors.PICKER;
 
     public enum ActionTone {
         POSITIVE,
@@ -577,6 +579,17 @@ public final class UiFactory {
         card.horizontalSizing(Sizing.fixed(DialogUiUtil.dialogWidth(width)));
         card.horizontalAlignment(HorizontalAlignment.CENTER);
         return card;
+    }
+
+    public static void centerInRoot(StackLayout root, UIComponent child, int padding) {
+        FlowLayout centered = column();
+        centered.horizontalSizing(Sizing.fill(100));
+        centered.verticalSizing(Sizing.fill(100));
+        centered.padding(Insets.of(padding));
+        centered.horizontalAlignment(HorizontalAlignment.CENTER);
+        centered.verticalAlignment(VerticalAlignment.CENTER);
+        centered.child(child);
+        root.child(centered);
     }
 
     public static FlowLayout framedEditorCard() {

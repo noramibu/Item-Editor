@@ -4,21 +4,30 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.screen.StorageScreen;
+import me.noramibu.itemeditor.ui.screen.StorageScreenMode;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public record SpecialDataPanelContext(ItemEditorScreen screen) {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int PICK_BUTTON_WIDTH_MIN = 70;
     private static final int PICK_BUTTON_WIDTH_MAX = 132;
@@ -40,6 +49,44 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
 
     public double guiScale() {
         return this.screen.session().minecraft().getWindow().getGuiScale();
+    }
+
+    public boolean isCompactPanel(int widthThreshold) {
+        return LayoutModeUtil.isCompactPanel(this.guiScale(), this.panelWidthHint(), widthThreshold);
+    }
+
+    public <T> List<String> registryIds(ResourceKey<? extends Registry<T>> registryKey) {
+        Registry<T> registry = this.screen.session().registryAccess().lookupOrThrow(registryKey);
+        return RegistryUtil.ids(registry);
+    }
+
+    public List<String> itemIdsWithoutAir() {
+        return this.registryIds(Registries.ITEM).stream()
+                .filter(id -> !"minecraft:air".equals(id))
+                .toList();
+    }
+
+    public <T> List<String> optionalRegistryIds(ResourceKey<? extends Registry<T>> registryKey) {
+        try {
+            return this.registryIds(registryKey);
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
+    }
+
+    public <T> List<String> registryTagIds(ResourceKey<? extends Registry<T>> registryKey, String prefix) {
+        Registry<T> registry = this.screen.session().registryAccess().lookupOrThrow(registryKey);
+        return registry.getTags()
+                .map(tag -> prefix + tag.key().location())
+                .sorted()
+                .toList();
+    }
+
+    public <T> void swapEntries(List<T> entries, int left, int right) {
+        if (left < 0 || right < 0 || left >= entries.size() || right >= entries.size()) {
+            return;
+        }
+        Collections.swap(entries, left, right);
     }
 
     public void rebuildPreview() {
@@ -94,6 +141,28 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         this.screen.openSearchablePickerDialog(title, body, values, labelMapper, selectionConsumer);
     }
 
+    public ButtonComponent storagePickButton(Consumer<ItemStack> selectionConsumer) {
+        return UiFactory.button(
+                ItemEditorText.tr("common.pick_from_storage").copy().withColor(UiColors.PICKER),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> {
+                    double panelScroll = this.screen.panelScrollOffset();
+                    this.screen.session().minecraft().setScreen(new StorageScreen(
+                            1,
+                            "",
+                            StorageSortMode.REGULAR,
+                            StorageScreenMode.PICK_FOR_EDIT,
+                            this.screen,
+                            stack -> {
+                                this.mutateRefresh(() -> selectionConsumer.accept(stack));
+                                this.screen.preservePanelScrollOnNextBuild(panelScroll);
+                                this.screen.restorePanelScroll(panelScroll);
+                            }
+                    ));
+                }
+        );
+    }
+
     public FlowLayout createRemovableCard(Component title, Runnable removeAction) {
         return UiFactory.removableSubCard(title, () -> this.mutateRefresh(removeAction));
     }
@@ -123,17 +192,16 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
             String pickerTitle,
             int fallbackColor
     ) {
-        boolean compactLayout = this.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || this.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        boolean compactLayout = this.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.child(UiFactory.textBox(initialValue, this.bindText(setter)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COLOR_INPUT_FIELD_WIDTH)));
 
-        int selectedColor = this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
+        int selectedColor = ValidationUtil.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
                 Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
                 button -> this.screen.openUnifiedColorPickerDialog(
                         pickerTitle,
-                        UnifiedColorPickerDialog.Options.plainColor(this.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor)),
+                        UnifiedColorPickerDialog.Options.plainColor(ValidationUtil.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor)),
                         result -> this.mutateRefresh(() -> setter.accept(ValidationUtil.toHex(result.colors().getFirst())))
                 )
         );
@@ -159,11 +227,4 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         return row;
     }
 
-    private int parseHexColorOrDefault(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        Integer parsed = ValidationUtil.tryParseHexColor(raw);
-        return parsed == null ? fallback : parsed;
-    }
 }

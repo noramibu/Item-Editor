@@ -10,7 +10,6 @@ import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
-import io.wispforest.owo.ui.core.Surface;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.EditorModule;
 import me.noramibu.itemeditor.editor.EditorModuleRegistry;
@@ -18,7 +17,9 @@ import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
@@ -41,9 +42,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final float PREVIEW_STATUS_TEXT_SCALE = 0.90F;
     private static final int PANEL_SCROLLBAR_BASE_THICKNESS = 8;
     private static final int PREVIEW_SCROLLBAR_BASE_THICKNESS = 7;
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int PREVIEW_TEXT_RENDER_MIN_WIDTH = 40;
     private static final int PREVIEW_TEXT_RIGHT_SAFETY_BASE = 2;
     private static final int APPLY_MODE_TEXT_RENDER_MIN_WIDTH = 40;
@@ -83,12 +81,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final int RESPONSIVE_RELAYOUT_PASS_BUDGET = 4;
     private static final int RESPONSIVE_RELAYOUT_MAX_WAIT_TICKS = 40;
     private static final int PANEL_SCROLL_RESTORE_RETRY_TICKS = 8;
-    private static final int COLOR_MODE_CREATIVE = 0x7ED67A;
-    private static final int COLOR_MODE_SINGLEPLAYER = 0xF2C26B;
-    private static final int COLOR_MODE_MULTIPLAYER = 0xFF8A8A;
-    private static final int COLOR_MESSAGE_ERROR = 0xFF8A8A;
-    private static final int COLOR_MESSAGE_WARNING = 0xF2C26B;
-    private static final int COLOR_MESSAGE_INFO = 0x7EC8F8;
     private static final String EMPTY_TEXT = "";
 
     private final ItemEditorSession session;
@@ -152,7 +144,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     protected void build(StackLayout root) {
         this.rootLayout = root;
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         ItemEditorLayoutBuilder.BuildResult layout = new ItemEditorLayoutBuilder(this).build();
         root.child(layout.shell());
@@ -240,9 +232,9 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             } else {
                 for (ValidationMessage message : this.session.messages()) {
                     int color = switch (message.severity()) {
-                        case ERROR -> COLOR_MESSAGE_ERROR;
-                        case WARNING -> COLOR_MESSAGE_WARNING;
-                        case INFO -> COLOR_MESSAGE_INFO;
+                        case ERROR -> UiColors.DANGER;
+                        case WARNING -> UiColors.WARNING;
+                        case INFO -> UiColors.INFO;
                     };
                     this.messages.child(UiFactory.message(Component.literal(message.message()), color, PREVIEW_UI_SCALE).maxWidth(scaledContentWidth));
                 }
@@ -604,9 +596,9 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     int applyModeColorInt() {
         return switch (this.applyModeColor()) {
-            case GREEN -> COLOR_MODE_CREATIVE;
-            case GOLD -> COLOR_MODE_SINGLEPLAYER;
-            default -> COLOR_MODE_MULTIPLAYER;
+            case GREEN -> UiColors.SUCCESS;
+            case GOLD -> UiColors.WARNING;
+            default -> UiColors.DANGER;
         };
     }
 

@@ -23,6 +23,7 @@ public final class ItemEditorSession {
             "rawEditorEdited",
             "rawEditorText",
             "rawEditorShowDefaults",
+            "rawEditorAutocompleteDisabled",
             "rawEditorWordWrap",
             "rawEditorHorizontalScroll",
             "rawEditorFontSizePercent",
@@ -192,6 +193,7 @@ public final class ItemEditorSession {
         this.state.rawEditorEdited = false;
         this.state.rawEditorText = RawItemDataUtil.serialize(this.originalStack, this.registryAccess());
         this.state.rawEditorShowDefaults = previous.rawEditorShowDefaults;
+        this.state.rawEditorAutocompleteDisabled = previous.rawEditorAutocompleteDisabled;
         this.state.rawEditorWordWrap = previous.rawEditorWordWrap;
         this.state.rawEditorHorizontalScroll = !this.state.rawEditorWordWrap;
         this.state.rawEditorFontSizePercent = previous.rawEditorFontSizePercent;
@@ -236,8 +238,7 @@ public final class ItemEditorSession {
                 : rawParse;
         ItemPreviewService.PreviewBuildResult built = this.previewService.buildRawPreviewFromParsed(
                 this.originalStack,
-                parseResult,
-                this.registryAccess()
+                parseResult
         );
         this.cachedRawPreviewInput = rawText;
         this.cachedRawPreviewResult = this.copyPreviewBuildResult(built);
@@ -389,6 +390,7 @@ public final class ItemEditorSession {
     private void applySavedRawEditorOptions(ItemEditorState target) {
         RawEditorOptions options = RawEditorOptionsService.instance().load();
         target.rawEditorShowDefaults = options.showDefaultKeys;
+        target.rawEditorAutocompleteDisabled = options.autocompleteDisabled;
         target.rawEditorWordWrap = options.wordWrap;
         target.rawEditorHorizontalScroll = !target.rawEditorWordWrap;
         target.rawEditorFontSizePercent = options.fontSizePercent;

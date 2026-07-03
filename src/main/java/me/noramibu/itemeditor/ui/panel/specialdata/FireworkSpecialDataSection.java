@@ -9,7 +9,6 @@ import me.noramibu.itemeditor.ui.component.ColorTokenListEditor;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -19,6 +18,8 @@ import net.minecraft.world.item.component.FireworkExplosion;
 
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class FireworkSpecialDataSection {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 600;
@@ -28,7 +29,6 @@ public final class FireworkSpecialDataSection {
     private static final int SHAPE_QUICK_PICK_BUTTON_MIN = 72;
     private static final int SHAPE_QUICK_PICK_BUTTON_MAX = 140;
     private static final int SHAPE_QUICK_PICK_ROW_RESERVE = 48;
-    private static final int SHAPE_QUICK_PICK_BUTTON_COUNT = 5;
     private static final int SHAPE_QUICK_PICK_TEXT_MIN = 24;
     private static final int SHAPE_QUICK_PICK_TEXT_RESERVE = 10;
     private static final int MATERIAL_HINT_WIDTH = 260;
@@ -124,34 +124,8 @@ public final class FireworkSpecialDataSection {
         card.child(UiFactory.muted(ItemEditorText.tr("special.firework.material.current", ItemEditorText.str(shapeMaterialLabelKey(draft.shape))), MATERIAL_HINT_WIDTH));
 
         FlowLayout colors = UiFactory.column().gap(3);
-        colors.child(ColorTokenListEditor.buildField(
-                ItemEditorText.tr("special.firework.colors"),
-                Component.empty(),
-                () -> draft.colors,
-                value -> draft.colors = value,
-                0xFF0000,
-                context::mutateRefresh,
-                (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
-                        ItemEditorText.str("special.firework.colors"),
-                        UnifiedColorPickerDialog.Options.plainColor(initialColor),
-                        result -> onApply.accept(result.colors().getFirst())
-                ),
-                index -> ItemEditorText.tr("special.firework.color_pick_existing", index + 1)
-        ));
-        colors.child(ColorTokenListEditor.buildField(
-                ItemEditorText.tr("special.firework.fade_colors"),
-                Component.empty(),
-                () -> draft.fadeColors,
-                value -> draft.fadeColors = value,
-                0xFFFFFF,
-                context::mutateRefresh,
-                (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
-                        ItemEditorText.str("special.firework.fade_colors"),
-                        UnifiedColorPickerDialog.Options.plainColor(initialColor),
-                        result -> onApply.accept(result.colors().getFirst())
-                ),
-                index -> ItemEditorText.tr("special.firework.color_pick_existing", index + 1)
-        ));
+        colors.child(colorTokenField(context, "special.firework.colors", () -> draft.colors, value -> draft.colors = value, 0xFF0000));
+        colors.child(colorTokenField(context, "special.firework.fade_colors", () -> draft.fadeColors, value -> draft.fadeColors = value, 0xFFFFFF));
         card.child(colors);
 
         FlowLayout toggles = compactLayout ? UiFactory.column() : UiFactory.row();
@@ -162,58 +136,51 @@ public final class FireworkSpecialDataSection {
         return card;
     }
 
+    private static FlowLayout colorTokenField(
+            SpecialDataPanelContext context,
+            String labelKey,
+            Supplier<String> currentValueSupplier,
+            Consumer<String> setter,
+            int fallbackColor
+    ) {
+        return ColorTokenListEditor.buildField(
+                ItemEditorText.tr(labelKey),
+                Component.empty(),
+                currentValueSupplier,
+                setter,
+                fallbackColor,
+                context::mutateRefresh,
+                (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
+                        ItemEditorText.str(labelKey),
+                        UnifiedColorPickerDialog.Options.plainColor(initialColor),
+                        result -> onApply.accept(result.colors().getFirst())
+                ),
+                index -> ItemEditorText.tr("special.firework.color_pick_existing", index + 1)
+        );
+    }
+
     private static FlowLayout buildShapeMaterialQuickPick(SpecialDataPanelContext context, ItemEditorState.FireworkExplosionDraft draft) {
         boolean compactLayout = isCompactLayout(context);
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         int contentWidth = context.panelWidthHint();
         int quickPickButtonWidth = Math.clamp(
                 (contentWidth - UiFactory.scaledPixels(SHAPE_QUICK_PICK_ROW_RESERVE) - UiFactory.scaledPixels(SHAPE_LABEL_WIDTH))
-                        / SHAPE_QUICK_PICK_BUTTON_COUNT,
+                        / FireworkExplosion.Shape.values().length,
                 SHAPE_QUICK_PICK_BUTTON_MIN,
                 SHAPE_QUICK_PICK_BUTTON_MAX
         );
         quickPickButtonWidth = Math.min(contentWidth, quickPickButtonWidth);
         row.child(UiFactory.muted(ItemEditorText.tr("special.firework.material.shape"), SHAPE_LABEL_WIDTH));
-        row.child(shapeMaterialButton(
-                context,
-                draft,
-                ItemEditorText.tr("special.firework.material.small_ball"),
-                FireworkExplosion.Shape.SMALL_BALL,
-                compactLayout,
-                quickPickButtonWidth
-        ));
-        row.child(shapeMaterialButton(
-                context,
-                draft,
-                ItemEditorText.tr("special.firework.material.large_ball"),
-                FireworkExplosion.Shape.LARGE_BALL,
-                compactLayout,
-                quickPickButtonWidth
-        ));
-        row.child(shapeMaterialButton(
-                context,
-                draft,
-                ItemEditorText.tr("special.firework.material.star"),
-                FireworkExplosion.Shape.STAR,
-                compactLayout,
-                quickPickButtonWidth
-        ));
-        row.child(shapeMaterialButton(
-                context,
-                draft,
-                ItemEditorText.tr("special.firework.material.creeper"),
-                FireworkExplosion.Shape.CREEPER,
-                compactLayout,
-                quickPickButtonWidth
-        ));
-        row.child(shapeMaterialButton(
-                context,
-                draft,
-                ItemEditorText.tr("special.firework.material.burst"),
-                FireworkExplosion.Shape.BURST,
-                compactLayout,
-                quickPickButtonWidth
-        ));
+        for (FireworkExplosion.Shape shape : FireworkExplosion.Shape.values()) {
+            row.child(shapeMaterialButton(
+                    context,
+                    draft,
+                    ItemEditorText.tr(shapeMaterialLabelKey(shape.name())),
+                    shape,
+                    compactLayout,
+                    quickPickButtonWidth
+            ));
+        }
         return row;
     }
 
@@ -260,7 +227,7 @@ public final class FireworkSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static String shapeMaterialLabelKey(String shape) {

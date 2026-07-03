@@ -84,25 +84,19 @@ public final class DyeColorSelectorSection {
     }
 
     public static Component shortLabel(DyeColor color) {
-        String name = color.name().toLowerCase(Locale.ROOT);
-        String[] parts = name.split("_");
         StringBuilder label = new StringBuilder();
 
-        if (parts.length == 1) {
-            String token = parts[0];
-            label.append(Character.toUpperCase(token.charAt(0)));
-            if (token.length() > 1) {
-                label.append(Character.toUpperCase(token.charAt(1)));
+        for (String part : color.name().split("_")) {
+            if (!part.isEmpty()) {
+                label.append(part.charAt(0));
             }
-        } else {
-            for (String part : parts) {
-                if (!part.isEmpty()) {
-                    label.append(Character.toUpperCase(part.charAt(0)));
-                }
-                if (label.length() == 2) {
-                    break;
-                }
+            if (label.length() == 2) {
+                break;
             }
+        }
+        String name = color.name();
+        if (label.length() == 1 && name.length() > 1 && name.indexOf('_') < 0) {
+            label.append(name.charAt(1));
         }
 
         if (label.isEmpty()) {

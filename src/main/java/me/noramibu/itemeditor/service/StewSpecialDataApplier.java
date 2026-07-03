@@ -16,7 +16,9 @@ final class StewSpecialDataApplier extends AbstractPreviewApplierSupport impleme
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameStewData(context.state(), context.baselineState())) {
+        if (this.sameList(context.state().special.stewEffects, context.baselineState().special.stewEffects,
+                (left, right) -> Objects.equals(left.effectId, right.effectId)
+                        && Objects.equals(left.duration, right.duration))) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.SUSPICIOUS_STEW_EFFECTS);
             return;
         }
@@ -45,14 +47,5 @@ final class StewSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         } else {
             context.previewStack().set(DataComponents.SUSPICIOUS_STEW_EFFECTS, new SuspiciousStewEffects(entries));
         }
-    }
-
-    private boolean sameStewData(ItemEditorState state, ItemEditorState baselineState) {
-        return this.sameStewEffects(state.special.stewEffects, baselineState.special.stewEffects);
-    }
-
-    private boolean sameStewEffects(List<ItemEditorState.SuspiciousStewEffectDraft> current, List<ItemEditorState.SuspiciousStewEffectDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.effectId, right.effectId)
-                && Objects.equals(left.duration, right.duration));
     }
 }

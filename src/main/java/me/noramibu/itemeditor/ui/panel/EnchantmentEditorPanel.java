@@ -22,8 +22,6 @@ import java.util.List;
 public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 520;
-    private static final String KEY_EXPAND_ALL = "common.expand_all";
-    private static final String KEY_COLLAPSE_ALL = "common.collapse_all";
     private static final int SUMMARY_WIDTH_MIN = 200;
     private static final int SUMMARY_WIDTH_RESERVE = 280;
     private static final int LEVEL_STACK_WIDTH_THRESHOLD = 620;
@@ -33,8 +31,6 @@ public final class EnchantmentEditorPanel implements EditorPanel {
     private static final int LEVEL_BUTTONS_WIDTH_MIN = 110;
     private static final int LEVEL_BUTTONS_WIDTH_BASE = 132;
     private static final int LEVEL_ROW_WIDTH_RESERVE = 140;
-    private static final String SYMBOL_LEVEL_DECREMENT = "-";
-    private static final String SYMBOL_LEVEL_INCREMENT = "+";
 
     private final ItemEditorScreen screen;
 
@@ -85,29 +81,30 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         FlowLayout section = UiFactory.section(ItemEditorText.tr(titleKey), Component.empty());
 
         boolean hasEntries = !drafts.isEmpty();
-        ButtonComponent addButton = UiFactory.positiveButton(
-                stored ? ItemEditorText.tr("enchantments.stored.add") : ItemEditorText.tr("enchantments.regular.add"),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> PanelBindings.mutateRefresh(this.screen, () -> {
-                    ItemEditorState.EnchantmentDraft draft = new ItemEditorState.EnchantmentDraft();
-                    draft.uiCollapsed = false;
-                    drafts.add(draft);
-                })
-        );
-        ButtonComponent clearButton = hasEntries
-                ? UiFactory.negativeButton(ItemEditorText.tr("enchantments.clear_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                        PanelBindings.mutateRefresh(this.screen, drafts::clear)
-                )
-                : null;
-        section.child(UiFactory.actionButtonRow(addButton, clearButton));
+        section.child(UiFactory.actionButtonRow(
+                UiFactory.positiveButton(
+                        stored ? ItemEditorText.tr("enchantments.stored.add") : ItemEditorText.tr("enchantments.regular.add"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> PanelBindings.mutateRefresh(this.screen, () -> {
+                            ItemEditorState.EnchantmentDraft draft = new ItemEditorState.EnchantmentDraft();
+                            draft.uiCollapsed = false;
+                            drafts.add(draft);
+                        })
+                ),
+                hasEntries
+                        ? UiFactory.negativeButton(ItemEditorText.tr("common.clear_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+                                PanelBindings.mutateRefresh(this.screen, drafts::clear)
+                        )
+                        : null
+        ));
         if (hasEntries) {
-            Component expandText = ItemEditorText.tr(KEY_EXPAND_ALL);
+            Component expandText = ItemEditorText.tr("common.expand_all");
             ButtonComponent expandAll = UiFactory.button(expandText, UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = false))
             );
             expandAll.tooltip(List.of(expandText));
 
-            Component collapseText = ItemEditorText.tr(KEY_COLLAPSE_ALL);
+            Component collapseText = ItemEditorText.tr("common.collapse_all");
             ButtonComponent collapseAll = UiFactory.button(collapseText, UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = true))
             );
@@ -173,12 +170,12 @@ public final class EnchantmentEditorPanel implements EditorPanel {
 
             FlowLayout levelButtons = UiFactory.row();
             levelButtons.horizontalSizing(stackLevelControls ? Sizing.fill(100) : Sizing.fixed(levelButtonsWidth));
-            ButtonComponent minusLevel = UiFactory.negativeButton(Component.literal(SYMBOL_LEVEL_DECREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
+            ButtonComponent minusLevel = UiFactory.negativeButton(Component.literal("-"), UiFactory.ButtonTextPreset.COMPACT,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, -1)))
             );
             minusLevel.horizontalSizing(Sizing.fill(50));
             levelButtons.child(minusLevel);
-            ButtonComponent plusLevel = UiFactory.positiveButton(Component.literal(SYMBOL_LEVEL_INCREMENT), UiFactory.ButtonTextPreset.COMPACT,  button ->
+            ButtonComponent plusLevel = UiFactory.positiveButton(Component.literal("+"), UiFactory.ButtonTextPreset.COMPACT,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, 1)))
             );
             plusLevel.horizontalSizing(Sizing.fill(50));
@@ -213,19 +210,18 @@ public final class EnchantmentEditorPanel implements EditorPanel {
     }
 
     private boolean isCompactLayout() {
-        int contentWidth = this.availableContentWidth();
         var window = Minecraft.getInstance().getWindow();
-        return LayoutModeUtil.isCompactWindowAndContentInclusive(
+        return LayoutModeUtil.isCompactEditorContentInclusive(
                 window.getGuiScale(),
                 window.getGuiScaledWidth(),
+                this.screen.editorContentWidthHint(),
                 COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                contentWidth,
                 COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
         );
     }
 
     private int availableContentWidth() {
-        return Math.max(1, this.screen.editorContentWidthHint());
+        return LayoutModeUtil.safeContentWidth(this.screen.editorContentWidthHint());
     }
 
 }

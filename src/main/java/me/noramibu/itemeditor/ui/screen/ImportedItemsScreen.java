@@ -156,15 +156,12 @@ public final class ImportedItemsScreen extends ContainerScreen {
 
     private static ImportedItemsData screenData(List<ItemStack> importedItems) {
         List<ItemStack> sanitized = sanitizeImportedItems(importedItems);
-        return new ImportedItemsData(sanitized, rowsFor(sanitized.size()));
+        int rows = Math.clamp((int) Math.ceil(Math.max(1, sanitized.size()) / (double) COLUMNS), 1, MAX_ROWS);
+        return new ImportedItemsData(sanitized, rows);
     }
 
     private int maxPage() {
         return Math.max(0, (int) Math.ceil(this.importedItems.size() / (double) this.pageSize) - 1);
-    }
-
-    private static int rowsFor(int itemCount) {
-        return Math.clamp((int) Math.ceil(Math.max(1, itemCount) / (double) COLUMNS), 1, MAX_ROWS);
     }
 
     private static MenuType<?> menuType(int rows) {

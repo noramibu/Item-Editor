@@ -38,10 +38,13 @@ import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.EitherHolder;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.JukeboxPlayable;
+import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.SwingAnimationType;
 import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
@@ -56,11 +59,13 @@ import net.minecraft.world.item.component.Consumable;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.DamageResistant;
 import net.minecraft.world.item.component.DeathProtection;
+import net.minecraft.world.item.component.DebugStickState;
 import net.minecraft.world.item.component.KineticWeapon;
 import net.minecraft.world.item.component.LodestoneTracker;
 import net.minecraft.world.item.component.MapDecorations;
 import net.minecraft.world.item.component.OminousBottleAmplifier;
 import net.minecraft.world.item.component.PiercingWeapon;
+import net.minecraft.world.item.component.ProvidesTrimMaterial;
 import net.minecraft.world.item.component.SeededContainerLoot;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.component.Tool;
@@ -74,9 +79,13 @@ import net.minecraft.world.item.enchantment.Repairable;
 import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.item.equipment.EquipmentAsset;
 import net.minecraft.world.item.equipment.EquipmentAssets;
+import net.minecraft.world.item.equipment.trim.TrimMaterial;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
 import net.minecraft.world.level.block.entity.PotDecorations;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.saveddata.maps.MapDecorationType;
 import net.minecraft.world.level.saveddata.maps.MapId;
@@ -91,6 +100,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
+    private static final String DYE_COMPONENT_ID_STRING = "minecraft:dye";
+    private static final Identifier DYE_COMPONENT_ID = Identifier.parse(DYE_COMPONENT_ID_STRING);
     private static final List<BlocksAttacks.DamageReduction> DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS = List.of(
             new BlocksAttacks.DamageReduction(90.0F, Optional.empty(), 0.0F, 1.0F)
     );
@@ -103,6 +114,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         this.applyUseRemainder(context);
         this.applyUseCooldown(context);
         this.applyCustomData(context);
+        this.applyDebugStickState(context);
+        this.applyDye(context);
 
         this.applyLock(context);
         this.applyContainerLoot(context);
@@ -130,6 +143,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         this.applyDamageType(context);
         this.applyDamageResistant(context);
         this.applyNoteBlockSound(context);
+        this.applyProvidesTrimMaterial(context);
+        this.applyProvidesBannerPatterns(context);
+        this.applyJukeboxPlayable(context);
         this.applyBreakSound(context);
         this.applyPaintingVariant(context);
         this.applyBlockState(context);
@@ -179,12 +195,12 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 Objects.equals(context.special().consumableConsumeSeconds, context.baselineSpecial().consumableConsumeSeconds)
                         && Objects.equals(context.special().consumableAnimation, context.baselineSpecial().consumableAnimation)
                         && Objects.equals(context.special().consumableSoundId, context.baselineSpecial().consumableSoundId)
-                        && context.special().consumableHasParticles == context.baselineSpecial().consumableHasParticles
+                        && Objects.equals(context.special().consumableHasParticles, context.baselineSpecial().consumableHasParticles)
                         && this.sameConsumableEffects(context.special().consumableOnConsumeEffects, context.baselineSpecial().consumableOnConsumeEffects),
                 context.special().consumableConsumeSeconds.isBlank()
                         && context.special().consumableAnimation.isBlank()
                         && context.special().consumableSoundId.isBlank()
-                        && !context.special().consumableHasParticles
+                        && context.special().consumableHasParticles.isBlank()
                         && context.special().consumableOnConsumeEffects.isEmpty()
         )) {
             return;
@@ -208,16 +224,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         Registry<SoundEvent> soundRegistry = context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT);
+        Holder<SoundEvent> defaultSound = animation == ItemUseAnimation.DRINK
+                ? SoundEvents.GENERIC_DRINK
+                : SoundEvents.GENERIC_EAT;
         Holder<SoundEvent> sound = this.resolveSoundHolder(
                 soundRegistry,
                 context.special().consumableSoundId,
-                this.valueFromOriginal(original, Consumable::sound, this.defaultConsumeSound(animation)),
+                this.valueFromOriginal(original, Consumable::sound, defaultSound),
                 ItemEditorText.str("special.advanced.consumable.sound"),
                 context.messages()
         );
         if (sound == null) {
             return;
         }
+        boolean hasParticles = this.parseConsumableHasParticles(context.special().consumableHasParticles, original);
 
         List<ConsumeEffect> effects;
         if (this.sameConsumableEffects(context.special().consumableOnConsumeEffects, context.baselineSpecial().consumableOnConsumeEffects)) {
@@ -230,8 +250,15 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
         context.previewStack().set(
                 DataComponents.CONSUMABLE,
-                new Consumable(consumeSeconds, animation, sound, context.special().consumableHasParticles, effects)
+                new Consumable(consumeSeconds, animation, sound, hasParticles, effects)
         );
+    }
+
+    private boolean parseConsumableHasParticles(String raw, Consumable original) {
+        if (raw == null || raw.isBlank()) {
+            return this.valueFromOriginal(original, Consumable::hasConsumeParticles, true);
+        }
+        return Boolean.parseBoolean(raw);
     }
 
     private void applyUseEffects(SpecialDataApplyContext context) {
@@ -267,13 +294,39 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private void applyUseRemainder(SpecialDataApplyContext context) {
+        String templateSnbt = context.special().useRemainderTemplateSnbt == null
+                ? ""
+                : context.special().useRemainderTemplateSnbt.trim();
+        String baselineTemplateSnbt = context.baselineSpecial().useRemainderTemplateSnbt == null
+                ? ""
+                : context.baselineSpecial().useRemainderTemplateSnbt.trim();
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.USE_REMAINDER,
                 Objects.equals(context.special().useRemainderItemId, context.baselineSpecial().useRemainderItemId)
-                        && Objects.equals(context.special().useRemainderCount, context.baselineSpecial().useRemainderCount),
-                context.special().useRemainderItemId.isBlank()
+                        && Objects.equals(context.special().useRemainderCount, context.baselineSpecial().useRemainderCount)
+                        && Objects.equals(templateSnbt, baselineTemplateSnbt),
+                context.special().useRemainderItemId.isBlank() && templateSnbt.isBlank()
         )) {
+            return;
+        }
+
+        if (!templateSnbt.isBlank()) {
+            ItemStack template = this.parseItemStack(
+                    templateSnbt,
+                    context,
+                    ItemEditorText.str("special.advanced.use_remainder.item_id")
+            );
+            if (template == null) {
+                return;
+            }
+            Integer count = this.parseUseRemainderCount(context, template.getCount(), template.getMaxStackSize());
+            if (count == null) {
+                return;
+            }
+            ItemStack remainder = template.copy();
+            remainder.setCount(count);
+            context.previewStack().set(DataComponents.USE_REMAINDER, new UseRemainder(remainder));
             return;
         }
 
@@ -301,6 +354,47 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         context.previewStack().set(DataComponents.USE_REMAINDER, new UseRemainder(new ItemStack(item, count)));
+    }
+
+    private Integer parseUseRemainderCount(
+            SpecialDataApplyContext context,
+            int defaultCount,
+            int maxCount
+    ) {
+        return context.special().useRemainderCount.isBlank()
+                ? Integer.valueOf(Math.max(1, defaultCount))
+                : ValidationUtil.parseInt(
+                        context.special().useRemainderCount,
+                        ItemEditorText.str("special.advanced.use_remainder.count"),
+                        1,
+                        Math.max(1, maxCount),
+                        context.messages()
+                );
+    }
+
+    private ItemStack parseItemStack(
+            String raw,
+            SpecialDataApplyContext context,
+            String label
+    ) {
+        try {
+            var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+            Tag parsedTag = TagParser.create(ops).parseFully(raw);
+            return ItemStack.CODEC.parse(ops, parsedTag)
+                    .resultOrPartial(error -> context.messages().add(
+                            ValidationMessage.error(ItemEditorText.str(
+                                    "preview.validation.component_failed",
+                                    label + ": " + error
+                            ))
+                    ))
+                    .orElse(null);
+        } catch (CommandSyntaxException exception) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    label + ": " + exception.getMessage()
+            )));
+            return null;
+        }
     }
 
     private void applyUseCooldown(SpecialDataApplyContext context) {
@@ -373,6 +467,122 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                     "preview.validation.component_failed",
                     ItemEditorText.str("special.advanced.custom_data.editor") + ": " + exception.getMessage()
             )));
+            return null;
+        }
+    }
+
+    private void applyDebugStickState(SpecialDataApplyContext context) {
+        if (this.handleUnchangedOrCleared(
+                context,
+                DataComponents.DEBUG_STICK_STATE,
+                Objects.equals(context.special().debugStickStates, context.baselineSpecial().debugStickStates),
+                context.special().debugStickStates.isEmpty()
+        )) {
+            return;
+        }
+
+        Registry<Block> blockRegistry = context.registryAccess().lookupOrThrow(Registries.BLOCK);
+        LinkedHashMap<Holder<Block>, Property<?>> properties = new LinkedHashMap<>();
+        for (ItemEditorState.DebugStickStateDraft draft : context.special().debugStickStates) {
+            if (draft.blockId == null || draft.blockId.isBlank()) {
+                continue;
+            }
+            if (draft.propertyName == null || draft.propertyName.isBlank()) {
+                continue;
+            }
+
+            Holder<Block> block = RegistryUtil.resolveHolder(blockRegistry, draft.blockId);
+            if (block == null) {
+                this.reportMissingRegistry(
+                        ItemEditorText.str("special.debug_stick.block"),
+                        draft.blockId,
+                        context.messages()
+                );
+                continue;
+            }
+
+            Property<?> property = this.findBlockProperty(block.value(), draft.propertyName);
+            if (property == null) {
+                context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                        "special.debug_stick.validation.property_missing",
+                        draft.propertyName == null ? "" : draft.propertyName,
+                        draft.blockId
+                )));
+                continue;
+            }
+            properties.put(block, property);
+        }
+
+        if (properties.isEmpty()) {
+            this.clearToPrototype(context.previewStack(), DataComponents.DEBUG_STICK_STATE);
+            return;
+        }
+        context.previewStack().set(DataComponents.DEBUG_STICK_STATE, new DebugStickState(properties));
+    }
+
+    private Property<?> findBlockProperty(Block block, String propertyName) {
+        if (block == null || propertyName == null || propertyName.isBlank()) {
+            return null;
+        }
+        for (Property<?> property : block.defaultBlockState().getProperties()) {
+            if (property.getName().equals(propertyName)) {
+                return property;
+            }
+        }
+        return null;
+    }
+
+    private void applyDye(SpecialDataApplyContext context) {
+        DataComponentType<DyeColor> dyeComponentType = this.dyeComponentType();
+        String dyeColor = context.special().dyeColor == null ? "" : context.special().dyeColor.trim();
+        String baselineDyeColor = context.baselineSpecial().dyeColor == null
+                ? ""
+                : context.baselineSpecial().dyeColor.trim();
+        if (Objects.equals(dyeColor, baselineDyeColor)) {
+            if (dyeComponentType != null) {
+                this.restoreOriginalComponent(context.originalStack(), context.previewStack(), dyeComponentType);
+            }
+            return;
+        }
+
+        if (dyeColor.isBlank()) {
+            if (dyeComponentType != null) {
+                this.clearToPrototype(context.previewStack(), dyeComponentType);
+            }
+            return;
+        }
+
+        if (dyeComponentType == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "special.dye.validation.unavailable",
+                    DYE_COMPONENT_ID_STRING
+            )));
+            return;
+        }
+
+        DyeColor parsed = this.parseDyeColor(dyeColor);
+        if (parsed == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.dye.color")
+            )));
+            return;
+        }
+        context.previewStack().set(dyeComponentType, parsed);
+    }
+
+    @SuppressWarnings("unchecked")
+    private DataComponentType<DyeColor> dyeComponentType() {
+        DataComponentType<?> componentType = BuiltInRegistries.DATA_COMPONENT_TYPE
+                .getOptional(DYE_COMPONENT_ID)
+                .orElse(null);
+        return componentType == null ? null : (DataComponentType<DyeColor>) componentType;
+    }
+
+    private DyeColor parseDyeColor(String raw) {
+        try {
+            return DyeColor.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
             return null;
         }
     }
@@ -579,6 +789,33 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         List<ItemStack> projectiles = new ArrayList<>();
         for (ItemEditorState.ChargedProjectileDraft draft : context.special().chargedProjectiles) {
+            String templateSnbt = draft.templateSnbt == null ? "" : draft.templateSnbt.trim();
+            if (!templateSnbt.isBlank()) {
+                ItemStack templateStack = this.parseItemStack(
+                        templateSnbt,
+                        context,
+                        ItemEditorText.str("special.advanced.crossbow.item")
+                );
+                if (templateStack == null) {
+                    continue;
+                }
+                int max = Math.max(1, templateStack.getMaxStackSize());
+                Integer count = ValidationUtil.parseInt(
+                        draft.count,
+                        ItemEditorText.str("special.advanced.crossbow.count"),
+                        1,
+                        max,
+                        context.messages()
+                );
+                if (count == null) {
+                    continue;
+                }
+                ItemStack projectile = templateStack.copy();
+                projectile.setCount(count);
+                projectiles.add(projectile);
+                continue;
+            }
+
             if (draft.itemId.isBlank()) {
                 continue;
             }
@@ -708,9 +945,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         && Objects.equals(context.special().equippableShearingSoundId, context.baselineSpecial().equippableShearingSoundId)
                         && Objects.equals(context.special().equippableAssetId, context.baselineSpecial().equippableAssetId)
                         && Objects.equals(context.special().equippableCameraOverlayId, context.baselineSpecial().equippableCameraOverlayId)
-                        && context.special().equippableDispensable == context.baselineSpecial().equippableDispensable
-                        && context.special().equippableSwappable == context.baselineSpecial().equippableSwappable
-                        && context.special().equippableDamageOnHurt == context.baselineSpecial().equippableDamageOnHurt
+                        && Objects.equals(context.special().equippableDispensable, context.baselineSpecial().equippableDispensable)
+                        && Objects.equals(context.special().equippableSwappable, context.baselineSpecial().equippableSwappable)
+                        && Objects.equals(context.special().equippableDamageOnHurt, context.baselineSpecial().equippableDamageOnHurt)
                         && context.special().equippableEquipOnInteract == context.baselineSpecial().equippableEquipOnInteract
                         && context.special().equippableCanBeSheared == context.baselineSpecial().equippableCanBeSheared,
                 context.special().equippableSlot.isBlank()
@@ -722,7 +959,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         try {
             slot = EquipmentSlot.valueOf(context.special().equippableSlot);
         } catch (IllegalArgumentException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.combat.equippable_slot"))));
+            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.component_tweaks.equippable_slot"))));
             return;
         }
 
@@ -732,7 +969,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 soundRegistry,
                 context.special().equippableEquipSoundId,
                 this.valueFromOriginal(original, Equippable::equipSound, SoundEvents.ARMOR_EQUIP_GENERIC),
-                ItemEditorText.str("special.advanced.combat.equippable_sound"),
+                ItemEditorText.str("special.advanced.component_tweaks.equippable_sound"),
                 context.messages()
         );
         if (equipSound == null) {
@@ -743,7 +980,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 soundRegistry,
                 context.special().equippableShearingSoundId,
                 this.valueFromOriginal(original, Equippable::shearingSound, equipSound),
-                ItemEditorText.str("special.advanced.combat.equippable_shearing_sound"),
+                ItemEditorText.str("special.advanced.component_tweaks.equippable_shearing_sound"),
                 context.messages()
         );
         if (shearingSound == null) {
@@ -752,9 +989,21 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         Equippable.Builder builder = Equippable.builder(slot)
                 .setEquipSound(equipSound)
-                .setDispensable(context.special().equippableDispensable)
-                .setSwappable(context.special().equippableSwappable)
-                .setDamageOnHurt(context.special().equippableDamageOnHurt)
+                .setDispensable(this.parseEquippableBoolean(
+                        context.special().equippableDispensable,
+                        original,
+                        Equippable::dispensable
+                ))
+                .setSwappable(this.parseEquippableBoolean(
+                        context.special().equippableSwappable,
+                        original,
+                        Equippable::swappable
+                ))
+                .setDamageOnHurt(this.parseEquippableBoolean(
+                        context.special().equippableDamageOnHurt,
+                        original,
+                        Equippable::damageOnHurt
+                ))
                 .setEquipOnInteract(context.special().equippableEquipOnInteract)
                 .setCanBeSheared(context.special().equippableCanBeSheared)
                 .setShearingSound(shearingSound);
@@ -769,7 +1018,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         Identifier cameraOverlay = this.parseOptionalIdentifier(
                 context.special().equippableCameraOverlayId,
-                ItemEditorText.str("special.advanced.combat.equippable_camera_overlay"),
+                ItemEditorText.str("special.advanced.component_tweaks.equippable_camera_overlay"),
                 context
         );
         if (cameraOverlay == null && !context.special().equippableCameraOverlayId.isBlank()) {
@@ -786,10 +1035,21 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack().set(DataComponents.EQUIPPABLE, builder.build());
     }
 
+    private boolean parseEquippableBoolean(
+            String raw,
+            Equippable original,
+            Function<Equippable, Boolean> extractor
+    ) {
+        if (raw == null || raw.isBlank()) {
+            return this.valueFromOriginal(original, extractor, true);
+        }
+        return Boolean.parseBoolean(raw);
+    }
+
     private ResourceKey<EquipmentAsset> parseEquippableAssetId(String rawId, SpecialDataApplyContext context) {
         Identifier identifier = this.parseOptionalIdentifier(
                 rawId,
-                ItemEditorText.str("special.advanced.combat.equippable_asset_id"),
+                ItemEditorText.str("special.advanced.component_tweaks.equippable_asset_id"),
                 context
         );
         return identifier == null ? null : ResourceKey.create(EquipmentAssets.ROOT_ID, identifier);
@@ -837,10 +1097,12 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 DataComponents.TOOL,
                 Objects.equals(context.special().toolDefaultMiningSpeed, context.baselineSpecial().toolDefaultMiningSpeed)
                         && Objects.equals(context.special().toolDamagePerBlock, context.baselineSpecial().toolDamagePerBlock)
-                        && context.special().toolCanDestroyBlocksInCreative == context.baselineSpecial().toolCanDestroyBlocksInCreative,
+                        && context.special().toolCanDestroyBlocksInCreative == context.baselineSpecial().toolCanDestroyBlocksInCreative
+                        && Objects.equals(context.special().toolRules, context.baselineSpecial().toolRules),
                 context.special().toolDefaultMiningSpeed.isBlank()
                         && context.special().toolDamagePerBlock.isBlank()
                         && !context.special().toolCanDestroyBlocksInCreative
+                        && context.special().toolRules.isEmpty()
         )) {
             return;
         }
@@ -856,11 +1118,69 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        List<Tool.Rule> rules = this.valueFromOriginal(original, Tool::rules, List.of());
+        List<Tool.Rule> rules = context.special().toolRules.isEmpty() ? List.of() : this.parseToolRules(context);
+        if (rules == null) {
+            return;
+        }
         context.previewStack().set(
                 DataComponents.TOOL,
                 new Tool(rules, speed, damage, context.special().toolCanDestroyBlocksInCreative)
         );
+    }
+
+    private List<Tool.Rule> parseToolRules(SpecialDataApplyContext context) {
+        Registry<Block> blockRegistry = context.registryAccess().lookupOrThrow(Registries.BLOCK);
+        List<Tool.Rule> rules = new ArrayList<>();
+        for (ItemEditorState.ToolRuleDraft draft : context.special().toolRules) {
+            String label = ItemEditorText.str("special.advanced.combat.tool_rule_blocks");
+            HolderSetResult<Block> blocks = this.parseBlockHolderSet(
+                    blockRegistry,
+                    draft.blockIds,
+                    label,
+                    draft.allowTagExpansion,
+                    context.messages()
+            );
+            HolderSet<Block> blockSet = blocks.holderSet();
+            if (!blocks.valid() || blockSet == null) {
+                return null;
+            }
+
+            Optional<Float> speed = Optional.empty();
+            if (draft.speed != null && !draft.speed.isBlank()) {
+                Float parsedSpeed = ValidationUtil.parseFloat(
+                        draft.speed,
+                        ItemEditorText.str("special.advanced.combat.tool_rule_speed"),
+                        context.messages()
+                );
+                if (parsedSpeed == null || parsedSpeed < 0.0F) {
+                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.combat.tool_rule_speed")
+                    )));
+                    return null;
+                }
+                speed = Optional.of(parsedSpeed);
+            }
+
+            Optional<Boolean> correctForDrops = Optional.empty();
+            if (draft.correctForDrops != null && !draft.correctForDrops.isBlank()) {
+                String normalized = draft.correctForDrops.trim();
+                if (normalized.equalsIgnoreCase("true")) {
+                    correctForDrops = Optional.of(true);
+                } else if (normalized.equalsIgnoreCase("false")) {
+                    correctForDrops = Optional.of(false);
+                } else {
+                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.combat.tool_rule_correct_for_drops")
+                    )));
+                    return null;
+                }
+            }
+
+            rules.add(new Tool.Rule(blockSet, speed, correctForDrops));
+        }
+        return rules;
     }
 
     private void applyRepairable(SpecialDataApplyContext context) {
@@ -1095,7 +1415,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         Optional<TagKey<DamageType>> damageTypeTag = this.parseOptionalDamageTypeTagKey(
                 context.special().damageResistantTypeIds,
-                ItemEditorText.str("special.advanced.component_tweaks.damage_resistant_types"),
+                ItemEditorText.str("special.advanced.combat.damage_resistant_types"),
                 context.messages()
         );
         if (damageTypeTag == null) {
@@ -1130,6 +1450,102 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         context.previewStack().set(DataComponents.NOTE_BLOCK_SOUND, soundId);
+    }
+
+    private void applyProvidesTrimMaterial(SpecialDataApplyContext context) {
+        if (this.handleUnchangedOrCleared(
+                context,
+                DataComponents.PROVIDES_TRIM_MATERIAL,
+                Objects.equals(
+                        context.special().providesTrimMaterialId,
+                        context.baselineSpecial().providesTrimMaterialId
+                ),
+                context.special().providesTrimMaterialId.isBlank()
+        )) {
+            return;
+        }
+
+        Registry<TrimMaterial> registry = context.registryAccess().lookupOrThrow(Registries.TRIM_MATERIAL);
+        Holder<TrimMaterial> material = RegistryUtil.resolveHolder(registry, context.special().providesTrimMaterialId);
+        if (material == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str("special.advanced.component_tweaks.provides_trim_material"),
+                    context.special().providesTrimMaterialId
+            )));
+            return;
+        }
+
+        context.previewStack().set(DataComponents.PROVIDES_TRIM_MATERIAL, new ProvidesTrimMaterial(material));
+    }
+
+    private void applyProvidesBannerPatterns(SpecialDataApplyContext context) {
+        if (this.handleUnchangedOrCleared(
+                context,
+                DataComponents.PROVIDES_BANNER_PATTERNS,
+                Objects.equals(
+                        context.special().providesBannerPatternsTagId,
+                        context.baselineSpecial().providesBannerPatternsTagId
+                ),
+                context.special().providesBannerPatternsTagId.isBlank()
+        )) {
+            return;
+        }
+
+        Identifier tagId = this.parseRequiredTagId(
+                context.special().providesBannerPatternsTagId,
+                ItemEditorText.str("special.advanced.component_tweaks.provides_banner_patterns"),
+                context
+        );
+        if (tagId == null) {
+            return;
+        }
+
+        TagKey<BannerPattern> tag = TagKey.create(Registries.BANNER_PATTERN, tagId);
+        context.previewStack().set(DataComponents.PROVIDES_BANNER_PATTERNS, tag);
+    }
+
+    private Identifier parseRequiredTagId(String rawTagId, String fieldLabel, SpecialDataApplyContext context) {
+        String normalized = IdFieldNormalizer.normalize(rawTagId);
+        if (!normalized.startsWith("#")) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.tag_id_required",
+                    fieldLabel
+            )));
+            return null;
+        }
+        Identifier tagId = Identifier.tryParse(normalized.substring(1));
+        if (tagId == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    fieldLabel
+            )));
+        }
+        return tagId;
+    }
+
+    private void applyJukeboxPlayable(SpecialDataApplyContext context) {
+        if (this.handleUnchangedOrCleared(
+                context,
+                DataComponents.JUKEBOX_PLAYABLE,
+                Objects.equals(context.special().jukeboxSongId, context.baselineSpecial().jukeboxSongId),
+                context.special().jukeboxSongId.isBlank()
+        )) {
+            return;
+        }
+
+        Identifier songId = IdFieldNormalizer.parse(context.special().jukeboxSongId);
+        if (songId == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")));
+            return;
+        }
+
+        ResourceKey<JukeboxSong> songKey = ResourceKey.create(Registries.JUKEBOX_SONG, songId);
+        context.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG).get(songKey)
+                .ifPresentOrElse(
+                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(new EitherHolder<>(songHolder))),
+                        () -> context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")))
+                );
     }
 
     private void applyBreakSound(SpecialDataApplyContext context) {
@@ -1317,14 +1733,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ? this.valueFromOriginal(original, BlocksAttacks::blockDelaySeconds, 0.0F)
                 : ValidationUtil.parseFloat(
                         context.special().blocksAttacksBlockDelaySeconds,
-                        ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_delay"),
+                        ItemEditorText.str("special.advanced.combat.blocks_attacks_delay"),
                         context.messages()
                 );
         Float disableCooldownScale = context.special().blocksAttacksDisableCooldownScale.isBlank()
                 ? this.valueFromOriginal(original, BlocksAttacks::disableCooldownScale, 1.0F)
                 : ValidationUtil.parseFloat(
                         context.special().blocksAttacksDisableCooldownScale,
-                        ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_disable_scale"),
+                        ItemEditorText.str("special.advanced.combat.blocks_attacks_disable_scale"),
                         context.messages()
                 );
         if (blockDelay == null || disableCooldownScale == null || blockDelay < 0.0F || disableCooldownScale < 0.0F) {
@@ -1336,14 +1752,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 soundRegistry,
                 context.special().blocksAttacksBlockSoundId,
                 this.valueFromOriginal(original, value -> value.blockSound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_block_sound"),
+                ItemEditorText.str("special.advanced.combat.blocks_attacks_block_sound"),
                 context.messages()
         );
         Optional<Holder<SoundEvent>> disableSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().blocksAttacksDisableSoundId,
                 this.valueFromOriginal(original, value -> value.disableSound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_disable_sound"),
+                ItemEditorText.str("special.advanced.combat.blocks_attacks_disable_sound"),
                 context.messages()
         );
         if (this.hasInvalidOptionalInput(context.special().blocksAttacksBlockSoundId, blockSound.isPresent())
@@ -1378,7 +1794,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         } else {
             bypassedBy = this.parseOptionalDamageTypeTagKey(
                     context.special().blocksAttacksBypassedByTypeIds,
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_bypassed_by"),
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_bypassed_by"),
                     context.messages()
             );
             if (bypassedBy == null) {
@@ -1396,11 +1812,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.PIERCING_WEAPON,
-                context.special().piercingDealsKnockback == context.baselineSpecial().piercingDealsKnockback
+                Objects.equals(context.special().piercingDealsKnockback, context.baselineSpecial().piercingDealsKnockback)
                         && context.special().piercingDismounts == context.baselineSpecial().piercingDismounts
                         && Objects.equals(context.special().piercingSoundId, context.baselineSpecial().piercingSoundId)
                         && Objects.equals(context.special().piercingHitSoundId, context.baselineSpecial().piercingHitSoundId),
-                !context.special().piercingDealsKnockback
+                context.special().piercingDealsKnockback.isBlank()
                         && !context.special().piercingDismounts
                         && context.special().piercingSoundId.isBlank()
                         && context.special().piercingHitSoundId.isBlank()
@@ -1414,14 +1830,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 soundRegistry,
                 context.special().piercingSoundId,
                 this.valueFromOriginal(original, value -> value.sound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.piercing_sound"),
+                ItemEditorText.str("special.advanced.combat.piercing_sound"),
                 context.messages()
         );
         Optional<Holder<SoundEvent>> hitSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().piercingHitSoundId,
                 this.valueFromOriginal(original, value -> value.hitSound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.piercing_hit_sound"),
+                ItemEditorText.str("special.advanced.combat.piercing_hit_sound"),
                 context.messages()
         );
         if (this.hasInvalidOptionalInput(context.special().piercingSoundId, sound.isPresent())
@@ -1431,8 +1847,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         context.previewStack().set(
                 DataComponents.PIERCING_WEAPON,
-                new PiercingWeapon(context.special().piercingDealsKnockback, context.special().piercingDismounts, sound, hitSound)
+                new PiercingWeapon(
+                        this.parsePiercingDealsKnockback(context.special().piercingDealsKnockback, original),
+                        context.special().piercingDismounts,
+                        sound,
+                        hitSound
+                )
         );
+    }
+
+    private boolean parsePiercingDealsKnockback(String raw, PiercingWeapon original) {
+        if (raw == null || raw.isBlank()) {
+            return this.valueFromOriginal(original, PiercingWeapon::dealsKnockback, false);
+        }
+        return Boolean.parseBoolean(raw);
     }
 
     private void applyKineticWeapon(SpecialDataApplyContext context) {
@@ -1460,7 +1888,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ? this.valueFromOriginal(original, KineticWeapon::contactCooldownTicks, 0)
                 : ValidationUtil.parseInt(
                         context.special().kineticContactCooldownTicks,
-                        ItemEditorText.str("special.advanced.component_tweaks.kinetic_contact_cooldown"),
+                        ItemEditorText.str("special.advanced.combat.kinetic_contact_cooldown"),
                         0,
                         72000,
                         context.messages()
@@ -1469,7 +1897,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ? this.valueFromOriginal(original, KineticWeapon::delayTicks, 0)
                 : ValidationUtil.parseInt(
                         context.special().kineticDelayTicks,
-                        ItemEditorText.str("special.advanced.component_tweaks.kinetic_delay_ticks"),
+                        ItemEditorText.str("special.advanced.combat.kinetic_delay_ticks"),
                         0,
                         72000,
                         context.messages()
@@ -1478,14 +1906,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ? this.valueFromOriginal(original, KineticWeapon::forwardMovement, 0.0F)
                 : ValidationUtil.parseFloat(
                         context.special().kineticForwardMovement,
-                        ItemEditorText.str("special.advanced.component_tweaks.kinetic_forward_movement"),
+                        ItemEditorText.str("special.advanced.combat.kinetic_forward_movement"),
                         context.messages()
                 );
         Float damageMultiplier = context.special().kineticDamageMultiplier.isBlank()
                 ? this.valueFromOriginal(original, KineticWeapon::damageMultiplier, 1.0F)
                 : ValidationUtil.parseFloat(
                         context.special().kineticDamageMultiplier,
-                        ItemEditorText.str("special.advanced.component_tweaks.kinetic_damage_multiplier"),
+                        ItemEditorText.str("special.advanced.combat.kinetic_damage_multiplier"),
                         context.messages()
                 );
         if (contactCooldownTicks == null
@@ -1502,14 +1930,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 soundRegistry,
                 context.special().kineticSoundId,
                 this.valueFromOriginal(original, value -> value.sound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.kinetic_sound"),
+                ItemEditorText.str("special.advanced.combat.kinetic_sound"),
                 context.messages()
         );
         Optional<Holder<SoundEvent>> hitSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().kineticHitSoundId,
                 this.valueFromOriginal(original, value -> value.hitSound().orElse(null), null),
-                ItemEditorText.str("special.advanced.component_tweaks.kinetic_hit_sound"),
+                ItemEditorText.str("special.advanced.combat.kinetic_hit_sound"),
                 context.messages()
         );
         if (this.hasInvalidOptionalInput(context.special().kineticSoundId, sound.isPresent())
@@ -1554,7 +1982,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ? this.valueFromOriginal(original, SwingAnimation::duration, SwingAnimation.DEFAULT.duration())
                 : ValidationUtil.parseInt(
                         context.special().swingAnimationDuration,
-                        ItemEditorText.str("special.advanced.component_tweaks.swing_animation_duration"),
+                        ItemEditorText.str("special.advanced.combat.swing_animation_duration"),
                         0,
                         72000,
                         context.messages()
@@ -1596,7 +2024,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         } catch (IllegalArgumentException exception) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
                     "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.component_tweaks.swing_animation_type")
+                    ItemEditorText.str("special.advanced.combat.swing_animation_type")
             )));
             return null;
         }
@@ -1860,35 +2288,123 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return tagId != null && registry.get(TagKey.create(Registries.DAMAGE_TYPE, tagId)).isPresent();
     }
 
+    private HolderSetResult<Block> parseBlockHolderSet(
+            Registry<Block> registry,
+            String raw,
+            String label,
+            boolean allowTagExpansion,
+            List<ValidationMessage> messages
+    ) {
+        List<String> values = this.splitIdentifierList(raw);
+        if (values.isEmpty()) {
+            messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
+            return HolderSetResult.invalid();
+        }
+        if (!allowTagExpansion && values.size() > 1) {
+            for (String value : values) {
+                if (this.isBlockTagReference(registry, value)) {
+                    messages.add(ValidationMessage.error(ItemEditorText.str(
+                            "special.advanced.component_tweaks.tag_expansion_required",
+                            label
+                    )));
+                    return HolderSetResult.invalid();
+                }
+            }
+        }
+
+        List<Holder<Block>> holders = new ArrayList<>();
+        for (String value : values) {
+            if (value.startsWith("#")) {
+                Optional<HolderSet.Named<Block>> tag = this.resolveBlockTag(registry, value.substring(1), label, messages);
+                if (tag.isEmpty()) {
+                    return HolderSetResult.invalid();
+                }
+                if (values.size() == 1) {
+                    return HolderSetResult.valid(tag.get());
+                }
+                tag.get().stream().forEach(holders::add);
+                continue;
+            }
+
+            Holder<Block> holder = RegistryUtil.resolveHolder(registry, value);
+            if (holder == null) {
+                Optional<HolderSet.Named<Block>> tag = this.resolveBlockTag(registry, value, label, messages);
+                if (tag.isEmpty()) {
+                    return HolderSetResult.invalid();
+                }
+                if (values.size() == 1) {
+                    return HolderSetResult.valid(tag.get());
+                }
+                tag.get().stream().forEach(holders::add);
+                continue;
+            }
+            holders.add(holder);
+        }
+        return HolderSetResult.valid(HolderSet.direct(holders));
+    }
+
+    private Optional<HolderSet.Named<Block>> resolveBlockTag(
+            Registry<Block> registry,
+            String rawId,
+            String label,
+            List<ValidationMessage> messages
+    ) {
+        Identifier tagId = IdFieldNormalizer.parse(rawId);
+        if (tagId == null) {
+            this.reportMissingRegistry(label, rawId, messages);
+            return Optional.empty();
+        }
+
+        Optional<HolderSet.Named<Block>> tag = registry.get(TagKey.create(Registries.BLOCK, tagId));
+        if (tag.isEmpty()) {
+            this.reportMissingRegistry(label, rawId, messages);
+        }
+        return tag;
+    }
+
+    private boolean isBlockTagReference(Registry<Block> registry, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        if (value.startsWith("#")) {
+            return true;
+        }
+        if (RegistryUtil.resolveHolder(registry, value) != null) {
+            return false;
+        }
+        Identifier tagId = IdFieldNormalizer.parse(value);
+        return tagId != null && registry.get(TagKey.create(Registries.BLOCK, tagId)).isPresent();
+    }
+
     private List<BlocksAttacks.DamageReduction> parseBlocksAttacksDamageReductions(
             SpecialDataApplyContext context
     ) {
         Registry<DamageType> damageTypeRegistry = context.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
         List<BlocksAttacks.DamageReduction> reductions = new ArrayList<>();
         for (ItemEditorState.BlocksAttacksDamageReductionDraft draft : context.special().blocksAttacksDamageReductions) {
-            String label = ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_damage_reductions");
+            String label = ItemEditorText.str("special.advanced.combat.blocks_attacks_damage_reductions");
             Float angle = this.parseFloatField(
                     draft.horizontalBlockingAngle,
                     90.0F,
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_angle"),
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_angle"),
                     context.messages()
             );
             Float base = this.parseFloatField(
                     draft.base,
                     0.0F,
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_base"),
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_base"),
                     context.messages()
             );
             Float factor = this.parseFloatField(
                     draft.factor,
                     1.0F,
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_factor"),
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_factor"),
                     context.messages()
             );
             OptionalDamageTypeHolderSetResult type = this.parseOptionalDamageTypeHolderSet(
                     damageTypeRegistry,
                     draft.typeIds,
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_reduction_types"),
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_types"),
                     draft.allowTagExpansion,
                     context.messages()
             );
@@ -1916,19 +2432,19 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         Float threshold = this.parseFloatField(
                 context.special().blocksAttacksItemDamageThreshold,
                 fallback.threshold(),
-                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_threshold"),
+                ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_threshold"),
                 context.messages()
         );
         Float base = this.parseFloatField(
                 context.special().blocksAttacksItemDamageBase,
                 fallback.base(),
-                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_base"),
+                ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_base"),
                 context.messages()
         );
         Float factor = this.parseFloatField(
                 context.special().blocksAttacksItemDamageFactor,
                 fallback.factor(),
-                ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_factor"),
+                ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_factor"),
                 context.messages()
         );
         if (threshold == null || base == null || factor == null) {
@@ -1937,7 +2453,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (threshold < 0.0F) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
                     "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.component_tweaks.blocks_attacks_item_damage_threshold")
+                    ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_threshold")
             )));
             return null;
         }
@@ -1961,6 +2477,19 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
     }
 
+    private record HolderSetResult<T>(
+            @Nullable HolderSet<T> holderSet,
+            boolean valid
+    ) {
+        private static <T> HolderSetResult<T> valid(HolderSet<T> value) {
+            return new HolderSetResult<>(value, true);
+        }
+
+        private static <T> HolderSetResult<T> invalid() {
+            return new HolderSetResult<>(null, false);
+        }
+    }
+
     private Float parseFloatField(String raw, float fallback, String label, List<ValidationMessage> messages) {
         if (raw == null || raw.isBlank()) {
             return fallback;
@@ -1968,16 +2497,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return ValidationUtil.parseFloat(raw, label, messages);
     }
 
-    private Holder<SoundEvent> defaultConsumeSound(ItemUseAnimation animation) {
-        return animation == ItemUseAnimation.DRINK ? SoundEvents.GENERIC_DRINK : SoundEvents.GENERIC_EAT;
-    }
-
     private boolean sameChargedProjectiles(
             List<ItemEditorState.ChargedProjectileDraft> current,
             List<ItemEditorState.ChargedProjectileDraft> baseline
     ) {
         return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.itemId, right.itemId) && Objects.equals(left.count, right.count)
+                Objects.equals(left.itemId, right.itemId)
+                        && Objects.equals(left.count, right.count)
+                        && Objects.equals(left.templateSnbt, right.templateSnbt)
         );
     }
 
@@ -2030,8 +2557,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                                         && Objects.equals(leftEffect.duration, rightEffect.duration)
                                         && Objects.equals(leftEffect.amplifier, rightEffect.amplifier)
                                         && leftEffect.ambient == rightEffect.ambient
-                                        && leftEffect.visible == rightEffect.visible
-                                        && leftEffect.showIcon == rightEffect.showIcon
+                                        && Objects.equals(leftEffect.visible, rightEffect.visible)
+                                        && Objects.equals(leftEffect.showIcon, rightEffect.showIcon)
                         )
         );
     }

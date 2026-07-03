@@ -3,6 +3,7 @@ package me.noramibu.itemeditor.service;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
@@ -14,6 +15,7 @@ import net.minecraft.world.item.component.CustomData;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
 final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -29,99 +31,54 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
             return;
         }
 
-        this.applyAxolotlVariant(context);
-        this.applySalmonSize(context);
-        this.applyTropicalPattern(context);
-        this.applyTropicalBaseColor(context);
-        this.applyTropicalPatternColor(context);
+        this.applySerializedEnumComponent(
+                context,
+                context.special().bucketAxolotlVariant,
+                DataComponents.AXOLOTL_VARIANT,
+                "special.bucket.axolotl_variant",
+                Axolotl.Variant.values(),
+                Axolotl.Variant::getSerializedName
+        );
+        this.applySerializedEnumComponent(
+                context,
+                context.special().bucketSalmonSize,
+                DataComponents.SALMON_SIZE,
+                "special.bucket.salmon_size",
+                Salmon.Variant.values(),
+                Salmon.Variant::getSerializedName
+        );
+        this.applySerializedEnumComponent(
+                context,
+                context.special().bucketTropicalPattern,
+                DataComponents.TROPICAL_FISH_PATTERN,
+                "special.bucket.tropical_pattern",
+                TropicalFish.Pattern.values(),
+                TropicalFish.Pattern::getSerializedName
+        );
+        this.applyDyeColorComponent(
+                context,
+                context.special().bucketTropicalBaseColor,
+                DataComponents.TROPICAL_FISH_BASE_COLOR,
+                "special.bucket.tropical_base_color"
+        );
+        this.applyDyeColorComponent(
+                context,
+                context.special().bucketTropicalPatternColor,
+                DataComponents.TROPICAL_FISH_PATTERN_COLOR,
+                "special.bucket.tropical_pattern_color"
+        );
         this.applyBucketEntityData(context);
     }
 
-    private void applyAxolotlVariant(SpecialDataApplyContext context) {
-        String raw = context.special().bucketAxolotlVariant.trim();
+    private void applyDyeColorComponent(
+            SpecialDataApplyContext context,
+            String rawValue,
+            DataComponentType<DyeColor> component,
+            String labelKey
+    ) {
+        String raw = rawValue.trim();
         if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.AXOLOTL_VARIANT);
-            return;
-        }
-
-        Axolotl.Variant variant = null;
-        for (Axolotl.Variant candidate : Axolotl.Variant.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                variant = candidate;
-                break;
-            }
-        }
-
-        if (variant == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.axolotl_variant"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.AXOLOTL_VARIANT);
-            return;
-        }
-        context.previewStack().set(DataComponents.AXOLOTL_VARIANT, variant);
-    }
-
-    private void applySalmonSize(SpecialDataApplyContext context) {
-        String raw = context.special().bucketSalmonSize.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.SALMON_SIZE);
-            return;
-        }
-
-        Salmon.Variant variant = null;
-        for (Salmon.Variant candidate : Salmon.Variant.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                variant = candidate;
-                break;
-            }
-        }
-
-        if (variant == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.salmon_size"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.SALMON_SIZE);
-            return;
-        }
-        context.previewStack().set(DataComponents.SALMON_SIZE, variant);
-    }
-
-    private void applyTropicalPattern(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalPattern.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN);
-            return;
-        }
-
-        TropicalFish.Pattern pattern = null;
-        for (TropicalFish.Pattern candidate : TropicalFish.Pattern.values()) {
-            if (candidate.getSerializedName().equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
-                pattern = candidate;
-                break;
-            }
-        }
-
-        if (pattern == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_pattern"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN);
-            return;
-        }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_PATTERN, pattern);
-    }
-
-    private void applyTropicalBaseColor(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalBaseColor.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_BASE_COLOR);
+            this.clearToPrototype(context.previewStack(), component);
             return;
         }
 
@@ -129,46 +86,27 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         if (color == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
                     "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_base_color"),
+                    ItemEditorText.str(labelKey),
                     raw
             )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_BASE_COLOR);
+            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), component);
             return;
         }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_BASE_COLOR, color);
-    }
-
-    private void applyTropicalPatternColor(SpecialDataApplyContext context) {
-        String raw = context.special().bucketTropicalPatternColor.trim();
-        if (raw.isBlank()) {
-            this.clearToPrototype(context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN_COLOR);
-            return;
-        }
-
-        DyeColor color = parseDyeColor(raw);
-        if (color == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.bucket.tropical_pattern_color"),
-                    raw
-            )));
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.TROPICAL_FISH_PATTERN_COLOR);
-            return;
-        }
-        context.previewStack().set(DataComponents.TROPICAL_FISH_PATTERN_COLOR, color);
+        context.previewStack().set(component, color);
     }
 
     private void applyBucketEntityData(SpecialDataApplyContext context) {
-        boolean hasAnyEntry = context.special().bucketNoAi
-                || context.special().bucketSilent
-                || context.special().bucketNoGravity
-                || context.special().bucketGlowing
-                || context.special().bucketInvulnerable
-                || !context.special().bucketPuffState.isBlank()
-                || !context.special().bucketHealth.isBlank()
-                || !context.special().bucketAge.isBlank()
-                || context.special().bucketAgeLocked
-                || !context.special().bucketHuntingCooldown.isBlank();
+        var special = context.special();
+        boolean hasAnyEntry = special.bucketNoAi
+                || special.bucketSilent
+                || special.bucketNoGravity
+                || special.bucketGlowing
+                || special.bucketInvulnerable
+                || !special.bucketPuffState.isBlank()
+                || !special.bucketHealth.isBlank()
+                || !special.bucketAge.isBlank()
+                || special.bucketAgeLocked
+                || !special.bucketHuntingCooldown.isBlank();
         if (!hasAnyEntry) {
             this.clearToPrototype(context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
             return;
@@ -180,15 +118,15 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
             bucketTag = originalData.copyTag();
         }
 
-        setBooleanKey(bucketTag, "NoAI", context.special().bucketNoAi);
-        setBooleanKey(bucketTag, "Silent", context.special().bucketSilent);
-        setBooleanKey(bucketTag, "NoGravity", context.special().bucketNoGravity);
-        setBooleanKey(bucketTag, "Glowing", context.special().bucketGlowing);
-        setBooleanKey(bucketTag, "Invulnerable", context.special().bucketInvulnerable);
+        NbtTagUtil.setBooleanKey(bucketTag, "NoAI", special.bucketNoAi);
+        NbtTagUtil.setBooleanKey(bucketTag, "Silent", special.bucketSilent);
+        NbtTagUtil.setBooleanKey(bucketTag, "NoGravity", special.bucketNoGravity);
+        NbtTagUtil.setBooleanKey(bucketTag, "Glowing", special.bucketGlowing);
+        NbtTagUtil.setBooleanKey(bucketTag, "Invulnerable", special.bucketInvulnerable);
         this.putOptionalIntTag(
                 bucketTag,
                 "PuffState",
-                context.special().bucketPuffState,
+                special.bucketPuffState,
                 ItemEditorText.str("special.bucket.puffer_state"),
                 0,
                 2,
@@ -197,21 +135,20 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         this.putOptionalIntTag(
                 bucketTag,
                 "Age",
-                context.special().bucketAge,
+                special.bucketAge,
                 ItemEditorText.str("special.bucket.age"),
                 Integer.MIN_VALUE,
                 Integer.MAX_VALUE,
                 context.messages()
         );
-        setBooleanKey(bucketTag, "AgeLocked", context.special().bucketAgeLocked);
+        NbtTagUtil.setBooleanKey(bucketTag, "AgeLocked", special.bucketAgeLocked);
         this.putHuntingCooldownTag(
                 bucketTag,
-                context.special().bucketHuntingCooldown,
-                ItemEditorText.str("special.bucket.hunting_cooldown"),
+                special.bucketHuntingCooldown,
                 context.messages()
         );
 
-        String healthRaw = context.special().bucketHealth.trim();
+        String healthRaw = special.bucketHealth.trim();
         if (healthRaw.isBlank()) {
             bucketTag.remove("Health");
         } else {
@@ -232,21 +169,13 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         context.previewStack().set(DataComponents.BUCKET_ENTITY_DATA, CustomData.of(bucketTag));
     }
 
-    private static void setBooleanKey(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
-    }
-
     private void putHuntingCooldownTag(
             CompoundTag tag,
             String raw,
-            String fieldName,
             List<ValidationMessage> messages
     ) {
         String normalized = raw.trim();
+        String fieldName = ItemEditorText.str("special.bucket.hunting_cooldown");
         if (normalized.isBlank()) {
             tag.remove("HuntingCooldown");
             return;
@@ -265,32 +194,70 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
     }
 
     private static DyeColor parseDyeColor(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String normalized = raw.trim().toUpperCase(Locale.ROOT);
         try {
-            return DyeColor.valueOf(normalized);
+            return DyeColor.valueOf(raw.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             return null;
         }
     }
 
+    private <T extends Enum<T>> void applySerializedEnumComponent(
+            SpecialDataApplyContext context,
+            String rawValue,
+            DataComponentType<T> component,
+            String labelKey,
+            T[] values,
+            Function<T, String> serializedName
+    ) {
+        String raw = rawValue.trim();
+        if (raw.isBlank()) {
+            this.clearToPrototype(context.previewStack(), component);
+            return;
+        }
+
+        T parsed = parseSerializedEnum(raw, values, serializedName);
+        if (parsed == null) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.registry_missing",
+                    ItemEditorText.str(labelKey),
+                    raw
+            )));
+            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), component);
+            return;
+        }
+        context.previewStack().set(component, parsed);
+    }
+
+    private static <T extends Enum<T>> T parseSerializedEnum(
+            String raw,
+            T[] values,
+            Function<T, String> serializedName
+    ) {
+        for (T candidate : values) {
+            if (serializedName.apply(candidate).equalsIgnoreCase(raw) || candidate.name().equalsIgnoreCase(raw)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     private boolean sameBucketCreatureData(SpecialDataApplyContext context) {
-        return Objects.equals(context.special().bucketAxolotlVariant, context.baselineSpecial().bucketAxolotlVariant)
-                && Objects.equals(context.special().bucketSalmonSize, context.baselineSpecial().bucketSalmonSize)
-                && Objects.equals(context.special().bucketTropicalPattern, context.baselineSpecial().bucketTropicalPattern)
-                && Objects.equals(context.special().bucketTropicalBaseColor, context.baselineSpecial().bucketTropicalBaseColor)
-                && Objects.equals(context.special().bucketTropicalPatternColor, context.baselineSpecial().bucketTropicalPatternColor)
-                && Objects.equals(context.special().bucketPuffState, context.baselineSpecial().bucketPuffState)
-                && context.special().bucketNoAi == context.baselineSpecial().bucketNoAi
-                && context.special().bucketSilent == context.baselineSpecial().bucketSilent
-                && context.special().bucketNoGravity == context.baselineSpecial().bucketNoGravity
-                && context.special().bucketGlowing == context.baselineSpecial().bucketGlowing
-                && context.special().bucketInvulnerable == context.baselineSpecial().bucketInvulnerable
-                && Objects.equals(context.special().bucketHealth, context.baselineSpecial().bucketHealth)
-                && Objects.equals(context.special().bucketAge, context.baselineSpecial().bucketAge)
-                && context.special().bucketAgeLocked == context.baselineSpecial().bucketAgeLocked
-                && Objects.equals(context.special().bucketHuntingCooldown, context.baselineSpecial().bucketHuntingCooldown);
+        var current = context.special();
+        var baseline = context.baselineSpecial();
+        return Objects.equals(current.bucketAxolotlVariant, baseline.bucketAxolotlVariant)
+                && Objects.equals(current.bucketSalmonSize, baseline.bucketSalmonSize)
+                && Objects.equals(current.bucketTropicalPattern, baseline.bucketTropicalPattern)
+                && Objects.equals(current.bucketTropicalBaseColor, baseline.bucketTropicalBaseColor)
+                && Objects.equals(current.bucketTropicalPatternColor, baseline.bucketTropicalPatternColor)
+                && Objects.equals(current.bucketPuffState, baseline.bucketPuffState)
+                && current.bucketNoAi == baseline.bucketNoAi
+                && current.bucketSilent == baseline.bucketSilent
+                && current.bucketNoGravity == baseline.bucketNoGravity
+                && current.bucketGlowing == baseline.bucketGlowing
+                && current.bucketInvulnerable == baseline.bucketInvulnerable
+                && Objects.equals(current.bucketHealth, baseline.bucketHealth)
+                && Objects.equals(current.bucketAge, baseline.bucketAge)
+                && current.bucketAgeLocked == baseline.bucketAgeLocked
+                && Objects.equals(current.bucketHuntingCooldown, baseline.bucketHuntingCooldown);
     }
 }

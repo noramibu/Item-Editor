@@ -186,7 +186,12 @@ public final class RawSyntaxHighlighter {
                 Integer hexColor = this.hexColorFromToken(word);
                 if (hexColor != null) {
                     this.addSpan(spans, lineStartOffset, cursor, next, SyntaxKind.COLOR_LITERAL, hexColor);
-                } else if (this.isNumericWord(word)) {
+                } else if ("Infinity".equalsIgnoreCase(word)
+                        || "Infinityf".equalsIgnoreCase(word)
+                        || "Infinityd".equalsIgnoreCase(word)
+                        || "NaN".equalsIgnoreCase(word)
+                        || "NaNf".equalsIgnoreCase(word)
+                        || "NaNd".equalsIgnoreCase(word)) {
                     this.addSpan(spans, lineStartOffset, cursor, next, SyntaxKind.NUMERIC, 0);
                 } else {
                     int color = this.resolveWordColor(line, word, cursor, next, depth);
@@ -439,7 +444,7 @@ public final class RawSyntaxHighlighter {
         if (this.isKeyToken(line, tokenEndExclusive)) {
             return this.keyColorForDepth(depth);
         }
-        if (this.isBooleanWord(word)) {
+        if ("true".equalsIgnoreCase(word) || "false".equalsIgnoreCase(word)) {
             return COLOR_BOOLEAN;
         }
         if ("null".equalsIgnoreCase(word)) {
@@ -470,19 +475,6 @@ public final class RawSyntaxHighlighter {
     private int bracketColorForDepth(int depth) {
         int index = Math.floorMod(depth, BRACKET_DEPTH_COLORS.length);
         return BRACKET_DEPTH_COLORS[index];
-    }
-
-    private boolean isBooleanWord(String word) {
-        return "true".equalsIgnoreCase(word) || "false".equalsIgnoreCase(word);
-    }
-
-    private boolean isNumericWord(String word) {
-        return "Infinity".equalsIgnoreCase(word)
-                || "Infinityf".equalsIgnoreCase(word)
-                || "Infinityd".equalsIgnoreCase(word)
-                || "NaN".equalsIgnoreCase(word)
-                || "NaNf".equalsIgnoreCase(word)
-                || "NaNd".equalsIgnoreCase(word);
     }
 
     private boolean isNumberSuffix(char value) {

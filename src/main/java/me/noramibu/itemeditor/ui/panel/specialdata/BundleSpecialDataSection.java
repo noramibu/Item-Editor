@@ -7,6 +7,7 @@ import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ContainerEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -98,7 +99,7 @@ public final class BundleSpecialDataSection {
 
     private static ButtonComponent clearButton(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         return UiFactory.button(
-                ItemEditorText.tr("special.container.clear_all").copy().withColor(0xFF8A8A),
+                ItemEditorText.tr("common.clear_all").copy().withColor(0xFF8A8A),
                 UiFactory.ButtonTextPreset.COMPACT,
                 ignored -> context.mutateRefresh(() -> {
                     special.bundleEntries.clear();
@@ -165,7 +166,7 @@ public final class BundleSpecialDataSection {
         Item item = ContainerEntryDraftUtil.resolveItem(entry.itemId);
         if (item == null || item == Items.AIR) {
             if (entry.templateStack != null && !entry.templateStack.isEmpty()) {
-                int fallbackCount = ContainerEntryDraftUtil.parseIntOrDefault(entry.count, entry.templateStack.getCount());
+                int fallbackCount = ValidationUtil.parseIntOrDefault(entry.count, entry.templateStack.getCount());
                 return entry.templateStack.copyWithCount(Math.max(1, fallbackCount));
             }
             return ItemStack.EMPTY;
@@ -174,7 +175,7 @@ public final class BundleSpecialDataSection {
         int max = entry.templateStack != null && !entry.templateStack.isEmpty() && entry.templateStack.is(item)
                 ? Math.max(1, entry.templateStack.getMaxStackSize())
                 : Math.max(1, new ItemStack(item).getMaxStackSize());
-        int count = Math.clamp(ContainerEntryDraftUtil.parseIntOrDefault(entry.count, 1), 1, max);
+        int count = Math.clamp(ValidationUtil.parseIntOrDefault(entry.count, 1), 1, max);
         if (entry.templateStack != null && !entry.templateStack.isEmpty() && entry.templateStack.is(item)) {
             return entry.templateStack.copyWithCount(count);
         }

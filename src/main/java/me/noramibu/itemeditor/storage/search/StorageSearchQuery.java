@@ -15,14 +15,9 @@ public final class StorageSearchQuery {
     public final List<NumericFilter> nbtSizeFilters = new ArrayList<>();
 
     public boolean isEmpty() {
-        return this.itemTokens.isEmpty()
-                && this.nameTokens.isEmpty()
-                && this.loreTokens.isEmpty()
-                && this.freeTokens.isEmpty()
-                && this.beforeDurationsMs.isEmpty()
-                && this.afterDurationsMs.isEmpty()
-                && this.amountFilters.isEmpty()
-                && this.nbtSizeFilters.isEmpty();
+        return this.itemTokens.isEmpty() && this.nameTokens.isEmpty() && this.loreTokens.isEmpty()
+                && this.freeTokens.isEmpty() && this.beforeDurationsMs.isEmpty() && this.afterDurationsMs.isEmpty()
+                && this.amountFilters.isEmpty() && this.nbtSizeFilters.isEmpty();
     }
 
     public record NumericFilter(Mode mode, int left, int right) {

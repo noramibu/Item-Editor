@@ -86,16 +86,14 @@ public final class PostApplyVerificationService {
 
         return new VerificationResult(
                 false,
-                ItemEditorText.str("apply.verify.warning", firstFieldLabel(diff.entries())),
+                ItemEditorText.str(
+                        "apply.verify.warning",
+                        diff.entries() == null || diff.entries().isEmpty()
+                                ? "field unknown"
+                                : "field " + diff.entries().getFirst().key()
+                ),
                 diff.entries()
         );
-    }
-
-    private static String firstFieldLabel(List<ItemComponentDiffUtil.Entry> entries) {
-        if (entries == null || entries.isEmpty()) {
-            return "field unknown";
-        }
-        return "field " + entries.getFirst().key();
     }
 
     private static void logDetailedDiff(PendingVerification pending, ItemComponentDiffUtil.Result diff) {

@@ -7,8 +7,6 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
@@ -23,7 +21,6 @@ import net.minecraft.nbt.SnbtPrinterTagVisitor;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.TypedEntityData;
@@ -41,11 +38,6 @@ public final class RawItemDataUtil {
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
-    private static final String PACKET_CONTEXT_TOKEN = "packetcontext";
-    private static final String NULL_TOKEN = "null";
-    private static final String PACKET_CONTEXT_THROW_TOKEN =
-            "orelsethrow(\"net.fabricmc.fabric.api.networking.v1.context.packetcontext";
-    private static final String ITEM_COMMAND_SLOT = "weapon.mainhand";
 
     private RawItemDataUtil() {
     }
@@ -92,7 +84,7 @@ public final class RawItemDataUtil {
         } catch (RuntimeException exception) {
             return ItemEditorText.str(
                     "raw.serialize_failed",
-                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage()
+                    exceptionMessage(exception)
             );
         }
     }
@@ -106,7 +98,7 @@ public final class RawItemDataUtil {
         String itemArgument = serializeCommandItemArgument(stack, registryAccess);
         return itemArgument.isBlank()
                 ? ""
-                : "/item replace entity @s " + ITEM_COMMAND_SLOT + " with " + itemArgument + " " + commandCount(stack);
+                : "/item replace entity @s weapon.mainhand with " + itemArgument + " " + commandCount(stack);
     }
 
     private static String serializeCommandItemArgument(ItemStack stack, RegistryAccess registryAccess) {
@@ -184,7 +176,7 @@ public final class RawItemDataUtil {
         } catch (RuntimeException exception) {
             return new ParseResult(
                     null,
-                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage(),
+                    exceptionMessage(exception),
                     -1,
                     -1
             );
@@ -246,7 +238,7 @@ public final class RawItemDataUtil {
         } catch (RuntimeException exception) {
             return new ParseResult(
                     null,
-                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage(),
+                    exceptionMessage(exception),
                     -1,
                     -1
             );
@@ -255,10 +247,7 @@ public final class RawItemDataUtil {
 
     private static Tag unwrapItemChild(Tag tag) {
         if (tag instanceof CompoundTag compound) {
-            var itemChild = compound.getCompound("item");
-            if (itemChild.isPresent()) {
-                return itemChild.get();
-            }
+            return compound.getCompound("item").map(child -> (Tag) child).orElse(tag);
         }
         return tag;
     }
@@ -277,6 +266,10 @@ public final class RawItemDataUtil {
                         -1,
                         -1
                 ));
+    }
+
+    private static String exceptionMessage(RuntimeException exception) {
+        return exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage();
     }
 
     private static Tag parseWithNegativeSpecialLiteralFallback(String rawData) throws CommandSyntaxException {
@@ -466,15 +459,7 @@ public final class RawItemDataUtil {
                 || key.contains("message"));
     }
 
-    public static List<ValidationMessage> validatePreviewStack(ItemStack preview, RegistryAccess registryAccess) {
-        return validatePreviewStack(preview, registryAccess, false);
-    }
-
-    public static List<ValidationMessage> validatePreviewStack(
-            ItemStack preview,
-            RegistryAccess registryAccess,
-            boolean includePacketRoundTrip
-    ) {
+    public static List<ValidationMessage> validatePreviewStack(ItemStack preview) {
         List<ValidationMessage> messages = new ArrayList<>();
         boolean runtimeValid = validateSpawnerEntityReferences(preview, messages);
         if (!runtimeValid) {
@@ -484,9 +469,6 @@ public final class RawItemDataUtil {
         DataResult<ItemStack> strictResult = ItemStack.validateStrict(preview);
         strictResult.resultOrPartial(problem ->
                 messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
-        if (includePacketRoundTrip) {
-            validatePacketRoundTrip(preview, registryAccess, messages);
-        }
         return messages;
     }
 
@@ -647,99 +629,4 @@ public final class RawItemDataUtil {
         )));
         return false;
     }
-
-    private static void validatePacketRoundTrip(ItemStack preview, RegistryAccess registryAccess, List<ValidationMessage> messages) {
-        ByteBuf rawBuffer = Unpooled.buffer();
-        try {
-            ItemStack.OPTIONAL_STREAM_CODEC.encode(new RegistryFriendlyByteBuf(rawBuffer, registryAccess), preview);
-            ItemStack.OPTIONAL_STREAM_CODEC.decode(new RegistryFriendlyByteBuf(rawBuffer, registryAccess));
-        } catch (RuntimeException exception) {
-            if (shouldFallbackToDataValidation(exception)) {
-                validateDataRoundTrip(preview, registryAccess, messages);
-                return;
-            }
-            String detail = exception.getMessage();
-            if (detail == null || detail.isBlank()) {
-                detail = exception.getClass().getSimpleName();
-            }
-            messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.packet_safe", detail)));
-        } finally {
-            rawBuffer.release();
-        }
-    }
-
-    private static boolean shouldFallbackToDataValidation(Throwable throwable) {
-        return isContextDependentPacketException(throwable)
-                || hasThirdPartyFrame(throwable)
-                || isBlindNullPointer(throwable);
-    }
-
-    private static boolean isBlindNullPointer(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof NullPointerException && (current.getMessage() == null || current.getMessage().isBlank())) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private static void validateDataRoundTrip(ItemStack preview, RegistryAccess registryAccess, List<ValidationMessage> messages) {
-        DynamicOps<Tag> ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-        DataResult<Tag> encoded = ItemStack.OPTIONAL_CODEC.encodeStart(ops, preview);
-        Tag tag = encoded.resultOrPartial(problem ->
-                        messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))))
-                .orElse(null);
-        if (tag == null) {
-            return;
-        }
-
-        ItemStack.OPTIONAL_CODEC.parse(ops, tag)
-                .resultOrPartial(problem ->
-                        messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
-    }
-
-    private static boolean isContextDependentPacketException(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null) {
-                String normalized = message.toLowerCase(Locale.ROOT);
-                if ((normalized.contains(PACKET_CONTEXT_TOKEN) && normalized.contains(NULL_TOKEN))
-                        || normalized.contains(PACKET_CONTEXT_THROW_TOKEN)) {
-                    return true;
-                }
-            }
-            current = current.getCause();
-        }
-
-        return false;
-    }
-
-    private static boolean hasThirdPartyFrame(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            for (StackTraceElement element : current.getStackTrace()) {
-                if (isThirdPartyFrame(element.getClassName())) {
-                    return true;
-                }
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private static boolean isThirdPartyFrame(String className) {
-        return !(className.startsWith("java.")
-                || className.startsWith("javax.")
-                || className.startsWith("jdk.")
-                || className.startsWith("sun.")
-                || className.startsWith("com.sun.")
-                || className.startsWith("io.netty.")
-                || className.startsWith("com.mojang.")
-                || className.startsWith("net.minecraft.")
-                || className.startsWith("me.noramibu.itemeditor."));
-    }
-
 }

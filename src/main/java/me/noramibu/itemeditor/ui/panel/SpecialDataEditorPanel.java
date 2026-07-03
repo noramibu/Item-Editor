@@ -9,6 +9,7 @@ import me.noramibu.itemeditor.ui.panel.specialdata.BundleSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BucketCreatureSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.CommandBlockSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.DebugStickSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.EntityVariantSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.FireworkSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ArmorStandSpecialDataSection;
@@ -25,8 +26,6 @@ import net.minecraft.network.chat.Component;
 import java.util.function.Supplier;
 
 public final class SpecialDataEditorPanel implements EditorPanel {
-    private static final String EMPTY_SPECIAL_DATA_TEXT = "No special data editors available for this item.";
-
     private final SpecialDataPanelContext context;
 
     public SpecialDataEditorPanel(ItemEditorScreen screen) {
@@ -51,7 +50,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
         if (this.addIf(root, BucketCreatureSpecialDataSection.supports(stack), () -> BucketCreatureSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, MiscSpecialDataSections.supportsProfile(stack), () -> MiscSpecialDataSections.buildProfile(this.context))) sectionCount++;
         if (this.addIf(root, MiscSpecialDataSections.supportsInstrument(stack), () -> MiscSpecialDataSections.buildInstrument(this.context))) sectionCount++;
-        if (this.addIf(root, MiscSpecialDataSections.supportsJukebox(stack), () -> MiscSpecialDataSections.buildJukebox(this.context))) sectionCount++;
+        if (this.addIf(root, DebugStickSpecialDataSection.supports(stack), () -> DebugStickSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, ContainerSpecialDataSection.supports(stack), () -> ContainerSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, BundleSpecialDataSection.supports(stack), () -> BundleSpecialDataSection.build(this.context))) sectionCount++;
         if (this.addIf(root, SignSpecialDataSection.supports(stack), () -> SignSpecialDataSection.build(this.context))) sectionCount++;
@@ -59,7 +58,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
         if (this.addIf(root, SpawnerSpecialDataSection.supports(stack), () -> SpawnerSpecialDataSection.build(this.context))) sectionCount++;
 
         if (sectionCount == 0) {
-            root.child(UiFactory.muted(Component.literal(EMPTY_SPECIAL_DATA_TEXT), this.context.panelWidthHint()));
+            root.child(UiFactory.muted(Component.literal("No special data editors available for this item."), this.context.panelWidthHint()));
         }
 
         return root;

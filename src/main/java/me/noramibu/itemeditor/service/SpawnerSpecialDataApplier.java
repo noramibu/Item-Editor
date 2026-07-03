@@ -179,10 +179,6 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             String fieldLabel
     ) {
         CompoundTag entityTag = EntitySpawnDataUtil.applyEntity(draft.entity, context, fieldLabel);
-        boolean hasRules = hasCustomSpawnRules(draft);
-        if (entityTag == null && !hasRules) {
-            return null;
-        }
         if (entityTag == null) {
             return null;
         }
@@ -191,13 +187,6 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
         spawnDataTag.put("entity", entityTag);
         this.applyCustomSpawnRules(draft, spawnDataTag, context.messages());
         return spawnDataTag;
-    }
-
-    private static boolean hasCustomSpawnRules(ItemEditorState.SpawnerSpawnDataDraft draft) {
-        return !blank(draft.blockLightMin)
-                || !blank(draft.blockLightMax)
-                || !blank(draft.skyLightMin)
-                || !blank(draft.skyLightMax);
     }
 
     private static boolean blank(String value) {

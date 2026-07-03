@@ -3,13 +3,11 @@ package me.noramibu.itemeditor.service;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.FloatTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
@@ -43,15 +41,15 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
             entityTag = originalData.copyTagWithoutId();
         }
 
-        setBooleanKey(entityTag, "Small", context.special().armorStandSmall);
-        setBooleanKey(entityTag, "ShowArms", context.special().armorStandShowArms);
-        setBooleanKey(entityTag, "NoBasePlate", context.special().armorStandNoBasePlate);
-        setBooleanKey(entityTag, "Invisible", context.special().armorStandInvisible);
-        setBooleanKey(entityTag, "NoGravity", context.special().armorStandNoGravity);
-        setBooleanKey(entityTag, "Invulnerable", context.special().armorStandInvulnerable);
-        setBooleanKey(entityTag, "CustomNameVisible", context.special().armorStandCustomNameVisible);
-        setBooleanKey(entityTag, "Marker", context.special().armorStandMarker);
-        this.applyCustomName(entityTag, context.special().armorStandCustomName);
+        NbtTagUtil.setBooleanKey(entityTag, "Small", context.special().armorStandSmall);
+        NbtTagUtil.setBooleanKey(entityTag, "ShowArms", context.special().armorStandShowArms);
+        NbtTagUtil.setBooleanKey(entityTag, "NoBasePlate", context.special().armorStandNoBasePlate);
+        NbtTagUtil.setBooleanKey(entityTag, "Invisible", context.special().armorStandInvisible);
+        NbtTagUtil.setBooleanKey(entityTag, "NoGravity", context.special().armorStandNoGravity);
+        NbtTagUtil.setBooleanKey(entityTag, "Invulnerable", context.special().armorStandInvulnerable);
+        NbtTagUtil.setBooleanKey(entityTag, "CustomNameVisible", context.special().armorStandCustomNameVisible);
+        NbtTagUtil.setBooleanKey(entityTag, "Marker", context.special().armorStandMarker);
+        NbtTagUtil.setTextComponentKey(entityTag, "CustomName", context.special().armorStandCustomName);
         this.putOptionalIntTag(
                 entityTag,
                 "DisabledSlots",
@@ -72,28 +70,12 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(EntityType.ARMOR_STAND, entityTag));
     }
 
-    private void applyCustomName(CompoundTag entityTag, String rawName) {
-        if (rawName == null || rawName.isBlank()) {
-            entityTag.remove("CustomName");
-            return;
-        }
-        entityTag.store(
-                "CustomName",
-                ComponentSerialization.CODEC,
-                this.withPlainBaseline(TextComponentUtil.parseMarkup(rawName))
-        );
-    }
-
     private boolean supportsArmorStandData(SpecialDataApplyContext context) {
-        if (context.previewStack().is(Items.ARMOR_STAND)) {
-            return true;
-        }
         TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
-        if (previewData != null && previewData.type() == EntityType.ARMOR_STAND) {
-            return true;
-        }
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        return originalData != null && originalData.type() == EntityType.ARMOR_STAND;
+        return context.previewStack().is(Items.ARMOR_STAND)
+                || previewData != null && previewData.type() == EntityType.ARMOR_STAND
+                || originalData != null && originalData.type() == EntityType.ARMOR_STAND;
     }
 
     private void applyPose(CompoundTag entityTag, SpecialDataApplyContext context) {
@@ -278,28 +260,9 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
     }
 
     private static boolean equalsFloat(String value, String defaultValue) {
-        float fallback = parseDefaultFloat(defaultValue, 0.0F);
-        float parsed = parseDefaultFloat(value, fallback);
+        float fallback = ValidationUtil.parseFloatOrDefault(defaultValue, 0.0F);
+        float parsed = ValidationUtil.parseFloatOrDefault(value, fallback);
         return parsed == fallback;
-    }
-
-    private static float parseDefaultFloat(String value, float fallback) {
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Float.parseFloat(value.trim());
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
-    private static void setBooleanKey(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
     }
 
     private record PoseValue(float x, float y, float z) {

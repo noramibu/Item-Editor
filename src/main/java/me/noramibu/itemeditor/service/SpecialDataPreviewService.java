@@ -28,7 +28,6 @@ public final class SpecialDataPreviewService {
             new TrimSpecialDataApplier(),
             new ProfileSpecialDataApplier(),
             new InstrumentSpecialDataApplier(),
-            new JukeboxSpecialDataApplier(),
             new MapSpecialDataApplier(),
             new AdvancedItemSpecialDataApplier()
     );

@@ -10,9 +10,9 @@ import com.mojang.serialization.JsonOps;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageItemBackupService;
 import me.noramibu.itemeditor.storage.StorageConstants;
+import me.noramibu.itemeditor.storage.StorageMetadataUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.TextComponentUtil;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.inventory.Hotbar;
 import net.minecraft.core.RegistryAccess;
@@ -68,8 +68,8 @@ public final class ExternalStorageImportService {
     public CompletableFuture<ScanResult> scan(Minecraft minecraft) {
         Path gameDirectory = minecraft.gameDirectory.toPath();
         return CompletableFuture.supplyAsync(() -> new ScanResult(
-                countMatchingFiles(nbtEditorClientChestPath(gameDirectory), NBT_EDITOR_PAGE),
-                countMatchingFiles(gameDirectory.resolve("hotbars"), LIBRARIAN_PAGE)
+                matchingFiles(nbtEditorClientChestPath(gameDirectory), NBT_EDITOR_PAGE).size(),
+                matchingFiles(gameDirectory.resolve("hotbars"), LIBRARIAN_PAGE).size()
         ), IMPORT_EXECUTOR);
     }
 
@@ -140,7 +140,7 @@ public final class ExternalStorageImportService {
             emitProgress(progress, "read_page", "NBT Editor", fileIndex + 1, files.size(), 0);
             try {
                 CompoundTag root = readNbt(file.path());
-                int dataVersion = root.getInt("DataVersion").orElse(currentDataVersion());
+                int dataVersion = root.getInt("DataVersion").orElse(StorageMetadataUtil.currentDataVersion());
                 ListTag items = root.getList("items").orElseGet(ListTag::new);
                 List<SavedItemStorageService.ExternalItemImport> importedItems = new ArrayList<>();
                 int itemsToRead = Math.min(items.size(), StorageConstants.PAGE_SIZE);
@@ -213,7 +213,7 @@ public final class ExternalStorageImportService {
                         warnings,
                         context
                 );
-                int itemDataVersion = currentDataVersion();
+                int itemDataVersion = StorageMetadataUtil.currentDataVersion();
                 Map<Integer, List<SavedItemStorageService.ExternalItemImport>> itemsByPart = new HashMap<>();
                 int baseSlot = 0;
                 for (int row : numericRowKeys(hotbarRoot)) {
@@ -223,7 +223,10 @@ public final class ExternalStorageImportService {
                         continue;
                     }
                     DataResult<Hotbar> hotbar = Hotbar.CODEC.parse(NbtOps.INSTANCE, rowTag);
-                    if (hotbar.result().isEmpty()) {
+                    List<ItemStack> loadedStacks = hotbar.result()
+                            .map(decodedHotbar -> decodedHotbar.load(registryAccess))
+                            .orElse(null);
+                    if (loadedStacks == null) {
                         CompoundTag rowBackup = new CompoundTag();
                         rowBackup.put("row", rowTag.copy());
                         String backup = backupExternalItem(
@@ -239,7 +242,7 @@ public final class ExternalStorageImportService {
                                 .withError("failed to decode row" + backup));
                         continue;
                     }
-                    for (ItemStack stack : hotbar.result().get().load(registryAccess)) {
+                    for (ItemStack stack : loadedStacks) {
                         if (!stack.isEmpty()) {
                             int part = baseSlot / StorageConstants.PAGE_SIZE;
                             itemsByPart.computeIfAbsent(part, ignored -> new ArrayList<>()).add(new SavedItemStorageService.ExternalItemImport(
@@ -296,7 +299,7 @@ public final class ExternalStorageImportService {
         if (dynamic) {
             originalTag.remove("dynamic");
         }
-        int sourceDataVersion = rawDataVersion > 0 ? rawDataVersion : currentDataVersion();
+        int sourceDataVersion = rawDataVersion > 0 ? rawDataVersion : StorageMetadataUtil.currentDataVersion();
         ItemStack directStack = parseItemStack(originalTag, registryAccess);
         if (!directStack.isEmpty()) {
             return new ImportedItem(directStack.copy(), originalTag.copy(), sourceDataVersion);
@@ -308,18 +311,18 @@ public final class ExternalStorageImportService {
         String dfuStatus = "dfu=not_applicable";
         if (fixer == null) {
             dfuStatus = "dfu=unavailable";
-        } else if (sourceDataVersion > 0 && sourceDataVersion < currentDataVersion()) {
+        } else if (sourceDataVersion > 0 && sourceDataVersion < StorageMetadataUtil.currentDataVersion()) {
             dfuStatus = "dfu=attempted";
             try {
                 Tag fixed = fixer.update(
                         References.ITEM_STACK,
                         new Dynamic<>(NbtOps.INSTANCE, originalTag.copy()),
                         sourceDataVersion,
-                        currentDataVersion()
+                        StorageMetadataUtil.currentDataVersion()
                 ).getValue();
                 if (fixed instanceof CompoundTag fixedCompound) {
                     decodeTag = fixedCompound;
-                    storedDataVersion = currentDataVersion();
+                    storedDataVersion = StorageMetadataUtil.currentDataVersion();
                     dfuStatus = "dfu=applied";
                 }
             } catch (RuntimeException exception) {
@@ -370,7 +373,7 @@ public final class ExternalStorageImportService {
             List<String> warnings,
             ImportWarningContext context
     ) {
-        if (fixer == null || dataVersion <= 0 || dataVersion >= currentDataVersion()) {
+        if (fixer == null || dataVersion <= 0 || dataVersion >= StorageMetadataUtil.currentDataVersion()) {
             return root;
         }
         try {
@@ -429,7 +432,7 @@ public final class ExternalStorageImportService {
                 -1,
                 "",
                 sourceDataVersion,
-                currentDataVersion(),
+                StorageMetadataUtil.currentDataVersion(),
                 Integer.toHexString(itemTag.hashCode()) + "|dv=" + sourceDataVersion,
                 context == null ? "" : context.file(),
                 context == null ? -1 : context.row(),
@@ -475,17 +478,13 @@ public final class ExternalStorageImportService {
                 registryAccess.createSerializationContext(NbtOps.INSTANCE),
                 itemTag
         );
-        if (optional.result().isPresent()) {
-            return optional.result().get();
-        }
-        DataResult<ItemStack> strict = ItemStack.CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                itemTag
-        );
-        if (strict.result().isPresent()) {
-            return strict.result().get();
-        }
-        return parseLegacyItemStack(itemTag);
+        return optional.result().orElseGet(() -> {
+            DataResult<ItemStack> strict = ItemStack.CODEC.parse(
+                    registryAccess.createSerializationContext(NbtOps.INSTANCE),
+                    itemTag
+            );
+            return strict.result().orElseGet(() -> parseLegacyItemStack(itemTag));
+        });
     }
 
     private static ItemStack parseLegacyItemStack(CompoundTag itemTag) {
@@ -572,10 +571,6 @@ public final class ExternalStorageImportService {
         }
     }
 
-    private static int countMatchingFiles(Path directory, Pattern pattern) {
-        return matchingFiles(directory, pattern).size();
-    }
-
     private static Path nbtEditorClientChestPath(Path gameDirectory) {
         return gameDirectory.resolve("nbteditor").resolve("client_chest");
     }
@@ -606,14 +601,6 @@ public final class ExternalStorageImportService {
             return new NumberedPath(Integer.parseInt(matcher.group(1)), path);
         } catch (NumberFormatException ignored) {
             return null;
-        }
-    }
-
-    private static int currentDataVersion() {
-        try {
-            return SharedConstants.getCurrentVersion().dataVersion().version();
-        } catch (RuntimeException ignored) {
-            return 0;
         }
     }
 

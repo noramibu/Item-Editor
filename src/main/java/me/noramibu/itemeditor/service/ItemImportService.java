@@ -79,7 +79,10 @@ public final class ItemImportService {
     }
 
     private ImportResult resultFromTag(CompoundTag tag, RegistryAccess registryAccess, DataFixer fixerUpper) {
-        List<ItemStack> stacks = this.extractMultiItemStacks(tag, registryAccess, fixerUpper);
+        List<ItemStack> stacks = this.extractHotbarStacks(tag, registryAccess, fixerUpper);
+        if (stacks.isEmpty()) {
+            stacks = this.extractItemsList(tag, registryAccess);
+        }
         if (stacks.size() > 1) {
             return ImportResult.successMany(stacks, ItemEditorText.str("import.multi_success", stacks.size()));
         }
@@ -99,14 +102,6 @@ public final class ItemImportService {
             return ImportResult.failure(ItemEditorText.str("import.empty_item"));
         }
         return ImportResult.success(stack, ItemEditorText.str("import.success"));
-    }
-
-    private List<ItemStack> extractMultiItemStacks(CompoundTag tag, RegistryAccess registryAccess, DataFixer fixerUpper) {
-        List<ItemStack> hotbarStacks = this.extractHotbarStacks(tag, registryAccess, fixerUpper);
-        if (!hotbarStacks.isEmpty()) {
-            return hotbarStacks;
-        }
-        return this.extractItemsList(tag, registryAccess);
     }
 
     private List<ItemStack> extractHotbarStacks(CompoundTag tag, RegistryAccess registryAccess, DataFixer fixerUpper) {
@@ -193,14 +188,10 @@ public final class ItemImportService {
 
     private ItemStack parseItemStack(CompoundTag itemTag, RegistryAccess registryAccess) {
         DataResult<ItemStack> optional = ItemStack.OPTIONAL_CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
-        if (optional.result().isPresent()) {
-            return optional.result().get();
-        }
-        DataResult<ItemStack> strict = ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
-        if (strict.result().isPresent()) {
-            return strict.result().get();
-        }
-        return this.parseLegacyItemStack(itemTag);
+        return optional.result().orElseGet(() -> {
+            DataResult<ItemStack> strict = ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
+            return strict.result().orElseGet(() -> this.parseLegacyItemStack(itemTag));
+        });
     }
 
     private ItemStack parseLegacyItemStack(CompoundTag itemTag) {
@@ -217,10 +208,7 @@ public final class ItemImportService {
             return ItemStack.EMPTY;
         }
         int count = itemTag.getInt("count").orElseGet(() -> itemTag.getByte("Count").map(Byte::intValue).orElse(1));
-        if (count <= 0) {
-            return ItemStack.EMPTY;
-        }
-        return new ItemStack(item, count);
+        return count <= 0 ? ItemStack.EMPTY : new ItemStack(item, count);
     }
 
     private List<ItemStack> nonEmptyCopies(List<ItemStack> stacks) {

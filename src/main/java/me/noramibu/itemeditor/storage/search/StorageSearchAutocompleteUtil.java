@@ -21,15 +21,9 @@ public final class StorageSearchAutocompleteUtil {
         return new Completion(base, prefix, suggestions);
     }
 
-    public record Completion(
-            String base,
-            String prefix,
-            String[] suggestions
-    ) {
+    public record Completion(String base, String prefix, String[] suggestions) {
         public List<String> withBase() {
-            return Arrays.stream(this.suggestions)
-                    .map(token -> this.base + token)
-                    .toList();
+            return Arrays.stream(this.suggestions).map(token -> this.base + token).toList();
         }
     }
 }

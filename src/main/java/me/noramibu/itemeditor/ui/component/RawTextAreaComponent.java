@@ -94,6 +94,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private BooleanSupplier autocompleteRefreshRequested = () -> false;
     private BooleanSupplier autocompleteNextRequested = () -> false;
     private BooleanSupplier autocompletePreviousRequested = () -> false;
+    private Runnable autocompleteDismissed = () -> {};
 
     private String text = "";
     private String ghostSuggestion = "";
@@ -173,6 +174,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this;
     }
 
+    public RawTextAreaComponent onAutocompleteDismissed(Runnable listener) {
+        this.autocompleteDismissed = Objects.requireNonNullElse(listener, () -> {});
+        return this;
+    }
+
     public RawTextAreaComponent ghostSuggestion(String ghostSuggestion) {
         this.ghostSuggestion = ghostSuggestion == null ? "" : ghostSuggestion;
         return this;
@@ -192,6 +198,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return this;
         }
         this.autocompleteSelected = Math.clamp(selectedIndex, 0, this.autocompleteEntries.size() - 1);
+        return this;
+    }
+
+    public RawTextAreaComponent clearAutocompleteOverlay() {
+        this.autocompleteEntries = List.of();
+        this.autocompleteSelected = -1;
+        this.ghostSuggestion = "";
         return this;
     }
 
@@ -343,6 +356,10 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     public void replaceRange(int start, int end, String replacement) {
         this.applyDocumentEdit(this.document.replaceRange(start, end, replacement, this.scrollAmount));
+    }
+
+    public void moveCaret(int target) {
+        this.moveHorizontal(target, false);
     }
 
     @Override
@@ -596,7 +613,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 || (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
         boolean shift = input.hasShiftDown();
         int keyCode = input.key();
-        boolean hasAutocompletePopup = this.hasAutocompletePopupSelection();
+        boolean hasAutocompletePopup = !this.autocompleteEntries.isEmpty()
+                && this.autocompleteSelected >= 0
+                && this.autocompleteSelected < this.autocompleteEntries.size();
 
         if (ctrl) {
             switch (keyCode) {
@@ -647,15 +666,19 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         switch (keyCode) {
             case GLFW.GLFW_KEY_ESCAPE -> {
                 if (hasAutocompletePopup || !this.ghostSuggestion.isBlank()) {
-                    this.autocompleteEntries = List.of();
-                    this.autocompleteSelected = -1;
-                    this.ghostSuggestion = "";
+                    this.clearAutocompleteOverlay();
+                    this.autocompleteDismissed.run();
                     return true;
                 }
                 return super.onKeyPress(input);
             }
             case GLFW.GLFW_KEY_TAB -> {
-                if (shift) {
+                if (!shift && hasAutocompletePopup && this.autocompleteRequested.getAsBoolean()) {
+                    return true;
+                } else if (shift && hasAutocompletePopup) {
+                    this.autocompleteNextRequested.getAsBoolean();
+                    return true;
+                } else if (shift) {
                     this.outdentSelection();
                 } else {
                     this.indentSelection();
@@ -663,14 +686,22 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 return true;
             }
             case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
-                if (shift && hasAutocompletePopup && this.autocompleteRequested.getAsBoolean()) {
+                if (shift) {
+                    if (hasAutocompletePopup || !this.ghostSuggestion.isBlank()) {
+                        this.clearAutocompleteOverlay();
+                        this.autocompleteDismissed.run();
+                    }
+                    this.insertNewlineWithAutoIndent();
+                    return true;
+                }
+                if (hasAutocompletePopup && this.autocompleteRequested.getAsBoolean()) {
                     return true;
                 }
                 this.insertNewlineWithAutoIndent();
                 return true;
             }
             case GLFW.GLFW_KEY_UP -> {
-                if (hasAutocompletePopup && shift) {
+                if (hasAutocompletePopup && !shift && !ctrl) {
                     this.autocompletePreviousRequested.getAsBoolean();
                 } else {
                     this.moveVertical(-1, shift);
@@ -678,7 +709,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 return true;
             }
             case GLFW.GLFW_KEY_DOWN -> {
-                if (hasAutocompletePopup && shift) {
+                if (hasAutocompletePopup && !shift && !ctrl) {
                     this.autocompleteNextRequested.getAsBoolean();
                 } else {
                     this.moveVertical(1, shift);
@@ -686,11 +717,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 return true;
             }
             case GLFW.GLFW_KEY_LEFT -> {
-                this.moveHorizontal(ctrl ? this.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor), shift);
+                this.moveHorizontal(ctrl ? this.document.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor), shift);
                 return true;
             }
             case GLFW.GLFW_KEY_RIGHT -> {
-                this.moveHorizontal(ctrl ? this.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor), shift);
+                this.moveHorizontal(ctrl ? this.document.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor), shift);
                 return true;
             }
             case GLFW.GLFW_KEY_HOME -> {
@@ -737,18 +768,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private void replaceSelectionOrInsert(String insert) {
         insert = this.applyVirtualCaretPadding(insert);
         this.applyDocumentEdit(this.document.replaceSelection(insert, this.scrollAmount));
-    }
-
-    private boolean hasAutocompletePopupSelection() {
-        return !this.autocompleteEntries.isEmpty()
-                && this.autocompleteSelected >= 0
-                && this.autocompleteSelected < this.autocompleteEntries.size();
-    }
-
-    private void clearAutocompleteOverlay() {
-        this.autocompleteEntries = List.of();
-        this.autocompleteSelected = -1;
-        this.ghostSuggestion = "";
     }
 
     private void insertNewlineWithAutoIndent() {
@@ -964,22 +983,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     private void moveVertical(int deltaLines, boolean keepSelection) {
         int currentVisibleLine = this.visibleLineForCursorIndex(this.cursor);
-        int targetX = this.cursorLocalVisualX(currentVisibleLine);
+        int targetX = this.layout.localVisualX(currentVisibleLine, this.cursor, this.fontMetrics);
         int targetVisibleLine = Math.clamp(currentVisibleLine + deltaLines, 0, this.layout.rowCount() - 1);
-        int target = this.cursorForVisibleLineAndX(targetVisibleLine, targetX);
+        int target = this.layout.cursorForRowAndX(targetVisibleLine, targetX, this.fontMetrics);
         this.document.moveCaret(target, keepSelection);
         this.syncFromDocument();
         this.clearVirtualCaret();
         this.ensureCursorVisible();
         this.notifyViewportChanged();
-    }
-
-    private int cursorForVisibleLineAndX(int visibleLine, int targetX) {
-        return this.layout.cursorForRowAndX(visibleLine, targetX, this.fontMetrics);
-    }
-
-    private int cursorLocalVisualX(int visibleLine) {
-        return this.layout.localVisualX(visibleLine, this.cursor, this.fontMetrics);
     }
 
     private int previousCodePoint(int index) {
@@ -988,14 +999,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     private int nextCodePoint(int index) {
         return this.document.nextCodePoint(index);
-    }
-
-    private int previousWordBoundary(int index) {
-        return this.document.previousWordBoundary(index);
-    }
-
-    private int nextWordBoundary(int index) {
-        return this.document.nextWordBoundary(index);
     }
 
     private void selectWordAt(int cursorIndex) {
@@ -1418,10 +1421,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int foldMarkerRight = this.foldMarkerRight();
         int minNumberX = this.innerLeft() + this.gutterMetrics().numberLeftOffset();
         for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
-            int lineIndex = this.actualLineForVisibleLine(visibleLine);
+            RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
+            int lineIndex = row.lineIndex();
             int lineY = top + visibleLine * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) continue;
-            if (this.wordWrap && this.rowSegmentStart(visibleLine) > 0) {
+            if (this.wordWrap && row.localStart() > 0) {
                 continue;
             }
             int lineNo = lineIndex + 1;
@@ -1456,15 +1460,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int syntaxBudget = MAX_SYNTAX_RENDER_BUDGET_CHARS;
         int lastBudgetedLine = -1;
         for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
-            int lineIndex = this.actualLineForVisibleLine(visibleLine);
+            RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
+            int lineIndex = row.lineIndex();
             int lineY = top + visibleLine * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) continue;
             int start = this.lineStarts[lineIndex];
             int end = this.lineEnd(lineIndex);
             String line = this.text.substring(start, end);
-            int segmentStart = this.rowSegmentStart(visibleLine);
-            int segmentEnd = this.rowSegmentEnd(visibleLine);
-            RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
+            int segmentStart = row.localStart();
+            int segmentEnd = row.localEnd();
             int boundedSegmentStart = Math.clamp(segmentStart, 0, line.length());
             int boundedSegmentEnd = Math.clamp(segmentEnd, boundedSegmentStart, line.length());
             String segment = line.substring(boundedSegmentStart, boundedSegmentEnd);
@@ -2209,18 +2213,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this.gutterMetrics().foldMarkerWidth();
     }
 
-    private int actualLineForVisibleLine(int visibleLine) {
-        return this.layout.actualLineForRow(visibleLine);
-    }
-
-    private int rowSegmentStart(int visibleLine) {
-        return this.layout.row(visibleLine).localStart();
-    }
-
-    private int rowSegmentEnd(int visibleLine) {
-        return this.layout.row(visibleLine).localEnd();
-    }
-
     private int visibleLineForCursorIndex(int cursorIndex) {
         return this.layout.rowForOffset(cursorIndex);
     }
@@ -2241,7 +2233,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return false;
         }
         int visibleLine = Math.clamp(localY / this.lineHeightWithSpacing(), 0, this.layout.rowCount() - 1);
-        int actualLine = this.actualLineForVisibleLine(visibleLine);
+        int actualLine = this.layout.actualLineForRow(visibleLine);
         FoldRegion region = this.foldRegionStartingAt(actualLine);
         if (region == null) {
             return false;

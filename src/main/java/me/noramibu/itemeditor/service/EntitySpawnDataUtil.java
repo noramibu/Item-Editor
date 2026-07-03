@@ -31,7 +31,7 @@ final class EntitySpawnDataUtil {
         entityTag.read("CustomName", ComponentSerialization.CODEC)
                 .ifPresent(component -> draft.customName = TextComponentUtil.toMarkup(component));
         entityTag.getFloat("Health")
-                .ifPresent(value -> draft.health = trimTrailingZeros(value));
+                .ifPresent(value -> draft.health = ValidationUtil.trimTrailingZeros(value));
     }
 
     static CompoundTag applyEntity(
@@ -62,15 +62,35 @@ final class EntitySpawnDataUtil {
         }
 
         entityTag.putString("id", entityId.toString());
-        setBooleanKey(entityTag, "NoAI", draft.noAi);
-        setBooleanKey(entityTag, "Silent", draft.silent);
-        setBooleanKey(entityTag, "NoGravity", draft.noGravity);
-        setBooleanKey(entityTag, "Glowing", draft.glowing);
-        setBooleanKey(entityTag, "Invulnerable", draft.invulnerable);
-        setBooleanKey(entityTag, "PersistenceRequired", draft.persistenceRequired);
-        setBooleanKey(entityTag, "CustomNameVisible", draft.customNameVisible);
-        applyCustomName(entityTag, draft.customName);
-        return applyHealth(entityTag, draft.health, context, fieldLabel) ? entityTag : null;
+        NbtTagUtil.setBooleanKey(entityTag, "NoAI", draft.noAi);
+        NbtTagUtil.setBooleanKey(entityTag, "Silent", draft.silent);
+        NbtTagUtil.setBooleanKey(entityTag, "NoGravity", draft.noGravity);
+        NbtTagUtil.setBooleanKey(entityTag, "Glowing", draft.glowing);
+        NbtTagUtil.setBooleanKey(entityTag, "Invulnerable", draft.invulnerable);
+        NbtTagUtil.setBooleanKey(entityTag, "PersistenceRequired", draft.persistenceRequired);
+        NbtTagUtil.setBooleanKey(entityTag, "CustomNameVisible", draft.customNameVisible);
+        NbtTagUtil.setTextComponentKey(entityTag, "CustomName", draft.customName);
+        String raw = draft.health == null ? "" : draft.health.trim();
+        if (raw.isBlank()) {
+            entityTag.remove("Health");
+            return entityTag;
+        }
+
+        Float health = ValidationUtil.parseFloat(raw, fieldLabel + " Health", context.messages());
+        if (health == null) {
+            return null;
+        }
+        if (health < 0.0F) {
+            context.messages().add(ValidationMessage.error(ItemEditorText.str(
+                    "validation.range",
+                    fieldLabel + " Health",
+                    0,
+                    2048
+            )));
+            return null;
+        }
+        entityTag.putFloat("Health", health);
+        return entityTag;
     }
 
     static boolean sameEntity(
@@ -100,61 +120,5 @@ final class EntitySpawnDataUtil {
                 && !draft.customNameVisible
                 && (draft.customName == null || draft.customName.isBlank())
                 && (draft.health == null || draft.health.isBlank());
-    }
-
-    private static void applyCustomName(CompoundTag entityTag, String rawName) {
-        if (rawName == null || rawName.isBlank()) {
-            entityTag.remove("CustomName");
-            return;
-        }
-        entityTag.store(
-                "CustomName",
-                ComponentSerialization.CODEC,
-                TextComponentUtil.parseMarkup(rawName)
-        );
-    }
-
-    private static boolean applyHealth(
-            CompoundTag entityTag,
-            String rawHealth,
-            SpecialDataApplyContext context,
-            String fieldLabel
-    ) {
-        String raw = rawHealth == null ? "" : rawHealth.trim();
-        if (raw.isBlank()) {
-            entityTag.remove("Health");
-            return true;
-        }
-
-        Float health = ValidationUtil.parseFloat(raw, fieldLabel + " Health", context.messages());
-        if (health == null) {
-            return false;
-        }
-        if (health < 0.0F) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.range",
-                    fieldLabel + " Health",
-                    0,
-                    2048
-            )));
-            return false;
-        }
-        entityTag.putFloat("Health", health);
-        return true;
-    }
-
-    private static void setBooleanKey(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
-    }
-
-    private static String trimTrailingZeros(float value) {
-        if (value == (long) value) {
-            return Long.toString((long) value);
-        }
-        return Float.toString(value);
     }
 }

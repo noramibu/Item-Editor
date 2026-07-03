@@ -102,7 +102,11 @@ public final class UiScaleService {
                 ? GUI_SCALE_HIGH_COMPENSATION
                 : guiScale <= GUI_SCALE_LOW_THRESHOLD ? GUI_SCALE_LOW_COMPENSATION : 1.0d;
 
-        double scale = areaScale(width, height) * aspectPenalty * guiScaleCompensation;
+        double scaledArea = (Math.max(1d, width) * Math.max(1d, height))
+                / (BASE_WIDTH * (double) BASE_HEIGHT);
+        double scale = Math.sqrt(scaledArea)
+                * aspectPenalty
+                * guiScaleCompensation;
         if (heightFactor < HEIGHT_COMPRESSION_THRESHOLD) {
             scale *= HEIGHT_COMPRESSION_FACTOR;
         }
@@ -115,10 +119,10 @@ public final class UiScaleService {
         float titleTextScale = 1.0F;
         float bodyTextScale = 1.0F;
         float captionTextScale = 1.0F;
-        int titleLineHeight = clampInt((int) Math.round(TITLE_LINE_BASE * scale), TITLE_LINE_MIN, TITLE_LINE_MAX);
-        int bodyLineHeight = clampInt((int) Math.round(BODY_LINE_BASE * scale), BODY_LINE_MIN, BODY_LINE_MAX);
-        int captionLineHeight = clampInt((int) Math.round(CAPTION_LINE_BASE * scale), CAPTION_LINE_MIN, CAPTION_LINE_MAX);
-        int bodyLineSpacing = clampInt(
+        int titleLineHeight = Math.clamp((int) Math.round(TITLE_LINE_BASE * scale), TITLE_LINE_MIN, TITLE_LINE_MAX);
+        int bodyLineHeight = Math.clamp((int) Math.round(BODY_LINE_BASE * scale), BODY_LINE_MIN, BODY_LINE_MAX);
+        int captionLineHeight = Math.clamp((int) Math.round(CAPTION_LINE_BASE * scale), CAPTION_LINE_MIN, CAPTION_LINE_MAX);
+        int bodyLineSpacing = Math.clamp(
                 (int) Math.round((scale - 1.0d) * BODY_LINE_SPACING_SCALE_FACTOR),
                 BODY_LINE_SPACING_MIN,
                 BODY_LINE_SPACING_MAX
@@ -148,20 +152,12 @@ public final class UiScaleService {
         );
     }
 
-    private static int clampInt(int value, int min, int max) {
-        return Math.clamp(value, min, max);
-    }
-
-    private static double areaScale(int width, int height) {
-        return Math.sqrt((Math.max(1d, width) * Math.max(1d, height)) / (BASE_WIDTH * (double) BASE_HEIGHT));
-    }
-
     private static int scaleMetric(int base, double scale, int min, int max) {
-        return clampInt((int) Math.round(base * scale), min, max);
+        return Math.clamp((int) Math.round(base * scale), min, max);
     }
 
     private static int clampByWidthRatio(int width, double ratio, int min, int max) {
-        return clampInt((int) Math.round(width * ratio), min, max);
+        return Math.clamp((int) Math.round(width * ratio), min, max);
     }
 
 }

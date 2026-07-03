@@ -8,17 +8,10 @@ public final class ColorInterpolationUtil {
     }
 
     public static int interpolateRgb(int startColor, int endColor, float progress) {
-        int startRed = red(startColor);
-        int startGreen = green(startColor);
-        int startBlue = blue(startColor);
-        int endRed = red(endColor);
-        int endGreen = green(endColor);
-        int endBlue = blue(endColor);
-
-        int red = Math.round(startRed + (endRed - startRed) * progress);
-        int green = Math.round(startGreen + (endGreen - startGreen) * progress);
-        int blue = Math.round(startBlue + (endBlue - startBlue) * progress);
-        return rgb(red, green, blue);
+        int red = interpolateChannel((startColor >> 16) & 0xFF, (endColor >> 16) & 0xFF, progress);
+        int green = interpolateChannel((startColor >> 8) & 0xFF, (endColor >> 8) & 0xFF, progress);
+        int blue = interpolateChannel(startColor & 0xFF, endColor & 0xFF, progress);
+        return (red << 16) | (green << 8) | blue;
     }
 
     public static int interpolateRgb(List<Integer> colors, float progress) {
@@ -38,25 +31,13 @@ public final class ColorInterpolationUtil {
     }
 
     public static double colorDistanceSquared(int left, int right) {
-        int redDelta = red(left) - red(right);
-        int greenDelta = green(left) - green(right);
-        int blueDelta = blue(left) - blue(right);
+        int redDelta = ((left >> 16) & 0xFF) - ((right >> 16) & 0xFF);
+        int greenDelta = ((left >> 8) & 0xFF) - ((right >> 8) & 0xFF);
+        int blueDelta = (left & 0xFF) - (right & 0xFF);
         return redDelta * redDelta + greenDelta * greenDelta + blueDelta * blueDelta;
     }
 
-    public static int red(int color) {
-        return (color >> 16) & 0xFF;
-    }
-
-    public static int green(int color) {
-        return (color >> 8) & 0xFF;
-    }
-
-    public static int blue(int color) {
-        return color & 0xFF;
-    }
-
-    public static int rgb(int red, int green, int blue) {
-        return (red << 16) | (green << 8) | blue;
+    private static int interpolateChannel(int start, int end, float progress) {
+        return Math.round(start + (end - start) * progress);
     }
 }

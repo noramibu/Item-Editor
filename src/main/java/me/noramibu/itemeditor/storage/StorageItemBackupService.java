@@ -47,7 +47,11 @@ public final class StorageItemBackupService {
             LOGGER.info("[Item Editor] Item backup written [reason={}] [file={}]", event.reason(), file.getFileName());
             return file;
         } catch (RuntimeException | IOException exception) {
-            LOGGER.warn("[Item Editor] Failed to write item backup [reason={}] [error={}]", event.reason(), errorMessage(exception));
+            LOGGER.warn(
+                    "[Item Editor] Failed to write item backup [reason={}] [error={}]",
+                    event.reason(),
+                    exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()
+            );
             return null;
         }
     }
@@ -59,21 +63,16 @@ public final class StorageItemBackupService {
     }
 
     private String fileName(BackupEvent event) {
-        String source = safeFilePart(event.source());
-        String reason = safeFilePart(event.reason());
-        int page = event.page();
-        int slot = event.slot();
-        int dataVersion = event.sourceDataVersion();
         return String.format(
                 Locale.ROOT,
                 "%s_%04d_%s_page-%s_slot-%s_dv-%s_%s.nbt",
                 LocalDateTime.now().format(FILE_TIME_FORMAT),
                 this.fileCounter.incrementAndGet(),
-                source,
-                numberPart(page),
-                numberPart(slot),
-                numberPart(dataVersion),
-                reason
+                safeFilePart(event.source()),
+                numberPart(event.page()),
+                numberPart(event.slot()),
+                numberPart(event.sourceDataVersion()),
+                safeFilePart(event.reason())
         );
     }
 
@@ -135,13 +134,6 @@ public final class StorageItemBackupService {
 
     private static String numberPart(int value) {
         return value >= 0 ? Integer.toString(value) : "unknown";
-    }
-
-    private static String errorMessage(Throwable throwable) {
-        if (throwable == null) {
-            return "unknown";
-        }
-        return throwable.getMessage() == null ? throwable.getClass().getSimpleName() : throwable.getMessage();
     }
 
     public record BackupEvent(

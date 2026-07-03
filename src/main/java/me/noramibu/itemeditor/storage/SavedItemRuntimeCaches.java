@@ -49,10 +49,7 @@ final class SavedItemRuntimeCaches {
     Map<String, ItemStack> hotPageStacks(Object key, long signature) {
         synchronized (this.hotPageCacheLock) {
             CachedPage cached = this.hotPageCache.get(key);
-            if (cached == null || cached.entriesSignature() != signature) {
-                return null;
-            }
-            return copyStacksMap(cached.loadedStacks());
+            return cached == null || cached.entriesSignature() != signature ? null : copyStacksMap(cached.loadedStacks());
         }
     }
 
@@ -90,9 +87,6 @@ final class SavedItemRuntimeCaches {
         };
     }
 
-    private record CachedPage(
-            long entriesSignature,
-            Map<String, ItemStack> loadedStacks
-    ) {
+    private record CachedPage(long entriesSignature, Map<String, ItemStack> loadedStacks) {
     }
 }

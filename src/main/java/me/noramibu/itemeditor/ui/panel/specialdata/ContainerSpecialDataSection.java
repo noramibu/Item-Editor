@@ -34,7 +34,7 @@ public final class ContainerSpecialDataSection {
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.container.title"), Component.empty());
 
         int editableSlots = editableSlots(context.originalStack());
-        int textWidth = textWidth(context);
+        int textWidth = Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(TEXT_WIDTH_RESERVE));
         section.child(UiFactory.muted(summary(special, editableSlots), textWidth));
         section.child(UiFactory.actionButtonRow(openButton(context)));
         section.child(UiFactory.actionButtonRow(resetButton(context), clearButton(context)));
@@ -43,15 +43,11 @@ public final class ContainerSpecialDataSection {
         return section;
     }
 
-    private static int textWidth(SpecialDataPanelContext context) {
-        return Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(TEXT_WIDTH_RESERVE));
-    }
-
     private static Component summary(ItemEditorState.SpecialData special, int editableSlots) {
         int shownItems = 0;
         int preservedItems = 0;
         for (ItemEditorState.ContainerEntryDraft draft : special.containerEntries) {
-            Integer slot = parseSlot(draft.slot);
+            Integer slot = ContainerEntryDraftUtil.parseSlot(draft.slot);
             if (slot != null && slot >= 0 && slot < editableSlots) {
                 shownItems++;
             } else {
@@ -83,7 +79,7 @@ public final class ContainerSpecialDataSection {
 
     private static ButtonComponent clearButton(SpecialDataPanelContext context) {
         return UiFactory.button(
-                ItemEditorText.tr("special.container.clear_all").copy().withColor(0xFF8A8A),
+                ItemEditorText.tr("common.clear_all").copy().withColor(0xFF8A8A),
                 UiFactory.ButtonTextPreset.COMPACT,
                 ignored -> context.mutateRefresh(() -> context.special().containerEntries.clear())
         );
@@ -107,7 +103,7 @@ public final class ContainerSpecialDataSection {
                 }
             }
         }
-        special.containerEntries.sort(Comparator.comparingInt(ContainerSpecialDataSection::slotOrMax));
+        special.containerEntries.sort(Comparator.comparingInt(ContainerEntryDraftUtil::slotOrMax));
     }
 
     private static int editableSlots(ItemStack stack) {
@@ -120,13 +116,4 @@ public final class ContainerSpecialDataSection {
         return Math.clamp((int) Math.ceil(slots / (double) COLUMNS), 1, 6) * COLUMNS;
     }
 
-    private static int slotOrMax(ItemEditorState.ContainerEntryDraft draft) {
-        Integer slot = parseSlot(draft.slot);
-        return slot == null ? Integer.MAX_VALUE : slot;
-    }
-
-    private static Integer parseSlot(String rawSlot) {
-        int parsed = ContainerEntryDraftUtil.parseIntOrDefault(rawSlot, Integer.MIN_VALUE);
-        return parsed == Integer.MIN_VALUE ? null : parsed;
-    }
 }

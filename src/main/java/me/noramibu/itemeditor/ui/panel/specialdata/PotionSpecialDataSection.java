@@ -4,10 +4,11 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
+import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Registry;
@@ -20,6 +21,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.Potion;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class PotionSpecialDataSection {
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
@@ -30,6 +32,7 @@ public final class PotionSpecialDataSection {
 
     public static boolean supports(ItemStack stack) {
         return stack.has(DataComponents.POTION_CONTENTS)
+                || stack.has(DataComponents.POTION_DURATION_SCALE)
                 || stack.is(Items.POTION)
                 || stack.is(Items.SPLASH_POTION)
                 || stack.is(Items.LINGERING_POTION)
@@ -43,7 +46,7 @@ public final class PotionSpecialDataSection {
         Registry<MobEffect> effectRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         List<String> potionIds = RegistryUtil.ids(potionRegistry);
         List<String> effectIds = RegistryUtil.ids(effectRegistry);
-        boolean compactLayout = LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        boolean compactLayout = context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.potion.title"), Component.empty());
 
@@ -58,6 +61,15 @@ public final class PotionSpecialDataSection {
                 potionIds,
                 id -> id,
                 id -> context.mutateRefresh(() -> special.potionId = id)
+        ));
+
+        section.child(UiFactory.field(
+                ItemEditorText.tr("special.potion.duration_scale"),
+                Component.empty(),
+                UiFactory.textBox(
+                        special.potionDurationScale,
+                        context.bindText(value -> special.potionDurationScale = value)
+                ).horizontalSizing(Sizing.fill(100))
         ));
 
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
@@ -110,8 +122,18 @@ public final class PotionSpecialDataSection {
 
             FlowLayout toggles = compactLayout ? UiFactory.column() : UiFactory.row();
             toggles.child(UiFactory.checkbox(ItemEditorText.tr("special.potion.ambient"), draft.ambient, context.bindToggle(value -> draft.ambient = value)));
-            toggles.child(UiFactory.checkbox(ItemEditorText.tr("special.potion.visible"), draft.visible, context.bindToggle(value -> draft.visible = value)));
-            toggles.child(UiFactory.checkbox(ItemEditorText.tr("special.potion.show_icon"), draft.showIcon, context.bindToggle(value -> draft.showIcon = value)));
+            toggles.child(triStateBooleanField(
+                    context,
+                    ItemEditorText.tr("special.potion.visible"),
+                    draft.visible,
+                    value -> draft.visible = value
+            ));
+            toggles.child(triStateBooleanField(
+                    context,
+                    ItemEditorText.tr("special.potion.show_icon"),
+                    draft.showIcon,
+                    value -> draft.showIcon = value
+            ));
             card.child(toggles);
             section.child(card);
         }
@@ -144,6 +166,29 @@ public final class PotionSpecialDataSection {
 
         card.child(header);
         return card;
+    }
+
+    private static UIComponent triStateBooleanField(
+            SpecialDataPanelContext context,
+            Component label,
+            String value,
+            Consumer<String> setter
+    ) {
+        ButtonComponent button = UiFactory.actionToneButton(
+                TriStateBooleanUi.label(value),
+                UiFactory.ButtonTextPreset.STANDARD,
+                TriStateBooleanUi.tone(value),
+                anchor -> context.openDropdown(
+                        anchor,
+                        TriStateBooleanUi.VALUES,
+                        TriStateBooleanUi::text,
+                        selected -> context.mutateRefresh(() -> setter.accept(selected))
+                )
+        );
+        button.horizontalSizing(Sizing.fill(100));
+        FlowLayout field = UiFactory.field(label, Component.empty(), button);
+        field.horizontalSizing(Sizing.fill(100));
+        return field;
     }
 
 }

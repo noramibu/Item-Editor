@@ -8,7 +8,6 @@ import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 
@@ -16,10 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
-
-    protected final Component withPlainBaseline(Component component) {
-        return component;
-    }
 
     protected final void putOptionalIntTag(
             CompoundTag tag,
@@ -109,10 +104,14 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
                     duration,
                     amplifier,
                     draft.ambient,
-                    draft.visible,
-                    draft.showIcon
+                    parseOptionalTrueBoolean(draft.visible),
+                    parseOptionalTrueBoolean(draft.showIcon)
             ));
         }
         return effects;
+    }
+
+    protected final boolean parseOptionalTrueBoolean(String raw) {
+        return raw == null || raw.isBlank() || Boolean.parseBoolean(raw);
     }
 }

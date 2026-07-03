@@ -10,12 +10,12 @@ import me.noramibu.itemeditor.storage.model.SavedPageEntry;
 import me.noramibu.itemeditor.storage.search.StorageSearchEngine;
 import me.noramibu.itemeditor.storage.search.StorageSearchParser;
 import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
+import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -123,7 +123,7 @@ public final class SavedItemStorageService {
             return loaded;
         }
         this.backupPagesBeforeDfu(entries);
-        int currentDataVersion = currentDataVersion();
+        int currentDataVersion = StorageMetadataUtil.currentDataVersion();
         List<DecodeRequest> decodeRequests = new ArrayList<>();
         Map<String, SavedChunkCodec.SavedChunkData> chunkById = new HashMap<>();
         for (SavedIndexItemEntry entry : entries) {
@@ -178,7 +178,7 @@ public final class SavedItemStorageService {
     }
 
     private void backupPagesBeforeDfu(List<SavedIndexItemEntry> entries) {
-        int currentDataVersion = currentDataVersion();
+        int currentDataVersion = StorageMetadataUtil.currentDataVersion();
         if (currentDataVersion <= 0 || entries == null || entries.isEmpty()) {
             return;
         }
@@ -209,7 +209,7 @@ public final class SavedItemStorageService {
             return this.pagedResult(sorted, requestedPage, false);
         }
 
-        int requested = clampMinPage(requestedPage);
+        int requested = Math.max(1, requestedPage);
         SavedPageEntry pageEntry = this.pageByNumberOrVirtual(index, requested);
         int maxPage = Math.max(requested, this.maxKnownPage(index));
         int page = pageEntry.order + 1;
@@ -267,7 +267,7 @@ public final class SavedItemStorageService {
             int maxPage = Math.max(Math.max(1, includePage), this.maxStoredPage(this.indexCache));
             for (int pageNumber = 1; pageNumber <= maxPage; pageNumber++) {
                 SavedPageEntry page = this.pageByNumberOrVirtual(this.indexCache, pageNumber);
-                pages.add(this.pageInfo(this.indexCache, page, !this.isPersistedPage(this.indexCache, page.id)));
+                pages.add(this.pageInfo(this.indexCache, page, this.pageById(this.indexCache, page.id) == null));
             }
             return pages;
         });
@@ -465,7 +465,7 @@ public final class SavedItemStorageService {
                             String id = UUID.randomUUID().toString();
                             chunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, itemTag.copy()));
                             SavedIndexItemEntry entry = buildEntry(id, page, slot, now, now, stack, nbtByteSize(itemTag));
-                            entry.dataVersion = item.dataVersion() > 0 ? item.dataVersion() : currentDataVersion();
+                            entry.dataVersion = item.dataVersion() > 0 ? item.dataVersion() : StorageMetadataUtil.currentDataVersion();
                             this.indexCache.items.add(entry);
                             this.onIndexEntryAdded(entry);
                             this.withItemCacheWrite(() -> this.itemCache.put(id, stack.copy()));
@@ -704,8 +704,8 @@ public final class SavedItemStorageService {
         entry.slotInPage = slotInChunk;
         entry.savedAt = savedAt;
         entry.updatedAt = updatedAt;
-        entry.minecraftVersion = currentMinecraftVersion();
-        entry.dataVersion = currentDataVersion();
+        entry.minecraftVersion = StorageMetadataUtil.currentMinecraftVersion();
+        entry.dataVersion = StorageMetadataUtil.currentDataVersion();
         entry.itemRegistryKey = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         entry.stackCount = Math.max(1, stack.getCount());
         entry.nbtBytes = Math.max(0, nbtBytes);
@@ -785,7 +785,7 @@ public final class SavedItemStorageService {
     private PageResult pagedResult(List<SavedIndexItemEntry> entries, int requestedPage, boolean searchMode) {
         int total = entries.size();
         int maxPage = Math.max(1, (int) Math.ceil(total / (double) StorageConstants.PAGE_SIZE));
-        int page = clampPage(requestedPage, maxPage);
+        int page = Math.min(Math.max(1, requestedPage), maxPage);
         int from = Math.min(total, (page - 1) * StorageConstants.PAGE_SIZE);
         int to = Math.min(total, from + StorageConstants.PAGE_SIZE);
         List<SavedIndexItemEntry> pageEntries = new ArrayList<>();
@@ -1049,10 +1049,10 @@ public final class SavedItemStorageService {
             if (page.id == null || page.id.isBlank()) {
                 page.id = page.chunkId;
             }
-            if (isGeneratedDefaultName(page.name, page.order)) {
+            if (StorageMetadataUtil.isGeneratedDefaultName(page.name, page.order)) {
                 page.name = DEFAULT_PAGE_NAME;
             }
-            if (page.namePlain == null || isGeneratedDefaultName(page.namePlain, page.order)) {
+            if (page.namePlain == null || StorageMetadataUtil.isGeneratedDefaultName(page.namePlain, page.order)) {
                 page.namePlain = page.name.isBlank() ? "" : TextComponentUtil.parseMarkup(page.name).getString();
             }
         }
@@ -1118,10 +1118,6 @@ public final class SavedItemStorageService {
     private SavedPageEntry pageByNumberOrVirtual(SavedIndexFileModel index, int pageNumber) {
         SavedPageEntry page = this.pageByNumber(index, pageNumber);
         return page == null ? virtualPage(pageNumber) : page;
-    }
-
-    private boolean isPersistedPage(SavedIndexFileModel index, String pageId) {
-        return this.pageById(index, pageId) != null;
     }
 
     private @Nullable SavedPageEntry pageById(SavedIndexFileModel index, String pageId) {
@@ -1199,14 +1195,6 @@ public final class SavedItemStorageService {
         page.name = DEFAULT_PAGE_NAME;
         page.namePlain = page.name;
         return page;
-    }
-
-    private static boolean isGeneratedDefaultName(String name, int index) {
-        return name == null || name.isBlank() || generatedDefaultPageName(index).equals(name);
-    }
-
-    private static String generatedDefaultPageName(int index) {
-        return "Page " + (Math.max(0, index) + 1);
     }
 
     private static String nextChunkId(SavedIndexFileModel index) {
@@ -1568,7 +1556,7 @@ public final class SavedItemStorageService {
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         Map<SavedChunkCodec.DecodeKey, DecodeRequest> uniqueRequests = new HashMap<>();
         Map<SavedChunkCodec.DecodeKey, List<DecodeRequest>> requestsByKey = new HashMap<>();
-        int currentDataVersion = currentDataVersion();
+        int currentDataVersion = StorageMetadataUtil.currentDataVersion();
 
         for (DecodeRequest request : requests) {
             boolean outdated = currentDataVersion > 0 && request.dataVersion() > 0 && request.dataVersion() < currentDataVersion;
@@ -1636,31 +1624,27 @@ public final class SavedItemStorageService {
     private static int computeAdaptiveDecodeMemoCacheSize() {
         int byMemory = MAX_MEMORY_MB >= 4096L ? 384 : MAX_MEMORY_MB >= 2048L ? 256 : MAX_MEMORY_MB >= 1024L ? 128 : MIN_DECODE_MEMO_CACHE_SIZE;
         int byCpu = MIN_DECODE_MEMO_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 16);
-        return clampInt(Math.max(byMemory, byCpu), MIN_DECODE_MEMO_CACHE_SIZE, MAX_DECODE_MEMO_CACHE_SIZE);
+        return Math.clamp(Math.max(byMemory, byCpu), MIN_DECODE_MEMO_CACHE_SIZE, MAX_DECODE_MEMO_CACHE_SIZE);
     }
 
     private static int computeAdaptiveItemCacheSize() {
         int byMemory = MAX_MEMORY_MB >= 4096L ? 768 : MAX_MEMORY_MB >= 2048L ? 512 : MAX_MEMORY_MB >= 1024L ? 256 : MIN_ITEM_CACHE_SIZE;
         int byCpu = MIN_ITEM_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 32);
-        return clampInt(Math.max(byMemory, byCpu), MIN_ITEM_CACHE_SIZE, MAX_ITEM_CACHE_SIZE);
+        return Math.clamp(Math.max(byMemory, byCpu), MIN_ITEM_CACHE_SIZE, MAX_ITEM_CACHE_SIZE);
     }
 
     private static int computeAdaptiveChunkCacheSize() {
         int byMemory = MAX_MEMORY_MB >= 4096L ? 96 : MAX_MEMORY_MB >= 2048L ? 64 : MAX_MEMORY_MB >= 1024L ? 32 : MIN_CHUNK_CACHE_SIZE;
         int byCpu = MIN_CHUNK_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 4);
-        return clampInt(Math.max(byMemory, byCpu), MIN_CHUNK_CACHE_SIZE, MAX_CHUNK_CACHE_SIZE);
+        return Math.clamp(Math.max(byMemory, byCpu), MIN_CHUNK_CACHE_SIZE, MAX_CHUNK_CACHE_SIZE);
     }
 
     private static int computeDecodeThreadCount() {
-        int threads = clampInt(AVAILABLE_CPUS - 1, 1, MAX_DECODE_THREADS);
+        int threads = Math.clamp(AVAILABLE_CPUS - 1, 1, MAX_DECODE_THREADS);
         if (MAX_MEMORY_MB < 1024L) {
             threads = Math.min(threads, 2);
         }
         return threads;
-    }
-
-    private static int clampInt(int value, int min, int max) {
-        return Math.clamp(value, min, max);
     }
 
     private <T> T withIndexRead(Supplier<T> action) {
@@ -1762,7 +1746,7 @@ public final class SavedItemStorageService {
     }
 
     private DecodedItem decodeItemTag(DecodeRequest request, RegistryAccess registryAccess) {
-        int currentDataVersion = currentDataVersion();
+        int currentDataVersion = StorageMetadataUtil.currentDataVersion();
         int sourceDataVersion = request.dataVersion() > 0 ? request.dataVersion() : currentDataVersion;
         CompoundTag itemTag = request.itemTag();
         CompoundTag decodeTag = itemTag;
@@ -1985,13 +1969,9 @@ public final class SavedItemStorageService {
         }
         minecraft.execute(() -> {
             if (minecraft.player != null) {
-                minecraft.player.displayClientMessage(Component.literal(prefixedMessage(message)).withStyle(color), false);
+                minecraft.player.displayClientMessage(Component.literal(ItemEditorText.prefixedMessage(message)).withStyle(color), false);
             }
         });
-    }
-
-    private static String prefixedMessage(String message) {
-        return message == null || message.startsWith("[Item Editor] ") ? message : "[Item Editor] " + message;
     }
 
     private static String storageDfuUpdateKey(DecodeRequest request, int sourceDataVersion, int targetDataVersion) {
@@ -2059,7 +2039,7 @@ public final class SavedItemStorageService {
                     -1,
                     page.id,
                     this.pageSourceDataVersion(page),
-                    currentDataVersion(),
+                    StorageMetadataUtil.currentDataVersion(),
                     "",
                     "",
                     -1,
@@ -2074,8 +2054,8 @@ public final class SavedItemStorageService {
         root.putInt("schemaVersion", 1);
         root.putString("backupType", "storage_page");
         root.putString("note", note == null ? "" : note);
-        root.putString("minecraftVersion", currentMinecraftVersion());
-        root.putInt("dataVersion", currentDataVersion());
+        root.putString("minecraftVersion", StorageMetadataUtil.currentMinecraftVersion());
+        root.putInt("dataVersion", StorageMetadataUtil.currentDataVersion());
         root.putLong("backupAt", System.currentTimeMillis());
 
         CompoundTag pageTag = new CompoundTag();
@@ -2150,32 +2130,8 @@ public final class SavedItemStorageService {
         return itemTag.getString("id").filter(id -> !id.isBlank()).orElse("<unknown>");
     }
 
-    private static String currentMinecraftVersion() {
-        try {
-            return SharedConstants.getCurrentVersion().id();
-        } catch (RuntimeException ignored) {
-            return "";
-        }
-    }
-
-    private static int currentDataVersion() {
-        try {
-            return SharedConstants.getCurrentVersion().dataVersion().version();
-        } catch (RuntimeException ignored) {
-            return 0;
-        }
-    }
-
     private static String chunkId(int index) {
         return CHUNK_PREFIX + Math.max(0, index);
-    }
-
-    private static int clampPage(int requestedPage, int maxPage) {
-        return Math.min(clampMinPage(requestedPage), maxPage);
-    }
-
-    private static int clampMinPage(int requestedPage) {
-        return Math.max(1, requestedPage);
     }
 
     public record PageResult(
@@ -2191,11 +2147,7 @@ public final class SavedItemStorageService {
     ) {
     }
 
-    public record PageStats(
-            int storedPages,
-            int occupiedPages,
-            int emptyPages
-    ) {
+    public record PageStats(int storedPages, int occupiedPages, int emptyPages) {
     }
 
     public record PageInfo(
@@ -2213,11 +2165,7 @@ public final class SavedItemStorageService {
     ) {
     }
 
-    public record PageSnapshot(
-            PageResult result,
-            Map<String, ItemStack> loadedStacks,
-            PageStats stats
-    ) {
+    public record PageSnapshot(PageResult result, Map<String, ItemStack> loadedStacks, PageStats stats) {
     }
 
     public record SlotMutation(
@@ -2230,10 +2178,7 @@ public final class SavedItemStorageService {
         }
     }
 
-    public record ExternalPageImport(
-            String name,
-            List<ExternalItemImport> items
-    ) {
+    public record ExternalPageImport(String name, List<ExternalItemImport> items) {
     }
 
     public record ExternalItemImport(
@@ -2247,10 +2192,7 @@ public final class SavedItemStorageService {
         }
     }
 
-    public record StorageImportResult(
-            int pages,
-            int items
-    ) {
+    public record StorageImportResult(int pages, int items) {
     }
 
     public record StorageImportProgress(
@@ -2291,30 +2233,16 @@ public final class SavedItemStorageService {
     ) {
     }
 
-    private record DecodedByKey(
-            SavedChunkCodec.DecodeKey key,
-            DecodedItem item
-    ) {
+    private record DecodedByKey(SavedChunkCodec.DecodeKey key, DecodedItem item) {
     }
 
-    private record PageCacheKey(
-            int page,
-            String query,
-            StorageSortMode sortMode
-    ) {
+    private record PageCacheKey(int page, String query, StorageSortMode sortMode) {
     }
 
-
-    private record PendingSlotMutation(
-            long sequence,
-            SlotMutation mutation
-    ) {
+    private record PendingSlotMutation(long sequence, SlotMutation mutation) {
     }
 
-    private record PendingMutationToken(
-            int page,
-            Map<Integer, Long> slotSequences
-    ) {
+    private record PendingMutationToken(int page, Map<Integer, Long> slotSequences) {
     }
 
     private static <K, V> Map<K, V> lruCache(int maxSize) {

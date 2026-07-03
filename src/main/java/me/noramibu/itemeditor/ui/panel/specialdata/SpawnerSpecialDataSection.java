@@ -6,7 +6,6 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -28,7 +27,6 @@ public final class SpawnerSpecialDataSection {
     private static final int POTENTIAL_WEIGHT_FIELD_WIDTH = 120;
     private static final int LIGHT_FIELD_WIDTH = 74;
     private static final int PICKER_BUTTON_WIDTH = 70;
-    private static final String ACTION_DUPLICATE = "Duplicate";
 
     private SpawnerSpecialDataSection() {
     }
@@ -84,24 +82,26 @@ public final class SpawnerSpecialDataSection {
             return section;
         }
 
-        ButtonComponent addPotentialButton = UiFactory.button(
-                ItemEditorText.tr("special.spawner.add_potential"), UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> special.spawnerPotentials.add(new ItemEditorState.SpawnerPotentialDraft()))
-        );
-        ButtonComponent resetPotentialButton = UiFactory.button(
-                ItemEditorText.tr("common.reset"), UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> resetPotentialsFromSpawnData(special))
-        );
-        section.child(UiFactory.actionButtonRow(addPotentialButton, resetPotentialButton));
+        section.child(UiFactory.actionButtonRow(
+                UiFactory.button(
+                        ItemEditorText.tr("special.spawner.add_potential"), UiFactory.ButtonTextPreset.STANDARD,
+                        button -> context.mutateRefresh(() -> special.spawnerPotentials.add(new ItemEditorState.SpawnerPotentialDraft()))
+                ),
+                UiFactory.button(
+                        ItemEditorText.tr("common.reset"), UiFactory.ButtonTextPreset.STANDARD,
+                        button -> context.mutateRefresh(() -> resetPotentialsFromSpawnData(special))
+                )
+        ));
 
         if (!special.spawnerPotentials.isEmpty()) {
-            ButtonComponent expandAll = UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                    context.mutateRefresh(() -> special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = false))
-            );
-            ButtonComponent collapseAll = UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                    context.mutateRefresh(() -> special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = true))
-            );
-            section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+            section.child(UiFactory.actionButtonRow(
+                    UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                            context.mutateRefresh(() -> special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = false))
+                    ),
+                    UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                            context.mutateRefresh(() -> special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = true))
+                    )
+            ));
         }
 
         for (int index = 0; index < special.spawnerPotentials.size(); index++) {
@@ -260,13 +260,16 @@ public final class SpawnerSpecialDataSection {
                 context.mutateRefresh(() -> movePotential(special.spawnerPotentials, currentIndex, currentIndex + 1))
         );
         downButton.active(currentIndex < special.spawnerPotentials.size() - 1);
-        ButtonComponent duplicateButton = UiFactory.button(Component.literal(ACTION_DUPLICATE), UiFactory.ButtonTextPreset.COMPACT, button ->
-                context.mutateRefresh(() -> special.spawnerPotentials.add(currentIndex + 1, copyPotential(draft)))
-        );
-        ButtonComponent removeButton = UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.COMPACT, button ->
-                context.mutateRefresh(() -> special.spawnerPotentials.remove(currentIndex))
-        );
-        card.child(UiFactory.actionButtonRow(upButton, downButton, duplicateButton, removeButton));
+        card.child(UiFactory.actionButtonRow(
+                upButton,
+                downButton,
+                UiFactory.button(ItemEditorText.tr("common.duplicate"), UiFactory.ButtonTextPreset.COMPACT, button ->
+                        context.mutateRefresh(() -> special.spawnerPotentials.add(currentIndex + 1, copyPotential(draft)))
+                ),
+                UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.COMPACT, button ->
+                        context.mutateRefresh(() -> special.spawnerPotentials.remove(currentIndex))
+                )
+        ));
         return card;
     }
 
@@ -361,7 +364,7 @@ public final class SpawnerSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static int flagColumns(SpecialDataPanelContext context) {

@@ -8,13 +8,8 @@ public enum StorageSortMode {
     NBT_SIZE_DESC;
 
     public StorageSortMode next() {
-        return switch (this) {
-            case REGULAR -> SAVED_AT_DESC;
-            case SAVED_AT_DESC -> NAME_ASC;
-            case NAME_ASC -> AMOUNT_DESC;
-            case AMOUNT_DESC -> NBT_SIZE_DESC;
-            case NBT_SIZE_DESC -> REGULAR;
-        };
+        StorageSortMode[] modes = values();
+        return modes[(this.ordinal() + 1) % modes.length];
     }
 
     public static StorageSortMode fromCommandToken(String token) {

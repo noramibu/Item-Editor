@@ -9,6 +9,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -32,7 +33,6 @@ final class DialogUiUtil {
     private static final int MIN_OVERLAY_PADDING = 6;
     private static final int MAX_OVERLAY_PADDING = 16;
     private static final int MIN_SCROLL_RESERVED_HEIGHT = 132;
-    private static final double COMPACT_BUTTON_SCALE_THRESHOLD = 4.0d;
     private static final int VIEWPORT_MIN = 1;
     private static final int FOOTER_BUTTON_HEIGHT = 18;
     private static final int FOOTER_COMPACT_BUTTON_HEIGHT = 16;
@@ -93,12 +93,14 @@ final class DialogUiUtil {
 
     static int dialogWidth(int preferredWidth) {
         int available = Math.max(VIEWPORT_MIN, Math.max(VIEWPORT_MIN, guiWidth()) - overlayInset());
-        return clampUi(preferredWidth, MIN_DIALOG_WIDTH, available);
+        int minimum = clampUi(MIN_DIALOG_WIDTH, VIEWPORT_MIN, available);
+        return clampUi(preferredWidth, minimum, available);
     }
 
     static int dialogHeight(int preferredHeight, int minHeight) {
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight());
-        return clampUi(preferredHeight, Math.max(MIN_DIALOG_HEIGHT, minHeight), available);
+        int minimum = clampUi(MIN_DIALOG_HEIGHT, minHeight, available);
+        return clampUi(preferredHeight, minimum, available);
     }
 
     static int availableDialogContentHeight(int reservedHeight, int minHeight) {
@@ -109,23 +111,29 @@ final class DialogUiUtil {
                 VIEWPORT_MIN,
                 viewport - Math.max(DIALOG_HARDCAP_MIN_RESERVE, UiFactory.scaledPixels(DIALOG_HARDCAP_SCALED_RESERVE))
         );
-        return clampUi(available, Math.max(VIEWPORT_MIN, minHeight), hardCap);
+        int minimum = clampUi(VIEWPORT_MIN, minHeight, hardCap);
+        return clampUi(available, minimum, hardCap);
     }
 
     static int dialogTextWidth(int dialogWidth, int horizontalPadding) {
         int available = Math.max(VIEWPORT_MIN, dialogWidth - horizontalPadding);
         int preferred = Math.max(MIN_TEXT_WIDTH, available);
-        return clampUi(preferred, VIEWPORT_MIN, dialogWidth);
+        return clampUi(preferred, VIEWPORT_MIN, Math.max(VIEWPORT_MIN, dialogWidth));
     }
 
     static int scrollHeight(int preferredHeight) {
         int reserved = Math.max(MIN_SCROLL_RESERVED_HEIGHT, (int) Math.round(viewportHeight() * SCROLL_RESERVED_HEIGHT_RATIO));
         int available = Math.max(VIEWPORT_MIN, availableViewportHeight() - reserved);
-        return clampUi(preferredHeight, MIN_SCROLL_HEIGHT, available);
+        int minimum = Math.min(MIN_SCROLL_HEIGHT, available);
+        return clampUi(preferredHeight, minimum, available);
     }
 
     static boolean compactButtons(int dialogWidth, int widthThreshold) {
-        return dialogWidth < widthThreshold || minecraft().getWindow().getGuiScale() >= COMPACT_BUTTON_SCALE_THRESHOLD;
+        return dialogWidth < widthThreshold
+                || LayoutModeUtil.isCompactScale(
+                        minecraft().getWindow().getGuiScale(),
+                        LayoutModeUtil.DIALOG_BUTTON_COMPACT_LAYOUT_SCALE_THRESHOLD
+                );
     }
 
     static int buttonRowReserve(boolean compactButtons, int compactRows, int compactExtra, int regularExtra) {
@@ -155,7 +163,7 @@ final class DialogUiUtil {
     ) {
         int buttonWidth = compactButtons
                 ? 0
-                : clampFooterButtonWidth(minWidth, maxWidth, dialogWidth / Math.max(1, widthDivisor));
+                : clampUi(dialogWidth / Math.max(1, widthDivisor), minWidth, maxWidth);
         if (compactButtons) {
             return compactFooterRows(dialogWidth, minWidth, maxWidth, textMinWidth, textReserve, actions);
         }
@@ -175,11 +183,7 @@ final class DialogUiUtil {
     ) {
         int buttonWidth = compactButtons
                 ? 0
-                : clampFooterButtonWidth(
-                minWidth,
-                maxWidth,
-                (dialogWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount)
-        );
+                : clampUi((dialogWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount), minWidth, maxWidth);
         if (compactButtons) {
             return compactFooterRows(dialogWidth, minWidth, maxWidth, textMinWidth, textReserve, actions);
         }
@@ -218,7 +222,7 @@ final class DialogUiUtil {
         int rawButtonWidth = Math.max(VIEWPORT_MIN, (availableWidth - gap * Math.max(0, columns - 1)) / columns);
         int buttonWidth = columns <= 1
                 ? rawButtonWidth
-                : clampFooterButtonWidth(minWidth, maxWidth, rawButtonWidth);
+                : clampUi(rawButtonWidth, minWidth, maxWidth);
 
         FlowLayout row = footerActionRow();
         int rowItems = 0;
@@ -289,16 +293,6 @@ final class DialogUiUtil {
         button.horizontalSizing(Sizing.fixed(buttonWidth));
     }
 
-    private static int clampFooterButtonWidth(int minWidth, int maxWidth, int candidateWidth) {
-        return clampUi(candidateWidth, minWidth, maxWidth);
-    }
-
-    private static int clampUi(int value, int min, int max) {
-        int safeMax = Math.max(VIEWPORT_MIN, max);
-        int safeMin = Math.min(Math.max(VIEWPORT_MIN, min), safeMax);
-        return Math.clamp(value, safeMin, safeMax);
-    }
-
     private static FlowLayout footerActionRow() {
         FlowLayout row = UiFactory.row();
         row.gap(footerGap());
@@ -325,6 +319,12 @@ final class DialogUiUtil {
 
     private static int footerGap() {
         return Math.max(1, UiFactory.scaleProfile().tightSpacing());
+    }
+
+    private static int clampUi(int value, int min, int max) {
+        int safeMax = Math.max(VIEWPORT_MIN, max);
+        int safeMin = Math.min(Math.max(VIEWPORT_MIN, min), safeMax);
+        return Math.clamp(value, safeMin, safeMax);
     }
 
     private static int overlayPadding() {

@@ -21,7 +21,10 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameBundleEntries(context.special().bundleEntries, context.baselineSpecial().bundleEntries)) {
+        if (this.sameList(context.special().bundleEntries, context.baselineSpecial().bundleEntries,
+                (left, right) -> Objects.equals(left.itemId, right.itemId)
+                        && Objects.equals(left.count, right.count)
+                        && ItemStack.matches(left.templateStack, right.templateStack))) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BUNDLE_CONTENTS);
             return;
         }
@@ -54,9 +57,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
         try {
             BundleContents.Mutable mutable = new BundleContents.Mutable(new BundleContents(bundleStacks));
             int selected = Math.clamp(context.special().selectedBundleIndex, 0, bundleStacks.size() - 1);
-            if (selected >= 0) {
-                mutable.toggleSelectedItem(selected);
-            }
+            mutable.toggleSelectedItem(selected);
             contents = mutable.toImmutable();
         } catch (RuntimeException exception) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.bundle_build_failed", exception.getMessage())));
@@ -108,11 +109,5 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
             return Math.max(1, draft.templateStack.getMaxStackSize());
         }
         return Math.max(1, new ItemStack(item).getMaxStackSize());
-    }
-
-    private boolean sameBundleEntries(List<ItemEditorState.ContainerEntryDraft> current, List<ItemEditorState.ContainerEntryDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.itemId, right.itemId)
-                && Objects.equals(left.count, right.count)
-                && ItemStack.matches(left.templateStack, right.templateStack));
     }
 }

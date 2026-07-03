@@ -33,7 +33,7 @@ public final class ItemPreviewService {
     ) {
         if (state.rawEditorEdited) {
             RawItemDataUtil.ParseResult parsed = RawItemDataUtil.parse(state.rawEditorText, registryAccess);
-            return this.buildRawPreviewFromParsed(originalStack, parsed, registryAccess);
+            return this.buildRawPreviewFromParsed(originalStack, parsed);
         }
 
         ItemStack preview = (originalStack.is(Items.WRITABLE_BOOK) && state.book.writtenBook)
@@ -46,7 +46,12 @@ public final class ItemPreviewService {
                 || state.special.potionEffects.stream().anyMatch(effect -> hasText(effect.effectId)))) {
             preview = preview.transmuteCopy(Items.TIPPED_ARROW, preview.getCount());
         }
-        Item commandBlockItem = commandBlockItem(state.special.commandBlockItemId);
+        Item commandBlockItem = switch (state.special.commandBlockItemId == null ? "" : state.special.commandBlockItemId) {
+            case "minecraft:command_block" -> Items.COMMAND_BLOCK;
+            case "minecraft:chain_command_block" -> Items.CHAIN_COMMAND_BLOCK;
+            case "minecraft:repeating_command_block" -> Items.REPEATING_COMMAND_BLOCK;
+            default -> null;
+        };
         if (commandBlockItem != null && ItemEditorCapabilities.supportsCommandBlockData(originalStack)) {
             preview = preview.transmuteCopy(commandBlockItem, preview.getCount());
         }
@@ -69,7 +74,7 @@ public final class ItemPreviewService {
         boolean unchangedFromOriginal = ItemStack.isSameItemSameComponents(preview, originalStack)
                 && preview.getCount() == originalStack.getCount();
         if (!unchangedFromOriginal) {
-            messages.addAll(RawItemDataUtil.validatePreviewStack(preview, registryAccess));
+            messages.addAll(RawItemDataUtil.validatePreviewStack(preview));
         }
 
         return new PreviewBuildResult(preview, messages);
@@ -77,8 +82,7 @@ public final class ItemPreviewService {
 
     public PreviewBuildResult buildRawPreviewFromParsed(
             ItemStack originalStack,
-            RawItemDataUtil.ParseResult parsed,
-            RegistryAccess registryAccess
+            RawItemDataUtil.ParseResult parsed
     ) {
         List<ValidationMessage> messages = new ArrayList<>();
 
@@ -91,7 +95,7 @@ public final class ItemPreviewService {
         }
 
         ItemStack preview = parsed.stack().copy();
-        List<ValidationMessage> validationMessages = RawItemDataUtil.validatePreviewStack(preview, registryAccess);
+        List<ValidationMessage> validationMessages = RawItemDataUtil.validatePreviewStack(preview);
         messages.addAll(validationMessages);
         if (validationMessages.stream().anyMatch(message -> message.severity() == ValidationMessage.Severity.ERROR)) {
             return new PreviewBuildResult(originalStack.copy(), messages);
@@ -101,15 +105,6 @@ public final class ItemPreviewService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private static Item commandBlockItem(String itemId) {
-        return switch (itemId == null ? "" : itemId) {
-            case "minecraft:command_block" -> Items.COMMAND_BLOCK;
-            case "minecraft:chain_command_block" -> Items.CHAIN_COMMAND_BLOCK;
-            case "minecraft:repeating_command_block" -> Items.REPEATING_COMMAND_BLOCK;
-            default -> null;
-        };
     }
 
     public record PreviewBuildResult(ItemStack previewStack, List<ValidationMessage> messages) {

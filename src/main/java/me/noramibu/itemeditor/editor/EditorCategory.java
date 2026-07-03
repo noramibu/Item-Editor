@@ -9,6 +9,7 @@ public enum EditorCategory {
     DISPLAY("category.display"),
     ATTRIBUTES("category.attributes"),
     ENCHANTMENTS("category.enchantments"),
+    COMBAT("category.combat"),
     FLAGS("category.flags"),
     BOOK("category.book"),
     RAW_EDITOR("category.raw_editor"),

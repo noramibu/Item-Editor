@@ -91,7 +91,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         signText = signText.setColor(color).setHasGlowingText(sideDraft.glowing);
         for (int index = 0; index < 4; index++) {
             String line = index < sideDraft.lines.size() ? Objects.toString(sideDraft.lines.get(index), "") : "";
-            signText = signText.setMessage(index, this.withPlainBaseline(TextComponentUtil.parseMarkup(line)));
+            signText = signText.setMessage(index, TextComponentUtil.parseMarkup(line));
         }
         return signText;
     }

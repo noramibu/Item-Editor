@@ -46,14 +46,6 @@ final class ColorPickerUiUtil {
         };
     }
 
-    static void applyPickerSizing(
-            ColorPickerComponent picker,
-            int pickerWidth,
-            int pickerHeight
-    ) {
-        picker.sizing(Sizing.fixed(pickerWidth), Sizing.fixed(pickerHeight));
-    }
-
     static Swatch createSwatch(int rgb, int swatchSize) {
         BoxComponent swatch = UIComponents.box(UiFactory.fixed(swatchSize), UiFactory.fixed(swatchSize))
                 .fill(true)

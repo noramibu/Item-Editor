@@ -399,7 +399,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             return null;
         }
 
-        int count = parseIntOrDefault(stackDraft.count, template.getCount());
+        int count = ValidationUtil.parseIntOrDefault(stackDraft.count, template.getCount());
         ItemStack copy = template.copyWithCount(Math.clamp(count, 1, 127));
         DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(
                 context.registryAccess().createSerializationContext(NbtOps.INSTANCE),
@@ -409,17 +409,6 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
                 .filter(CompoundTag.class::isInstance)
                 .map(CompoundTag.class::cast)
                 .orElse(null);
-    }
-
-    private static int parseIntOrDefault(String raw, int fallback) {
-        if (raw == null || raw.trim().isBlank()) {
-            return fallback;
-        }
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
     }
 
     private static Integer parseOptionalIntOrDefault(
@@ -508,5 +497,4 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     private static int safeCount(ItemStack stack) {
         return stack == null || stack.isEmpty() ? 0 : stack.getCount();
     }
-
 }

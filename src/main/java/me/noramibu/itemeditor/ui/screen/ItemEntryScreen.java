@@ -4,23 +4,18 @@ import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.NotNull;
 
 public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int CARD_WIDTH = 250;
 
     private final Minecraft minecraft;
@@ -38,7 +33,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
     @Override
     protected void build(StackLayout root) {
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout card = UiFactory.centeredCard(CARD_WIDTH);
         card.gap(UiFactory.scaledPixels(6));
@@ -88,7 +83,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
         card.child(importButton);
 
         if (!canCreate) {
-            card.child(UiFactory.message(ItemEditorText.tr("launcher.creation_requires_creative"), 0xFF8A8A, 0.9F)
+            card.child(UiFactory.message(ItemEditorText.tr("launcher.creation_requires_creative"), UiColors.DANGER, 0.9F)
                     .maxWidth(UiFactory.scaledPixels(220)));
         }
 
@@ -96,14 +91,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
         cancel.horizontalSizing(Sizing.fill(100));
         card.child(cancel);
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(card);
-        root.child(centered);
+        UiFactory.centerInRoot(root, card, 8);
     }
 
     private boolean canCreateItems() {

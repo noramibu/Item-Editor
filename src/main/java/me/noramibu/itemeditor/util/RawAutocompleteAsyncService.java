@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.util;
 
 import net.minecraft.core.RegistryAccess;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -20,15 +21,24 @@ public final class RawAutocompleteAsyncService {
             int caret,
             RegistryAccess registryAccess,
             String fallbackItemId,
+            List<String> lootTableIds,
             EditDelta editDelta,
             Consumer<RawAutocompleteUtil.AutocompleteResult> onResult
     ) {
         String safeText = text == null ? "" : text;
         String safeFallbackItemId = fallbackItemId == null ? "" : fallbackItemId;
+        List<String> safeLootTableIds = lootTableIds == null ? List.of() : List.copyOf(lootTableIds);
         Consumer<RawAutocompleteUtil.AutocompleteResult> resultConsumer = AsyncDispatchUtil.nullSafeConsumer(onResult);
         AsyncDispatchUtil.requestLatest(this.requestVersion, EXECUTOR, () -> {
             RawAutocompleteIndex index = this.ensureIndex(safeText, editDelta);
-            return RawAutocompleteUtil.suggest(safeText, caret, registryAccess, index, safeFallbackItemId);
+            return RawAutocompleteUtil.suggest(
+                    safeText,
+                    caret,
+                    registryAccess,
+                    index,
+                    safeFallbackItemId,
+                    safeLootTableIds
+            );
         }, resultConsumer);
     }
 

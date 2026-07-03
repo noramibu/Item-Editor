@@ -16,14 +16,18 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 
-import java.util.List;
 import java.util.Objects;
 
 final class AttributesPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
     @Override
     public void apply(ItemPreviewApplyContext context) {
-        if (this.sameAttributeModifiers(context.state().attributeModifiers, context.baselineState().attributeModifiers)) {
+        if (this.sameList(context.state().attributeModifiers, context.baselineState().attributeModifiers,
+                (left, right) -> Objects.equals(left.attributeId, right.attributeId)
+                        && Objects.equals(left.modifierId, right.modifierId)
+                        && Objects.equals(left.amount, right.amount)
+                        && Objects.equals(left.operation, right.operation)
+                        && Objects.equals(left.slotGroup, right.slotGroup))) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.ATTRIBUTE_MODIFIERS);
             return;
         }
@@ -74,13 +78,5 @@ final class AttributesPreviewApplier extends AbstractPreviewApplierSupport imple
         } else {
             context.previewStack().set(DataComponents.ATTRIBUTE_MODIFIERS, built);
         }
-    }
-
-    private boolean sameAttributeModifiers(List<ItemEditorState.AttributeModifierDraft> current, List<ItemEditorState.AttributeModifierDraft> baseline) {
-        return this.sameList(current, baseline, (left, right) -> Objects.equals(left.attributeId, right.attributeId)
-                && Objects.equals(left.modifierId, right.modifierId)
-                && Objects.equals(left.amount, right.amount)
-                && Objects.equals(left.operation, right.operation)
-                && Objects.equals(left.slotGroup, right.slotGroup));
     }
 }

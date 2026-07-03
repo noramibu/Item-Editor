@@ -1,11 +1,11 @@
 package me.noramibu.itemeditor.service;
 
-import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.network.Filterable;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.WritableBookContent;
@@ -19,7 +19,13 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
 
     @Override
     public void apply(ItemPreviewApplyContext context) {
-        if (this.sameBook(context.state().book, context.baselineState().book)) {
+        var book = context.state().book;
+        var baselineBook = context.baselineState().book;
+        if (book.writtenBook == baselineBook.writtenBook
+                && Objects.equals(book.title, baselineBook.title)
+                && Objects.equals(book.author, baselineBook.author)
+                && Objects.equals(book.generation, baselineBook.generation)
+                && book.pages.equals(baselineBook.pages)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.WRITTEN_BOOK_CONTENT);
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.WRITABLE_BOOK_CONTENT);
             return;
@@ -32,7 +38,7 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
                 resolvedTitle = resolvedTitle.substring(0, WrittenBookContent.TITLE_MAX_LENGTH);
             }
 
-            List<Filterable<net.minecraft.network.chat.Component>> pages = new ArrayList<>();
+            List<Filterable<Component>> pages = new ArrayList<>();
             for (String page : context.state().book.pages) {
                 pages.add(Filterable.passThrough(TextComponentUtil.parseMarkup(page)));
             }
@@ -73,14 +79,6 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
             context.previewStack().set(DataComponents.WRITABLE_BOOK_CONTENT, new WritableBookContent(pages));
             this.clearToPrototype(context.previewStack(), DataComponents.WRITTEN_BOOK_CONTENT);
         }
-    }
-
-    private boolean sameBook(ItemEditorState.BookData current, ItemEditorState.BookData baseline) {
-        return current.writtenBook == baseline.writtenBook
-                && Objects.equals(current.title, baseline.title)
-                && Objects.equals(current.author, baseline.author)
-                && Objects.equals(current.generation, baseline.generation)
-                && current.pages.equals(baseline.pages);
     }
 
     private String resolveWrittenBookTitle(ItemPreviewApplyContext context) {

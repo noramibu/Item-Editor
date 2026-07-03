@@ -7,6 +7,8 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.advancements.criterion.BlockPredicate;
+import net.minecraft.advancements.criterion.DataComponentMatchers;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
@@ -20,9 +22,6 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.block.Block;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -97,12 +96,8 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.UNBREAKABLE);
         }
 
-        if (state.glintOverrideEnabled != baselineState.glintOverrideEnabled || state.glintOverride != baselineState.glintOverride) {
-            if (state.glintOverrideEnabled) {
-                context.previewStack().set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, state.glintOverride);
-            } else {
-                this.clearToPrototype(context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
-            }
+        if (!Objects.equals(state.glintOverride, baselineState.glintOverride)) {
+            this.applyGlintOverride(context, state.glintOverride);
         } else {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
         }
@@ -135,7 +130,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         if (this.sameCustomModel(state, baselineState)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.CUSTOM_MODEL_DATA);
         } else {
-            CustomModelData merged = this.mergeCustomModelData(context.originalStack().get(DataComponents.CUSTOM_MODEL_DATA), state, context.messages());
+            CustomModelData merged = this.mergeCustomModelData(state, context.messages());
             if (merged.floats().isEmpty() && merged.flags().isEmpty() && merged.strings().isEmpty() && merged.colors().isEmpty()) {
                 this.clearToPrototype(context.previewStack(), DataComponents.CUSTOM_MODEL_DATA);
             } else {
@@ -167,58 +162,104 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         return compact.copy().withStyle(compact.getStyle().withItalic(false));
     }
 
+    private void applyGlintOverride(ItemPreviewApplyContext context, String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            this.clearToPrototype(context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
+            return;
+        }
+        context.previewStack().set(
+                DataComponents.ENCHANTMENT_GLINT_OVERRIDE,
+                Boolean.parseBoolean(rawValue)
+        );
+    }
+
     private boolean sameCustomModel(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.customModelFloat, baselineState.customModelFloat)
-                && state.customModelFlagEnabled == baselineState.customModelFlagEnabled
-                && state.customModelFlag == baselineState.customModelFlag
+                && Objects.equals(state.customModelFlags, baselineState.customModelFlags)
                 && Objects.equals(state.customModelString, baselineState.customModelString)
                 && Objects.equals(state.customModelColor, baselineState.customModelColor);
     }
 
-    private CustomModelData mergeCustomModelData(CustomModelData originalData, ItemEditorState state, List<ValidationMessage> messages) {
-        List<Float> floats = new ArrayList<>(originalData != null ? originalData.floats() : List.of());
-        List<Boolean> flags = new ArrayList<>(originalData != null ? originalData.flags() : List.of());
-        List<String> strings = new ArrayList<>(originalData != null ? originalData.strings() : List.of());
-        List<Integer> colors = new ArrayList<>(originalData != null ? originalData.colors() : List.of());
-
-        if (!state.customModelFloat.isBlank()) {
-            Float customModelFloat = ValidationUtil.parseFloat(state.customModelFloat, ItemEditorText.str("general.item_model.float"), messages);
-            if (customModelFloat != null) {
-                this.setFirstValue(floats, customModelFloat);
-            }
-        } else if (!floats.isEmpty()) {
-            floats.removeFirst();
-        }
-
-        if (state.customModelFlagEnabled) {
-            this.setFirstValue(flags, state.customModelFlag);
-        } else if (!flags.isEmpty()) {
-            flags.removeFirst();
-        }
-
-        if (!state.customModelString.isBlank()) {
-            this.setFirstValue(strings, state.customModelString);
-        } else if (!strings.isEmpty()) {
-            strings.removeFirst();
-        }
-
-        if (!state.customModelColor.isBlank()) {
-            Integer color = ValidationUtil.parseColor(state.customModelColor, ItemEditorText.str("general.item_model.color"), messages);
-            if (color != null) {
-                this.setFirstValue(colors, color);
-            }
-        } else if (!colors.isEmpty()) {
-            colors.removeFirst();
-        }
-
-        return new CustomModelData(floats, flags, strings, colors);
+    private CustomModelData mergeCustomModelData(ItemEditorState state, List<ValidationMessage> messages) {
+        return new CustomModelData(
+                this.parseCustomModelFloats(state.customModelFloat, messages),
+                this.parseCustomModelFlags(state.customModelFlags, messages),
+                splitCommaSeparated(state.customModelString),
+                this.parseCustomModelColors(state.customModelColor, messages)
+        );
     }
 
-    private <T> void setFirstValue(List<T> values, T value) {
-        if (values.isEmpty()) {
-            values.add(value);
+    private List<Float> parseCustomModelFloats(String raw, List<ValidationMessage> messages) {
+        List<Float> values = new ArrayList<>();
+        String fieldLabel = ItemEditorText.str("general.item_model.float");
+        for (String part : splitCommaSeparated(raw)) {
+            Float value = ValidationUtil.parseFloat(part, fieldLabel, messages);
+            if (value != null) {
+                values.add(value);
+            }
         }
-        values.set(0, value);
+        return values;
+    }
+
+    private List<Boolean> parseCustomModelFlags(String raw, List<ValidationMessage> messages) {
+        List<Boolean> values = new ArrayList<>();
+        String fieldLabel = ItemEditorText.str("general.item_model.flag_value");
+        for (String part : splitCommaSeparated(raw)) {
+            if ("true".equalsIgnoreCase(part)) {
+                values.add(Boolean.TRUE);
+                continue;
+            }
+            if ("false".equalsIgnoreCase(part)) {
+                values.add(Boolean.FALSE);
+                continue;
+            }
+            messages.add(ValidationMessage.error(fieldLabel + " must be true or false: " + part));
+        }
+        return values;
+    }
+
+    private List<Integer> parseCustomModelColors(String raw, List<ValidationMessage> messages) {
+        List<Integer> values = new ArrayList<>();
+        String fieldLabel = ItemEditorText.str("general.item_model.color");
+        for (String part : splitCommaSeparated(raw)) {
+            Integer value = ValidationUtil.tryParseHexColor(part);
+            if (value == null) {
+                value = this.parseCustomModelDecimalColor(part, fieldLabel, messages);
+            }
+            if (value != null) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private Integer parseCustomModelDecimalColor(
+            String raw,
+            String fieldLabel,
+            List<ValidationMessage> messages
+    ) {
+        try {
+            int value = Integer.parseInt(raw.trim());
+            if (value < 0 || value > 0xFFFFFF) {
+                messages.add(ValidationMessage.error(fieldLabel + " must be a hex color or RGB integer: " + raw));
+                return null;
+            }
+            return value;
+        } catch (NumberFormatException exception) {
+            messages.add(ValidationMessage.error(fieldLabel + " must be a hex color or RGB integer: " + raw));
+            return null;
+        }
+    }
+
+    private static List<String> splitCommaSeparated(String raw) {
+        List<String> values = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                values.add(trimmed);
+            }
+        }
+        return values;
     }
 
     private void applyAdventurePredicate(
@@ -257,113 +298,24 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             return null;
         }
 
-        List<Object> predicates = new ArrayList<>();
+        List<BlockPredicate> predicates = new ArrayList<>();
         for (String blockId : blockIds) {
             var blockHolder = RegistryUtil.resolveHolder(blockRegistry, blockId);
             if (blockHolder == null) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.registry_missing", fieldLabel, blockId)));
                 continue;
             }
-            Object predicate = this.instantiateBlockPredicate(HolderSet.direct(blockHolder));
-            if (predicate == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
-                continue;
-            }
-            predicates.add(predicate);
+            predicates.add(new BlockPredicate(
+                    Optional.of(HolderSet.direct(blockHolder)),
+                    Optional.empty(),
+                    Optional.empty(),
+                    DataComponentMatchers.ANY
+            ));
         }
 
         if (predicates.isEmpty()) {
             return null;
         }
-        return new AdventureModePredicate(castList(predicates));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> List<T> castList(List<?> values) {
-        return (List<T>) values;
-    }
-
-    private Object instantiateBlockPredicate(HolderSet<Block> holderSet) {
-        Class<?> predicateClass = this.resolveBlockPredicateClass();
-        if (predicateClass == null) {
-            return null;
-        }
-
-        try {
-            for (Constructor<?> constructor : predicateClass.getConstructors()) {
-                Class<?>[] parameterTypes = constructor.getParameterTypes();
-                if (parameterTypes.length < 3 || parameterTypes.length > 4) {
-                    continue;
-                }
-                if (parameterTypes[0] != Optional.class
-                        || parameterTypes[1] != Optional.class
-                        || parameterTypes[2] != Optional.class) {
-                    continue;
-                }
-
-                if (parameterTypes.length == 3) {
-                    return constructor.newInstance(Optional.of(holderSet), Optional.empty(), Optional.empty());
-                }
-
-                Object componentsMatcher = this.resolveAnyComponentsMatcher(parameterTypes[3]);
-                if (componentsMatcher == null) {
-                    continue;
-                }
-                return constructor.newInstance(
-                        Optional.of(holderSet),
-                        Optional.empty(),
-                        Optional.empty(),
-                        componentsMatcher
-                );
-            }
-        } catch (ReflectiveOperationException ignored) {
-        }
-        return null;
-    }
-
-    private Object resolveAnyComponentsMatcher(Class<?> matcherClass) {
-        try {
-            return matcherClass.getField("ANY").get(null);
-        } catch (ReflectiveOperationException ignored) {
-            return null;
-        }
-    }
-
-    private Class<?> resolveBlockPredicateClass() {
-        for (var constructor : AdventureModePredicate.class.getConstructors()) {
-            Type[] parameters = constructor.getGenericParameterTypes();
-            if (parameters.length == 0 || !(parameters[0] instanceof ParameterizedType listType)) {
-                continue;
-            }
-            Type rawType = listType.getRawType();
-            if (!(rawType instanceof Class<?> rawClass) || !List.class.isAssignableFrom(rawClass)) {
-                continue;
-            }
-
-            Type[] args = listType.getActualTypeArguments();
-            if (args.length == 0) {
-                continue;
-            }
-
-            Type arg = args[0];
-            if (arg instanceof Class<?> classArg) {
-                return classArg;
-            }
-            if (arg instanceof ParameterizedType parameterizedArg && parameterizedArg.getRawType() instanceof Class<?> rawArgClass) {
-                return rawArgClass;
-            }
-        }
-
-        String[] legacyNames = {
-                "net.minecraft.advancements.critereon.BlockPredicate",
-                "net.minecraft.advancements.criterion.BlockPredicate"
-        };
-        for (String className : legacyNames) {
-            try {
-                return Class.forName(className);
-            } catch (ClassNotFoundException ignored) {
-            }
-        }
-        return null;
+        return new AdventureModePredicate(predicates);
     }
 }

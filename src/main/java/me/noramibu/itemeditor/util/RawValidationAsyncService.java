@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.util;
 
+import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.world.item.ItemStack;
 
@@ -110,9 +111,9 @@ public final class RawValidationAsyncService {
             );
         }
 
-        var validationMessages = RawItemDataUtil.validatePreviewStack(parsedStack, registryAccess);
+        var validationMessages = RawItemDataUtil.validatePreviewStack(parsedStack);
         for (var message : validationMessages) {
-            if (message.severity() == me.noramibu.itemeditor.editor.ValidationMessage.Severity.ERROR) {
+            if (message.severity() == ValidationMessage.Severity.ERROR) {
                 return new Result(
                         false,
                         message.message(),

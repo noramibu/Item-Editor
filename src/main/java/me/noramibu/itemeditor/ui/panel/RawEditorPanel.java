@@ -15,10 +15,12 @@ import me.noramibu.itemeditor.storage.model.RawEditorOptions;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.SafeDiscreteSliderComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.component.raw.RawAutocompleteController;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.RawAutocompleteAsyncService;
-import me.noramibu.itemeditor.util.RawAutocompleteUtil;
+import me.noramibu.itemeditor.util.LootTableIds;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import me.noramibu.itemeditor.util.RawValidationAsyncService;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -28,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,12 +37,8 @@ public final class RawEditorPanel implements EditorPanel {
     private static final int EDITOR_MIN_HEIGHT = 180;
     private static final String STATUS_VALIDATING_TEXT = "Validating...";
     private static final String STATUS_EMPTY_TEXT = " ";
-    private static final int COLOR_PARSE_ERROR = 0xFF8A8A;
-    private static final int COLOR_PARSE_OK = 0x7ED67A;
-    private static final int COLOR_DIFF_INFO = 0xA9B5C0;
     private static final int LARGE_TEXT_THRESHOLD = 12000;
     private static final int VERY_LARGE_TEXT_THRESHOLD = 350000;
-    private static final long RAW_AUTOCOMPLETE_THROTTLE_HEAVY_MS = 260L;
     private static final long RAW_VALIDATION_PARSE_IDLE_BASE_MS = 180L;
     private static final long RAW_VALIDATION_PARSE_IDLE_LARGE_MS = 380L;
     private static final long RAW_VALIDATION_PARSE_IDLE_VERY_LARGE_MS = 700L;
@@ -57,7 +54,6 @@ public final class RawEditorPanel implements EditorPanel {
             Pattern.CASE_INSENSITIVE
     );
     private static final int PANEL_SCROLLBAR_BASE_THICKNESS = 8;
-    private static final double CONTROL_COMPACT_SCALE_THRESHOLD = 3.0d;
     private static final int CONTROL_COMPACT_WIDTH_THRESHOLD = 980;
     private static final int CONTROL_STACK_WIDTH_HINT = 420;
     private static final int ACTION_ROW_BUTTON_COUNT = 3;
@@ -78,9 +74,7 @@ public final class RawEditorPanel implements EditorPanel {
     private static final int ACTION_BUTTON_TEXT_NON_COMPACT_RESERVE = 16;
     private static final int STATUS_LINE_COUNT = 3;
     private static final int STATUS_TEXT_SAFETY_PADDING = 4;
-    private static final int OPTIONS_PANEL_CHECKBOX_COUNT = 2;
-    private static final int OPTIONS_PANEL_HINT_LINE_COUNT = 3;
-    private static final int OPTIONS_PANEL_CHILD_GAP_COUNT = 6;
+    private static final int OPTIONS_INLINE_WIDTH_THRESHOLD = 620;
     private static final int EDITOR_HEIGHT_SAFETY_PADDING = 4;
 
     private final ItemEditorScreen screen;
@@ -110,7 +104,8 @@ public final class RawEditorPanel implements EditorPanel {
         int editorHeight = this.resolveEditorHeight(
                 this.screen.editorContentHeightHint(),
                 controlLayout,
-                state.uiRawEditorOptionsExpanded
+                state.uiRawEditorOptionsExpanded,
+                editorWidthHint
         );
 
         RawTextAreaComponent editor = new RawTextAreaComponent(Sizing.fill(100), Sizing.fixed(editorHeight), state.rawEditorText);
@@ -119,19 +114,18 @@ public final class RawEditorPanel implements EditorPanel {
         editor.horizontalScroll(state.rawEditorHorizontalScroll);
         editor.fontSizePercent(state.rawEditorFontSizePercent);
         this.restoreEditorUiState(state, editor);
-        RawAutocompleteAsyncService autocompleteService = new RawAutocompleteAsyncService();
         RawValidationAsyncService validationService = new RawValidationAsyncService();
-        RawAutocompleteUtil.AutocompleteResult[] autocomplete = new RawAutocompleteUtil.AutocompleteResult[]{
-                RawAutocompleteUtil.AutocompleteResult.empty(editor.caretIndex())
-        };
-        int[] selectedSuggestion = new int[]{0};
-        int[] autocompleteCaret = new int[]{editor.caretIndex()};
-        boolean[] autocompleteVirtualCaret = new boolean[]{editor.hasVirtualCaret()};
+        RawAutocompleteController autocomplete = new RawAutocompleteController(
+                state,
+                editor,
+                () -> this.screen.session().registryAccess(),
+                this::currentContextItemId,
+                () -> LootTableIds.fromResources(this.screen.session().minecraft().getResourceManager()),
+                () -> this.persistRawEditorOptions(state)
+        );
         int[] activeLine = new int[]{editor.caretLine()};
         int[] errorLine = new int[]{-1};
         int[] errorColumn = new int[]{-1};
-        long[] lastAutocompleteRequestedAt = new long[]{0L};
-        RawAutocompleteAsyncService.EditDelta[] pendingAutocompleteDelta = new RawAutocompleteAsyncService.EditDelta[]{null};
 
         ButtonComponent optionsButton = this.rawActionButton(
                 ItemEditorText.tr("raw_editor.options"),
@@ -180,7 +174,8 @@ public final class RawEditorPanel implements EditorPanel {
 
         if (state.uiRawEditorOptionsExpanded) {
             FlowLayout optionsPanel = UiFactory.subCard();
-            optionsPanel.child(UiFactory.checkbox(
+            boolean inlineOptions = editorWidthHint >= UiFactory.scaledPixels(OPTIONS_INLINE_WIDTH_THRESHOLD);
+            UIComponent wordWrapCheckbox = UiFactory.checkbox(
                     ItemEditorText.tr("raw_editor.word_wrap"),
                     state.rawEditorWordWrap,
                     checked -> {
@@ -193,8 +188,8 @@ public final class RawEditorPanel implements EditorPanel {
                         editor.horizontalScroll(!checked);
                         this.persistRawEditorOptions(state);
                     }
-            ).horizontalSizing(Sizing.fill(100)));
-            optionsPanel.child(UiFactory.checkbox(
+            );
+            UIComponent showDefaultsCheckbox = UiFactory.checkbox(
                     ItemEditorText.tr("raw_editor.show_defaults"),
                     state.rawEditorShowDefaults,
                     checked -> {
@@ -212,7 +207,18 @@ public final class RawEditorPanel implements EditorPanel {
                                 )
                         );
                     }
-            ).horizontalSizing(Sizing.fill(100)));
+            );
+            UIComponent autocompleteCheckbox = UiFactory.checkbox(
+                    ItemEditorText.tr("raw_editor.disable_autocomplete"),
+                    state.rawEditorAutocompleteDisabled,
+                    checked -> {
+                        if (state.rawEditorAutocompleteDisabled == checked) {
+                            return;
+                        }
+                        autocomplete.setDisabled(checked);
+                    }
+            );
+            optionsPanel.child(this.optionGroup(inlineOptions, wordWrapCheckbox, showDefaultsCheckbox, autocompleteCheckbox));
 
             int fontLabelWidth = Math.max(120, editorWidthHint - UiFactory.scaledPixels(20));
             LabelComponent fontSizeLabel = UiFactory.muted(
@@ -236,9 +242,15 @@ public final class RawEditorPanel implements EditorPanel {
             });
             optionsPanel.child(fontSizeSlider);
 
-            int hintWidth = Math.max(120, editorWidthHint - UiFactory.scaledPixels(20));
-            optionsPanel.child(UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.navigate"), hintWidth));
-            optionsPanel.child(UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.accept"), hintWidth));
+            int availableHintWidth = Math.max(120, editorWidthHint - UiFactory.scaledPixels(20));
+            int hintWidth = inlineOptions
+                    ? Math.max(120, (availableHintWidth - UiFactory.scaleProfile().spacing()) / 2)
+                    : availableHintWidth;
+            optionsPanel.child(this.optionGroup(
+                    inlineOptions,
+                    UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.navigate"), hintWidth),
+                    UiFactory.muted(ItemEditorText.tr("raw_editor.autocomplete.hint.accept"), hintWidth)
+            ));
 
             ButtonComponent formatButton = this.rawActionButton(
                     ItemEditorText.tr("dialog.apply.raw.format"),
@@ -268,8 +280,6 @@ public final class RawEditorPanel implements EditorPanel {
             optionsPanel.child(UiFactory.actionButtonRow(false, formatButton, minifyButton));
             section.child(optionsPanel);
         }
-
-        boolean[] autocompleteForced = new boolean[]{false};
 
         section.child(editor);
 
@@ -315,9 +325,9 @@ public final class RawEditorPanel implements EditorPanel {
 
                         errorLine[0] = -1;
                         errorColumn[0] = -1;
-                        this.setStatusText(parseStatus, ItemEditorText.tr("raw_editor.status.valid"), COLOR_PARSE_OK, statusWidth);
+                        this.setStatusText(parseStatus, ItemEditorText.tr("raw_editor.status.valid"), UiColors.SUCCESS, statusWidth);
                         editor.setErrorLocation(-1, -1, 0);
-                        this.setStatusText(diffStatus, Component.literal(STATUS_VALIDATING_TEXT), COLOR_DIFF_INFO, statusWidth);
+                        this.setStatusText(diffStatus, Component.literal(STATUS_VALIDATING_TEXT), UiColors.MUTED, statusWidth);
                         this.screen.session().queueRebuildPreview(0L);
                     },
                     result -> {
@@ -338,14 +348,14 @@ public final class RawEditorPanel implements EditorPanel {
                             this.setStatusText(
                                     diffStatus,
                                     Component.literal(ItemEditorText.str("dialog.apply.diff_failed", result.diffError())),
-                                    COLOR_PARSE_ERROR,
+                                    UiColors.DANGER,
                                     statusWidth
                             );
                         } else {
                             String diffText = result.diffEntries() == 0
                                     ? ItemEditorText.str("raw_editor.status.no_changes")
                                     : ItemEditorText.str("raw_editor.status.changes", result.diffEntries());
-                            this.setStatusText(diffStatus, Component.literal(diffText), COLOR_DIFF_INFO, statusWidth);
+                            this.setStatusText(diffStatus, Component.literal(diffText), UiColors.MUTED, statusWidth);
                         }
                     }
             );
@@ -356,100 +366,11 @@ public final class RawEditorPanel implements EditorPanel {
             redoButton.active(editor.canRedo());
         };
 
-        Runnable refreshAutocompletePresentation = () -> {
-            boolean silent = !autocompleteForced[0] && !this.shouldAutoShowAutocomplete(editor, autocomplete[0]);
-            if (autocomplete[0].suggestions().isEmpty() || silent) {
-                selectedSuggestion[0] = 0;
-                editor.ghostSuggestion("");
-                editor.autocompletePopup(List.of(), 0);
-                return;
-            }
-
-            boolean correctionMode = this.isCorrectionAutocomplete(editor, autocomplete[0]);
-            boolean hasStructural = this.hasStructuralCandidate(autocomplete[0]);
-            int predictiveIndex = this.firstSuggestionWithGhost(editor, autocomplete[0]);
-            if (!autocompleteForced[0] && predictiveIndex < 0 && !correctionMode && !hasStructural) {
-                selectedSuggestion[0] = 0;
-                editor.ghostSuggestion("");
-                editor.autocompletePopup(List.of(), 0);
-                return;
-            }
-
-            if (selectedSuggestion[0] < 0 || selectedSuggestion[0] >= autocomplete[0].suggestions().size()) {
-                selectedSuggestion[0] = Math.max(predictiveIndex, 0);
-            }
-
-            RawAutocompleteUtil.Suggestion suggestion = autocomplete[0].suggestions().get(selectedSuggestion[0]);
-            String ghostSuffix = this.computeGhostSuffix(editor, autocomplete[0], suggestion.insertText());
-            if (ghostSuffix.isEmpty()) {
-                int fallback = predictiveIndex >= 0 ? predictiveIndex : this.firstSuggestionWithGhost(editor, autocomplete[0]);
-                if (fallback >= 0 && fallback != selectedSuggestion[0]) {
-                    selectedSuggestion[0] = fallback;
-                    suggestion = autocomplete[0].suggestions().get(selectedSuggestion[0]);
-                    ghostSuffix = this.computeGhostSuffix(editor, autocomplete[0], suggestion.insertText());
-                }
-            }
-            if (correctionMode) {
-                ghostSuffix = "";
-            }
-            editor.ghostSuggestion(ghostSuffix);
-            editor.autocompletePopup(this.toPopupEntries(autocomplete[0].suggestions()), selectedSuggestion[0]);
-        };
-        Runnable requestAutocomplete = () -> {
-            String rawText = editor.getValue();
-                if (!autocompleteForced[0] && this.shouldThrottleHeavyRequest(rawText.length(), lastAutocompleteRequestedAt)) {
-                return;
-            }
-            if (editor.hasVirtualCaret() && !editor.hasSelection()) {
-                autocomplete[0] = RawAutocompleteUtil.AutocompleteResult.empty(editor.caretIndex());
-                refreshAutocompletePresentation.run();
-                return;
-            }
-            RawAutocompleteAsyncService.EditDelta editDelta = pendingAutocompleteDelta[0];
-            pendingAutocompleteDelta[0] = null;
-            autocompleteService.request(
-                    rawText,
-                    editor.caretIndex(),
-                    this.screen.session().registryAccess(),
-                    this.currentContextItemId(),
-                    editDelta,
-                    result -> {
-                        if (result.requestedCaret() != editor.caretIndex()) {
-                            return;
-                        }
-                        autocomplete[0] = result;
-                        if (!result.suggestions().isEmpty() && selectedSuggestion[0] >= result.suggestions().size()) {
-                            selectedSuggestion[0] = 0;
-                        }
-                        if (result.suggestions().isEmpty()) {
-                            autocompleteForced[0] = false;
-                        }
-                        refreshAutocompletePresentation.run();
-                    }
-            );
-        };
-
-        editor.onAutocompleteRequested(() -> this.applyAutocompleteSelected(editor, autocomplete[0], selectedSuggestion[0]));
-        editor.onAutocompleteRefreshRequested(() -> {
-            autocompleteForced[0] = true;
-            selectedSuggestion[0] = 0;
-            requestAutocomplete.run();
-            return true;
-        });
-        editor.onAutocompleteNextRequested(() -> {
-            boolean moved = this.cycleAutocompleteSelection(selectedSuggestion, autocomplete[0], 1);
-            if (moved) {
-                refreshAutocompletePresentation.run();
-            }
-            return moved;
-        });
-        editor.onAutocompletePreviousRequested(() -> {
-            boolean moved = this.cycleAutocompleteSelection(selectedSuggestion, autocomplete[0], -1);
-            if (moved) {
-                refreshAutocompletePresentation.run();
-            }
-            return moved;
-        });
+        editor.onAutocompleteRequested(autocomplete::applySelected);
+        editor.onAutocompleteRefreshRequested(autocomplete::force);
+        editor.onAutocompleteDismissed(autocomplete::dismiss);
+        editor.onAutocompleteNextRequested(() -> autocomplete.moveSelection(1));
+        editor.onAutocompletePreviousRequested(() -> autocomplete.moveSelection(-1));
         editor.onHistoryChanged(() -> {
             refreshHistoryButtons.run();
             this.persistEditorUiState(state, editor);
@@ -458,19 +379,9 @@ public final class RawEditorPanel implements EditorPanel {
         editor.onChanged().subscribe((text, delta) -> {
             state.rawEditorText = text;
             state.rawEditorEdited = true;
-            pendingAutocompleteDelta[0] = delta == null ? null : new RawAutocompleteAsyncService.EditDelta(
-                    delta.start(),
-                    delta.end(),
-                    delta.replacement(),
-                    delta.structural()
-            );
             this.screen.session().cancelQueuedRebuild();
             activeLine[0] = editor.caretLine();
-            autocompleteCaret[0] = editor.caretIndex();
-            autocompleteVirtualCaret[0] = editor.hasVirtualCaret();
-            autocompleteForced[0] = false;
-            selectedSuggestion[0] = 0;
-            requestAutocomplete.run();
+            autocomplete.onChanged(delta);
             requestValidation.run();
             this.persistEditorUiState(state, editor);
         });
@@ -480,38 +391,22 @@ public final class RawEditorPanel implements EditorPanel {
             this.setStatusText(
                     caretStatus,
                     Component.literal(ItemEditorText.str("raw_editor.caret", caretLine, editor.caretColumn())),
-                    COLOR_DIFF_INFO,
+                    UiColors.MUTED,
                     statusWidth
             );
             activeLine[0] = caretLine;
 
-            int caretIndex = editor.caretIndex();
-            boolean virtualCaret = editor.hasVirtualCaret();
-            if (editor.hasSelection()) {
-                autocompleteForced[0] = false;
-                selectedSuggestion[0] = 0;
-                autocomplete[0] = RawAutocompleteUtil.AutocompleteResult.empty(caretIndex);
-                refreshAutocompletePresentation.run();
-                this.persistEditorUiState(state, editor);
-                return;
-            }
-            if (caretIndex != autocompleteCaret[0] || virtualCaret != autocompleteVirtualCaret[0]) {
-                autocompleteCaret[0] = caretIndex;
-                autocompleteVirtualCaret[0] = virtualCaret;
-                autocompleteForced[0] = false;
-                selectedSuggestion[0] = 0;
-                requestAutocomplete.run();
-            }
+            autocomplete.onViewportChanged();
             this.persistEditorUiState(state, editor);
         });
 
         refreshHistoryButtons.run();
         requestValidation.run();
-        requestAutocomplete.run();
+        autocomplete.request();
         this.setStatusText(
                 caretStatus,
                 Component.literal(ItemEditorText.str("raw_editor.caret", activeLine[0], editor.caretColumn())),
-                COLOR_DIFF_INFO,
+                UiColors.MUTED,
                 statusWidth
         );
         this.persistEditorUiState(state, editor);
@@ -546,18 +441,6 @@ public final class RawEditorPanel implements EditorPanel {
         return button;
     }
 
-    private boolean shouldThrottleHeavyRequest(int textLength, long[] lastRequestAt) {
-        if (textLength < VERY_LARGE_TEXT_THRESHOLD) {
-            return false;
-        }
-        long now = System.currentTimeMillis();
-        if (now - lastRequestAt[0] < RAW_AUTOCOMPLETE_THROTTLE_HEAVY_MS) {
-            return true;
-        }
-        lastRequestAt[0] = now;
-        return false;
-    }
-
     private void setRawText(ItemEditorState state, String text) {
         state.rawEditorText = text;
         state.rawEditorEdited = true;
@@ -574,6 +457,7 @@ public final class RawEditorPanel implements EditorPanel {
 
         RawEditorOptions options = RawEditorOptionsService.instance().load();
         state.rawEditorShowDefaults = options.showDefaultKeys;
+        state.rawEditorAutocompleteDisabled = options.autocompleteDisabled;
         state.rawEditorWordWrap = options.wordWrap;
         state.rawEditorHorizontalScroll = !state.rawEditorWordWrap;
         state.rawEditorFontSizePercent = options.fontSizePercent;
@@ -586,8 +470,8 @@ public final class RawEditorPanel implements EditorPanel {
     private void persistRawEditorOptions(ItemEditorState state) {
         RawEditorOptions options = new RawEditorOptions();
         options.wordWrap = state.rawEditorWordWrap;
-        options.horizontalScroll = !state.rawEditorWordWrap;
         options.showDefaultKeys = state.rawEditorShowDefaults;
+        options.autocompleteDisabled = state.rawEditorAutocompleteDisabled;
         options.fontSizePercent = state.rawEditorFontSizePercent;
         RawEditorOptionsService.instance().save(options);
     }
@@ -623,7 +507,10 @@ public final class RawEditorPanel implements EditorPanel {
     private ControlLayout resolveControlLayout(int editorWidthHint) {
         int scaledWidth = this.screen.session().minecraft().getWindow().getGuiScaledWidth();
         double guiScale = this.screen.session().minecraft().getWindow().getGuiScale();
-        boolean compactControls = guiScale >= CONTROL_COMPACT_SCALE_THRESHOLD || scaledWidth < CONTROL_COMPACT_WIDTH_THRESHOLD;
+        boolean compactControls = LayoutModeUtil.isCompactScale(
+                guiScale,
+                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
+        ) || scaledWidth < CONTROL_COMPACT_WIDTH_THRESHOLD;
         int nonCompactButtonWidth = UiFactory.scaledPixels(ACTION_BUTTON_WIDTH_BASE);
         int nonCompactActionRowMinWidth = (nonCompactButtonWidth * ACTION_ROW_BUTTON_COUNT) + UiFactory.scaleProfile().spacing();
         int staticStackThreshold = UiFactory.scaledPixels(CONTROL_STACK_WIDTH_HINT);
@@ -693,433 +580,8 @@ public final class RawEditorPanel implements EditorPanel {
         }
     }
 
-    private boolean applyAutocompleteSelected(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            int selectedIndex
-    ) {
-        RawAutocompleteUtil.AutocompleteResult effective = this.resolveAutocompleteForCurrentCaret(editor, autocomplete);
-        if (effective.suggestions().isEmpty()) {
-            return false;
-        }
-        int index = Math.clamp(selectedIndex, 0, effective.suggestions().size() - 1);
-        return this.applyAutocomplete(editor, effective, effective.suggestions().get(index).insertText());
-    }
-
-    private RawAutocompleteUtil.AutocompleteResult resolveAutocompleteForCurrentCaret(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete
-    ) {
-        if (editor.hasVirtualCaret() && !editor.hasSelection()) {
-            return RawAutocompleteUtil.AutocompleteResult.empty(editor.caretIndex());
-        }
-        if (autocomplete.requestedCaret() == editor.caretIndex()) {
-            return autocomplete;
-        }
-        return RawAutocompleteUtil.suggest(
-                editor.getValue(),
-                editor.caretIndex(),
-                this.screen.session().registryAccess(),
-                this.currentContextItemId()
-        );
-    }
-
-    private boolean applyAutocomplete(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String insertText
-    ) {
-        if (insertText == null || insertText.isEmpty()) {
-            return false;
-        }
-
-        if (editor.hasSelection()) {
-            int start = Math.min(editor.caretIndex(), editor.selectionIndex());
-            int end = Math.max(editor.caretIndex(), editor.selectionIndex());
-            editor.replaceRange(start, end, insertText);
-            return true;
-        }
-
-        int replaceStart = Math.clamp(autocomplete.replaceStart(), 0, editor.getValue().length());
-        int replaceEnd = Math.clamp(autocomplete.replaceEnd(), replaceStart, editor.getValue().length());
-        editor.replaceRange(replaceStart, replaceEnd, insertText);
-        return true;
-    }
-
-    private String computeGhostSuffix(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String insertText
-    ) {
-        if (insertText == null || insertText.isEmpty() || editor.hasSelection()) {
-            return "";
-        }
-
-        int caret = editor.caretIndex();
-        int replaceStart = Math.clamp(autocomplete.replaceStart(), 0, caret);
-        int replaceEnd = Math.clamp(autocomplete.replaceEnd(), replaceStart, editor.getValue().length());
-        if (replaceEnd < caret) {
-            return "";
-        }
-        int typedLength = caret - replaceStart;
-        if (typedLength == 0) {
-            return insertText;
-        }
-        if (typedLength >= insertText.length()) {
-            return "";
-        }
-
-        String typed = editor.getValue().substring(replaceStart, caret);
-        if (!insertText.regionMatches(true, 0, typed, 0, typed.length())) {
-            return "";
-        }
-
-        return insertText.substring(typed.length());
-    }
-
-    private int firstSuggestionWithGhost(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete
-    ) {
-        List<RawAutocompleteUtil.Suggestion> suggestions = autocomplete.suggestions();
-        for (int index = 0; index < suggestions.size(); index++) {
-            String suffix = this.computeGhostSuffix(editor, autocomplete, suggestions.get(index).insertText());
-            if (!suffix.isEmpty()) {
-                return index;
-            }
-        }
-        return -1;
-    }
-
-    private boolean cycleAutocompleteSelection(
-            int[] selectedSuggestion,
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            int delta
-    ) {
-        if (autocomplete.suggestions().isEmpty()) {
-            return false;
-        }
-        int size = autocomplete.suggestions().size();
-        selectedSuggestion[0] = Math.floorMod(selectedSuggestion[0] + delta, size);
-        return true;
-    }
-
-    private List<RawTextAreaComponent.AutocompletePopupEntry> toPopupEntries(List<RawAutocompleteUtil.Suggestion> suggestions) {
-        if (suggestions == null || suggestions.isEmpty()) {
-            return List.of();
-        }
-        return suggestions.stream()
-                .map(suggestion -> new RawTextAreaComponent.AutocompletePopupEntry(
-                        suggestion.label(),
-                        suggestion.insertText().equals(suggestion.label()) ? suggestion.kind().name() : suggestion.insertText()
-                ))
-                .toList();
-    }
-
-    private boolean shouldAutoShowAutocomplete(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete
-    ) {
-        if (autocomplete.suggestions().isEmpty()) {
-            return false;
-        }
-        if (editor.hasSelection()) {
-            return true;
-        }
-
-        int caret = editor.caretIndex();
-        int replaceStart = Math.clamp(autocomplete.replaceStart(), 0, caret);
-        int replaceEnd = Math.clamp(autocomplete.replaceEnd(), replaceStart, editor.getValue().length());
-        boolean correctionMode = replaceEnd < caret;
-        if (correctionMode) {
-            return true;
-        }
-        String typed = editor.getValue().substring(replaceStart, caret);
-        if (!typed.isBlank() && this.shouldSuppressCompletedKeyEcho(editor, autocomplete, typed)) {
-            return false;
-        }
-        if (!typed.isBlank() && this.isCursorAtCompletedToken(editor, autocomplete)) {
-            return false;
-        }
-        if (!typed.isBlank() && !this.hasPredictiveCandidate(autocomplete, typed) && !this.hasStructuralCandidate(autocomplete)) {
-            return false;
-        }
-        if (!typed.isBlank() && this.onlyEchoesTypedToken(autocomplete, typed)) {
-            return false;
-        }
-        if (replaceStart < caret) {
-            return true;
-        }
-
-        String text = editor.getValue();
-        if (caret == 0 || caret > text.length()) {
-            return false;
-        }
-
-        char previous = text.charAt(caret - 1);
-        return previous == ':' || previous == '"' || previous == '\'' || previous == '[' || previous == '{' || previous == ',';
-    }
-
-    private boolean isCursorAtCompletedToken(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete
-    ) {
-        int caret = editor.caretIndex();
-        String text = editor.getValue();
-        if (caret == 0 || caret > text.length()) {
-            return false;
-        }
-        int replaceStart = Math.clamp(autocomplete.replaceStart(), 0, caret);
-        if (replaceStart == caret) {
-            return false;
-        }
-        int tokenEnd = caret;
-        while (tokenEnd < text.length() && this.isTokenChar(text.charAt(tokenEnd))) {
-            tokenEnd++;
-        }
-        return tokenEnd > caret;
-    }
-
-    private boolean isTokenChar(char value) {
-        return Character.isLetterOrDigit(value)
-                || value == '_'
-                || value == ':'
-                || value == '.'
-                || value == '-'
-                || value == '/';
-    }
-
-    private boolean hasPredictiveCandidate(
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String typed
-    ) {
-        for (RawAutocompleteUtil.Suggestion suggestion : autocomplete.suggestions()) {
-            String insert = suggestion.insertText();
-            if (insert == null || insert.isBlank()) {
-                continue;
-            }
-            if (this.isPredictiveMatch(insert, typed)) {
-                return true;
-            }
-            String label = suggestion.label();
-            if (this.isPredictiveMatch(label, typed)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isPredictiveMatch(String candidate, String typed) {
-        if (candidate == null || typed == null) {
-            return false;
-        }
-        if (candidate.length() > typed.length() && candidate.regionMatches(true, 0, typed, 0, typed.length())) {
-            return true;
-        }
-        int candidateSeparator = candidate.indexOf(':');
-        if (candidateSeparator < 0) {
-            return false;
-        }
-        String localCandidate = candidate.substring(candidateSeparator + 1);
-        String localTyped = typed;
-        int typedSeparator = typed.indexOf(':');
-        if (typedSeparator >= 0 && typedSeparator + 1 < typed.length()) {
-            localTyped = typed.substring(typedSeparator + 1);
-        }
-        return localCandidate.length() > localTyped.length()
-                && localCandidate.regionMatches(true, 0, localTyped, 0, localTyped.length());
-    }
-
-    private boolean onlyEchoesTypedToken(
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String typed
-    ) {
-        if (autocomplete.suggestions().isEmpty()) {
-            return false;
-        }
-        for (RawAutocompleteUtil.Suggestion suggestion : autocomplete.suggestions()) {
-            String insert = suggestion.insertText();
-            if (insert == null) {
-                return false;
-            }
-            if (!insert.equalsIgnoreCase(typed)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean hasStructuralCandidate(RawAutocompleteUtil.AutocompleteResult autocomplete) {
-        for (RawAutocompleteUtil.Suggestion suggestion : autocomplete.suggestions()) {
-            if (suggestion.kind() == RawAutocompleteUtil.SuggestionKind.STRUCTURAL) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean shouldSuppressCompletedKeyEcho(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String typed
-    ) {
-        if (typed != null && typed.contains(":")) {
-            return false;
-        }
-        if (!this.hasColonAheadOnSameLine(editor.getValue(), editor.caretIndex())) {
-            return false;
-        }
-
-        String normalizedTyped = this.normalizeKeyToken(typed);
-        if (!normalizedTyped.isBlank()
-                && this.hasExactKeySuggestion(autocomplete, normalizedTyped)
-                && !this.hasLongerKeyPrefixSuggestion(autocomplete, normalizedTyped)) {
-            return true;
-        }
-
-        for (RawAutocompleteUtil.Suggestion suggestion : autocomplete.suggestions()) {
-            String insert = suggestion.insertText();
-            if (suggestion.kind() == RawAutocompleteUtil.SuggestionKind.STRUCTURAL
-                    && insert != null
-                    && insert.trim().startsWith(":")) {
-                continue;
-            }
-            if (insert != null && !insert.equalsIgnoreCase(typed)) {
-                return false;
-            }
-            String label = suggestion.label();
-            if (label != null && !label.isBlank() && !label.equalsIgnoreCase(typed)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean hasExactKeySuggestion(
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String normalizedTyped
-    ) {
-        return this.hasMatchingKeySuggestion(
-                autocomplete,
-                normalized -> normalized.equalsIgnoreCase(normalizedTyped)
-        );
-    }
-
-    private boolean hasLongerKeyPrefixSuggestion(
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            String normalizedTyped
-    ) {
-        return this.hasMatchingKeySuggestion(
-                autocomplete,
-                normalized -> normalized.length() > normalizedTyped.length()
-                        && normalized.regionMatches(true, 0, normalizedTyped, 0, normalizedTyped.length())
-        );
-    }
-
-    private boolean hasMatchingKeySuggestion(
-            RawAutocompleteUtil.AutocompleteResult autocomplete,
-            Predicate<String> matcher
-    ) {
-        for (RawAutocompleteUtil.Suggestion suggestion : autocomplete.suggestions()) {
-            if (suggestion.kind() != RawAutocompleteUtil.SuggestionKind.KEY) {
-                continue;
-            }
-            String normalizedInsert = this.normalizeKeyToken(suggestion.insertText());
-            if (matcher.test(normalizedInsert)) {
-                return true;
-            }
-            String normalizedLabel = this.normalizeKeyToken(suggestion.label());
-            if (matcher.test(normalizedLabel)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String normalizeKeyToken(String token) {
-        if (token == null || token.isBlank()) {
-            return "";
-        }
-        String value = token.trim();
-        if (value.endsWith(":")) {
-            value = value.substring(0, value.length() - 1).trim();
-        }
-        if (value.length() >= 2 && value.charAt(0) == '"' && value.charAt(value.length() - 1) == '"') {
-            value = value.substring(1, value.length() - 1);
-        }
-        return value;
-    }
-
-    private boolean hasColonAheadOnSameLine(String text, int cursor) {
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-        int safeCursor = Math.clamp(cursor, 0, text.length());
-        int lineStart = text.lastIndexOf('\n', Math.max(0, safeCursor - 1)) + 1;
-
-        boolean inString = false;
-        boolean escaping = false;
-        char quote = '\0';
-
-        for (int index = lineStart; index < safeCursor; index++) {
-            char value = text.charAt(index);
-            QuoteScanState state = this.nextQuoteScanState(inString, escaping, quote, value);
-            inString = state.inString();
-            escaping = state.escaping();
-            quote = state.quote();
-        }
-
-        for (int index = safeCursor; index < text.length(); index++) {
-            char value = text.charAt(index);
-            if (value == '\n' || value == '\r') {
-                return false;
-            }
-            QuoteScanState state = this.nextQuoteScanState(inString, escaping, quote, value);
-            inString = state.inString();
-            escaping = state.escaping();
-            quote = state.quote();
-            if (state.consumed()) {
-                continue;
-            }
-            if (Character.isWhitespace(value)) {
-                continue;
-            }
-            return value == ':';
-        }
-        return false;
-    }
-
-    private QuoteScanState nextQuoteScanState(boolean inString, boolean escaping, char quote, char value) {
-        if (inString) {
-            if (escaping) {
-                return new QuoteScanState(true, false, quote, true);
-            }
-            if (value == '\\') {
-                return new QuoteScanState(true, true, quote, true);
-            }
-            if (value == quote) {
-                return new QuoteScanState(false, false, '\0', true);
-            }
-            return new QuoteScanState(true, false, quote, true);
-        }
-        if (value == '"' || value == '\'') {
-            return new QuoteScanState(true, false, value, true);
-        }
-        return new QuoteScanState(false, false, '\0', false);
-    }
-
-    private boolean isCorrectionAutocomplete(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult autocomplete
-    ) {
-        int caret = editor.caretIndex();
-        int replaceStart = Math.clamp(autocomplete.replaceStart(), 0, editor.getValue().length());
-        int replaceEnd = Math.clamp(autocomplete.replaceEnd(), replaceStart, editor.getValue().length());
-        return replaceStart < caret && replaceEnd < caret;
-    }
-
     private LabelComponent statusLabel(int width) {
-        LabelComponent label = UiFactory.message("", COLOR_DIFF_INFO).maxWidth(width);
+        LabelComponent label = UiFactory.message("", UiColors.MUTED).maxWidth(width);
         label.horizontalSizing(Sizing.fill(100));
         return label;
     }
@@ -1148,13 +610,18 @@ public final class RawEditorPanel implements EditorPanel {
         return id.toString();
     }
 
-    private int resolveEditorHeight(int viewportHeight, ControlLayout controlLayout, boolean optionsExpanded) {
+    private int resolveEditorHeight(
+            int viewportHeight,
+            ControlLayout controlLayout,
+            boolean optionsExpanded,
+            int editorWidthHint
+    ) {
         int availableHeight = Math.max(1, viewportHeight);
-        int editorHeight = availableHeight - this.nonEditorHeight(controlLayout, optionsExpanded);
+        int editorHeight = availableHeight - this.nonEditorHeight(controlLayout, optionsExpanded, editorWidthHint);
         return Math.clamp(editorHeight, Math.min(EDITOR_MIN_HEIGHT, availableHeight), availableHeight);
     }
 
-    private int nonEditorHeight(ControlLayout controlLayout, boolean optionsExpanded) {
+    private int nonEditorHeight(ControlLayout controlLayout, boolean optionsExpanded, int editorWidthHint) {
         int sectionGap = UiFactory.scaleProfile().spacing();
         int topChildCount;
         int topHeight;
@@ -1167,7 +634,10 @@ public final class RawEditorPanel implements EditorPanel {
         }
 
         if (optionsExpanded) {
-            topHeight += this.optionsPanelHeight(controlLayout);
+            topHeight += this.optionsPanelHeight(
+                    controlLayout,
+                    editorWidthHint >= UiFactory.scaledPixels(OPTIONS_INLINE_WIDTH_THRESHOLD)
+            );
             topChildCount++;
         }
 
@@ -1178,18 +648,26 @@ public final class RawEditorPanel implements EditorPanel {
         return topHeight + topSectionGaps + statusHeight + safetyPadding;
     }
 
-    private int optionsPanelHeight(ControlLayout controlLayout) {
+    private int optionsPanelHeight(ControlLayout controlLayout, boolean inlineOptions) {
         int panelGap = UiFactory.scaleProfile().spacing();
         int subCardPadding = Math.max(4, UiFactory.scaleProfile().padding() - 1) * 2;
         int checkboxHeight = UiFactory.scaleProfile().controlHeight();
         int sliderHeight = UiFactory.scaleProfile().controlHeight();
         int captionLineHeight = UiFactory.scaleProfile().captionLineHeight() + UiFactory.scaleProfile().bodyLineSpacing();
         return subCardPadding
-                + (checkboxHeight * OPTIONS_PANEL_CHECKBOX_COUNT)
+                + (checkboxHeight * (inlineOptions ? 1 : 3))
                 + sliderHeight
-                + (captionLineHeight * OPTIONS_PANEL_HINT_LINE_COUNT)
+                + (captionLineHeight * (inlineOptions ? 2 : 3))
                 + controlLayout.actionButtonHeight()
-                + (panelGap * OPTIONS_PANEL_CHILD_GAP_COUNT);
+                + (panelGap * (inlineOptions ? 4 : 7));
+    }
+
+    private FlowLayout optionGroup(boolean inline, UIComponent... children) {
+        FlowLayout group = inline ? UiFactory.row() : UiFactory.column();
+        for (UIComponent child : children) {
+            group.child(child.horizontalSizing(inline ? Sizing.content() : Sizing.fill(100)));
+        }
+        return group;
     }
 
     private boolean isLikelyIncompleteRawState(String text) {
@@ -1323,8 +801,8 @@ public final class RawEditorPanel implements EditorPanel {
                 "preview.validation.component_failed",
                 validationError
         );
-        this.setStatusText(parseStatus, Component.literal(parseMessage), COLOR_PARSE_ERROR, statusWidth);
-        this.setStatusText(diffStatus, Component.literal(STATUS_EMPTY_TEXT), COLOR_DIFF_INFO, statusWidth);
+        this.setStatusText(parseStatus, Component.literal(parseMessage), UiColors.DANGER, statusWidth);
+        this.setStatusText(diffStatus, Component.literal(STATUS_EMPTY_TEXT), UiColors.MUTED, statusWidth);
         editor.setErrorLocation(highlight.line(), highlight.column(), highlight.length());
         this.screen.session().setTransientValidationMessages(
                 List.of(ValidationMessage.error(validationMessage))
@@ -1453,6 +931,15 @@ public final class RawEditorPanel implements EditorPanel {
         return Math.max(1, end - start);
     }
 
+    private boolean isTokenChar(char value) {
+        return Character.isLetterOrDigit(value)
+                || value == '_'
+                || value == ':'
+                || value == '.'
+                || value == '-'
+                || value == '/';
+    }
+
     private record ParseFailure(String error, int line, int column) {
         static ParseFailure from(RawValidationAsyncService.ParsePhaseResult result) {
             return new ParseFailure(result.parseError(), result.line(), result.column());
@@ -1475,9 +962,6 @@ public final class RawEditorPanel implements EditorPanel {
         boolean hasPosition() {
             return this.line > 0 && this.column > 0;
         }
-    }
-
-    private record QuoteScanState(boolean inString, boolean escaping, char quote, boolean consumed) {
     }
 
 }

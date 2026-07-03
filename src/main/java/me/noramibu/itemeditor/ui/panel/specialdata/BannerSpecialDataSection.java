@@ -16,7 +16,6 @@ import me.noramibu.itemeditor.ui.component.InputSafeScrollContainer;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RotatableItemPreviewComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.client.Minecraft;
@@ -33,7 +32,6 @@ import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public final class BannerSpecialDataSection {
@@ -404,16 +402,12 @@ public final class BannerSpecialDataSection {
         List<ButtonComponent> actions = new ArrayList<>();
         if (index > 0) {
             actions.add(boundedActionButton(ItemEditorText.tr("common.up"), () ->
-                    context.mutateRefresh(() -> {
-                        Collections.swap(special.bannerLayers, index, index - 1);
-                    })
+                    context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index - 1))
             ));
         }
         if (index < special.bannerLayers.size() - 1) {
             actions.add(boundedActionButton(ItemEditorText.tr("common.down"), () ->
-                    context.mutateRefresh(() -> {
-                        Collections.swap(special.bannerLayers, index, index + 1);
-                    })
+                    context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index + 1))
             ));
         }
 
@@ -430,7 +424,7 @@ public final class BannerSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static ItemEditorState.BannerLayerDraft copyLayer(ItemEditorState.BannerLayerDraft source) {
@@ -446,17 +440,7 @@ public final class BannerSpecialDataSection {
     }
 
     private static List<String> availablePatternIds(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        List<String> ids = new ArrayList<>();
-        Registry<BannerPattern> bannerRegistry = null;
-        try {
-            bannerRegistry = context.screen().session().registryAccess().lookupOrThrow(Registries.BANNER_PATTERN);
-        } catch (RuntimeException ignored) {
-        }
-
-        if (bannerRegistry != null) {
-            ids.addAll(RegistryUtil.ids(bannerRegistry));
-        }
-
+        List<String> ids = new ArrayList<>(context.optionalRegistryIds(Registries.BANNER_PATTERN));
         for (ItemEditorState.BannerLayerDraft layer : special.bannerLayers) {
             if (!layer.patternId.isBlank() && !ids.contains(layer.patternId)) {
                 ids.add(layer.patternId);

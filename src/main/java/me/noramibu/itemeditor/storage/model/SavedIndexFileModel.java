@@ -13,4 +13,3 @@ public final class SavedIndexFileModel {
     public List<SavedPageEntry> pages = new ArrayList<>();
     public List<SavedIndexItemEntry> items = new ArrayList<>();
 }
-

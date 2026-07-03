@@ -36,31 +36,21 @@ public final class StorageSearchEngine {
     }
 
     public static Comparator<SavedIndexItemEntry> bySortMode(StorageSortMode mode, boolean reverseSort) {
-        Comparator<SavedIndexItemEntry> comparator;
-        if (mode == StorageSortMode.REGULAR) {
-            comparator = Comparator
+        StorageSortMode sortMode = mode == null ? StorageSortMode.SAVED_AT_DESC : mode;
+        Comparator<SavedIndexItemEntry> comparator = switch (sortMode) {
+            case REGULAR -> Comparator
                     .comparingInt((SavedIndexItemEntry entry) -> Math.max(1, entry.page))
                     .thenComparingInt(entry -> Math.max(0, entry.slotInPage));
-        } else if (mode == StorageSortMode.NAME_ASC) {
-            comparator = Comparator
+            case NAME_ASC -> Comparator
                     .comparing((SavedIndexItemEntry entry) -> safeLower(entry.customNamePlain))
                     .thenComparingLong(entry -> -entry.savedAt);
-        } else if (mode == StorageSortMode.AMOUNT_DESC) {
-            comparator = Comparator
-                    .comparingInt((SavedIndexItemEntry entry) -> -normalizedStackCount(entry))
-                    .thenComparingLong(entry -> -entry.savedAt)
-                    .thenComparing(entry -> safeLower(entry.customNamePlain));
-        } else if (mode == StorageSortMode.NBT_SIZE_DESC) {
-            comparator = Comparator
-                    .comparingInt((SavedIndexItemEntry entry) -> -normalizedNbtBytes(entry))
-                    .thenComparingLong(entry -> -entry.savedAt)
-                    .thenComparing(entry -> safeLower(entry.customNamePlain));
-        } else {
-            comparator = Comparator
+            case AMOUNT_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.stackCount));
+            case NBT_SIZE_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.nbtBytes));
+            case SAVED_AT_DESC -> Comparator
                     .comparingLong((SavedIndexItemEntry entry) -> -entry.savedAt)
                     .thenComparing(entry -> safeLower(entry.customNamePlain));
-        }
-        return reverseSort && mode != StorageSortMode.REGULAR ? comparator.reversed() : comparator;
+        };
+        return reverseSort && sortMode != StorageSortMode.REGULAR ? comparator.reversed() : comparator;
     }
 
     public static boolean matchesQuery(SavedIndexItemEntry entry, StorageSearchQuery query, long now) {
@@ -93,14 +83,14 @@ public final class StorageSearchEngine {
                 return false;
             }
         }
-        int stackCount = normalizedStackCount(entry);
+        int stackCount = Math.max(1, entry.stackCount);
         for (StorageSearchQuery.NumericFilter amountFilter : query.amountFilters) {
             if (amountFilter == null || amountFilter.matches(stackCount)) {
                 continue;
             }
             return false;
         }
-        int nbtBytes = normalizedNbtBytes(entry);
+        int nbtBytes = Math.max(1, entry.nbtBytes);
         for (StorageSearchQuery.NumericFilter sizeFilter : query.nbtSizeFilters) {
             if (sizeFilter == null || sizeFilter.matches(nbtBytes)) {
                 continue;
@@ -174,16 +164,11 @@ public final class StorageSearchEngine {
         return patternIndex == pattern.length();
     }
 
-    private static int normalizedStackCount(SavedIndexItemEntry entry) {
-        return normalizedPositive(entry, value -> value.stackCount);
-    }
-
-    private static int normalizedNbtBytes(SavedIndexItemEntry entry) {
-        return normalizedPositive(entry, value -> value.nbtBytes);
-    }
-
-    private static int normalizedPositive(SavedIndexItemEntry entry, ToIntFunction<SavedIndexItemEntry> value) {
-        return Math.max(1, entry == null ? 1 : value.applyAsInt(entry));
+    private static Comparator<SavedIndexItemEntry> byDescendingNumber(ToIntFunction<SavedIndexItemEntry> value) {
+        return Comparator
+                .comparingInt((SavedIndexItemEntry entry) -> -value.applyAsInt(entry))
+                .thenComparingLong(entry -> -entry.savedAt)
+                .thenComparing(entry -> safeLower(entry.customNamePlain));
     }
 
     private static String safeLower(String value) {

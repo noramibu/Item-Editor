@@ -6,14 +6,11 @@ import java.io.Reader;
 import java.io.Writer;
 import java.util.Objects;
 
-public final class GsonJsonCodec<T> implements AtomicFileUtil.JsonCodec<T> {
+public record GsonJsonCodec<T>(Gson gson, Class<T> type) implements AtomicFileUtil.JsonCodec<T> {
 
-    private final Gson gson;
-    private final Class<T> type;
-
-    public GsonJsonCodec(Gson gson, Class<T> type) {
-        this.gson = Objects.requireNonNull(gson, "gson");
-        this.type = Objects.requireNonNull(type, "type");
+    public GsonJsonCodec {
+        Objects.requireNonNull(gson, "gson");
+        Objects.requireNonNull(type, "type");
     }
 
     @Override
@@ -26,4 +23,3 @@ public final class GsonJsonCodec<T> implements AtomicFileUtil.JsonCodec<T> {
         this.gson.toJson(value, writer);
     }
 }
-

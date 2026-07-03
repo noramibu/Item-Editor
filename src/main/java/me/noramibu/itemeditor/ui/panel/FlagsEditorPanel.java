@@ -9,8 +9,8 @@ import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import net.minecraft.client.Minecraft;
 import net.minecraft.locale.Language;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -24,17 +24,12 @@ public final class FlagsEditorPanel implements EditorPanel {
     private static final int FLAG_CHECKBOX_RESERVE = 42;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 560;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int OPTION_LABEL_WIDTH_MIN = 96;
     private static final int OPTION_COLUMN_WIDTH_MIN = 120;
     private static final int OPTION_COLUMN_RESERVE = 20;
     private static final int INLINE_CHECKBOX_SIZE_BASE = 18;
     private static final int INLINE_CHECKBOX_SIZE_MIN = 14;
     private static final int BOTTOM_PADDING_BASE = 12;
-    private static final String KEY_SELECT_ALL = "common.select_all";
-    private static final String KEY_DESELECT_ALL = "common.deselect_all";
-    private static final String KEY_REVERT_ALL = "common.revert_all";
-
     private static final List<FlagOption> OPTIONS = allVanillaOptions();
 
     private final ItemEditorScreen screen;
@@ -61,7 +56,7 @@ public final class FlagsEditorPanel implements EditorPanel {
 
         FlowLayout common = UiFactory.section(ItemEditorText.tr("flags.hidden.title"), Component.empty());
         ButtonComponent selectAllButton = UiFactory.actionToneButton(
-                ItemEditorText.tr(KEY_SELECT_ALL),
+                ItemEditorText.tr("common.select_all"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.POSITIVE,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -71,7 +66,7 @@ public final class FlagsEditorPanel implements EditorPanel {
                 })
         );
         ButtonComponent deselectAllButton = UiFactory.actionToneButton(
-                ItemEditorText.tr(KEY_DESELECT_ALL),
+                ItemEditorText.tr("common.deselect_all"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.NEGATIVE,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -81,7 +76,7 @@ public final class FlagsEditorPanel implements EditorPanel {
                 })
         );
         ButtonComponent revertAllButton = UiFactory.actionToneButton(
-                ItemEditorText.tr(KEY_REVERT_ALL),
+                ItemEditorText.tr("common.revert_all"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.PICKER,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
@@ -131,12 +126,14 @@ public final class FlagsEditorPanel implements EditorPanel {
     }
 
     private boolean useCompactLayout(int contentWidth) {
-        var window = Minecraft.getInstance().getWindow();
-        int scaledWidth = window.getGuiScaledWidth();
-        double guiScale = window.getGuiScale();
-        return scaledWidth < COMPACT_LAYOUT_WIDTH_THRESHOLD
-                || contentWidth < COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-                || guiScale >= COMPACT_LAYOUT_SCALE_THRESHOLD;
+        var window = this.screen.session().minecraft().getWindow();
+        return LayoutModeUtil.isCompactWindowAndContent(
+                window.getGuiScale(),
+                window.getGuiScaledWidth(),
+                COMPACT_LAYOUT_WIDTH_THRESHOLD,
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
     }
 
     private int clampLabelWidth(int contentWidth) {

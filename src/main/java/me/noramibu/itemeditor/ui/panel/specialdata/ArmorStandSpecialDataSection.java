@@ -77,7 +77,6 @@ public final class ArmorStandSpecialDataSection {
     private static final int WORKBENCH_GAP = 8;
     private static final float MIN_SCALE = 0.01F;
     private static final float MAX_SCALE = 10.0F;
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 3.0d;
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 640;
     private static final List<EquipmentSlot> DISABLED_SLOT_ORDER = List.of(
             EquipmentSlot.HEAD,
@@ -967,7 +966,7 @@ public final class ArmorStandSpecialDataSection {
             float defaultValue
     ) {
         boolean compactLayout = useCompactPoseRows(poseColumnWidth);
-        float initialDegrees = normalizedDegrees(parseOrDefault(value, defaultValue));
+        float initialDegrees = normalizedDegrees(ValidationUtil.parseFloatOrDefault(value, defaultValue));
         FlowLayout control = UiFactory.column();
         control.gap(0);
         control.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(AXIS_CONTROL_WIDTH));
@@ -1024,8 +1023,7 @@ public final class ArmorStandSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return context.guiScale() >= COMPACT_LAYOUT_SCALE_THRESHOLD
-                || context.panelWidthHint() < UiFactory.scaledPixels(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static void updatePreviewPose(OrbitingArmorStandComponent preview, ItemEditorState.SpecialData special) {
@@ -1065,9 +1063,9 @@ public final class ArmorStandSpecialDataSection {
 
     private static Rotations rotations(ItemEditorState.RotationDraft rotation, Rotation fallback) {
         return new Rotations(
-                parseOrDefault(rotation.x, fallback.x),
-                parseOrDefault(rotation.y, 0.0F),
-                parseOrDefault(rotation.z, fallback.z)
+                ValidationUtil.parseFloatOrDefault(rotation.x, fallback.x),
+                ValidationUtil.parseFloatOrDefault(rotation.y, 0.0F),
+                ValidationUtil.parseFloatOrDefault(rotation.z, fallback.z)
         );
     }
 
@@ -1120,17 +1118,6 @@ public final class ArmorStandSpecialDataSection {
         return Math.clamp(value, safeMin, safeMax);
     }
 
-    private static float parseOrDefault(String raw, float fallback) {
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Float.parseFloat(raw.trim());
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
     private static CompoundTag previewTag(ItemEditorState.SpecialData special) {
         CompoundTag entityTag = new CompoundTag();
         setBooleanKey(entityTag, "Small", special.armorStandSmall);
@@ -1150,7 +1137,7 @@ public final class ArmorStandSpecialDataSection {
             entityTag.putInt("DisabledSlots", disabledSlots);
         }
 
-        float scale = parseOrDefault(special.armorStandScale, 1.0F);
+        float scale = ValidationUtil.parseFloatOrDefault(special.armorStandScale, 1.0F);
         if (!special.armorStandScale.isBlank() && scale >= MIN_SCALE && scale <= MAX_SCALE && scale != 1.0F) {
             ListTag attributes = new ListTag();
             CompoundTag scaleTag = new CompoundTag();
@@ -1177,9 +1164,9 @@ public final class ArmorStandSpecialDataSection {
             ItemEditorState.RotationDraft rotation,
             Rotation fallback
     ) {
-        float x = parseOrDefault(rotation.x, fallback.x);
-        float y = parseOrDefault(rotation.y, 0.0F);
-        float z = parseOrDefault(rotation.z, fallback.z);
+        float x = ValidationUtil.parseFloatOrDefault(rotation.x, fallback.x);
+        float y = ValidationUtil.parseFloatOrDefault(rotation.y, 0.0F);
+        float z = ValidationUtil.parseFloatOrDefault(rotation.z, fallback.z);
         ListTag values = new ListTag();
         values.add(FloatTag.valueOf(x));
         values.add(FloatTag.valueOf(y));
@@ -1232,4 +1219,3 @@ public final class ArmorStandSpecialDataSection {
     ) {
     }
 }
-

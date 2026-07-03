@@ -48,6 +48,28 @@ public final class ValidationUtil {
         }
     }
 
+    public static int parseIntOrDefault(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    public static float parseFloatOrDefault(String raw, float fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Float.parseFloat(raw.trim());
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
     public static Integer parseColor(String raw, String field, List<ValidationMessage> messages) {
         Integer parsed = tryParseHexColor(raw);
         if (parsed == null) {
@@ -58,8 +80,7 @@ public final class ValidationUtil {
     }
 
     public static Optional<Integer> parseOptionalColor(String raw, String field, List<ValidationMessage> messages) {
-        if (raw.isBlank()) return Optional.empty();
-        return Optional.ofNullable(parseColor(raw, field, messages));
+        return raw.isBlank() ? Optional.empty() : Optional.ofNullable(parseColor(raw, field, messages));
     }
 
     public static IntList parseColorList(String raw, String field, List<ValidationMessage> messages) {
@@ -80,10 +101,15 @@ public final class ValidationUtil {
 
     public static Integer tryParseHexColor(String raw) {
         String normalized = normalizeHex(raw);
-        if (!isHexColor(normalized)) {
-            return null;
+        return isHexColor(normalized) ? Integer.parseInt(normalized, 16) : null;
+    }
+
+    public static int parseHexColorOrDefault(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
         }
-        return Integer.parseInt(normalized, 16);
+        Integer parsed = tryParseHexColor(raw);
+        return parsed == null ? fallback : parsed;
     }
 
     public static Integer tryParseByteChannel(String raw) {
@@ -118,12 +144,8 @@ public final class ValidationUtil {
 
     private static String normalizeHex(String raw) {
         String normalized = raw.trim();
-        if (normalized.startsWith("#")) {
-            normalized = normalized.substring(1);
-        } else if (normalized.startsWith("0x") || normalized.startsWith("0X")) {
-            normalized = normalized.substring(2);
-        }
-        return normalized;
+        return normalized.startsWith("#") ? normalized.substring(1)
+                : normalized.startsWith("0x") || normalized.startsWith("0X") ? normalized.substring(2) : normalized;
     }
 
     private static String trimTrailingZeros(String raw) {
@@ -134,9 +156,6 @@ public final class ValidationUtil {
         while (end > 0 && raw.charAt(end) == '0') {
             end--;
         }
-        if (raw.charAt(end) == '.') {
-            end--;
-        }
-        return raw.substring(0, end + 1);
+        return raw.substring(0, raw.charAt(end) == '.' ? end : end + 1);
     }
 }

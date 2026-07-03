@@ -6,16 +6,14 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.service.ItemImportService;
 import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -31,9 +29,6 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
 public final class ImportScreen extends BaseOwoScreen<StackLayout> {
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int CARD_WIDTH = 270;
     private final Minecraft minecraft;
     private final Screen returnScreen;
@@ -54,7 +49,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
     @Override
     protected void build(StackLayout root) {
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout card = UiFactory.centeredCard(CARD_WIDTH);
         card.child(UiFactory.title(ItemEditorText.tr("import.title")));
@@ -96,25 +91,18 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
         otherMods.horizontalSizing(Sizing.fill(100));
         card.child(otherMods);
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), 0xA9B5C0).maxWidth(UiFactory.scaledPixels(230));
+        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(UiFactory.scaledPixels(230));
         card.child(this.statusLabel);
 
         var back = UiFactory.button(ItemEditorText.tr("entry.back"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen));
         back.horizontalSizing(Sizing.fill(100));
         card.child(back);
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(card);
-        root.child(centered);
+        UiFactory.centerInRoot(root, card, 8);
     }
 
     private void openFileDialog() {
-        this.setStatus(ItemEditorText.tr("import.file_picker_opening"), 0xA9B5C0);
+        this.setStatus(ItemEditorText.tr("import.file_picker_opening"), UiColors.MUTED);
         CompletableFuture.runAsync(() -> {
             String path;
             try {
@@ -137,7 +125,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
                 return;
             }
             if (path == null || path.isBlank()) {
-                this.minecraft.execute(() -> this.setStatus(ItemEditorText.tr("import.cancelled"), 0xA9B5C0));
+                this.minecraft.execute(() -> this.setStatus(ItemEditorText.tr("import.cancelled"), UiColors.MUTED));
                 return;
             }
             this.importService.importFile(Path.of(path), this.registryAccess(), this.minecraft.getFixerUpper())
@@ -147,11 +135,11 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void handleImportResult(ItemImportService.ImportResult result, Throwable throwable) {
         if (throwable != null) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.failed", throwable.getMessage())), 0xFF8A8A);
+            this.setStatus(Component.literal(ItemEditorText.str("import.failed", throwable.getMessage())), UiColors.DANGER);
             return;
         }
         if (result == null || !result.success()) {
-            this.setStatus(Component.literal(result == null ? ItemEditorText.str("raw.unknown_error") : result.message()), 0xFF8A8A);
+            this.setStatus(Component.literal(result == null ? ItemEditorText.str("raw.unknown_error") : result.message()), UiColors.DANGER);
             return;
         }
         if (result.hasManyStacks()) {
@@ -163,7 +151,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void showFilePickerFailure(Throwable failure) {
         String message = ItemEditorText.str("import.file_picker_failed", failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
-        this.setStatus(Component.literal(message), 0xFF8A8A);
+        this.setStatus(Component.literal(message), UiColors.DANGER);
         if (this.minecraft.player != null) {
             this.minecraft.player.displayClientMessage(Component.literal("[Item Editor] " + message).withStyle(ChatFormatting.RED), false);
         }

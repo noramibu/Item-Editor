@@ -9,7 +9,6 @@ import me.noramibu.itemeditor.storage.model.RawEditorFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 import me.noramibu.itemeditor.storage.model.SavedPageEntry;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -216,8 +215,8 @@ public final class StorageDataFoundation {
         entry.slotInPage = entryTag.getIntOr("slotInPage", entry.slotInChunk);
         entry.savedAt = entryTag.getLongOr("savedAt", 0L);
         entry.updatedAt = entryTag.getLongOr("updatedAt", 0L);
-        entry.minecraftVersion = entryTag.getStringOr("minecraftVersion", currentMinecraftVersion());
-        entry.dataVersion = entryTag.getIntOr("dataVersion", currentDataVersion());
+        entry.minecraftVersion = entryTag.getStringOr("minecraftVersion", StorageMetadataUtil.currentMinecraftVersion());
+        entry.dataVersion = entryTag.getIntOr("dataVersion", StorageMetadataUtil.currentDataVersion());
         entry.itemRegistryKey = entryTag.getStringOr("itemRegistryKey", "");
         entry.stackCount = entryTag.getIntOr("stackCount", 1);
         entry.nbtBytes = Math.max(0, entryTag.getIntOr("nbtBytes", 0));
@@ -236,7 +235,7 @@ public final class StorageDataFoundation {
         entryTag.putString(
                 "minecraftVersion",
                 entry.minecraftVersion == null || entry.minecraftVersion.isBlank()
-                        ? currentMinecraftVersion()
+                        ? StorageMetadataUtil.currentMinecraftVersion()
                         : entry.minecraftVersion
         );
         entryTag.putInt("dataVersion", normalizedDataVersion(entry.dataVersion));
@@ -324,10 +323,10 @@ public final class StorageDataFoundation {
                 continue;
             }
             page.order = order;
-            if (isGeneratedDefaultName(page.name, order)) {
+            if (StorageMetadataUtil.isGeneratedDefaultName(page.name, order)) {
                 page.name = DEFAULT_PAGE_NAME;
             }
-            if (page.namePlain == null || isGeneratedDefaultName(page.namePlain, order)) {
+            if (page.namePlain == null || StorageMetadataUtil.isGeneratedDefaultName(page.namePlain, order)) {
                 page.namePlain = page.name;
             }
             normalized.add(page);
@@ -387,7 +386,7 @@ public final class StorageDataFoundation {
             entry.slotInChunk = Math.clamp(entry.slotInChunk, 0, StorageConstants.CHUNK_SIZE - 1);
             entry.slotInPage = Math.clamp(entry.slotInPage, 0, StorageConstants.PAGE_SIZE - 1);
             if (entry.minecraftVersion == null || entry.minecraftVersion.isBlank()) {
-                entry.minecraftVersion = currentMinecraftVersion();
+                entry.minecraftVersion = StorageMetadataUtil.currentMinecraftVersion();
             }
             entry.dataVersion = normalizedDataVersion(entry.dataVersion);
             if (entry.lorePlain == null) {
@@ -406,14 +405,6 @@ public final class StorageDataFoundation {
         return page;
     }
 
-    private static boolean isGeneratedDefaultName(String name, int index) {
-        return name == null || name.isBlank() || generatedDefaultPageName(index).equals(name);
-    }
-
-    private static String generatedDefaultPageName(int index) {
-        return "Page " + (Math.max(0, index) + 1);
-    }
-
     private static String nextChunkId(Set<String> usedChunkIds) {
         int index = 0;
         while (usedChunkIds.contains(chunkId(index))) {
@@ -426,23 +417,7 @@ public final class StorageDataFoundation {
         return "chunk-" + Math.max(0, index);
     }
 
-    private static String currentMinecraftVersion() {
-        try {
-            return SharedConstants.getCurrentVersion().id();
-        } catch (RuntimeException ignored) {
-            return "";
-        }
-    }
-
-    private static int currentDataVersion() {
-        try {
-            return SharedConstants.getCurrentVersion().dataVersion().version();
-        } catch (RuntimeException ignored) {
-            return 0;
-        }
-    }
-
     private static int normalizedDataVersion(int dataVersion) {
-        return dataVersion > 0 ? dataVersion : currentDataVersion();
+        return dataVersion > 0 ? dataVersion : StorageMetadataUtil.currentDataVersion();
     }
 }

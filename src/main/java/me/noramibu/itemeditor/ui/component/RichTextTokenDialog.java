@@ -399,11 +399,7 @@ public final class RichTextTokenDialog {
                     objectPickerSize,
                     Math.max(objectPickerSize, UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX))
             );
-            ColorPickerUiUtil.applyPickerSizing(
-                    picker,
-                    objectPickerWidth,
-                    objectPickerSize
-            );
+            picker.sizing(Sizing.fixed(objectPickerWidth), Sizing.fixed(objectPickerSize));
             ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(objectColor.get(), OBJECT_SWATCH_SIZE);
             TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(objectColor.get()), ignored -> errorLabel.text(Component.empty()));
             hexInput.setMaxLength(7);

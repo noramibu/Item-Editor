@@ -50,14 +50,6 @@ public final class AttributeEditorPanel implements EditorPanel {
     private static final int PREVIEW_LINE_MAX_WIDTH = 520;
     private static final int MODIFIER_ID_FIELD_PERCENT = 82;
     private static final int MODIFIER_ID_GENERATE_PERCENT = 16;
-    private static final String SYMBOL_STEP_DECREMENT = "-";
-    private static final String SYMBOL_STEP_INCREMENT = "+";
-    private static final String KEY_EXPAND_ALL = "common.expand_all";
-    private static final String KEY_COLLAPSE_ALL = "common.collapse_all";
-    private static final String ACTION_DUPLICATE = "Duplicate";
-    private static final String ACTION_RESET_THIS = "Reset This";
-    private static final String ACTION_GENERATE = "Generate";
-    private static final String PREVIEW_NO_VISIBLE_CHANGE = "Preview: no visible tooltip change";
 
     private final ItemEditorScreen screen;
 
@@ -108,13 +100,13 @@ public final class AttributeEditorPanel implements EditorPanel {
         );
         intro.child(UiFactory.actionButtonRow(addButton, resetButton));
         if (!state.attributeModifiers.isEmpty()) {
-            Component expandText = ItemEditorText.tr(KEY_EXPAND_ALL);
+            Component expandText = ItemEditorText.tr("common.expand_all");
             ButtonComponent expandAll = this.introActionButton(expandText, UiFactory.ActionTone.NEUTRAL, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = false))
             );
             expandAll.tooltip(List.of(expandText));
 
-            Component collapseText = ItemEditorText.tr(KEY_COLLAPSE_ALL);
+            Component collapseText = ItemEditorText.tr("common.collapse_all");
             ButtonComponent collapseAll = this.introActionButton(collapseText, UiFactory.ActionTone.NEUTRAL, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = true))
             );
@@ -150,7 +142,7 @@ public final class AttributeEditorPanel implements EditorPanel {
             }
 
             ButtonComponent attributeButton = UiFactory.button(
-                    draft.attributeId.isBlank() ? ItemEditorText.str("attributes.modifier.select_attribute") : draft.attributeId, UiFactory.ButtonTextPreset.STANDARD, 
+                    draft.attributeId.isBlank() ? ItemEditorText.str("attributes.modifier.select_attribute") : draft.attributeId, UiFactory.ButtonTextPreset.STANDARD,
                     button -> this.screen.openSearchablePickerDialog(
                             ItemEditorText.str("attributes.modifier.attribute"),
                             "",
@@ -170,13 +162,13 @@ public final class AttributeEditorPanel implements EditorPanel {
                     Component.empty(),
                     UiFactory.textBox(draft.amount, PanelBindings.text(this.screen, value -> draft.amount = value)).horizontalSizing(UiFactory.fixed(AMOUNT_FIELD_WIDTH))
             ));
-            ButtonComponent minusAmount = UiFactory.negativeButton(Component.literal(SYMBOL_STEP_DECREMENT), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent minusAmount = UiFactory.negativeButton(Component.literal("-"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.amount = this.adjustAmount(draft.amount, -1.0))
             );
             int stepButtonWidth = Math.max(AMOUNT_STEP_BUTTON_MIN, UiFactory.scaledPixels(AMOUNT_STEP_BUTTON_BASE));
             minusAmount.horizontalSizing(Sizing.fixed(stepButtonWidth));
             amountRow.child(minusAmount);
-            ButtonComponent plusAmount = UiFactory.positiveButton(Component.literal(SYMBOL_STEP_INCREMENT), UiFactory.ButtonTextPreset.STANDARD,  button ->
+            ButtonComponent plusAmount = UiFactory.positiveButton(Component.literal("+"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     PanelBindings.mutateRefresh(this.screen, () -> draft.amount = this.adjustAmount(draft.amount, 1.0))
             );
             plusAmount.horizontalSizing(Sizing.fixed(stepButtonWidth));
@@ -252,19 +244,24 @@ public final class AttributeEditorPanel implements EditorPanel {
                 PanelBindings.mutateRefresh(this.screen, () -> Collections.swap(state.attributeModifiers, currentIndex, currentIndex + 1))
         );
         downButton.active(currentIndex < state.attributeModifiers.size() - 1);
-        ButtonComponent duplicateButton = UiFactory.button(Component.literal(ACTION_DUPLICATE), UiFactory.ButtonTextPreset.COMPACT, button ->
+        ButtonComponent duplicateButton = UiFactory.button(ItemEditorText.tr("common.duplicate"), UiFactory.ButtonTextPreset.COMPACT, button ->
                 PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.add(currentIndex + 1, this.copyDraft(draft)))
         );
         ButtonComponent resetButton = null;
         if (originalDraft != null) {
-            resetButton = UiFactory.button(Component.literal(ACTION_RESET_THIS), UiFactory.ButtonTextPreset.COMPACT, button ->
+            resetButton = UiFactory.button(Component.literal("Reset This"), UiFactory.ButtonTextPreset.COMPACT, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.set(currentIndex, this.copyDraft(originalDraft)))
             );
         }
-        ButtonComponent removeButton = UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD, button ->
-                PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.remove(currentIndex))
-        );
-        card.child(UiFactory.actionButtonRow(upButton, downButton, duplicateButton, resetButton, removeButton));
+        card.child(UiFactory.actionButtonRow(
+                upButton,
+                downButton,
+                duplicateButton,
+                resetButton,
+                UiFactory.negativeButton(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                        PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.remove(currentIndex))
+                )
+        ));
         return card;
     }
 
@@ -280,7 +277,7 @@ public final class AttributeEditorPanel implements EditorPanel {
         row.child(modifierIdField);
 
         ButtonComponent generateButton = UiFactory.actionToneButton(
-                Component.literal(ACTION_GENERATE),
+                Component.literal("Generate"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.PICKER,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> draft.modifierId = this.generatedModifierId(draft))
@@ -369,7 +366,7 @@ public final class AttributeEditorPanel implements EditorPanel {
                 attribute,
                 modifier
         );
-        return previewLines.isEmpty() ? Component.literal(PREVIEW_NO_VISIBLE_CHANGE) : previewLines.getFirst();
+        return previewLines.isEmpty() ? Component.literal("Preview: no visible tooltip change") : previewLines.getFirst();
     }
 
     private String adjustAmount(String raw, double delta) {
@@ -550,13 +547,12 @@ public final class AttributeEditorPanel implements EditorPanel {
     }
 
     private boolean isCompactLayout() {
-        int contentWidth = this.availableContentWidth();
         var window = Minecraft.getInstance().getWindow();
-        return LayoutModeUtil.isCompactWindowAndContentInclusive(
+        return LayoutModeUtil.isCompactEditorContentInclusive(
                 window.getGuiScale(),
                 window.getGuiScaledWidth(),
+                this.screen.editorContentWidthHint(),
                 COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                contentWidth,
                 COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
         );
     }
@@ -567,9 +563,5 @@ public final class AttributeEditorPanel implements EditorPanel {
             Consumer<ButtonComponent> onPress
     ) {
         return UiFactory.actionRowButton(fullText, UiFactory.ButtonTextPreset.STANDARD, tone, onPress);
-    }
-
-    private int availableContentWidth() {
-        return Math.max(1, this.screen.editorContentWidthHint());
     }
 }

@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public final class ItemEditorState {
@@ -29,13 +30,11 @@ public final class ItemEditorState {
     public String maxDamage = "";
     public String repairCost = "";
     public boolean unbreakable;
-    public boolean glintOverrideEnabled;
-    public boolean glintOverride;
+    public String glintOverride = "";
     public String rarity = "";
     public String itemModelId = "";
     public String customModelFloat = "";
-    public boolean customModelFlagEnabled;
-    public boolean customModelFlag;
+    public String customModelFlags = "";
     public String customModelString = "";
     public String customModelColor = "";
     public final List<String> canBreakBlockIds = new ArrayList<>();
@@ -54,6 +53,7 @@ public final class ItemEditorState {
     public boolean rawEditorEdited;
     public String rawEditorText = "";
     public boolean rawEditorShowDefaults;
+    public boolean rawEditorAutocompleteDisabled;
     public boolean rawEditorWordWrap = true;
     public boolean rawEditorHorizontalScroll;
     public int rawEditorFontSizePercent = 100;
@@ -184,6 +184,13 @@ public final class ItemEditorState {
         public int bundleEditorPage;
         public String lockItemId = "";
         public String lockPredicateSnbt = "";
+        public String lockKeyTemplateSnbt = "";
+        public boolean lockMatchCount;
+        public boolean lockMatchName;
+        public boolean lockMatchLore;
+        public boolean lockMatchEnchantments;
+        public boolean lockMatchCustomData;
+        public boolean lockMatchAllComponents;
         public String containerLootTableId = "";
         public String containerLootSeed = "";
         public final List<BeeOccupantDraft> beesOccupants = new ArrayList<>();
@@ -199,26 +206,29 @@ public final class ItemEditorState {
         public String consumableConsumeSeconds = "";
         public String consumableAnimation = "";
         public String consumableSoundId = "";
-        public boolean consumableHasParticles;
+        public String consumableHasParticles = "";
         public final List<ConsumableEffectDraft> consumableOnConsumeEffects = new ArrayList<>();
         public boolean useEffectsCanSprint;
         public boolean useEffectsInteractVibrations;
         public String useEffectsSpeedMultiplier = "";
         public String useRemainderItemId = "";
         public String useRemainderCount = "";
+        public String useRemainderTemplateSnbt = "";
         public String useCooldownSeconds = "";
         public String useCooldownGroup = "";
         public boolean uiContainerMetadataCollapsed = true;
         public boolean uiCrossbowCollapsed = true;
         public boolean uiMapBasicCollapsed = true;
         public boolean uiMapAdvancedCollapsed = true;
-        public boolean uiEquipmentCombatCollapsed = true;
+        public boolean uiEquippableCollapsed = true;
+        public boolean uiCombatEquipmentCollapsed = true;
         public boolean uiCustomDataCollapsed = true;
         public boolean uiBlockStateCollapsed = true;
         public boolean uiComponentTweaksNamingCollapsed = true;
         public boolean uiComponentTweaksRegistryCollapsed = true;
-        public boolean uiComponentTweaksBlockCollapsed = true;
-        public boolean uiComponentTweaksBehaviorCollapsed = true;
+        public boolean uiCombatDamageResistantCollapsed = true;
+        public boolean uiCombatBlocksAttacksCollapsed = true;
+        public boolean uiCombatBehaviorCollapsed = true;
         public boolean uiDamageResistantTypesCollapsed;
         public boolean uiBlocksAttacksBypassedByTypesCollapsed;
         public final List<ChargedProjectileDraft> chargedProjectiles = new ArrayList<>();
@@ -232,6 +242,8 @@ public final class ItemEditorState {
         public String damageResistantTypeIds = "";
         public boolean allowDamageResistantTagExpansion;
         public String noteBlockSoundId = "";
+        public String providesTrimMaterialId = "";
+        public String providesBannerPatternsTagId = "";
         public String breakSoundId = "";
         public String paintingVariantId = "";
         public String blockStateProperties = "";
@@ -249,7 +261,7 @@ public final class ItemEditorState {
         public final List<ConsumableEffectDraft> deathProtectionEffects = new ArrayList<>();
         public boolean glider;
         public boolean intangibleProjectile;
-        public boolean piercingDealsKnockback;
+        public String piercingDealsKnockback = "";
         public boolean piercingDismounts;
         public String piercingSoundId = "";
         public String piercingHitSoundId = "";
@@ -262,6 +274,8 @@ public final class ItemEditorState {
         public String swingAnimationType = "";
         public String swingAnimationDuration = "";
         public String customDataSnbt = "";
+        public final List<DebugStickStateDraft> debugStickStates = new ArrayList<>();
+        public boolean uiDyeCollapsed = true;
 
         public final SignData sign = new SignData();
 
@@ -321,6 +335,7 @@ public final class ItemEditorState {
         public final List<VillagerTradeDraft> spawnEggVillagerTrades = new ArrayList<>();
 
         public String potionId = "";
+        public String potionDurationScale = "";
         public String potionCustomColor = "";
         public String potionCustomName = "";
         public final List<PotionEffectDraft> potionEffects = new ArrayList<>();
@@ -378,6 +393,10 @@ public final class ItemEditorState {
         public String entityZombieNautilusVariant = "";
 
         public String instrumentId = "";
+        public String instrumentDescription = "";
+        public String instrumentSoundEventId = "";
+        public String instrumentUseDuration = "";
+        public String instrumentRange = "";
         public String jukeboxSongId = "";
 
         public String mapColor = "";
@@ -390,15 +409,16 @@ public final class ItemEditorState {
         public String lodestoneX = "";
         public String lodestoneY = "";
         public String lodestoneZ = "";
+        public String dyeColor = "";
 
         public String equippableSlot = "";
         public String equippableEquipSoundId = "";
         public String equippableShearingSoundId = "";
         public String equippableAssetId = "";
         public String equippableCameraOverlayId = "";
-        public boolean equippableDispensable;
-        public boolean equippableSwappable;
-        public boolean equippableDamageOnHurt;
+        public String equippableDispensable = "";
+        public String equippableSwappable = "";
+        public String equippableDamageOnHurt = "";
         public boolean equippableEquipOnInteract;
         public boolean equippableCanBeSheared;
 
@@ -407,6 +427,7 @@ public final class ItemEditorState {
         public String toolDefaultMiningSpeed = "";
         public String toolDamagePerBlock = "";
         public boolean toolCanDestroyBlocksInCreative;
+        public final List<ToolRuleDraft> toolRules = new ArrayList<>();
         public final List<String> repairableItemIds = new ArrayList<>();
         public String attackRangeMinReach = "";
         public String attackRangeMaxReach = "";
@@ -513,8 +534,8 @@ public final class ItemEditorState {
         public String duration = "200";
         public String amplifier = "0";
         public boolean ambient;
-        public boolean visible = true;
-        public boolean showIcon = true;
+        public String visible = "";
+        public String showIcon = "";
     }
 
     public static final class SuspiciousStewEffectDraft {
@@ -563,6 +584,7 @@ public final class ItemEditorState {
     public static final class ChargedProjectileDraft {
         public String itemId = "";
         public String count = "1";
+        public String templateSnbt = "";
         public boolean uiCollapsed = true;
 
         public static ChargedProjectileDraft fromStack(ItemStack stack) {
@@ -612,6 +634,72 @@ public final class ItemEditorState {
         public String base = "0";
         public String factor = "1";
         public boolean uiCollapsed = true;
+    }
+
+    public static final class ToolRuleDraft {
+        public String blockIds = "";
+        public boolean allowTagExpansion;
+        public String speed = "";
+        public String correctForDrops = "";
+        public boolean uiCollapsed = true;
+
+        public static ToolRuleDraft copy(ToolRuleDraft source) {
+            ToolRuleDraft draft = new ToolRuleDraft();
+            draft.blockIds = source.blockIds;
+            draft.allowTagExpansion = source.allowTagExpansion;
+            draft.speed = source.speed;
+            draft.correctForDrops = source.correctForDrops;
+            draft.uiCollapsed = source.uiCollapsed;
+            return draft;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ToolRuleDraft draft)) {
+                return false;
+            }
+            return this.allowTagExpansion == draft.allowTagExpansion
+                    && Objects.equals(this.blockIds, draft.blockIds)
+                    && Objects.equals(this.speed, draft.speed)
+                    && Objects.equals(this.correctForDrops, draft.correctForDrops);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.blockIds, this.allowTagExpansion, this.speed, this.correctForDrops);
+        }
+    }
+
+    public static final class DebugStickStateDraft {
+        public String blockId = "";
+        public String propertyName = "";
+
+        public static DebugStickStateDraft copy(DebugStickStateDraft source) {
+            DebugStickStateDraft draft = new DebugStickStateDraft();
+            draft.blockId = source.blockId;
+            draft.propertyName = source.propertyName;
+            return draft;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof DebugStickStateDraft draft)) {
+                return false;
+            }
+            return Objects.equals(this.blockId, draft.blockId)
+                    && Objects.equals(this.propertyName, draft.propertyName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.blockId, this.propertyName);
+        }
     }
 
     public static final class MapDecorationDraft {

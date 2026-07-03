@@ -3,11 +3,9 @@ package me.noramibu.itemeditor.service;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -35,9 +33,15 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         CompoundTag blockTag = context.special().commandBlockOriginalTag.copy();
-        this.applyCommandText(blockTag, context.special());
-        this.applyCustomName(blockTag, context.special());
-        this.applyActivation(blockTag, context.special());
+        if (isBlank(context.special().commandBlockCommand)) {
+            blockTag.remove("Command");
+        } else {
+            blockTag.putString("Command", context.special().commandBlockCommand);
+        }
+        NbtTagUtil.setTextComponentKey(blockTag, "CustomName", context.special().commandBlockCustomName);
+        NbtTagUtil.setBooleanKey(blockTag, "auto", context.special().commandBlockAuto);
+        NbtTagUtil.setBooleanKey(blockTag, "powered", context.special().commandBlockPowered);
+        NbtTagUtil.setBooleanKey(blockTag, "conditionMet", context.special().commandBlockConditionMet);
         if (!this.applyRuntimeState(blockTag, context)) {
             return;
         }
@@ -52,34 +56,6 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         );
     }
 
-    private void applyCommandText(CompoundTag blockTag, ItemEditorState.SpecialData special) {
-        String command = rawOrEmpty(special.commandBlockCommand);
-        if (isBlank(command)) {
-            blockTag.remove("Command");
-        } else {
-            blockTag.putString("Command", command);
-        }
-    }
-
-    private void applyCustomName(CompoundTag blockTag, ItemEditorState.SpecialData special) {
-        String customName = rawOrEmpty(special.commandBlockCustomName);
-        if (isBlank(customName)) {
-            blockTag.remove("CustomName");
-            return;
-        }
-        blockTag.store(
-                "CustomName",
-                ComponentSerialization.CODEC,
-                TextComponentUtil.parseMarkup(customName)
-        );
-    }
-
-    private void applyActivation(CompoundTag blockTag, ItemEditorState.SpecialData special) {
-        setDefaultFalseBoolean(blockTag, "auto", special.commandBlockAuto);
-        setDefaultFalseBoolean(blockTag, "powered", special.commandBlockPowered);
-        setDefaultFalseBoolean(blockTag, "conditionMet", special.commandBlockConditionMet);
-    }
-
     private boolean applyRuntimeState(CompoundTag blockTag, SpecialDataApplyContext context) {
         ItemEditorState.SpecialData special = context.special();
         setDefaultTrueBoolean(blockTag, "TrackOutput", special.commandBlockTrackOutput);
@@ -88,7 +64,6 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         if (!putSuccessCount(
                 blockTag,
                 special.commandBlockSuccessCount,
-                ItemEditorText.str("special.command_block.success_count"),
                 context
         )) {
             return false;
@@ -96,22 +71,12 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         if (!putLastExecution(
                 blockTag,
                 special.commandBlockLastExecution,
-                ItemEditorText.str("special.command_block.last_execution"),
                 context
         )) {
             return false;
         }
 
-        String lastOutput = rawOrEmpty(special.commandBlockLastOutput);
-        if (isBlank(lastOutput)) {
-            blockTag.remove("LastOutput");
-        } else {
-            blockTag.store(
-                    "LastOutput",
-                    ComponentSerialization.CODEC,
-                    TextComponentUtil.parseMarkup(lastOutput)
-            );
-        }
+        NbtTagUtil.setTextComponentKey(blockTag, "LastOutput", special.commandBlockLastOutput);
         if (!special.commandBlockTrackOutput) {
             blockTag.remove("LastOutput");
         }
@@ -124,17 +89,15 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
     private boolean putSuccessCount(
             CompoundTag blockTag,
             String raw,
-            String label,
             SpecialDataApplyContext context
     ) {
-        String value = rawOrEmpty(raw);
-        if (isBlank(value)) {
+        if (isBlank(raw)) {
             blockTag.remove("SuccessCount");
             return true;
         }
         Integer parsed = ValidationUtil.parseInt(
-                value,
-                label,
+                raw,
+                ItemEditorText.str("special.command_block.success_count"),
                 0,
                 Integer.MAX_VALUE,
                 context.messages()
@@ -149,16 +112,15 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
     private boolean putLastExecution(
             CompoundTag blockTag,
             String raw,
-            String label,
             SpecialDataApplyContext context
     ) {
-        String value = rawOrEmpty(raw);
-        if (isBlank(value)) {
+        if (isBlank(raw)) {
             blockTag.remove("LastExecution");
             return true;
         }
+        String label = ItemEditorText.str("special.command_block.last_execution");
         try {
-            long parsed = Long.parseLong(value);
+            long parsed = Long.parseLong(raw);
             if (parsed < -1L) {
                 context.messages().add(ValidationMessage.error(ItemEditorText.str(
                         "validation.range",
@@ -228,14 +190,6 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
                 && isBlank(special.commandBlockLastOutput);
     }
 
-    private static void setDefaultFalseBoolean(CompoundTag tag, String key, boolean value) {
-        if (value) {
-            tag.putBoolean(key, true);
-        } else {
-            tag.remove(key);
-        }
-    }
-
     private static void setDefaultTrueBoolean(CompoundTag tag, String key, boolean value) {
         if (value) {
             tag.remove(key);
@@ -245,10 +199,6 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private static boolean isBlank(String raw) {
-        return raw == null || raw.trim().isBlank();
-    }
-
-    private static String rawOrEmpty(String raw) {
-        return raw == null ? "" : raw;
+        return raw == null || raw.isBlank();
     }
 }

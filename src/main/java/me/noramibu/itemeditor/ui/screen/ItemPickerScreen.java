@@ -6,15 +6,12 @@ import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -35,9 +32,6 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int SHELL_MAX_WIDTH = 980;
     private static final int CELL_SIZE = 30;
     private static final int SCROLLBAR_THICKNESS = 8;
@@ -96,7 +90,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
     @Override
     protected void build(StackLayout root) {
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout shell = UiFactory.card();
         shell.horizontalSizing(Sizing.fixed(Math.clamp(this.width - 24, 260, SHELL_MAX_WIDTH)));
@@ -129,14 +123,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         shell.child(this.itemGrid);
         this.refreshGrid();
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(shell);
-        root.child(centered);
+        UiFactory.centerInRoot(root, shell, 8);
     }
 
     private void refreshGrid() {

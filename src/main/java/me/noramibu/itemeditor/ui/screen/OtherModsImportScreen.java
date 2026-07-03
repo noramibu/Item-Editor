@@ -7,17 +7,14 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
-import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.service.ExternalStorageImportService;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageServices;
 import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -27,13 +24,7 @@ import org.jetbrains.annotations.NotNull;
 
 public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
 
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int CARD_WIDTH = 330;
-    private static final int COLOR_MUTED = 0xA9B5C0;
-    private static final int COLOR_GOOD = 0x7ED67A;
-    private static final int COLOR_DANGER = 0xFF8A8A;
 
     private final Minecraft minecraft;
     private final int returnPage;
@@ -77,7 +68,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
     @Override
     protected void build(StackLayout root) {
         root.clearChildren();
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout card = UiFactory.centeredCard(CARD_WIDTH);
         card.child(UiFactory.title(ItemEditorText.tr("storage.import_other_mods.title")));
@@ -106,31 +97,24 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                 UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.openPages())
         ));
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), COLOR_MUTED).maxWidth(UiFactory.scaledPixels(280));
+        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(UiFactory.scaledPixels(280));
         card.child(this.statusLabel);
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(card);
-        root.child(centered);
+        UiFactory.centerInRoot(root, card, 8);
         this.refreshScan();
     }
 
     private void refreshScan() {
-        this.setStatus(ItemEditorText.tr("storage.import_other_mods.scanning"), COLOR_MUTED);
+        this.setStatus(ItemEditorText.tr("storage.import_other_mods.scanning"), UiColors.MUTED);
         this.importService.scan(this.minecraft).whenComplete((result, throwable) -> this.minecraft.execute(() -> {
             if (throwable != null || result == null) {
-                this.setStatus(ItemEditorText.tr("storage.import_other_mods.scan_failed"), COLOR_DANGER);
+                this.setStatus(ItemEditorText.tr("storage.import_other_mods.scan_failed"), UiColors.DANGER);
                 return;
             }
             this.nbtEditorPages = result.nbtEditorPages();
             this.librarianPages = result.librarianPages();
             this.updateSourceLabels();
-            this.setStatus(Component.literal(" "), COLOR_MUTED);
+            this.setStatus(Component.literal(" "), UiColors.MUTED);
         }));
     }
 
@@ -151,11 +135,11 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void importSelected() {
         if (!this.importNbtEditor && !this.importLibrarian) {
-            this.setStatus(ItemEditorText.tr("storage.import_other_mods.none_selected"), COLOR_DANGER);
+            this.setStatus(ItemEditorText.tr("storage.import_other_mods.none_selected"), UiColors.DANGER);
             return;
         }
         this.importRunning = true;
-        this.setStatus(ItemEditorText.tr("storage.import_other_mods.importing"), COLOR_MUTED);
+        this.setStatus(ItemEditorText.tr("storage.import_other_mods.importing"), UiColors.MUTED);
         this.importService
                 .readImports(
                         this.minecraft,
@@ -179,7 +163,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
             this.setStatus(Component.literal(ItemEditorText.str(
                     "storage.import_other_mods.failed",
                     throwable == null ? "unknown error" : throwable.getMessage()
-            )), COLOR_DANGER);
+            )), UiColors.DANGER);
             return;
         }
         this.storage.flushQueuedWrites();
@@ -188,7 +172,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                 result.saved().pages(),
                 result.saved().items(),
                 result.read().warnings().size()
-        )), result.saved().pages() > 0 ? COLOR_GOOD : COLOR_DANGER);
+        )), result.saved().pages() > 0 ? UiColors.SUCCESS : UiColors.DANGER);
     }
 
     private void showReadProgress(ExternalStorageImportService.ProgressUpdate progress) {
@@ -207,7 +191,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                 default -> "Reading " + progress.source() + " page "
                         + progress.current() + "/" + Math.max(1, progress.total());
             };
-            this.setStatus(Component.literal(message), COLOR_MUTED);
+            this.setStatus(Component.literal(message), UiColors.MUTED);
         });
     }
 
@@ -226,7 +210,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                 case "finalize" -> "Finalizing storage index...";
                 default -> "Saving imported page " + progress.current() + "/" + Math.max(1, progress.total());
             };
-            this.setStatus(Component.literal(message), COLOR_MUTED);
+            this.setStatus(Component.literal(message), UiColors.MUTED);
         });
     }
 

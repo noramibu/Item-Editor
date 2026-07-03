@@ -99,7 +99,7 @@ public final class RichTextLayoutUtil {
         int logicalLines = 1;
 
         for (int cursor = 0; cursor < sourceText.length(); ) {
-            int tokenLength = logicalRenderableTokenLength(sourceText, cursor);
+            int tokenLength = TextComponentUtil.renderableTokenLengthAt(sourceText, cursor);
             if (tokenLength > 0) {
                 if (TextComponentUtil.objectTokenLengthAt(sourceText, cursor) > 0) {
                     logicalChars++;
@@ -221,10 +221,6 @@ public final class RichTextLayoutUtil {
         return List.copyOf(ranges);
     }
 
-    private static int logicalRenderableTokenLength(String sourceText, int cursor) {
-        return TextComponentUtil.renderableTokenLengthAt(sourceText, cursor);
-    }
-
     public static List<VisualSpan> selectionVisualSpans(
             String sourceText,
             LineLayout line,
@@ -244,7 +240,7 @@ public final class RichTextLayoutUtil {
 
         List<VisualSpan> spans = new ArrayList<>();
         for (VisualUnit unit : visualUnits(sourceText, line, renderStructuredEvents, renderStructuredObjects)) {
-            if (unit.hidden() || !rangesOverlap(start, end, unit.start(), unit.end())) {
+            if (unit.hidden() || start >= unit.end() || end <= unit.start()) {
                 continue;
             }
             addVisualSpan(spans, unit.startX(), unit.endX());
@@ -554,7 +550,7 @@ public final class RichTextLayoutUtil {
                 }
             }
 
-            index = addRawUnit(sourceText, index, codePointWidthMeasurer, units);
+            index = addMeasuredUnit(sourceText, index, codePointWidthMeasurer, units, 1f, true);
         }
         return units;
     }
@@ -602,15 +598,6 @@ public final class RichTextLayoutUtil {
         );
     }
 
-    private static int addRawUnit(
-            String sourceText,
-            int index,
-            CodePointWidthMeasurer codePointWidthMeasurer,
-            List<Unit> units
-    ) {
-        return addMeasuredUnit(sourceText, index, codePointWidthMeasurer, units, 1f, true);
-    }
-
     private static int addMeasuredUnit(
             String sourceText,
             int index,
@@ -620,10 +607,31 @@ public final class RichTextLayoutUtil {
             boolean allowWrapBreaks
     ) {
         int codePoint = sourceText.codePointAt(index);
-        int next = index + Character.charCount(codePoint);
-        float width = Math.max(0f, codePointWidthMeasurer.width(sourceText, index));
+        int next = visualClusterEnd(sourceText, index);
+        float width = 0f;
+        for (int cursor = index; cursor < next; ) {
+            width += Math.max(0f, codePointWidthMeasurer.width(sourceText, cursor));
+            cursor += Character.charCount(sourceText.codePointAt(cursor));
+        }
         units.add(new Unit(index, next, width * layoutScale, width, allowWrapBreaks && isWrapBreak(codePoint)));
         return next;
+    }
+
+    private static int visualClusterEnd(String sourceText, int index) {
+        int cursor = index + Character.charCount(sourceText.codePointAt(index));
+        while (cursor < sourceText.length()) {
+            int codePoint = sourceText.codePointAt(cursor);
+            int type = Character.getType(codePoint);
+            if (type != Character.NON_SPACING_MARK
+                    && type != Character.COMBINING_SPACING_MARK
+                    && type != Character.ENCLOSING_MARK
+                    && (codePoint < 0xFE00 || codePoint > 0xFE0F)
+                    && (codePoint < 0xE0100 || codePoint > 0xE01EF)) {
+                break;
+            }
+            cursor += Character.charCount(codePoint);
+        }
+        return cursor;
     }
 
     private static SourceRange structuredTokenRange(String sourceText, int index, int end) {
@@ -744,7 +752,7 @@ public final class RichTextLayoutUtil {
         );
     }
 
-    private static Component renderedDocumentComponentForRange(
+    public static Component renderedDocumentComponentForRange(
             RichTextDocument document,
             int start,
             int end,
@@ -967,22 +975,19 @@ public final class RichTextLayoutUtil {
                 }
             }
 
-            int next = cursor + Character.charCount(text.codePointAt(cursor));
+            int codePointLength = Character.charCount(text.codePointAt(cursor));
+            int next = Math.min(visualClusterEnd(text, cursor), lineEnd);
             units.add(new VisualUnit(
                     cursor,
                     next,
                     line.xForPosition(cursor),
                     line.xForPosition(next),
                     false,
-                    false
+                    next > cursor + codePointLength
             ));
             cursor = next;
         }
         return List.copyOf(units);
-    }
-
-    private static boolean rangesOverlap(int firstStart, int firstEnd, int secondStart, int secondEnd) {
-        return firstStart < secondEnd && firstEnd > secondStart;
     }
 
     private static void addVisualSpan(List<VisualSpan> spans, float left, float right) {

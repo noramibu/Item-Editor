@@ -16,7 +16,7 @@ final class SavedChunkCodec {
         String chunkId = root.getStringOr("chunkId", fallbackChunkId);
         Map<Integer, SavedChunkEntry> entries = new HashMap<>();
         for (int slot = 0; slot < StorageConstants.CHUNK_SIZE; slot++) {
-            CompoundTag entryTag = root.getCompoundOrEmpty(slotKey(slot));
+            CompoundTag entryTag = root.getCompoundOrEmpty("slot_" + slot);
             String id = entryTag.getStringOr("id", "");
             if (id.isBlank()) {
                 continue;
@@ -45,7 +45,7 @@ final class SavedChunkCodec {
             entryTag.putLong("savedAt", entry.savedAt());
             entryTag.putLong("updatedAt", entry.updatedAt());
             entryTag.put("item", entry.itemTag().copy());
-            root.put(slotKey(slot), entryTag);
+            root.put("slot_" + slot, entryTag);
         }
         return root;
     }
@@ -77,27 +77,12 @@ final class SavedChunkCodec {
         return signature;
     }
 
-    private static String slotKey(int slot) {
-        return "slot_" + slot;
+    record DecodeKey(int tagHash, String fingerprint) {
     }
 
-    record DecodeKey(
-            int tagHash,
-            String fingerprint
-    ) {
+    record SavedChunkData(String chunkId, Map<Integer, SavedChunkEntry> entries) {
     }
 
-    record SavedChunkData(
-            String chunkId,
-            Map<Integer, SavedChunkEntry> entries
-    ) {
-    }
-
-    record SavedChunkEntry(
-            String id,
-            long savedAt,
-            long updatedAt,
-            CompoundTag itemTag
-    ) {
+    record SavedChunkEntry(String id, long savedAt, long updatedAt, CompoundTag itemTag) {
     }
 }

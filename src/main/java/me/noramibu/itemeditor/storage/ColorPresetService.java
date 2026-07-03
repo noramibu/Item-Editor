@@ -252,10 +252,7 @@ public final class ColorPresetService {
     }
 
     private static Integer parseColor(ColorPresetEntry entry) {
-        if (entry == null) {
-            return null;
-        }
-        return ValidationUtil.tryParseHexColor(entry.value);
+        return entry == null ? null : ValidationUtil.tryParseHexColor(entry.value);
     }
 
     private static List<Integer> parseGradientStops(ColorPresetEntry entry) {
@@ -281,16 +278,10 @@ public final class ColorPresetService {
         return parsedStops;
     }
 
-    private static List<String> hexGradientStops(List<Integer> colors) {
-        return hexRawStops(TextColorPresets.normalizeGradientStops(colors));
-    }
-
-    private static List<String> hexShadowStops(List<Integer> colors) {
-        return hexRawStops(TextColorPresets.normalizeShadowStops(colors));
-    }
-
     private static List<String> hexStops(PresetBucket bucket, List<Integer> colors) {
-        return bucket == PresetBucket.SHADOW ? hexShadowStops(colors) : hexGradientStops(colors);
+        return hexRawStops(bucket == PresetBucket.SHADOW
+                ? TextColorPresets.normalizeShadowStops(colors)
+                : TextColorPresets.normalizeGradientStops(colors));
     }
 
     private static List<String> hexRawStops(List<Integer> colors) {
@@ -375,13 +366,7 @@ public final class ColorPresetService {
             return fallback;
         }
         String trimmed = value.trim();
-        if (trimmed.isEmpty()) {
-            return fallback;
-        }
-        if (trimmed.length() > 64) {
-            return trimmed.substring(0, 64);
-        }
-        return trimmed;
+        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
     }
 
     private ColorsFileModel loadColorsWithStableIds() {
@@ -404,9 +389,5 @@ public final class ColorPresetService {
         return model;
     }
 
-    private enum PresetBucket {
-        COLOR,
-        GRADIENT,
-        SHADOW
-    }
+    private enum PresetBucket { COLOR, GRADIENT, SHADOW }
 }

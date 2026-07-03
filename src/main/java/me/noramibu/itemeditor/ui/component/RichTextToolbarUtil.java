@@ -5,6 +5,7 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextColorPresets;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -20,7 +21,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public final class RichTextToolbarUtil {
-    private static final double FORCED_COMPACT_SCALE_THRESHOLD = 3.0d;
     private static final int TOOLBAR_BUTTON_MAX_WIDTH = 132;
     private static final int TOOLBAR_BUTTON_MIN_WIDTH = 30;
     private static final int TOOLBAR_BUTTON_HEIGHT = 18;
@@ -47,18 +47,7 @@ public final class RichTextToolbarUtil {
             textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
     );
 
-    public static final List<ToolAction> EXTENDED_ACTIONS = List.of(
-            deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
-            deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
-            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
-            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
-            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
-            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
-            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, false),
-            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
-    );
+    public static final List<ToolAction> EXTENDED_ACTIONS = BASIC_ACTIONS;
 
     public static final List<ToolAction> BOOK_METADATA_ACTIONS = List.of(
             formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
@@ -200,6 +189,7 @@ public final class RichTextToolbarUtil {
                                         true,
                                         includeGradient,
                                         true,
+                                        selectedColor.get(),
                                         editor.selectedTextOr("")
                                 ),
                                 result -> applyUnifiedColor(editor, preparation, selectedColor, gradientColors, selectedShadowColor, lastColorResult, result, button)
@@ -357,7 +347,10 @@ public final class RichTextToolbarUtil {
 
     private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {
         double guiScale = screen.session().minecraft().getWindow().getGuiScale();
-        boolean forcedCompact = compactToolbar || guiScale >= FORCED_COMPACT_SCALE_THRESHOLD;
+        boolean forcedCompact = compactToolbar || LayoutModeUtil.isCompactScale(
+                guiScale,
+                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
+        );
         int viewportFallback = (int) Math.round(screen.session().minecraft().getWindow().getGuiScaledWidth() * (forcedCompact ? 0.34d : 0.42d));
         int hintedWidth = toolbarWidthHint > 1
                 ? toolbarWidthHint

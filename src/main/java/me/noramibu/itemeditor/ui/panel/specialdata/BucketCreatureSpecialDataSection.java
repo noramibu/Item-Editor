@@ -6,7 +6,6 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
@@ -42,7 +41,7 @@ public final class BucketCreatureSpecialDataSection {
         ItemStack stack = context.originalStack();
         BucketType bucketType = detectBucketType(stack);
         ItemEditorState.SpecialData special = context.special();
-        boolean compactLayout = LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        boolean compactLayout = context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.bucket.title"), Component.empty());
 

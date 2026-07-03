@@ -27,9 +27,9 @@ public final class ScrollStateUtil {
         if (scroll == null) return;
 
         double clamped = Math.clamp(scrollAmount, 0, max(scroll));
-        setField(scroll, "scrollOffset", clamped);
-        setField(scroll, "currentScrollPosition", clamped);
-        setField(scroll, "lastScrollPosition", -1);
+        setField(scroll, SCROLL_OFFSET_FIELD, clamped);
+        setField(scroll, CURRENT_SCROLL_POSITION_FIELD, clamped);
+        setField(scroll, LAST_SCROLL_POSITION_FIELD, -1);
     }
 
     public static void sync(ScrollContainer<?> scroll) {
@@ -37,7 +37,6 @@ public final class ScrollStateUtil {
     }
 
     private static int max(ScrollContainer<?> scroll) {
-        if (scroll == null) return 0;
         if (MAX_SCROLL_FIELD == null) return 0;
         try {
             return MAX_SCROLL_FIELD.getInt(scroll);
@@ -46,13 +45,7 @@ public final class ScrollStateUtil {
         }
     }
 
-    private static void setField(ScrollContainer<?> scroll, String fieldName, double value) {
-        Field field = switch (fieldName) {
-            case "scrollOffset" -> SCROLL_OFFSET_FIELD;
-            case "currentScrollPosition" -> CURRENT_SCROLL_POSITION_FIELD;
-            case "lastScrollPosition" -> LAST_SCROLL_POSITION_FIELD;
-            default -> null;
-        };
+    private static void setField(ScrollContainer<?> scroll, Field field, double value) {
         if (field == null) {
             return;
         }

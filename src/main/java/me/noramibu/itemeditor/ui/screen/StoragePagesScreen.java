@@ -1,6 +1,7 @@
 package me.noramibu.itemeditor.ui.screen;
 
 import io.wispforest.owo.ui.base.BaseOwoScreen;
+import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -8,12 +9,10 @@ import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
@@ -25,7 +24,9 @@ import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.RichTextTokenDialog;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import me.noramibu.itemeditor.util.TextColorPresets;
@@ -41,23 +42,24 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
-    private static final int ROOT_BLUR_RADIUS = 4;
-    private static final int ROOT_BLUR_QUALITY = 8;
-    private static final int ROOT_SURFACE_TINT = 0x6610151A;
     private static final int SCROLLBAR_THICKNESS = 8;
     private static final int RENAME_EDITOR_HEIGHT = 34;
-    private static final int COLOR_GOOD = 0x7ED67A;
-    private static final int COLOR_MUTED = 0xA9B5C0;
-    private static final int COLOR_DANGER = 0xFF8A8A;
     private static final Surface PAGE_ROW_SURFACE = Surface.flat(0xAA1B222B).and(Surface.outline(0xFF414B56));
     private static final int ACTION_OPEN_WIDTH = 52;
     private static final int ACTION_RENAME_WIDTH = 66;
@@ -65,11 +67,14 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private static final int ACTION_NEW_EMPTY_WIDTH = 138;
     private static final int ACTION_REMOVE_EMPTY_WIDTH = 156;
     private static final int ACTION_IMPORT_OTHER_WIDTH = 166;
+    private static final int ACTION_EXPORT_ALL_JSON_WIDTH = 138;
     private static final int ACTION_BACKUP_WIDTH = 58;
     private static final int ACTION_EXPORT_WIDTH = 62;
     private static final int ACTION_DELETE_WIDTH = 58;
     private static final int ACTION_MOVE_WIDTH = 24;
     private static final String DEFAULT_DISPLAY_PAGE_NAME = "Chest";
+    private static final String EXPORT_ALL_JSON_DIRECTORY = "itemeditor/exports/storage-pages-json";
+    private static final DateTimeFormatter EXPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String SYMBOL_UP = "^";
     private static final String SYMBOL_DOWN = "v";
 
@@ -135,7 +140,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     protected void build(StackLayout root) {
         root.clearChildren();
         this.rootLayout = root;
-        root.surface(Surface.blur(ROOT_BLUR_RADIUS, ROOT_BLUR_QUALITY).and(Surface.flat(ROOT_SURFACE_TINT)));
+        root.surface(MenuBackgroundSurface.standard());
 
         boolean dense = this.denseLayout();
         FlowLayout shell = UiFactory.card();
@@ -168,19 +173,24 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         displayEmpty.tooltip(List.of(ItemEditorText.tr("storage.pages.display_empty")));
         FlowLayout pageTools = compactActionRow();
         pageTools.child(this.headerButton(
-                ItemEditorText.tr("storage.pages.new_empty").copy().withColor(COLOR_GOOD),
+                ItemEditorText.tr("storage.pages.new_empty").copy().withColor(UiColors.SUCCESS),
                 ACTION_NEW_EMPTY_WIDTH,
                 this::createPage
         ));
         pageTools.child(this.headerButton(
-                ItemEditorText.tr("storage.pages.remove_empty").copy().withColor(COLOR_DANGER),
+                ItemEditorText.tr("storage.pages.remove_empty").copy().withColor(UiColors.DANGER),
                 ACTION_REMOVE_EMPTY_WIDTH,
                 this::removeEmptyPages
         ));
         pageTools.child(this.headerButton(
-                ItemEditorText.tr("storage.import_other_mods").copy().withColor(COLOR_GOOD),
+                ItemEditorText.tr("storage.import_other_mods").copy().withColor(UiColors.SUCCESS),
                 ACTION_IMPORT_OTHER_WIDTH,
                 this::openOtherModsImport
+        ));
+        pageTools.child(this.headerButton(
+                ItemEditorText.tr("storage.pages.export_all_json").copy().withColor(UiColors.SUCCESS),
+                ACTION_EXPORT_ALL_JSON_WIDTH,
+                this::exportAllItemsJson
         ));
         if (dense && this.width >= UiFactory.scaledPixels(720)) {
             FlowLayout toolsLine = compactActionRow();
@@ -204,17 +214,10 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         scroll.scrollStep(UiFactory.scaledScrollStep(10));
         shell.child(scroll);
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), 0xA9B5C0).maxWidth(Math.max(100, this.width - 60));
+        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
         shell.child(this.statusLabel);
 
-        FlowLayout centered = UiFactory.column();
-        centered.horizontalSizing(Sizing.fill(100));
-        centered.verticalSizing(Sizing.fill(100));
-        centered.padding(Insets.of(dense ? 3 : 8));
-        centered.horizontalAlignment(HorizontalAlignment.CENTER);
-        centered.verticalAlignment(VerticalAlignment.CENTER);
-        centered.child(shell);
-        root.child(centered);
+        UiFactory.centerInRoot(root, shell, dense ? 3 : 8);
         if (this.activeDialog != null) {
             root.child(this.activeDialog);
         }
@@ -266,7 +269,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         }
 
         if (page.id().equals(this.confirmingDeletePageId)) {
-            row.child(UiFactory.message(ItemEditorText.tr("storage.pages.delete_confirm"), COLOR_DANGER));
+            row.child(UiFactory.message(ItemEditorText.tr("storage.pages.delete_confirm"), UiColors.DANGER));
             row.child(UiFactory.actionButtonRow(
                     UiFactory.negativeButton(ItemEditorText.tr("common.delete"), UiFactory.ButtonTextPreset.STANDARD, button -> this.deletePage(page, true)),
                     UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.updatePageState(this.filter, "", "", "", ""))
@@ -293,10 +296,11 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         return row;
     }
 
-    private io.wispforest.owo.ui.component.ButtonComponent headerButton(Component label, int widthPixels, Runnable action) {
-        float factor = this.denseLayout() && widthPixels <= 80 ? 0.74F : 0.95F;
-        int width = UiFactory.scaledPixels(this.denseLayout() ? Math.max(22, Math.round(widthPixels * factor)) : widthPixels);
-        io.wispforest.owo.ui.component.ButtonComponent button = UiFactory.scaledTextButton(
+    private ButtonComponent headerButton(Component label, int widthPixels, Runnable action) {
+        int width = UiFactory.scaledPixels(this.denseLayout()
+                ? Math.max(22, Math.round(widthPixels * (widthPixels <= 80 ? 0.74F : 0.95F)))
+                : widthPixels);
+        ButtonComponent button = UiFactory.scaledTextButton(
                 UiFactory.fitToWidth(label.copy(), Math.max(8, width - 6)),
                 this.denseLayout() ? 0.70F : 1.0F,
                 this.denseLayout() ? UiFactory.ButtonTextPreset.COMPACT : UiFactory.ButtonTextPreset.STANDARD,
@@ -338,15 +342,15 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void addPrimaryPageButtons(FlowLayout row, SavedItemStorageService.PageInfo page) {
-        row.child(pageActionButton(ItemEditorText.tr("storage.pages.open"), ACTION_OPEN_WIDTH, COLOR_GOOD, true, () -> this.openStoragePage(page.pageNumber())));
-        row.child(pageActionButton(ItemEditorText.tr("storage.pages.rename"), ACTION_RENAME_WIDTH, COLOR_MUTED, true, () -> this.updatePageState(this.filter, page.id(), page.name(), "", "")));
-        row.child(pageActionButton(ItemEditorText.tr("storage.pages.duplicate"), ACTION_DUPLICATE_WIDTH, COLOR_MUTED, !page.placeholderPage(), () -> this.duplicatePage(page)));
+        row.child(pageActionButton(ItemEditorText.tr("storage.pages.open"), ACTION_OPEN_WIDTH, UiColors.SUCCESS, true, () -> this.openStoragePage(page.pageNumber())));
+        row.child(pageActionButton(ItemEditorText.tr("storage.pages.rename"), ACTION_RENAME_WIDTH, UiColors.MUTED, true, () -> this.updatePageState(this.filter, page.id(), page.name(), "", "")));
+        row.child(pageActionButton(ItemEditorText.tr("common.duplicate"), ACTION_DUPLICATE_WIDTH, UiColors.MUTED, !page.placeholderPage(), () -> this.duplicatePage(page)));
     }
 
     private void addSecondaryPageButtons(FlowLayout row, SavedItemStorageService.PageInfo page) {
-        row.child(pageActionButton(ItemEditorText.tr("storage.pages.backup"), ACTION_BACKUP_WIDTH, COLOR_MUTED, true, () -> this.backupPage(page)));
-        row.child(pageActionButton(ItemEditorText.tr("storage.pages.export"), ACTION_EXPORT_WIDTH, COLOR_MUTED, !page.placeholderPage(), () -> this.updatePageState(this.filter, "", "", "", page.id())));
-        row.child(pageActionButton(ItemEditorText.tr("common.delete"), ACTION_DELETE_WIDTH, COLOR_DANGER, true, () -> this.deletePage(page, false)));
+        row.child(pageActionButton(ItemEditorText.tr("storage.pages.backup"), ACTION_BACKUP_WIDTH, UiColors.MUTED, true, () -> this.backupPage(page)));
+        row.child(pageActionButton(ItemEditorText.tr("storage.pages.export"), ACTION_EXPORT_WIDTH, UiColors.MUTED, !page.placeholderPage(), () -> this.updatePageState(this.filter, "", "", "", page.id())));
+        row.child(pageActionButton(ItemEditorText.tr("common.delete"), ACTION_DELETE_WIDTH, UiColors.DANGER, true, () -> this.deletePage(page, false)));
     }
 
     private FlowLayout buildRenameEditor() {
@@ -526,13 +530,13 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         }
     }
 
-    private io.wispforest.owo.ui.component.ButtonComponent smallMoveButton(
+    private ButtonComponent smallMoveButton(
             String label,
             Component tooltip,
             boolean enabled,
             Runnable action
     ) {
-        io.wispforest.owo.ui.component.ButtonComponent button = UiFactory.button(
+        ButtonComponent button = UiFactory.button(
                 Component.literal(label),
                 UiFactory.ButtonTextPreset.TINY,
                 ignored -> action.run()
@@ -561,34 +565,35 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         return UiFactory.scaledPixels(buttons) + (Math.max(1, UiFactory.scaleProfile().tightSpacing()) * 7);
     }
 
-    private io.wispforest.owo.ui.component.ButtonComponent pageActionButton(
+    private ButtonComponent pageActionButton(
             Component label,
             int width,
             int color,
             boolean enabled,
             Runnable action
     ) {
-        int scaledWidth = UiFactory.scaledPixels(width);
-        Component displayLabel = UiFactory.fitToWidth(label.copy().withColor(color), Math.max(8, scaledWidth - 8));
-        io.wispforest.owo.ui.component.ButtonComponent button = UiFactory.scaledTextButton(
-                displayLabel,
+        ButtonComponent button = UiFactory.scaledTextButton(
+                UiFactory.fitToWidth(
+                        label.copy().withColor(color),
+                        Math.max(8, UiFactory.scaledPixels(width) - 8)
+                ),
                 this.denseLayout() ? 0.68F : 1.0F,
                 UiFactory.ButtonTextPreset.TINY,
                 ignored -> action.run()
         );
-        button.horizontalSizing(Sizing.fixed(scaledWidth));
+        button.horizontalSizing(Sizing.fixed(UiFactory.scaledPixels(width)));
         button.verticalSizing(Sizing.fixed(UiFactory.scaledPixels(this.denseLayout() ? 14 : 18)));
         button.tooltip(List.of(label));
         button.active(enabled);
         return button;
     }
 
-    private static io.wispforest.owo.ui.component.ButtonComponent toolButton(
+    private static ButtonComponent toolButton(
             String label,
             Component tooltip,
             Runnable action
     ) {
-        io.wispforest.owo.ui.component.ButtonComponent button = UiFactory.button(
+        ButtonComponent button = UiFactory.button(
                 Component.literal(label),
                 UiFactory.ButtonTextPreset.TINY,
                 ignored -> action.run()
@@ -613,6 +618,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                         true,
                         true,
                         true,
+                        0xFFFFFF,
                         editor.selectedTextOr("")
                 ),
                 result -> {
@@ -684,7 +690,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
     private void createPage() {
         this.visiblePageLimit = Math.max(this.visiblePageLimit, this.storage.nextEmptyPageNumber(this.visiblePageLimit));
-        this.setStatus(Component.literal(ItemEditorText.str("storage.pages.created", this.visiblePageLimit)), COLOR_GOOD);
+        this.setStatus(Component.literal(ItemEditorText.str("storage.pages.created", this.visiblePageLimit)), UiColors.SUCCESS);
         this.refreshPageList();
     }
 
@@ -699,7 +705,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         this.setStatus(Component.literal(ItemEditorText.str(
                 "storage.pages.removed_empty",
                 Math.max(visibleEmptyPages, removedStoredPages)
-        )), COLOR_GOOD);
+        )), UiColors.SUCCESS);
         this.updatePageState(this.filter, "", "", "", "");
     }
 
@@ -707,10 +713,10 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         int copiedPage = this.storage.enqueueDuplicatePage(page.pageNumber()).join();
         this.storage.flushQueuedWrites();
         if (copiedPage < 1) {
-            this.setStatus(ItemEditorText.tr("storage.pages.duplicate_failed"), COLOR_DANGER);
+            this.setStatus(ItemEditorText.tr("storage.pages.duplicate_failed"), UiColors.DANGER);
             return;
         }
-        this.setStatus(Component.literal(ItemEditorText.str("storage.pages.duplicated", copiedPage)), COLOR_GOOD);
+        this.setStatus(Component.literal(ItemEditorText.str("storage.pages.duplicated", copiedPage)), UiColors.SUCCESS);
         this.updatePageState(this.filter, "", "", "", "");
     }
 
@@ -723,7 +729,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private void backupPage(SavedItemStorageService.PageInfo page) {
         this.storage.enqueueBackupPage(page.pageNumber()).whenComplete((backup, throwable) -> this.minecraft.execute(() -> {
             if (throwable != null || backup == null) {
-                this.setStatus(ItemEditorText.tr("storage.pages.backup_failed"), COLOR_DANGER);
+                this.setStatus(ItemEditorText.tr("storage.pages.backup_failed"), UiColors.DANGER);
                 return;
             }
             Path fileName = backup.getFileName();
@@ -732,7 +738,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                             "storage.pages.backed_up",
                             fileName == null ? backup.toString() : fileName.toString()
                     )),
-                    COLOR_GOOD
+                    UiColors.SUCCESS
             );
         }));
     }
@@ -763,11 +769,11 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 .loadSnapshotAsync(page.pageNumber(), "", StorageSortMode.REGULAR, false, this.registryAccess())
                 .whenComplete((snapshot, throwable) -> this.minecraft.execute(() -> {
                     if (throwable != null || snapshot == null) {
-                        this.setStatus(ItemEditorText.tr("storage.pages.export_failed"), 0xFF8A8A);
+                        this.setStatus(ItemEditorText.tr("storage.pages.export_failed"), UiColors.DANGER);
                         return;
                     }
                     int exported = this.giveExportContainers(page, snapshot, shulker);
-                    this.setStatus(Component.literal(ItemEditorText.str("storage.pages.exported", exported)), 0x7ED67A);
+                    this.setStatus(Component.literal(ItemEditorText.str("storage.pages.exported", exported)), UiColors.SUCCESS);
                 }));
     }
 
@@ -776,7 +782,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 .loadSnapshotAsync(page.pageNumber(), "", StorageSortMode.REGULAR, false, this.registryAccess())
                 .whenComplete((snapshot, throwable) -> this.minecraft.execute(() -> {
                     if (throwable != null || snapshot == null) {
-                        this.setStatus(ItemEditorText.tr("storage.pages.export_failed"), COLOR_DANGER);
+                        this.setStatus(ItemEditorText.tr("storage.pages.export_failed"), UiColors.DANGER);
                         return;
                     }
                     RegistryAccess access = this.registryAccess();
@@ -790,9 +796,108 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                         }
                     }
                     this.minecraft.keyboardHandler.setClipboard(String.join("\n", commands));
-                    this.setStatus(Component.literal(ItemEditorText.str("storage.pages.commands_copied", commands.size())), COLOR_GOOD);
+                    this.setStatus(Component.literal(ItemEditorText.str("storage.pages.commands_copied", commands.size())), UiColors.SUCCESS);
                     this.updatePageState(this.filter, "", "", "", "");
                 }));
+    }
+
+    private void exportAllItemsJson() {
+        List<SavedItemStorageService.PageInfo> pages = this.storage.listPages(this.visiblePageLimit).stream()
+                .filter(page -> page.itemCount() > 0)
+                .filter(page -> !page.placeholderPage())
+                .toList();
+        if (pages.isEmpty()) {
+            this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_empty"), UiColors.MUTED);
+            return;
+        }
+
+        this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_started"), UiColors.MUTED);
+        RegistryAccess access = this.registryAccess();
+        Path exportDir = this.minecraft.gameDirectory.toPath()
+                .resolve(EXPORT_ALL_JSON_DIRECTORY)
+                .resolve(EXPORT_TIMESTAMP_FORMAT.format(LocalDateTime.now()));
+        CompletableFuture
+                .supplyAsync(() -> this.exportAllItemsJson(pages, exportDir, access))
+                .whenComplete((count, throwable) -> this.minecraft.execute(() -> {
+                    if (throwable != null || count == null) {
+                        this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_failed"), UiColors.DANGER);
+                        return;
+                    }
+                    this.setStatus(Component.literal(ItemEditorText.str(
+                            "storage.pages.export_all_json_done",
+                            count,
+                            exportDir.toString()
+                    )), UiColors.SUCCESS);
+                }));
+    }
+
+    private int exportAllItemsJson(
+            List<SavedItemStorageService.PageInfo> pages,
+            Path exportDir,
+            RegistryAccess access
+    ) {
+        try {
+            Files.createDirectories(exportDir);
+            int exported = 0;
+            for (SavedItemStorageService.PageInfo page : pages) {
+                SavedItemStorageService.PageSnapshot snapshot = this.storage
+                        .loadSnapshotAsync(page.pageNumber(), "", StorageSortMode.REGULAR, false, access)
+                        .join();
+                exported += this.writePageItemsJson(page, snapshot, exportDir, access);
+            }
+            return exported;
+        } catch (RuntimeException | IOException exception) {
+            throw new IllegalStateException("Storage JSON export failed", exception);
+        }
+    }
+
+    private int writePageItemsJson(
+            SavedItemStorageService.PageInfo page,
+            SavedItemStorageService.PageSnapshot snapshot,
+            Path exportDir,
+            RegistryAccess access
+    ) throws IOException {
+        int exported = 0;
+        Map<String, ItemStack> stacks = snapshot.loadedStacks();
+        for (SavedIndexItemEntry entry : snapshot.result().entries()) {
+            ItemStack stack = stacks.getOrDefault(entry.id, ItemStack.EMPTY).copy();
+            if (stack.isEmpty()) {
+                continue;
+            }
+            String fileName = itemJsonFileName(page, entry, exported);
+            Files.writeString(
+                    exportDir.resolve(fileName),
+                    RawItemDataUtil.serializeJson(stack, access),
+                    StandardCharsets.UTF_8
+            );
+            exported++;
+        }
+        return exported;
+    }
+
+    private static String itemJsonFileName(
+            SavedItemStorageService.PageInfo page,
+            SavedIndexItemEntry entry,
+            int pageExportIndex
+    ) {
+        String itemId = Objects.requireNonNullElse(entry.itemRegistryKey, "item");
+        String baseName = String.format(
+                Locale.ROOT,
+                "page-%03d-slot-%02d-%02d-%s",
+                Math.max(1, page.pageNumber()),
+                Math.max(0, entry.slotInPage) + 1,
+                pageExportIndex + 1,
+                safeFilePart(itemId)
+        );
+        return baseName + ".json";
+    }
+
+    private static String safeFilePart(String value) {
+        String safe = Objects.requireNonNullElse(value, "item")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9._-]+", "-")
+                .replaceAll("^-+|-+$", "");
+        return safe.isBlank() ? "item" : safe;
     }
 
     private int giveExportContainers(
@@ -946,7 +1051,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         Component name = TextComponentUtil.parseMarkup(page.name() == null || page.name().isBlank()
                 ? DEFAULT_DISPLAY_PAGE_NAME
                 : page.name());
-        return Component.literal("#" + page.pageNumber() + " ").withColor(0xA9B5C0).append(name);
+        return Component.literal("#" + page.pageNumber() + " ").withColor(UiColors.MUTED).append(name);
     }
 
     private static String relativeTime(long epochMillis) {

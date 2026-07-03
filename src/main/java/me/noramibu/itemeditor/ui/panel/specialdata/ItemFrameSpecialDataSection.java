@@ -6,7 +6,6 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -137,6 +136,6 @@ public final class ItemFrameSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(context.guiScale(), context.panelWidthHint(), COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 }

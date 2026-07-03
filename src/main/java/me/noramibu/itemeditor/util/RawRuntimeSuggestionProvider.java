@@ -2,11 +2,14 @@ package me.noramibu.itemeditor.util;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Item;
 
@@ -75,60 +78,20 @@ public final class RawRuntimeSuggestionProvider {
     private final Map<String, List<String>> profileCache = new HashMap<>();
     private int registryAccessIdentity = -1;
 
-    public List<String> componentIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.DATA_COMPONENT_TYPE, BuiltInRegistries.DATA_COMPONENT_TYPE);
+    public <T> List<String> registryIds(
+            RegistryAccess registryAccess,
+            ResourceKey<Registry<T>> registryKey,
+            Registry<T> builtinFallback
+    ) {
+        return this.ids(registryAccess, registryKey, builtinFallback);
     }
 
-    public List<String> itemIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.ITEM, BuiltInRegistries.ITEM);
-    }
-
-    public List<String> entityIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.ENTITY_TYPE, BuiltInRegistries.ENTITY_TYPE);
-    }
-
-    public List<String> blockEntityIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.BLOCK_ENTITY_TYPE, BuiltInRegistries.BLOCK_ENTITY_TYPE);
-    }
-
-    public List<String> enchantmentIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.ENCHANTMENT, null);
-    }
-
-    public List<String> effectIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.MOB_EFFECT, BuiltInRegistries.MOB_EFFECT);
-    }
-
-    public List<String> potionIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.POTION, BuiltInRegistries.POTION);
-    }
-
-    public List<String> trimMaterialIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.TRIM_MATERIAL, null);
-    }
-
-    public List<String> trimPatternIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.TRIM_PATTERN, null);
-    }
-
-    public List<String> bannerPatternIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.BANNER_PATTERN, null);
-    }
-
-    public List<String> songIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.JUKEBOX_SONG, null);
-    }
-
-    public List<String> instrumentIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.INSTRUMENT, null);
-    }
-
-    public List<String> attributeIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.ATTRIBUTE, BuiltInRegistries.ATTRIBUTE);
-    }
-
-    public List<String> soundIds(RegistryAccess registryAccess) {
-        return this.ids(registryAccess, Registries.SOUND_EVENT, BuiltInRegistries.SOUND_EVENT);
+    public <T> List<String> registryTagIds(
+            RegistryAccess registryAccess,
+            ResourceKey<Registry<T>> registryKey,
+            Registry<T> builtinFallback
+    ) {
+        return this.tagIds(registryAccess, registryKey, builtinFallback);
     }
 
     public List<String> itemProfiles(String itemId, RegistryAccess registryAccess) {
@@ -168,6 +131,50 @@ public final class RawRuntimeSuggestionProvider {
             List<String> computed = fromRegistryAccess(registryAccess, registryKey);
             if (computed.isEmpty() && builtinFallback != null) {
                 computed = fromBuiltinRegistry(builtinFallback);
+            }
+            this.cache.put(key, computed);
+            return computed;
+        }
+    }
+
+    public List<String> blockStateProperties(String blockId, RegistryAccess registryAccess) {
+        Identifier identifier = Identifier.tryParse(blockId);
+        if (identifier == null) {
+            return List.of();
+        }
+
+        synchronized (this.lock) {
+            this.ensureRegistryIdentity(registryAccess);
+
+            String key = "block-state-properties:" + identifier;
+            List<String> cached = this.cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+
+            List<String> computed = this.computeBlockStateProperties(identifier, registryAccess);
+            this.cache.put(key, computed);
+            return computed;
+        }
+    }
+
+    private <T> List<String> tagIds(
+            RegistryAccess registryAccess,
+            ResourceKey<Registry<T>> registryKey,
+            Registry<T> builtinFallback
+    ) {
+        synchronized (this.lock) {
+            this.ensureRegistryIdentity(registryAccess);
+
+            String key = registryKey + "#tags";
+            List<String> cached = this.cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+
+            List<String> computed = fromRegistryAccessTags(registryAccess, registryKey);
+            if (computed.isEmpty() && builtinFallback != null) {
+                computed = fromRegistryTags(builtinFallback);
             }
             this.cache.put(key, computed);
             return computed;
@@ -280,11 +287,39 @@ public final class RawRuntimeSuggestionProvider {
         if (probe.is(TAG_SKULLS)) {
             profiles.add("heads");
         }
+        if (probe.has(DataComponents.FOOD)) {
+            profiles.add("food_items");
+        }
+        if (probe.isDamageableItem() || probe.has(DataComponents.MAX_DAMAGE)) {
+            profiles.add("durable_items");
+        }
+        if (probe.is(TAG_PICKAXES) || probe.is(TAG_SHOVELS) || probe.is(TAG_HOES) || probe.is(TAG_ENCHANTABLE_MINING)) {
+            profiles.add("tools");
+        }
+        if (probe.is(TAG_SWORDS)
+                || probe.is(TAG_AXES)
+                || probe.is(TAG_ENCHANTABLE_WEAPON)
+                || probe.is(TAG_ENCHANTABLE_MELEE_WEAPON)
+                || probe.is(TAG_ENCHANTABLE_BOW)
+                || probe.is(TAG_ENCHANTABLE_CROSSBOW)
+                || probe.is(TAG_ENCHANTABLE_TRIDENT)) {
+            profiles.add("weapons");
+        }
+        if (probe.is(TAG_ENCHANTABLE_TRIDENT)) {
+            profiles.add("spears");
+        }
+        if ("bucket".equals(path) || path.endsWith("_bucket") || probe.is(TAG_FISHES)) {
+            profiles.add("buckets");
+        }
         if (path.contains("spawner")
                 || pathEqualsAny(path, BLOCK_ENTITY_PATHS)
                 || probe.is(TAG_BANNERS)
                 || probe.is(TAG_SHULKER_BOXES)) {
             profiles.add("block_entity_items");
+            profiles.add("containers");
+        }
+        if (probe.is(TAG_TRIMMABLE_ARMOR)) {
+            profiles.add("trimmable_armor");
         }
 
         if (probe.is(TAG_ENCHANTABLE_WEAPON) || probe.is(TAG_ENCHANTABLE_MELEE_WEAPON)) {
@@ -302,6 +337,31 @@ public final class RawRuntimeSuggestionProvider {
         return List.copyOf(profiles);
     }
 
+    private List<String> computeBlockStateProperties(Identifier blockId, RegistryAccess registryAccess) {
+        Block block = blockById(blockId, registryAccess);
+        if (block == null) {
+            return List.of();
+        }
+
+        return block.defaultBlockState().getProperties().stream()
+                .map(Property::getName)
+                .sorted()
+                .toList();
+    }
+
+    private static Block blockById(Identifier blockId, RegistryAccess registryAccess) {
+        try {
+            Registry<Block> blockRegistry = registryAccess.lookupOrThrow(Registries.BLOCK);
+            var holder = blockRegistry.get(blockId).orElse(null);
+            if (holder != null) {
+                return holder.value();
+            }
+        } catch (RuntimeException ignored) {
+        }
+        var holder = BuiltInRegistries.BLOCK.get(blockId).orElse(null);
+        return holder == null ? null : holder.value();
+    }
+
     private static TagKey<Item> itemTag(String path) {
         Identifier id = Identifier.fromNamespaceAndPath("minecraft", path);
         return TagKey.create(Registries.ITEM, id);
@@ -309,11 +369,10 @@ public final class RawRuntimeSuggestionProvider {
 
     private static <T> List<String> fromRegistryAccess(RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey) {
         try {
-            List<String> ids = registryAccess.lookupOrThrow(registryKey).keySet().stream()
+            return registryAccess.lookupOrThrow(registryKey).keySet().stream()
                     .map(Identifier::toString)
                     .sorted()
                     .toList();
-            return List.copyOf(ids);
         } catch (RuntimeException ignored) {
             return List.of();
         }
@@ -326,6 +385,31 @@ public final class RawRuntimeSuggestionProvider {
         }
         values.sort(String::compareTo);
         return List.copyOf(values);
+    }
+
+    private static <T> List<String> fromRegistryAccessTags(
+            RegistryAccess registryAccess,
+            ResourceKey<Registry<T>> registryKey
+    ) {
+        try {
+            return registryAccess.lookupOrThrow(registryKey).getTags()
+                    .map(named -> "#" + named.key().location())
+                    .sorted()
+                    .toList();
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
+    }
+
+    private static <T> List<String> fromRegistryTags(Registry<T> registry) {
+        try {
+            return registry.getTags()
+                    .map(named -> "#" + named.key().location())
+                    .sorted()
+                    .toList();
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
     }
 
     private static boolean pathEqualsAny(String path, String... values) {

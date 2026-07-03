@@ -3,6 +3,7 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
+import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.network.chat.Component;
@@ -16,7 +17,6 @@ import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 public final class ColorTokenListEditor {
-    private static final double COMPACT_LAYOUT_SCALE_THRESHOLD = 1.35d;
     private static final int INPUT_FIELD_WIDTH = 220;
     private static final int PICK_BUTTON_WIDTH = 92;
     private static final int REMOVE_BUTTON_WIDTH = 84;
@@ -40,7 +40,10 @@ public final class ColorTokenListEditor {
             BiConsumer<Integer, IntConsumer> openColorPicker,
             Function<Integer, Component> chipTooltip
     ) {
-        boolean compactLayout = UiFactory.scaleProfile().scale() >= COMPACT_LAYOUT_SCALE_THRESHOLD;
+        boolean compactLayout = LayoutModeUtil.isCompactScale(
+                UiFactory.scaleProfile().scale(),
+                LayoutModeUtil.DENSE_CONTROL_COMPACT_LAYOUT_SCALE_THRESHOLD
+        );
         FlowLayout field = UiFactory.field(label, helpText, UiFactory.column());
         FlowLayout content = (FlowLayout) field.children().getLast();
         content.clearChildren();
@@ -52,7 +55,7 @@ public final class ColorTokenListEditor {
 
         int selectedColor = firstColorOrDefault(currentRaw, fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD, 
+                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
                 button -> openColorPicker.accept(
                         firstColorOrDefault(currentValueSupplier.get(), fallbackColor),
                         color -> mutateRefresh.accept(() -> setter.accept(appendColor(currentValueSupplier.get(), ValidationUtil.toHex(color))))
@@ -62,7 +65,7 @@ public final class ColorTokenListEditor {
         inputRow.child(pickButton);
 
         ButtonComponent removeButton = UiFactory.button(
-                ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD, 
+                ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD,
                 button -> mutateRefresh.accept(() -> setter.accept(removeLastColor(currentValueSupplier.get())))
         );
         removeButton.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(REMOVE_BUTTON_WIDTH));
@@ -101,7 +104,7 @@ public final class ColorTokenListEditor {
                 chipRow.child(moveRight);
 
                 ButtonComponent chip = UiFactory.button(
-                        Component.literal(ValidationUtil.toHex(displayColor)).withColor(displayColor), UiFactory.ButtonTextPreset.STANDARD, 
+                        Component.literal(ValidationUtil.toHex(displayColor)).withColor(displayColor), UiFactory.ButtonTextPreset.STANDARD,
                         button -> openColorPicker.accept(
                                 displayColor,
                                 color -> mutateRefresh.accept(() -> setter.accept(replaceColorAt(currentValueSupplier.get(), currentIndex, ValidationUtil.toHex(color))))
@@ -141,43 +144,33 @@ public final class ColorTokenListEditor {
     }
 
     public static String appendColor(String raw, String color) {
-        List<String> tokens = splitColorTokens(raw);
-        tokens.add(color);
-        return String.join(", ", tokens);
+        return updateColorTokens(raw, tokens -> tokens.add(color));
     }
 
     public static String removeLastColor(String raw) {
-        List<String> tokens = splitColorTokens(raw);
-        if (!tokens.isEmpty()) {
-            tokens.removeLast();
-        }
-        return String.join(", ", tokens);
+        return updateColorTokens(raw, tokens -> {
+            if (!tokens.isEmpty()) tokens.removeLast();
+        });
     }
 
     public static String removeColorAt(String raw, int index) {
-        List<String> tokens = splitColorTokens(raw);
-        if (index >= 0 && index < tokens.size()) {
-            tokens.remove(index);
-        }
-        return String.join(", ", tokens);
+        return updateColorTokens(raw, tokens -> {
+            if (index >= 0 && index < tokens.size()) tokens.remove(index);
+        });
     }
 
     public static String replaceColorAt(String raw, int index, String replacement) {
-        List<String> tokens = splitColorTokens(raw);
-        if (index >= 0 && index < tokens.size()) {
-            tokens.set(index, replacement);
-        }
-        return String.join(", ", tokens);
+        return updateColorTokens(raw, tokens -> {
+            if (index >= 0 && index < tokens.size()) tokens.set(index, replacement);
+        });
     }
 
     public static String moveColorToken(String raw, int fromIndex, int toIndex) {
-        List<String> tokens = splitColorTokens(raw);
-        if (fromIndex < 0 || fromIndex >= tokens.size() || toIndex < 0 || toIndex >= tokens.size()) {
-            return String.join(", ", tokens);
-        }
-        String moved = tokens.remove(fromIndex);
-        tokens.add(toIndex, moved);
-        return String.join(", ", tokens);
+        return updateColorTokens(raw, tokens -> {
+            if (fromIndex >= 0 && fromIndex < tokens.size() && toIndex >= 0 && toIndex < tokens.size()) {
+                tokens.add(toIndex, tokens.remove(fromIndex));
+            }
+        });
     }
 
     public static List<String> splitColorTokens(String raw) {
@@ -198,5 +191,11 @@ public final class ColorTokenListEditor {
     private static Sizing resolveBoundedButtonSizing(int baseWidth) {
         int scaled = UiFactory.scaledPixels(baseWidth);
         return Sizing.fixed(Math.clamp(scaled, MIN_BUTTON_WIDTH, MAX_BUTTON_WIDTH));
+    }
+
+    private static String updateColorTokens(String raw, Consumer<List<String>> update) {
+        List<String> tokens = splitColorTokens(raw);
+        update.accept(tokens);
+        return String.join(", ", tokens);
     }
 }

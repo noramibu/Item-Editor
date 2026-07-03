@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.util;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,38 +12,23 @@ public final class RawAutocompleteIndex {
 
     private final String text;
     private final boolean[] insideStringAt;
-    private final boolean[] inRootObjectAt;
-    private final boolean[] inComponentsObjectAt;
     private final int[] lastKeyRefAt;
-    private final int[] containerKeyRefAt;
-    private final int[] containerPathRefAt;
     private final List<String> keyTable;
-    private final List<String> pathTable;
     private final List<String> seenKeys;
     private final Map<String, List<String>> seenKeysByContainer;
 
     private RawAutocompleteIndex(
             String text,
             boolean[] insideStringAt,
-            boolean[] inRootObjectAt,
-            boolean[] inComponentsObjectAt,
             int[] lastKeyRefAt,
-            int[] containerKeyRefAt,
-            int[] containerPathRefAt,
             List<String> keyTable,
-            List<String> pathTable,
             List<String> seenKeys,
             Map<String, List<String>> seenKeysByContainer
     ) {
         this.text = text;
         this.insideStringAt = insideStringAt;
-        this.inRootObjectAt = inRootObjectAt;
-        this.inComponentsObjectAt = inComponentsObjectAt;
         this.lastKeyRefAt = lastKeyRefAt;
-        this.containerKeyRefAt = containerKeyRefAt;
-        this.containerPathRefAt = containerPathRefAt;
         this.keyTable = keyTable;
-        this.pathTable = pathTable;
         this.seenKeys = seenKeys;
         this.seenKeysByContainer = seenKeysByContainer;
     }
@@ -53,17 +37,9 @@ public final class RawAutocompleteIndex {
         String text = rawText == null ? "" : rawText;
         int length = text.length();
         boolean[] insideStringAt = new boolean[length + 1];
-        boolean[] inRootObjectAt = new boolean[length + 1];
-        boolean[] inComponentsObjectAt = new boolean[length + 1];
         int[] lastKeyRefAt = new int[length + 1];
-        int[] containerKeyRefAt = new int[length + 1];
-        int[] containerPathRefAt = new int[length + 1];
         List<String> keyTable = new ArrayList<>();
         keyTable.add("");
-        List<String> pathTable = new ArrayList<>();
-        pathTable.add("");
-        Map<String, Integer> pathRefByPath = new HashMap<>();
-        pathRefByPath.put("", 0);
         Set<String> seen = new LinkedHashSet<>();
         Map<String, Set<String>> seenByContainer = new LinkedHashMap<>();
         List<Frame> stack = new ArrayList<>();
@@ -75,13 +51,8 @@ public final class RawAutocompleteIndex {
         boolean escaping = false;
 
         for (int index = 0; index <= length; index++) {
-            Frame top = top(stack);
             insideStringAt[index] = inString;
-            inRootObjectAt[index] = top != null && top.object && stack.size() == 1;
-            inComponentsObjectAt[index] = top != null && top.object && "components".equals(resolveKey(keyTable, top.parentKeyRef));
             lastKeyRefAt[index] = lastKeyRef;
-            containerKeyRefAt[index] = top == null ? 0 : top.parentKeyRef;
-            containerPathRefAt[index] = internPath(pathTable, pathRefByPath, stackPath(stack, keyTable));
 
             if (index == length) {
                 break;
@@ -171,13 +142,8 @@ public final class RawAutocompleteIndex {
         return new RawAutocompleteIndex(
                 text,
                 insideStringAt,
-                inRootObjectAt,
-                inComponentsObjectAt,
                 lastKeyRefAt,
-                containerKeyRefAt,
-                containerPathRefAt,
                 keyTable,
-                pathTable,
                 List.copyOf(seen),
                 Map.copyOf(finalizedSeenByContainer)
         );
@@ -214,40 +180,8 @@ public final class RawAutocompleteIndex {
                 safeEnd,
                 insertedLength
         );
-        boolean[] inRootObjectAt = spliceBooleanArray(
-                previous.inRootObjectAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
-        boolean[] inComponentsObjectAt = spliceBooleanArray(
-                previous.inComponentsObjectAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
         int[] lastKeyRefAt = spliceIntArray(
                 previous.lastKeyRefAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
-        int[] containerKeyRefAt = spliceIntArray(
-                previous.containerKeyRefAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
-        int[] containerPathRefAt = spliceIntArray(
-                previous.containerPathRefAt,
                 oldLength,
                 newLength,
                 safeStart,
@@ -258,13 +192,8 @@ public final class RawAutocompleteIndex {
         return new RawAutocompleteIndex(
                 text,
                 insideStringAt,
-                inRootObjectAt,
-                inComponentsObjectAt,
                 lastKeyRefAt,
-                containerKeyRefAt,
-                containerPathRefAt,
                 previous.keyTable,
-                previous.pathTable,
                 previous.seenKeys,
                 previous.seenKeysByContainer
         );
@@ -280,16 +209,6 @@ public final class RawAutocompleteIndex {
 
     public String lastObjectKeyAt(int cursor) {
         return resolveKey(this.keyTable, this.lastKeyRefAt[clamp(cursor)]);
-    }
-
-    public Context contextAt(int cursor) {
-        int position = clamp(cursor);
-        return new Context(
-                this.inRootObjectAt[position],
-                this.inComponentsObjectAt[position],
-                resolveKey(this.keyTable, this.containerKeyRefAt[position]),
-                resolvePath(this.pathTable, this.containerPathRefAt[position])
-        );
     }
 
     public List<String> seenKeys() {
@@ -356,7 +275,7 @@ public final class RawAutocompleteIndex {
             Map<String, Set<String>> seenByContainer,
             int currentLastKeyRef
     ) {
-        if (token != ':') {
+        if (pendingRef == 0 || token != ':') {
             return currentLastKeyRef;
         }
         Frame frame = top(stack);
@@ -369,29 +288,6 @@ public final class RawAutocompleteIndex {
         return pendingRef;
     }
 
-    private static int flushPendingRef(
-            int pendingRef,
-            char token,
-            List<Frame> stack,
-            List<String> keyTable,
-            Set<String> seen,
-            Map<String, Set<String>> seenByContainer,
-            int currentLastKeyRef
-    ) {
-        if (pendingRef == 0) {
-            return currentLastKeyRef;
-        }
-        return consumePendingRef(
-                pendingRef,
-                token,
-                stack,
-                keyTable,
-                seen,
-                seenByContainer,
-                currentLastKeyRef
-        );
-    }
-
     private static int flushPendingRefs(
             int firstPendingRef,
             int secondPendingRef,
@@ -402,7 +298,7 @@ public final class RawAutocompleteIndex {
             Map<String, Set<String>> seenByContainer,
             int currentLastKeyRef
     ) {
-        int lastKeyRef = flushPendingRef(
+        int lastKeyRef = consumePendingRef(
                 firstPendingRef,
                 token,
                 stack,
@@ -411,7 +307,7 @@ public final class RawAutocompleteIndex {
                 seenByContainer,
                 currentLastKeyRef
         );
-        return flushPendingRef(
+        return consumePendingRef(
                 secondPendingRef,
                 token,
                 stack,
@@ -427,45 +323,6 @@ public final class RawAutocompleteIndex {
             return;
         }
         seenByContainer.computeIfAbsent(containerKey, ignored -> new LinkedHashSet<>()).add(keyName);
-    }
-
-    private static int internPath(List<String> pathTable, Map<String, Integer> pathRefByPath, String path) {
-        Integer existing = pathRefByPath.get(path);
-        if (existing != null) {
-            return existing;
-        }
-        int ref = pathTable.size();
-        pathTable.add(path);
-        pathRefByPath.put(path, ref);
-        return ref;
-    }
-
-    private static String resolvePath(List<String> pathTable, int pathRef) {
-        if (pathRef <= 0 || pathRef >= pathTable.size()) {
-            return "";
-        }
-        return pathTable.get(pathRef);
-    }
-
-    private static String stackPath(List<Frame> stack, List<String> keyTable) {
-        if (stack.isEmpty()) {
-            return "";
-        }
-        StringBuilder path = new StringBuilder();
-        for (Frame frame : stack) {
-            if (frame.parentKeyRef <= 0) {
-                continue;
-            }
-            String key = resolveKey(keyTable, frame.parentKeyRef);
-            if (key.isBlank()) {
-                continue;
-            }
-            if (!path.isEmpty()) {
-                path.append('/');
-            }
-            path.append(key.toLowerCase(Locale.ROOT));
-        }
-        return path.toString();
     }
 
     private static String normalizeContainerKey(String containerKey) {
@@ -559,7 +416,13 @@ public final class RawAutocompleteIndex {
         return target;
     }
 
-    public record Context(boolean inRootObject, boolean inComponentsObject, String containerKey, String containerPath) {
+    public record Context(
+            boolean inObject,
+            boolean inRootObject,
+            boolean inComponentsObject,
+            String containerKey,
+            String containerPath
+    ) {
     }
 
     private static final class Frame {

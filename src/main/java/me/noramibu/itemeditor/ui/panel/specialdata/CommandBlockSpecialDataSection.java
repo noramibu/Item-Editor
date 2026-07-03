@@ -8,7 +8,6 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -135,7 +134,7 @@ public final class CommandBlockSpecialDataSection {
         field.child(UiFactory.title(ItemEditorText.tr("special.command_block.command")).shadow(false));
         field.child(UiFactory.muted(
                 ItemEditorText.tr("special.command_block.command_hint"),
-                hintWidth(context)
+                Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(HINT_WIDTH_RESERVE))
         ));
         field.child(UiFactory.textArea(
                 special.commandBlockCommand,
@@ -288,15 +287,7 @@ public final class CommandBlockSpecialDataSection {
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
-        return LayoutModeUtil.isCompactPanel(
-                context.guiScale(),
-                context.panelWidthHint(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD
-        );
-    }
-
-    private static int hintWidth(SpecialDataPanelContext context) {
-        return Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(HINT_WIDTH_RESERVE));
+        return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
     private static void addPackedRows(FlowLayout parent, int perRow, UIComponent... components) {

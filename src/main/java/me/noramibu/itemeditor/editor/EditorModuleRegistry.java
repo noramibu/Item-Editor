@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.editor;
 
 import me.noramibu.itemeditor.ui.panel.AttributeEditorPanel;
 import me.noramibu.itemeditor.ui.panel.BookEditorPanel;
+import me.noramibu.itemeditor.ui.panel.CombatEditorPanel;
 import me.noramibu.itemeditor.ui.panel.ComponentsEditorPanel;
 import me.noramibu.itemeditor.ui.panel.DisplayEditorPanel;
 import me.noramibu.itemeditor.ui.panel.EnchantmentEditorPanel;
@@ -21,6 +22,7 @@ public final class EditorModuleRegistry {
             new EditorModule(EditorCategory.DISPLAY, session -> true, DisplayEditorPanel::new),
             new EditorModule(EditorCategory.ATTRIBUTES, session -> true, AttributeEditorPanel::new),
             new EditorModule(EditorCategory.ENCHANTMENTS, session -> true, EnchantmentEditorPanel::new),
+            new EditorModule(EditorCategory.COMBAT, session -> true, CombatEditorPanel::new),
             new EditorModule(EditorCategory.FLAGS, session -> true, FlagsEditorPanel::new),
             new EditorModule(EditorCategory.BOOK, session -> ItemEditorCapabilities.supportsBook(session.originalStack()), BookEditorPanel::new),
             new EditorModule(EditorCategory.RAW_EDITOR, session -> true, RawEditorPanel::new),

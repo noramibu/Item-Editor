@@ -4,6 +4,7 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
+import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
@@ -91,6 +92,7 @@ public final class SearchablePickerDialog {
         int maxLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, lineTextWidth));
         FlowLayout results = UiFactory.column();
         results.gap(RESULTS_GAP);
+        results.padding(Insets.bottom(controlHeight + UiFactory.scaledPixels(RESULTS_GAP)));
 
         InputSafeScrollContainer<FlowLayout> modalScroll = InputSafeScrollContainer.vertical(
                 Sizing.fill(100),
@@ -124,6 +126,7 @@ public final class SearchablePickerDialog {
                 matches++;
                 Component fitted = UiFactory.fitToWidth(Component.literal(label), maxLabelWidth);
                 var button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD,  component -> onSelect.accept(value));
+                button.setMessage(fitted);
                 button.horizontalSizing(Sizing.fill(100));
                 if (!label.equals(rawValue) || !fitted.getString().equals(label)) {
                     button.tooltip(List.of(Component.literal(label), Component.literal(rawValue)));

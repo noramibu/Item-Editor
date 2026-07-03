@@ -297,6 +297,12 @@ public final class RawEditorLayout {
 
     private int lineIndexForOffset(int offset) {
         int target = Math.clamp(offset, 0, this.text.length());
+        if (target > 0) {
+            int exactLineStart = Arrays.binarySearch(this.lineStarts, target);
+            if (exactLineStart >= 0) {
+                return exactLineStart;
+            }
+        }
         int low = 0;
         int high = this.lineStarts.length - 1;
         while (low <= high) {

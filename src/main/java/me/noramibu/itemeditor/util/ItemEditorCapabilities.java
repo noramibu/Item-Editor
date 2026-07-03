@@ -1,13 +1,15 @@
 package me.noramibu.itemeditor.util;
 
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BannerItem;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SignItem;
@@ -26,7 +28,7 @@ import java.util.Locale;
 public final class ItemEditorCapabilities {
 
     private static final RawRuntimeSuggestionProvider RUNTIME_SUGGESTIONS = new RawRuntimeSuggestionProvider();
-    private static final RawAutocompleteSchema AUTOCOMPLETE_SCHEMA = RawAutocompleteSchema.load();
+    private static final Identifier DYE_COMPONENT_ID = Identifier.tryParse("minecraft:dye");
 
     private ItemEditorCapabilities() {
     }
@@ -51,6 +53,16 @@ public final class ItemEditorCapabilities {
 
     public static boolean supportsBundleData(ItemStack stack) {
         return stack.has(DataComponents.BUNDLE_CONTENTS) || stack.is(Items.BUNDLE);
+    }
+
+    public static boolean supportsDebugStickData(ItemStack stack) {
+        return stack.has(DataComponents.DEBUG_STICK_STATE) || stack.is(Items.DEBUG_STICK);
+    }
+
+    public static boolean supportsDyeData(ItemStack stack) {
+        var dyeComponentType = BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(DYE_COMPONENT_ID).orElse(null);
+        return stack.getItem() instanceof DyeItem
+                || (dyeComponentType != null && stack.has(dyeComponentType));
     }
 
     public static boolean supportsSignData(ItemStack stack) {
@@ -151,25 +163,13 @@ public final class ItemEditorCapabilities {
             case BANNER -> ItemEditorText.tr("category.special_data.banner.title");
             case PROFILE -> ItemEditorText.tr("category.special_data.profile.title");
             case INSTRUMENT -> ItemEditorText.tr("category.special_data.instrument.title");
+            case DEBUG_STICK -> ItemEditorText.tr("category.special_data.debug_stick.title");
             default -> ItemEditorText.tr("category.special_data.title");
         };
     }
 
     public static boolean supportsSpecialData(ItemStack stack) {
         return detectSpecialDataFocus(stack) != SpecialDataFocus.GENERAL;
-    }
-
-    public static boolean supportsAnyComponent(ItemStack stack, RegistryAccess registryAccess, String... componentIds) {
-        if (componentIds == null) {
-            return false;
-        }
-
-        for (String componentId : componentIds) {
-            if (supportsComponent(stack, registryAccess, componentId)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public static boolean supportsComponent(ItemStack stack, RegistryAccess registryAccess, String componentId) {
@@ -188,7 +188,7 @@ public final class ItemEditorCapabilities {
             return true;
         }
 
-        List<String> allowed = allowedComponents(stack, registryAccess);
+        List<String> allowed = allowedComponents(registryAccess);
         if (allowed.isEmpty()) {
             return true;
         }
@@ -225,6 +225,9 @@ public final class ItemEditorCapabilities {
         }
         if (supportsBundleData(stack)) {
             return SpecialDataFocus.BUNDLE;
+        }
+        if (supportsDebugStickData(stack)) {
+            return SpecialDataFocus.DEBUG_STICK;
         }
         if (supportsSignData(stack)) {
             return SpecialDataFocus.SIGN;
@@ -270,6 +273,7 @@ public final class ItemEditorCapabilities {
 
     private static boolean isPotionRelated(ItemStack stack) {
         return stack.has(DataComponents.POTION_CONTENTS)
+                || stack.has(DataComponents.POTION_DURATION_SCALE)
                 || stack.has(DataComponents.SUSPICIOUS_STEW_EFFECTS)
                 || stack.is(Items.POTION)
                 || stack.is(Items.SPLASH_POTION)
@@ -294,11 +298,7 @@ public final class ItemEditorCapabilities {
     }
 
     private static boolean isInstrumentRelated(ItemStack stack) {
-        return stack.has(DataComponents.INSTRUMENT)
-                || stack.has(DataComponents.JUKEBOX_PLAYABLE)
-                || stack.is(Items.GOAT_HORN)
-                || stack.is(Items.JUKEBOX)
-                || isMusicDisc(stack);
+        return stack.has(DataComponents.INSTRUMENT) || stack.is(Items.GOAT_HORN);
     }
 
     private static boolean isProfileRelated(ItemStack stack) {
@@ -311,16 +311,13 @@ public final class ItemEditorCapabilities {
         return path.endsWith("_head");
     }
 
-    private static boolean isMusicDisc(ItemStack stack) {
-        var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return id.getPath().startsWith("music_disc_");
-    }
-
-    private static List<String> allowedComponents(ItemStack stack, RegistryAccess registryAccess) {
+    private static List<String> allowedComponents(RegistryAccess registryAccess) {
         RegistryAccess effectiveRegistryAccess = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        List<String> profiles = RUNTIME_SUGGESTIONS.itemProfiles(itemId, effectiveRegistryAccess);
-        return AUTOCOMPLETE_SCHEMA.componentsForProfiles(profiles);
+        return RUNTIME_SUGGESTIONS.registryIds(
+                effectiveRegistryAccess,
+                Registries.DATA_COMPONENT_TYPE,
+                BuiltInRegistries.DATA_COMPONENT_TYPE
+        );
     }
 
     private static String normalizeComponentId(String componentId) {
@@ -338,6 +335,7 @@ public final class ItemEditorCapabilities {
         GENERAL,
         CONTAINER,
         BUNDLE,
+        DEBUG_STICK,
         SIGN,
         COMMAND_BLOCK,
         SPAWNER,
