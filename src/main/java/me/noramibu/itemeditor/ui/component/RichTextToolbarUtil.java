@@ -5,7 +5,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextColorPresets;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -251,7 +250,7 @@ public final class RichTextToolbarUtil {
         int minWidth = toolbarButtonMinWidth(maxRowWidth);
         int maxButtonWidth = Math.max(minWidth, maxRowWidth - spacing);
         int buttonWidth = Math.clamp(toolbarButtonWidth(button, maxRowWidth), minWidth, maxButtonWidth);
-        fitToolbarButtonLabel(button, buttonWidth, maxRowWidth);
+        preserveToolbarButtonLabel(button);
         button.horizontalSizing(Sizing.fixed(buttonWidth));
         return new ToolbarItem(button, buttonWidth + spacing);
     }
@@ -340,23 +339,17 @@ public final class RichTextToolbarUtil {
     }
 
     private static Component toolbarShadowGradientLabel(List<Integer> colors) {
-        return Component.literal(ItemEditorText.str("toolbar.color"))
+        return ItemEditorText.tr("toolbar.color").copy()
                 .withColor(0xFFFFFF)
                 .withStyle(style -> style.withShadowColor((TextColorPresets.normalizeGradientStops(colors).getFirst() & 0xFFFFFF) | 0xFF000000));
     }
 
     private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {
-        double guiScale = screen.session().minecraft().getWindow().getGuiScale();
-        boolean forcedCompact = compactToolbar || LayoutModeUtil.isCompactScale(
-                guiScale,
-                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-        );
-        int viewportFallback = (int) Math.round(screen.session().minecraft().getWindow().getGuiScaledWidth() * (forcedCompact ? 0.34d : 0.42d));
+        boolean forcedCompact = compactToolbar;
         int hintedWidth = toolbarWidthHint > 1
                 ? toolbarWidthHint
                 : Math.max(1, screen.editorContentWidthHint());
-        int fallbackWidth = Math.max(TOOLBAR_CONTENT_WIDTH_MIN, viewportFallback);
-        int contentWidth = hintedWidth > 1 ? hintedWidth : fallbackWidth;
+        int contentWidth = Math.max(TOOLBAR_CONTENT_WIDTH_MIN, hintedWidth);
         int sideInsets = UiFactory.scaledPixels(forcedCompact ? 10 : 14);
         int safety = UiFactory.scaledPixels(forcedCompact ? 12 : 18);
         int preferredMin = forcedCompact ? 160 : 200;
@@ -378,15 +371,9 @@ public final class RichTextToolbarUtil {
         return fitted;
     }
 
-    private static void fitToolbarButtonLabel(ButtonComponent button, int buttonWidth, int maxRowWidth) {
+    private static void preserveToolbarButtonLabel(ButtonComponent button) {
         Component message = button.getMessage();
-        int chromePadding = toolbarButtonChromePadding(maxRowWidth);
-        int textBudget = Math.max(10, buttonWidth - chromePadding);
-        Component fitted = UiFactory.fitToWidth(message, textBudget);
-        button.setMessage(fitted);
-        if (!fitted.getString().equals(message.getString())) {
-            button.tooltip(List.of(message));
-        }
+        button.tooltip(List.of(message));
     }
 
     private static int toolbarButtonHeight(int maxRowWidth) {

@@ -21,7 +21,7 @@ import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpawnerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpawnEggSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.StewSpecialDataSection;
-import net.minecraft.network.chat.Component;
+import me.noramibu.itemeditor.util.ItemEditorText;
 
 import java.util.function.Supplier;
 
@@ -58,7 +58,7 @@ public final class SpecialDataEditorPanel implements EditorPanel {
         if (this.addIf(root, SpawnerSpecialDataSection.supports(stack), () -> SpawnerSpecialDataSection.build(this.context))) sectionCount++;
 
         if (sectionCount == 0) {
-            root.child(UiFactory.muted(Component.literal("No special data editors available for this item."), this.context.panelWidthHint()));
+            root.child(UiFactory.muted(ItemEditorText.tr("special.empty"), this.context.panelWidthHint()));
         }
 
         return root;

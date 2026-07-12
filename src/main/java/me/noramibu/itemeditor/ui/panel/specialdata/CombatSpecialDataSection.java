@@ -114,7 +114,7 @@ public final class CombatSpecialDataSection {
         ItemEditorState.SpecialData special = context.special();
         return collapsibleCard(
                 context,
-                ItemEditorText.tr("special.advanced.combat.title"),
+                ItemEditorText.tr("common.equipment"),
                 special.uiCombatEquipmentCollapsed,
                 value -> special.uiCombatEquipmentCollapsed = value,
                 () -> {

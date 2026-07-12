@@ -31,14 +31,17 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +51,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public final class SavedItemStorageService {
@@ -271,6 +275,216 @@ public final class SavedItemStorageService {
             }
             return pages;
         });
+    }
+
+    public CompletableFuture<PageInfo> enqueueCreatePage(String name) {
+        String targetName = name == null ? "" : name.trim();
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.ensurePersistentPageByNumber(
+                    this.indexCache,
+                    this.maxStoredPage(this.indexCache) + 1
+            );
+            long now = System.currentTimeMillis();
+            page.name = targetName;
+            page.namePlain = targetName.isBlank() ? "" : TextComponentUtil.parseMarkup(targetName).getString();
+            page.createdAt = now;
+            page.updatedAt = now;
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+            return this.pageInfo(this.indexCache, page, false);
+        }));
+    }
+
+    public CompletableFuture<ItemStack> loadItemAtAsync(
+            String pageId,
+            int slotInPage,
+            RegistryAccess registryAccess
+    ) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        if (targetPageId.isBlank() || !isValidSlot(slotInPage)) {
+            return CompletableFuture.completedFuture(ItemStack.EMPTY);
+        }
+        RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        return CompletableFuture.supplyAsync(() -> {
+            this.ensureIndexLoaded();
+            SavedIndexItemEntry entry = this.withIndexRead(() -> {
+                SavedIndexItemEntry found = this.findEntryAtSlot(this.indexCache.items, targetPageId, slotInPage);
+                return found == null ? null : copy(found);
+            });
+            if (entry == null) {
+                return ItemStack.EMPTY;
+            }
+            return this.loadItems(List.of(entry), access).getOrDefault(entry.id, ItemStack.EMPTY).copy();
+        }, this.readExecutor);
+    }
+
+    public CompletableFuture<Boolean> enqueueAddItem(
+            String pageId,
+            int slotInPage,
+            ItemStack stack,
+            RegistryAccess registryAccess
+    ) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        ItemStack targetStack = stack == null ? ItemStack.EMPTY : stack.copy();
+        if (targetPageId.isBlank() || !isValidSlot(slotInPage) || targetStack.isEmpty()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageById(this.indexCache, targetPageId);
+            if (page == null || this.findEntryAtSlot(this.indexCache.items, targetPageId, slotInPage) != null) {
+                return false;
+            }
+            this.applySlotMutations(
+                    page.order + 1,
+                    List.of(new SlotMutation(slotInPage, null, targetStack)),
+                    access
+            );
+            this.flushIndexNow();
+            return true;
+        }));
+    }
+
+    /**
+     * Atomically stores an item in the page's first empty slot.
+     * An empty result means the page is missing; {@code -1} means it is full.
+     */
+    public CompletableFuture<OptionalInt> enqueueAddToFirstEmptySlot(
+            String pageId,
+            ItemStack stack,
+            RegistryAccess registryAccess
+    ) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        ItemStack targetStack = stack == null ? ItemStack.EMPTY : stack.copy();
+        if (targetPageId.isBlank() || targetStack.isEmpty()) {
+            return CompletableFuture.completedFuture(OptionalInt.empty());
+        }
+        RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageById(this.indexCache, targetPageId);
+            if (page == null) {
+                return OptionalInt.empty();
+            }
+            int slot = this.occupiedSlots(targetPageId).nextClearBit(0);
+            if (!isValidSlot(slot)) {
+                return OptionalInt.of(-1);
+            }
+            this.applySlotMutations(
+                    page.order + 1,
+                    List.of(new SlotMutation(slot, null, targetStack)),
+                    access
+            );
+            this.flushIndexNow();
+            return OptionalInt.of(slot);
+        }));
+    }
+
+    public CompletableFuture<Boolean> enqueueDeletePage(String pageId) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        if (targetPageId.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageById(this.indexCache, targetPageId);
+            if (page == null) {
+                return false;
+            }
+            int targetOrder = page.order;
+            if (!this.isPlaceholderPage(this.indexCache, page)) {
+                List<String> removedIds = this.indexCache.items.stream()
+                        .filter(entry -> entry != null && page.id.equals(entry.pageId))
+                        .map(entry -> entry.id)
+                        .toList();
+                this.indexCache.items.removeIf(entry -> entry != null && page.id.equals(entry.pageId));
+                this.withItemCacheWrite(() -> removedIds.forEach(this.itemCache::remove));
+                this.withChunkWrite(() -> this.writeChunk(
+                        new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())
+                ));
+            }
+            this.indexCache.pages.removeIf(candidate -> candidate != null && page.id.equals(candidate.id));
+            for (SavedPageEntry candidate : this.indexCache.pages) {
+                if (candidate != null && candidate.order > targetOrder) {
+                    candidate.order--;
+                }
+            }
+            this.syncPageMetadata(this.indexCache);
+            this.rebuildPageStats(this.indexCache.items);
+            this.markIndexDirty();
+            this.flushIndexNow();
+            this.runtimeCaches.invalidateHotPageCache();
+            return true;
+        }));
+    }
+
+    public CompletableFuture<Integer> firstEmptySlotAsync(String pageId) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        if (targetPageId.isBlank()) {
+            return CompletableFuture.completedFuture(-1);
+        }
+        return CompletableFuture.supplyAsync(() -> {
+            this.ensureIndexLoaded();
+            return this.withIndexRead(() -> {
+                int pageIndex = pageIndexById(this.indexCache, targetPageId);
+                if (pageIndex < 0) {
+                    return -1;
+                }
+                SavedPageEntry page = this.indexCache.pages.get(pageIndex);
+                BitSet occupied = this.occupiedSlots(targetPageId);
+                for (Map.Entry<Integer, SlotMutation> pending
+                        : this.pendingMutationsForPage(page.order + 1).entrySet()) {
+                    if (pending.getValue().targetStack().isEmpty()) {
+                        occupied.clear(pending.getKey());
+                    } else {
+                        occupied.set(pending.getKey());
+                    }
+                }
+                int slot = occupied.nextClearBit(0);
+                return slot < StorageConstants.PAGE_SIZE ? slot : -1;
+            });
+        }, this.readExecutor);
+    }
+
+    public CompletableFuture<Optional<PageSummary>> findPageByNumberAsync(int pageNumber) {
+        if (pageNumber < 1) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return this.findPageAsync(page -> page.order + 1 == pageNumber);
+    }
+
+    public CompletableFuture<Optional<PageSummary>> findPageByIdAsync(String pageId) {
+        String targetPageId = pageId == null ? "" : pageId.trim();
+        if (targetPageId.isBlank()) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return this.findPageAsync(page -> targetPageId.equals(page.id));
+    }
+
+    public CompletableFuture<List<PageSummary>> searchPagesAsync(String query) {
+        String normalized = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        return CompletableFuture.supplyAsync(() -> {
+            this.ensureIndexLoaded();
+            return this.withIndexRead(() -> {
+                List<PageSummary> matches = new ArrayList<>();
+                for (SavedPageEntry page : this.indexCache.pages) {
+                    if (page == null) {
+                        continue;
+                    }
+                    String searchable = (page.name + " " + page.namePlain)
+                            .toLowerCase(Locale.ROOT);
+                    if (normalized.isBlank() || searchable.contains(normalized)) {
+                        matches.add(this.pageSummary(page));
+                    }
+                }
+                return List.copyOf(matches);
+            });
+        }, this.readExecutor);
     }
 
     public void enqueueRenamePage(String pageId, int pageNumber, String name) {
@@ -785,7 +999,7 @@ public final class SavedItemStorageService {
     private PageResult pagedResult(List<SavedIndexItemEntry> entries, int requestedPage, boolean searchMode) {
         int total = entries.size();
         int maxPage = Math.max(1, (int) Math.ceil(total / (double) StorageConstants.PAGE_SIZE));
-        int page = Math.min(Math.max(1, requestedPage), maxPage);
+        int page = Math.clamp(requestedPage, 1, maxPage);
         int from = Math.min(total, (page - 1) * StorageConstants.PAGE_SIZE);
         int to = Math.min(total, from + StorageConstants.PAGE_SIZE);
         List<SavedIndexItemEntry> pageEntries = new ArrayList<>();
@@ -799,6 +1013,20 @@ public final class SavedItemStorageService {
 
     private static int clampSlot(int slotInPage) {
         return Math.clamp(slotInPage, 0, StorageConstants.PAGE_SIZE - 1);
+    }
+
+    private static boolean isValidSlot(int slotInPage) {
+        return slotInPage >= 0 && slotInPage < StorageConstants.PAGE_SIZE;
+    }
+
+    private BitSet occupiedSlots(String pageId) {
+        BitSet occupied = new BitSet(StorageConstants.PAGE_SIZE);
+        for (SavedIndexItemEntry entry : this.indexCache.items) {
+            if (entry != null && pageId.equals(entry.pageId) && isValidSlot(entry.slotInPage)) {
+                occupied.set(entry.slotInPage);
+            }
+        }
+        return occupied;
     }
 
     private PageSnapshot loadSnapshot(
@@ -2134,6 +2362,30 @@ public final class SavedItemStorageService {
         return CHUNK_PREFIX + Math.max(0, index);
     }
 
+    private CompletableFuture<Optional<PageSummary>> findPageAsync(Predicate<SavedPageEntry> predicate) {
+        return CompletableFuture.supplyAsync(() -> {
+            this.ensureIndexLoaded();
+            return this.withIndexRead(() -> {
+                for (SavedPageEntry page : this.indexCache.pages) {
+                    if (page != null && predicate.test(page)) {
+                        return Optional.of(this.pageSummary(page));
+                    }
+                }
+                return Optional.empty();
+            });
+        }, this.readExecutor);
+    }
+
+    private PageSummary pageSummary(SavedPageEntry page) {
+        return new PageSummary(
+                page.id,
+                page.order + 1,
+                page.name,
+                page.namePlain,
+                this.pageOccupancy.getOrDefault(page.order + 1, 0)
+        );
+    }
+
     public record PageResult(
             List<SavedIndexItemEntry> entries,
             int currentPage,
@@ -2163,6 +2415,9 @@ public final class SavedItemStorageService {
             boolean virtualPage,
             boolean placeholderPage
     ) {
+    }
+
+    public record PageSummary(String id, int pageNumber, String name, String namePlain, int itemCount) {
     }
 
     public record PageSnapshot(PageResult result, Map<String, ItemStack> loadedStacks, PageStats stats) {
@@ -2276,6 +2531,21 @@ public final class SavedItemStorageService {
                     })
                     .thenRunAsync(task, this.writeExecutor);
         }
+    }
+
+    private <T> CompletableFuture<T> enqueueWriteResult(Supplier<T> task) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        this.enqueueWrite(() -> {
+            try {
+                result.complete(task.get());
+            } catch (Throwable throwable) {
+                result.completeExceptionally(throwable);
+                throw throwable instanceof CompletionException completion
+                        ? completion
+                        : new CompletionException(throwable);
+            }
+        });
+        return result;
     }
 
     private static Throwable unwrapCompletion(Throwable throwable) {

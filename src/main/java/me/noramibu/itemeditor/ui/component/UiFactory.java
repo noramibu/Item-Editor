@@ -40,7 +40,6 @@ public final class UiFactory {
     private static final int FIELD_TEXT_MAX = 300;
     private static final int BODY_TEXT_MIN = 130;
     private static final int BODY_TEXT_MAX = 320;
-    private static final int CHECKBOX_VIEWPORT_TEXT_WIDTH_MIN = 120;
     private static final float BUTTON_TEXT_MIN_SCALE = 0.95F;
     private static final float BUTTON_TEXT_MAX_SCALE = 1.55F;
     private static final String BLANK_TEXT = " ";
@@ -48,7 +47,6 @@ public final class UiFactory {
     private static final String SYMBOL_SECTION_EXPANDED = "-";
     private static final int REMOVE_ACTION_WIDTH_MIN = 88;
     private static final int REMOVE_ACTION_WIDTH_BASE = 108;
-    private static final int ACTION_ROW_STACK_WIDTH_THRESHOLD = 360;
     private static final int ACTION_POSITIVE_COLOR = 0x78D982;
     private static final int ACTION_NEGATIVE_COLOR = 0xFF8A8A;
     private static final int ACTION_PICKER_COLOR = UiColors.PICKER;
@@ -292,7 +290,8 @@ public final class UiFactory {
             ActionTone tone,
             Consumer<ButtonComponent> onPress
     ) {
-        ButtonComponent button = UIComponents.button(tintedActionText(text, tone), onPress);
+        ButtonComponent button = new ScrollingButtonComponent(tintedActionText(text, tone), onPress);
+        button.tooltip(List.of(text));
         int controlHeight = Math.max(
                 scaleProfile().controlHeight(),
                 scaledPixels(preset.buttonPreset.minHeight)
@@ -307,30 +306,33 @@ public final class UiFactory {
     }
 
     public static FlowLayout actionButtonRow(boolean stackWhenNarrow, ButtonComponent... buttons) {
-        boolean stack = stackWhenNarrow && shouldStackActionButtonRow();
-        FlowLayout row = stack ? column() : row();
-        row.gap(Math.max(1, scaleProfile().tightSpacing()));
-        if (buttons == null) {
-            return row;
+        List<ButtonComponent> present = buttons == null
+                ? List.of()
+                : java.util.Arrays.stream(buttons).filter(java.util.Objects::nonNull).toList();
+        if (present.isEmpty()) {
+            return row();
         }
-        int buttonCount = 0;
-        for (ButtonComponent button : buttons) {
-            if (button != null) {
-                buttonCount++;
-            }
+        return new PackedActionLayout(
+                present,
+                Math.max(1, scaleProfile().tightSpacing()),
+                !stackWhenNarrow,
+                true
+        );
+    }
+
+    public static FlowLayout packedActionButtonRow(ButtonComponent... buttons) {
+        List<ButtonComponent> present = buttons == null
+                ? List.of()
+                : java.util.Arrays.stream(buttons).filter(java.util.Objects::nonNull).toList();
+        if (present.isEmpty()) {
+            return row();
         }
-        int buttonWidth = 100;
-        if (!stack && buttonCount > 1) {
-            buttonWidth = Math.max(1, (100 - buttonCount) / buttonCount);
-        }
-        for (ButtonComponent button : buttons) {
-            if (button == null) {
-                continue;
-            }
-            button.horizontalSizing(Sizing.fill(buttonWidth));
-            row.child(button);
-        }
-        return row;
+        return new PackedActionLayout(
+                present,
+                Math.max(1, scaleProfile().tightSpacing()),
+                false,
+                false
+        );
     }
 
     public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
@@ -557,18 +559,11 @@ public final class UiFactory {
     }
 
     public static CheckboxComponent checkbox(Component text, boolean checked, Consumer<Boolean> onChanged) {
-        Component displayText = text;
-        if (text != null && !text.getString().isBlank()) {
-            int viewportBound = Math.max(CHECKBOX_VIEWPORT_TEXT_WIDTH_MIN, guiScaledWidth() / 4);
-            int maxTextWidth = Math.clamp(viewportBound, 80, Math.max(80, responsiveBodyTextWidth()));
-            displayText = fitToWidth(text, maxTextWidth);
-        }
-
-        CheckboxComponent checkbox = UIComponents.checkbox(displayText);
+        CheckboxComponent checkbox = UIComponents.checkbox(text);
         checkbox.verticalSizing(Sizing.fixed(scaleProfile().controlHeight()));
         checkbox.checked(checked);
         checkbox.onChanged(onChanged);
-        if (text != null && !text.getString().isBlank() && !displayText.getString().equals(text.getString())) {
+        if (!text.getString().isBlank()) {
             checkbox.tooltip(List.of(text));
         }
         return checkbox;
@@ -609,12 +604,16 @@ public final class UiFactory {
         return Math.clamp(profile.bodyTextWidth(), BODY_TEXT_MIN, BODY_TEXT_MAX + 200);
     }
 
-    public static int responsiveSquareSize(double widthRatio, double heightRatio, int min, int max) {
-        Minecraft minecraft = Minecraft.getInstance();
-        int scaledWidth = minecraft.getWindow().getGuiScaledWidth();
-        int scaledHeight = minecraft.getWindow().getGuiScaledHeight();
-        int widthBased = (int) Math.round(scaledWidth * widthRatio);
-        int heightBased = (int) Math.round(scaledHeight * heightRatio);
+    public static int responsiveSquareSize(
+            int availableWidth,
+            int availableHeight,
+            double widthRatio,
+            double heightRatio,
+            int min,
+            int max
+    ) {
+        int widthBased = (int) Math.round(availableWidth * widthRatio);
+        int heightBased = (int) Math.round(availableHeight * heightRatio);
         int responsive = Math.min(widthBased, heightBased);
         return Math.clamp(responsive, min, max);
     }
@@ -624,10 +623,7 @@ public final class UiFactory {
     }
 
     public static int scaledPixels(int basePixels) {
-        if (basePixels <= 0) {
-            return 0;
-        }
-        return Math.max(1, (int) Math.round(basePixels * scaleProfile().scale()));
+        return Math.max(0, basePixels);
     }
 
     public static Sizing fixed(int basePixels) {
@@ -734,33 +730,41 @@ public final class UiFactory {
         return ActionTone.NEUTRAL;
     }
 
-    private static boolean shouldStackActionButtonRow() {
-        return Minecraft.getInstance().getWindow().getGuiScaledWidth() < ACTION_ROW_STACK_WIDTH_THRESHOLD;
-    }
-
     private static ButtonComponent createAdaptiveButton(Component text, float preferredScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {
         Component safeText = text == null ? Component.empty() : text;
         int horizontalPadding = Math.max(8, scaledPixels(preset.horizontalPadding));
         int minWidth = Math.max(16, scaledPixels(preset.minWidth));
-        int viewportBound = Math.max(minWidth, (int) Math.round(guiScaledWidth() * 0.28d));
-        int maxWidth = Math.clamp(viewportBound, minWidth, Math.max(minWidth, scaledPixels(320)));
         float normalizedScale = Math.clamp(preferredScale, BUTTON_TEXT_MIN_SCALE, BUTTON_TEXT_MAX_SCALE);
         int adaptivePadding = horizontalPadding + (normalizedScale > 1.10F ? scaledPixels(2) : 0);
-        String fullLabel = safeText.getString();
-        int fittedTextBudget = Math.max(8, maxWidth - adaptivePadding);
-        Component displayText = fitToWidth(safeText, fittedTextBudget);
-        ButtonComponent button = UIComponents.button(displayText, onPress);
-        int renderedTextWidth = Math.max(1, Minecraft.getInstance().font.width(displayText.getString()));
-        button.horizontalSizing(Sizing.fixed(
-                Math.clamp(renderedTextWidth + adaptivePadding, minWidth, maxWidth)
-        ));
+        ButtonComponent button = new ScrollingButtonComponent(safeText, onPress);
+        if (!safeText.getString().isBlank()) {
+            button.tooltip(List.of(safeText));
+        }
+        int renderedTextWidth = Math.max(1, Minecraft.getInstance().font.width(safeText));
+        button.horizontalSizing(Sizing.fixed(Math.max(minWidth, renderedTextWidth + adaptivePadding)));
         int controlHeight = Math.max(scaleProfile().controlHeight(), scaledPixels(preset.minHeight));
         button.verticalSizing(Sizing.fixed(controlHeight));
         applyButtonPreset(button, preset);
-        if (!displayText.getString().equals(fullLabel)) {
-            button.tooltip(List.of(safeText));
-        }
         return button;
+    }
+
+    public static ButtonComponent fixedWidthButton(
+            Component text,
+            ButtonTextPreset preset,
+            int width,
+            Consumer<ButtonComponent> onPress
+    ) {
+        ButtonComponent button = button(text, preset, onPress);
+        applyFixedButtonLabel(button, text, width);
+        return button;
+    }
+
+    public static void applyFixedButtonLabel(ButtonComponent button, Component text, int width) {
+        button.setMessage(text);
+        button.horizontalSizing(Sizing.fixed(Math.max(1, width)));
+        if (!text.getString().isBlank()) {
+            button.tooltip(List.of(text));
+        }
     }
 
     private static LabelComponent styledText(Component text, TextPreset preset) {
@@ -808,10 +812,6 @@ public final class UiFactory {
             return Component.literal(BLANK_TEXT);
         }
         return text;
-    }
-
-    private static int guiScaledWidth() {
-        return Minecraft.getInstance().getWindow().getGuiScaledWidth();
     }
 
 }

@@ -5,7 +5,6 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
-import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
@@ -45,8 +44,6 @@ public final class MiscSpecialDataSections {
     private static final int PROFILE_ACTION_BUTTON_WIDTH_MIN = 86;
     private static final int PROFILE_ACTION_BUTTON_WIDTH_MAX = 168;
     private static final int PROFILE_ACTION_BUTTON_ROW_RESERVE = 12;
-    private static final int PROFILE_ACTION_BUTTON_TEXT_MIN = 20;
-    private static final int PROFILE_ACTION_BUTTON_TEXT_RESERVE = 10;
     private static final int PROFILE_IDENTITY_ROW_RESERVE = 12;
     private static final int INSTRUMENT_PICK_BUTTON_WIDTH = 84;
     private static final int INSTRUMENT_NUMBER_FIELD_WIDTH = 150;
@@ -224,12 +221,10 @@ public final class MiscSpecialDataSections {
                 PROFILE_ACTION_BUTTON_WIDTH_MAX
         ), 1, Math.max(1, contentWidth));
         Component useLocalSkinText = ItemEditorText.tr("special.misc.profile.use_local_skin");
-        var useLocalSkinButton = ButtonFitUtil.fixedWidthFittedButton(
+        var useLocalSkinButton = UiFactory.fixedWidthButton(
                 useLocalSkinText,
                 UiFactory.ButtonTextPreset.STANDARD,
                 profileActionButtonWidth,
-                PROFILE_ACTION_BUTTON_TEXT_MIN,
-                PROFILE_ACTION_BUTTON_TEXT_RESERVE,
                 button -> {
                     var player = context.screen().session().minecraft().player;
                     if (player == null) {
@@ -252,12 +247,10 @@ public final class MiscSpecialDataSections {
         actions.child(useLocalSkinButton);
 
         Component clearSkinText = ItemEditorText.tr("special.misc.profile.clear_skin");
-        var clearSkinButton = ButtonFitUtil.fixedWidthFittedButton(
+        var clearSkinButton = UiFactory.fixedWidthButton(
                 clearSkinText,
                 UiFactory.ButtonTextPreset.STANDARD,
                 profileActionButtonWidth,
-                PROFILE_ACTION_BUTTON_TEXT_MIN,
-                PROFILE_ACTION_BUTTON_TEXT_RESERVE,
                 button -> context.mutateRefresh(() -> {
                     special.profileTextureValue = "";
                     special.profileTextureSignature = "";
@@ -432,7 +425,7 @@ public final class MiscSpecialDataSections {
             setter.accept(!collapsed);
             context.screen().refreshCurrentPanel();
         });
-        int toggleWidth = LayoutModeUtil.collapseToggleWidth(COLLAPSE_TOGGLE_WIDTH_MIN, COLLAPSE_TOGGLE_WIDTH_BASE);
+        int toggleWidth = Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, COLLAPSE_TOGGLE_WIDTH_BASE);
         toggle.horizontalSizing(Sizing.fixed(toggleWidth));
         header.child(toggle);
         card.child(header);

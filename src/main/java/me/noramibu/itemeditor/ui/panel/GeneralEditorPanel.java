@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public final class GeneralEditorPanel implements EditorPanel {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 760;
     private static final int STACK_COLUMNS_WIDTH_THRESHOLD = 720;
     private static final int STACK_ROW_MARGIN_TOP = 2;
@@ -79,7 +78,10 @@ public final class GeneralEditorPanel implements EditorPanel {
         ItemEditorState state = this.screen.session().state();
         ItemStack stack = this.screen.session().originalStack();
         RegistryAccess registryAccess = this.screen.session().registryAccess();
-        boolean compactLayout = this.useCompactLayout();
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(
+                this.availableContentWidth(),
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
         boolean supportsDurability = ItemEditorCapabilities.supportsDurability(stack);
         boolean supportsRepairCost = ItemEditorCapabilities.supportsRepairCost(stack);
         boolean supportsCanBreak = ItemEditorCapabilities.supportsComponent(stack, registryAccess, "minecraft:can_break");
@@ -148,14 +150,8 @@ public final class GeneralEditorPanel implements EditorPanel {
                 ? Integer.toString(defaultMaxStackSize)
                 : state.special.maxStackSize;
 
-        double guiScale = this.screen.session().minecraft().getWindow().getGuiScale();
-        int scaledWidth = this.screen.session().minecraft().getWindow().getGuiScaledWidth();
-        boolean compactScale = LayoutModeUtil.isCompactScale(
-                guiScale,
-                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-        );
         boolean stackAsColumns = compactLayout
-                && (scaledWidth < STACK_COLUMNS_WIDTH_THRESHOLD || compactScale);
+                && this.availableContentWidth() < STACK_COLUMNS_WIDTH_THRESHOLD;
         FlowLayout stackRow = stackAsColumns ? UiFactory.column() : UiFactory.row();
         stackRow.gap(Math.max(2, UiFactory.scaleProfile().tightSpacing()));
         stackRow.margins(Insets.top(STACK_ROW_MARGIN_TOP));
@@ -181,12 +177,11 @@ public final class GeneralEditorPanel implements EditorPanel {
                 true
         );
 
-        if (!stackAsColumns) {
-            stackCountField.horizontalSizing(Sizing.expand(100));
-            maxStackField.horizontalSizing(Sizing.expand(100));
-        }
         stackRow.child(stackCountField);
         stackRow.child(maxStackField);
+        if (!stackAsColumns) {
+            this.distributeRowChildren(stackRow);
+        }
         identity.child(stackRow);
 
         var rarityButton = UiFactory.button(state.rarity, UiFactory.ButtonTextPreset.STANDARD,  button -> this.screen.openDropdown(
@@ -608,23 +603,14 @@ public final class GeneralEditorPanel implements EditorPanel {
         );
     }
 
-    private boolean useCompactLayout() {
-        var window = this.screen.session().minecraft().getWindow();
-        return LayoutModeUtil.isCompactWindowAndContent(
-                window.getGuiScale(),
-                window.getGuiScaledWidth(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                this.availableContentWidth(),
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
-    }
-
     private void distributeRowChildren(FlowLayout row) {
-        if (row.children().size() <= 1) {
+        int childCount = row.children().size();
+        if (childCount <= 1) {
             return;
         }
+        int childWidth = Math.max(1, (100 - childCount) / childCount);
         for (UIComponent child : row.children()) {
-            child.horizontalSizing(Sizing.expand(100));
+            child.horizontalSizing(Sizing.fill(childWidth));
         }
     }
 

@@ -120,16 +120,16 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void updateSourceLabels() {
         if (this.nbtEditorLabel != null) {
-            this.nbtEditorLabel.text(Component.literal(ItemEditorText.str(
+            this.nbtEditorLabel.text(ItemEditorText.tr(
                     "storage.import_other_mods.source_count",
                     this.nbtEditorPages
-            )));
+            ));
         }
         if (this.librarianLabel != null) {
-            this.librarianLabel.text(Component.literal(ItemEditorText.str(
+            this.librarianLabel.text(ItemEditorText.tr(
                     "storage.import_other_mods.source_count",
                     this.librarianPages
-            )));
+            ));
         }
     }
 
@@ -160,19 +160,19 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
     private void handleImportResult(ImportUiResult result, Throwable throwable) {
         this.importRunning = false;
         if (throwable != null || result == null) {
-            this.setStatus(Component.literal(ItemEditorText.str(
+            this.setStatus(ItemEditorText.tr(
                     "storage.import_other_mods.failed",
-                    throwable == null ? "unknown error" : throwable.getMessage()
-            )), UiColors.DANGER);
+                    throwable == null ? ItemEditorText.str("raw.unknown_error") : throwable.getMessage()
+            ), UiColors.DANGER);
             return;
         }
         this.storage.flushQueuedWrites();
-        this.setStatus(Component.literal(ItemEditorText.str(
+        this.setStatus(ItemEditorText.tr(
                 "storage.import_other_mods.imported",
                 result.saved().pages(),
                 result.saved().items(),
                 result.read().warnings().size()
-        )), result.saved().pages() > 0 ? UiColors.SUCCESS : UiColors.DANGER);
+        ), result.saved().pages() > 0 ? UiColors.SUCCESS : UiColors.DANGER);
     }
 
     private void showReadProgress(ExternalStorageImportService.ProgressUpdate progress) {

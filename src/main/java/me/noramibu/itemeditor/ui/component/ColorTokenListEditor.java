@@ -3,7 +3,6 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.network.chat.Component;
@@ -36,14 +35,14 @@ public final class ColorTokenListEditor {
             Supplier<String> currentValueSupplier,
             Consumer<String> setter,
             int fallbackColor,
+            int availableWidth,
             Consumer<Runnable> mutateRefresh,
             BiConsumer<Integer, IntConsumer> openColorPicker,
             Function<Integer, Component> chipTooltip
     ) {
-        boolean compactLayout = LayoutModeUtil.isCompactScale(
-                UiFactory.scaleProfile().scale(),
-                LayoutModeUtil.DENSE_CONTROL_COMPACT_LAYOUT_SCALE_THRESHOLD
-        );
+        int rowGap = Math.max(1, UiFactory.scaleProfile().spacing());
+        int requiredInlineWidth = INPUT_FIELD_WIDTH + PICK_BUTTON_WIDTH + REMOVE_BUTTON_WIDTH + (rowGap * 2);
+        boolean compactLayout = availableWidth < UiFactory.scaledPixels(requiredInlineWidth);
         FlowLayout field = UiFactory.field(label, helpText, UiFactory.column());
         FlowLayout content = (FlowLayout) field.children().getLast();
         content.clearChildren();
@@ -55,7 +54,7 @@ public final class ColorTokenListEditor {
 
         int selectedColor = firstColorOrDefault(currentRaw, fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
+                ItemEditorText.tr("common.pick").copy().withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
                 button -> openColorPicker.accept(
                         firstColorOrDefault(currentValueSupplier.get(), fallbackColor),
                         color -> mutateRefresh.accept(() -> setter.accept(appendColor(currentValueSupplier.get(), ValidationUtil.toHex(color))))

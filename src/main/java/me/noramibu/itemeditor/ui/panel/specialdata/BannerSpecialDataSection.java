@@ -18,7 +18,6 @@ import me.noramibu.itemeditor.ui.component.RotatableItemPreviewComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
@@ -118,19 +117,20 @@ public final class BannerSpecialDataSection {
         card.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
 
         ItemStack finalPreview = buildFinalPreviewStack(context, special);
-        int previewSize = previewSize();
-        FlowLayout previewRow = isNarrowLayout() ? UiFactory.column() : UiFactory.row();
+        boolean narrowLayout = isNarrowLayout(context);
+        int previewSize = previewSize(context, narrowLayout);
+        FlowLayout previewRow = narrowLayout ? UiFactory.column() : UiFactory.row();
         RotatableItemPreviewComponent preview = new RotatableItemPreviewComponent(UiFactory.fixed(previewSize), finalPreview.copy());
         preview.allowMouseRotation(true);
         preview.showOverlay(true);
-        if (!isNarrowLayout()) {
+        if (!narrowLayout) {
             preview.margins(Insets.right(8));
         }
         previewRow.child(preview);
 
         previewRow.child(UiFactory.muted(
                 ItemEditorText.tr("special.banner.preview.layers", special.bannerLayers.size()),
-                previewHintWidth()
+                previewHintWidth(narrowLayout)
         ));
         card.child(previewRow);
         return card;
@@ -145,16 +145,17 @@ public final class BannerSpecialDataSection {
             return card;
         }
 
+        boolean narrowLayout = isNarrowLayout(context);
         FlowLayout strip = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
         strip.gap(4);
         strip.allowOverflow(false);
         for (int index = 0; index < stages.size(); index++) {
             ItemStack stage = stages.get(index);
-            strip.child(buildStageThumbnail(special, stage, index));
+            strip.child(buildStageThumbnail(special, stage, index, narrowLayout));
         }
         ScrollContainer<FlowLayout> stripScroll = InputSafeScrollContainer.horizontal(
                 Sizing.fill(100),
-                UiFactory.fixed(layerStripHeight()),
+                UiFactory.fixed(layerStripHeight(narrowLayout)),
                 strip
         );
         stripScroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
@@ -164,10 +165,15 @@ public final class BannerSpecialDataSection {
         return card;
     }
 
-    private static FlowLayout buildStageThumbnail(ItemEditorState.SpecialData special, ItemStack stage, int index) {
+    private static FlowLayout buildStageThumbnail(
+            ItemEditorState.SpecialData special,
+            ItemStack stage,
+            int index,
+            boolean narrowLayout
+    ) {
         FlowLayout thumb = UiFactory.subCard();
         thumb.gap(2);
-        thumb.horizontalSizing(UiFactory.fixed(layerPreviewWidth()));
+        thumb.horizontalSizing(UiFactory.fixed(layerPreviewWidth(narrowLayout)));
 
         FlowLayout header = UiFactory.row();
         if (index == 0) {
@@ -185,7 +191,7 @@ public final class BannerSpecialDataSection {
         thumb.child(header);
 
         ItemComponent itemPreview = UIComponents.item(stage).showOverlay(true);
-        int iconSize = layerItemPreviewSize();
+        int iconSize = layerItemPreviewSize(narrowLayout);
         itemPreview.horizontalSizing(UiFactory.fixed(iconSize));
         itemPreview.verticalSizing(UiFactory.fixed(iconSize));
         thumb.child(itemPreview);
@@ -276,33 +282,39 @@ public final class BannerSpecialDataSection {
         return stack;
     }
 
-    private static int previewSize() {
-        int responsive = UiFactory.responsiveSquareSize(0.17, 0.30, 78, 220);
-        if (isNarrowLayout()) {
+    private static int previewSize(SpecialDataPanelContext context, boolean narrowLayout) {
+        int responsive = UiFactory.responsiveSquareSize(
+                context.panelWidthHint(),
+                context.screen().editorContentHeightHint(),
+                0.17,
+                0.30,
+                78,
+                220
+        );
+        if (narrowLayout) {
             return Math.min(responsive, PREVIEW_SIZE_NARROW_MAX);
         }
         return responsive;
     }
 
-    private static int previewHintWidth() {
-        return isNarrowLayout() ? PREVIEW_HINT_WIDTH_NARROW : PREVIEW_HINT_WIDTH_WIDE;
+    private static int previewHintWidth(boolean narrowLayout) {
+        return narrowLayout ? PREVIEW_HINT_WIDTH_NARROW : PREVIEW_HINT_WIDTH_WIDE;
     }
 
-    private static int layerPreviewWidth() {
-        return isNarrowLayout() ? LAYER_PREVIEW_WIDTH_NARROW : LAYER_PREVIEW_WIDTH;
+    private static int layerPreviewWidth(boolean narrowLayout) {
+        return narrowLayout ? LAYER_PREVIEW_WIDTH_NARROW : LAYER_PREVIEW_WIDTH;
     }
 
-    private static int layerStripHeight() {
-        return isNarrowLayout() ? LAYER_STRIP_HEIGHT_NARROW : LAYER_STRIP_HEIGHT;
+    private static int layerStripHeight(boolean narrowLayout) {
+        return narrowLayout ? LAYER_STRIP_HEIGHT_NARROW : LAYER_STRIP_HEIGHT;
     }
 
-    private static int layerItemPreviewSize() {
-        return isNarrowLayout() ? LAYER_ITEM_PREVIEW_SIZE_NARROW : LAYER_ITEM_PREVIEW_SIZE;
+    private static int layerItemPreviewSize(boolean narrowLayout) {
+        return narrowLayout ? LAYER_ITEM_PREVIEW_SIZE_NARROW : LAYER_ITEM_PREVIEW_SIZE;
     }
 
-    private static boolean isNarrowLayout() {
-        var window = Minecraft.getInstance().getWindow();
-        return window.getGuiScaledWidth() <= NARROW_LAYOUT_WIDTH_THRESHOLD;
+    private static boolean isNarrowLayout(SpecialDataPanelContext context) {
+        return context.panelWidthHint() <= NARROW_LAYOUT_WIDTH_THRESHOLD;
     }
 
     private static Item bannerItemForColor(DyeColor color) {
@@ -475,8 +487,7 @@ public final class BannerSpecialDataSection {
     }
 
     private static ButtonComponent boundedActionButton(Component fullText, Runnable action) {
-        ButtonComponent button = UIComponents.button(fullText, component -> action.run());
-        UiFactory.applyButtonPreset(button, UiFactory.ButtonPreset.COMPACT);
+        ButtonComponent button = UiFactory.button(fullText, UiFactory.ButtonTextPreset.COMPACT, component -> action.run());
         button.horizontalSizing(Sizing.fill(100));
         return button;
     }

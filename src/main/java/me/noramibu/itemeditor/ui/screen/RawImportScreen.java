@@ -85,7 +85,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private void importText() {
         RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), UiColors.DANGER);
+            this.setStatus(ItemEditorText.tr("import.parse_failed", parsed.error()), UiColors.DANGER);
             this.editor.setErrorLocation(parsed.line(), parsed.column(), 1);
             return;
         }
@@ -99,7 +99,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private void formatText() {
         RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.parse_failed", parsed.error())), UiColors.DANGER);
+            this.setStatus(ItemEditorText.tr("import.parse_failed", parsed.error()), UiColors.DANGER);
             return;
         }
         this.editor.text(RawItemDataUtil.serialize(parsed.stack(), this.registryAccess()));

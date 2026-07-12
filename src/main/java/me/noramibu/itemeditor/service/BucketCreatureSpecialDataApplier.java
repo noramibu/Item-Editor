@@ -1,11 +1,13 @@
 package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.fish.Salmon;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
@@ -15,6 +17,7 @@ import net.minecraft.world.item.component.CustomData;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
@@ -82,7 +85,7 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
             return;
         }
 
-        DyeColor color = parseDyeColor(raw);
+        DyeColor color = DyeColor.byName(raw.toLowerCase(Locale.ROOT), null);
         if (color == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
                     "validation.registry_missing",
@@ -104,6 +107,7 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 || special.bucketInvulnerable
                 || !special.bucketPuffState.isBlank()
                 || !special.bucketHealth.isBlank()
+                || !special.bucketAttributes.isEmpty()
                 || !special.bucketAge.isBlank()
                 || special.bucketAgeLocked
                 || !special.bucketHuntingCooldown.isBlank();
@@ -123,6 +127,27 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         NbtTagUtil.setBooleanKey(bucketTag, "NoGravity", special.bucketNoGravity);
         NbtTagUtil.setBooleanKey(bucketTag, "Glowing", special.bucketGlowing);
         NbtTagUtil.setBooleanKey(bucketTag, "Invulnerable", special.bucketInvulnerable);
+        EntityType<?> bucketEntityType = ItemEditorCapabilities.bucketCreatureEntityType(context.previewStack());
+        if (bucketEntityType == null) {
+            bucketEntityType = ItemEditorCapabilities.bucketCreatureEntityType(context.originalStack());
+        }
+        String entityId = bucketEntityType == null ? "" : EntityType.getKey(bucketEntityType).toString();
+        if (!EntitySpawnDataUtil.applyAttributes(
+                bucketTag,
+                special.bucketAttributes,
+                Set.of(),
+                context,
+                ItemEditorText.str("special.bucket.entity_data")
+        ) || !EntitySpawnDataUtil.applyHealth(
+                bucketTag,
+                special.bucketHealth,
+                entityId,
+                0.01F,
+                context,
+                ItemEditorText.str("special.bucket.health")
+        )) {
+            return;
+        }
         this.putOptionalIntTag(
                 bucketTag,
                 "PuffState",
@@ -147,20 +172,6 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 special.bucketHuntingCooldown,
                 context.messages()
         );
-
-        String healthRaw = special.bucketHealth.trim();
-        if (healthRaw.isBlank()) {
-            bucketTag.remove("Health");
-        } else {
-            Float health = ValidationUtil.parseFloat(healthRaw, ItemEditorText.str("special.bucket.health"), context.messages());
-            if (health != null) {
-                if (health <= 0.0F || health > 2048.0F) {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.range", ItemEditorText.str("special.bucket.health"), "0.01", "2048.0")));
-                } else {
-                    bucketTag.putFloat("Health", health);
-                }
-            }
-        }
 
         if (bucketTag.isEmpty()) {
             this.clearToPrototype(context.previewStack(), DataComponents.BUCKET_ENTITY_DATA);
@@ -190,14 +201,6 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
             tag.putLong("HuntingCooldown", value);
         } catch (NumberFormatException exception) {
             messages.add(ValidationMessage.error(ItemEditorText.str("validation.whole_number", fieldName)));
-        }
-    }
-
-    private static DyeColor parseDyeColor(String raw) {
-        try {
-            return DyeColor.valueOf(raw.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return null;
         }
     }
 
@@ -256,6 +259,7 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
                 && current.bucketGlowing == baseline.bucketGlowing
                 && current.bucketInvulnerable == baseline.bucketInvulnerable
                 && Objects.equals(current.bucketHealth, baseline.bucketHealth)
+                && EntitySpawnDataUtil.sameAttributes(current.bucketAttributes, baseline.bucketAttributes)
                 && Objects.equals(current.bucketAge, baseline.bucketAge)
                 && current.bucketAgeLocked == baseline.bucketAgeLocked
                 && Objects.equals(current.bucketHuntingCooldown, baseline.bucketHuntingCooldown);

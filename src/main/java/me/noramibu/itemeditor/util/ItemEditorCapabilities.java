@@ -142,12 +142,29 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean isBucketCreatureBucketItem(ItemStack stack) {
-        return stack.is(Items.COD_BUCKET)
-                || stack.is(Items.SALMON_BUCKET)
-                || stack.is(Items.PUFFERFISH_BUCKET)
-                || stack.is(Items.TROPICAL_FISH_BUCKET)
-                || stack.is(Items.AXOLOTL_BUCKET)
-                || stack.is(Items.TADPOLE_BUCKET);
+        return bucketCreatureEntityType(stack) != null;
+    }
+
+    public static EntityType<?> bucketCreatureEntityType(ItemStack stack) {
+        if (stack.is(Items.COD_BUCKET)) {
+            return EntityType.COD;
+        }
+        if (stack.is(Items.SALMON_BUCKET)) {
+            return EntityType.SALMON;
+        }
+        if (stack.is(Items.PUFFERFISH_BUCKET)) {
+            return EntityType.PUFFERFISH;
+        }
+        if (stack.is(Items.TROPICAL_FISH_BUCKET)) {
+            return EntityType.TROPICAL_FISH;
+        }
+        if (stack.is(Items.AXOLOTL_BUCKET)) {
+            return EntityType.AXOLOTL;
+        }
+        if (stack.is(Items.TADPOLE_BUCKET)) {
+            return EntityType.TADPOLE;
+        }
+        return null;
     }
 
     public static Component specialDataTitle(ItemStack stack) {

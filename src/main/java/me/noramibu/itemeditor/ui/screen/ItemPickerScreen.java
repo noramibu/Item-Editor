@@ -285,7 +285,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                                 Minecraft.getInstance().font,
                                 List.of(
                                         pickable.displayName(),
-                                        Component.literal(ItemEditorText.str("item_picker.tooltip.registry_id", pickable.id().toString()))
+                                        ItemEditorText.tr("item_picker.tooltip.registry_id", pickable.id().toString())
                                 ),
                                 mouseX,
                                 mouseY

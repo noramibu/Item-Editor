@@ -28,11 +28,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public record SpecialDataPanelContext(ItemEditorScreen screen) {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int PICK_BUTTON_WIDTH_MIN = 70;
     private static final int PICK_BUTTON_WIDTH_MAX = 132;
-    private static final int PICK_BUTTON_TEXT_MIN = 20;
-    private static final int PICK_BUTTON_TEXT_RESERVE = 10;
     private static final int COLOR_INPUT_FIELD_WIDTH = 140;
 
     public ItemStack originalStack() {
@@ -47,12 +44,8 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
         return Math.max(1, this.screen.editorContentWidthHint());
     }
 
-    public double guiScale() {
-        return this.screen.session().minecraft().getWindow().getGuiScale();
-    }
-
     public boolean isCompactPanel(int widthThreshold) {
-        return LayoutModeUtil.isCompactPanel(this.guiScale(), this.panelWidthHint(), widthThreshold);
+        return LayoutModeUtil.isCompactWidth(this.panelWidthHint(), widthThreshold);
     }
 
     public <T> List<String> registryIds(ResourceKey<? extends Registry<T>> registryKey) {
@@ -192,13 +185,14 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
             String pickerTitle,
             int fallbackColor
     ) {
-        boolean compactLayout = this.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
+        int rowGap = Math.max(1, UiFactory.scaleProfile().tightSpacing());
+        boolean compactLayout = this.panelWidthHint() < COLOR_INPUT_FIELD_WIDTH + PICK_BUTTON_WIDTH_MIN + rowGap;
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.child(UiFactory.textBox(initialValue, this.bindText(setter)).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(COLOR_INPUT_FIELD_WIDTH)));
 
         int selectedColor = ValidationUtil.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
+                ItemEditorText.tr("common.pick").copy().withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
                 button -> this.screen.openUnifiedColorPickerDialog(
                         pickerTitle,
                         UnifiedColorPickerDialog.Options.plainColor(ValidationUtil.parseHexColorOrDefault(currentValueSupplier.get(), fallbackColor)),
@@ -215,12 +209,6 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
                     PICK_BUTTON_WIDTH_MAX
             );
             buttonWidth = Math.clamp(buttonWidth, 1, Math.max(1, this.panelWidthHint()));
-            Component fullText = Component.literal(ItemEditorText.str("common.pick")).withColor(selectedColor);
-            Component fitted = UiFactory.fitToWidth(
-                    fullText,
-                    Math.max(PICK_BUTTON_TEXT_MIN, buttonWidth - UiFactory.scaledPixels(PICK_BUTTON_TEXT_RESERVE))
-            );
-            pickButton.setMessage(fitted);
             pickButton.horizontalSizing(Sizing.fixed(buttonWidth));
         }
         row.child(pickButton);

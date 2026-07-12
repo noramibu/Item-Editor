@@ -171,7 +171,7 @@ final class ColorPickerUiUtil {
                 button -> onApply.run()
         );
         if (applyButtonWidth > 0) {
-            ButtonFitUtil.applyFittedFixedLabel(applyButton, applyLabel, applyButtonWidth, 24, 8);
+            UiFactory.applyFixedButtonLabel(applyButton, applyLabel, applyButtonWidth);
         } else {
             applyButton.horizontalSizing(Sizing.expand(100));
         }

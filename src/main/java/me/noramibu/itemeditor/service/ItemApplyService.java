@@ -2,27 +2,45 @@ package me.noramibu.itemeditor.service;
 
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 public final class ItemApplyService {
 
     public ApplyResult apply(Minecraft minecraft, ItemStack stack) {
+        return minecraft.player == null
+                ? ApplyResult.failure(ItemEditorText.str("apply.no_player"))
+                : applyToSlot(minecraft, minecraft.player.getInventory().getSelectedSlot(), stack, null);
+    }
+
+    public static ApplyResult applyToSlot(
+            Minecraft minecraft,
+            int slot,
+            ItemStack stack,
+            @Nullable ItemStack expected
+    ) {
         if (minecraft.player == null) {
             return ApplyResult.failure(ItemEditorText.str("apply.no_player"));
         }
+        if (slot < 0 || slot >= Inventory.INVENTORY_SIZE) {
+            return ApplyResult.failure(ItemEditorText.str("apply.verify.error"));
+        }
 
-        int selectedSlot = minecraft.player.getInventory().getSelectedSlot();
-        ItemStack previous = minecraft.player.getInventory().getItem(selectedSlot).copy();
+        Inventory inventory = minecraft.player.getInventory();
+        ItemStack previous = inventory.getItem(slot).copy();
+        if (expected != null && !ItemStack.matches(previous, expected)) {
+            return ApplyResult.failure(ItemEditorText.str("apply.verify.error"));
+        }
         ItemStack copy = stack.copy();
 
-        minecraft.player.getInventory().setItem(selectedSlot, copy.copy());
-        if (ClientInventorySyncService.syncSlot(minecraft, selectedSlot, copy)) {
-            if (minecraft.getSingleplayerServer() == null) {
-                return ApplyResult.success(ItemEditorText.str("apply.creative_success"));
-            }
-            return ApplyResult.success(ItemEditorText.str("apply.singleplayer_success"));
+        inventory.setItem(slot, copy.copy());
+        if (ClientInventorySyncService.syncSlot(minecraft, slot, copy)) {
+            return ApplyResult.success(ItemEditorText.str(
+                    minecraft.getSingleplayerServer() == null ? "apply.creative_success" : "apply.singleplayer_success"
+            ));
         }
-        minecraft.player.getInventory().setItem(selectedSlot, previous);
+        inventory.setItem(slot, previous);
 
         return ApplyResult.failure(ItemEditorText.str("apply.multiplayer_preview_only"));
     }

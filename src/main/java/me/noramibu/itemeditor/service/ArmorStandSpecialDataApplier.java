@@ -9,10 +9,12 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.FloatTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
 
 import java.util.Objects;
+import java.util.Set;
 
 final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -59,6 +61,31 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 Integer.MAX_VALUE,
                 context.messages()
         );
+        String scaleAttributeId = scaleAttributeId();
+        if (!EntitySpawnDataUtil.applyAttributes(
+                entityTag,
+                context.special().armorStandAttributes,
+                Set.of(scaleAttributeId),
+                context,
+                ItemEditorText.str("special.armor_stand.title")
+        ) || !EntitySpawnDataUtil.applyHealth(
+                entityTag,
+                context.special().armorStandHealth,
+                EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                0.0F,
+                context,
+                ItemEditorText.str("special.spawn_egg.health")
+        )) {
+            return;
+        }
+        if (!EntitySpawnDataUtil.applyEquipment(
+                entityTag,
+                context.special().armorStandEquipment,
+                context,
+                ItemEditorText.str("common.equipment")
+        )) {
+            return;
+        }
 
         this.applyPose(entityTag, context);
         this.applyScale(entityTag, context);
@@ -142,7 +169,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         ListTag filtered = new ListTag();
         for (int index = 0; index < attributes.size(); index++) {
             CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
-            if (!"minecraft:scale".equals(attributeTag.getStringOr("id", ""))) {
+            if (!scaleAttributeId().equals(attributeTag.getStringOr("id", ""))) {
                 filtered.add(attributeTag.copy());
             }
         }
@@ -159,7 +186,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         boolean updated = false;
         for (int index = 0; index < attributes.size(); index++) {
             CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
-            if (!"minecraft:scale".equals(attributeTag.getStringOr("id", ""))) {
+            if (!scaleAttributeId().equals(attributeTag.getStringOr("id", ""))) {
                 continue;
             }
             attributeTag.putDouble("base", scale);
@@ -170,7 +197,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
 
         if (!updated) {
             CompoundTag scaleTag = new CompoundTag();
-            scaleTag.putString("id", "minecraft:scale");
+            scaleTag.putString("id", scaleAttributeId());
             scaleTag.putDouble("base", scale);
             attributes.add(scaleTag);
         }
@@ -219,6 +246,12 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 && Objects.equals(current.armorStandCustomName, baseline.armorStandCustomName)
                 && Objects.equals(current.armorStandDisabledSlots, baseline.armorStandDisabledSlots)
                 && Objects.equals(current.armorStandScale, baseline.armorStandScale)
+                && Objects.equals(current.armorStandHealth, baseline.armorStandHealth)
+                && EntitySpawnDataUtil.sameAttributes(
+                        current.armorStandAttributes,
+                        baseline.armorStandAttributes
+                )
+                && EntitySpawnDataUtil.sameEquipment(current.armorStandEquipment, baseline.armorStandEquipment)
                 && this.sameRotation(current.armorStandPose.head, baseline.armorStandPose.head)
                 && this.sameRotation(current.armorStandPose.body, baseline.armorStandPose.body)
                 && this.sameRotation(current.armorStandPose.leftArm, baseline.armorStandPose.leftArm)
@@ -245,6 +278,9 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 && special.armorStandCustomName.isBlank()
                 && special.armorStandDisabledSlots.isBlank()
                 && special.armorStandScale.isBlank()
+                && special.armorStandHealth.isBlank()
+                && special.armorStandAttributes.isEmpty()
+                && special.armorStandEquipment.isEmpty()
                 && this.isDefaultRotation(special.armorStandPose.head, "0", "0")
                 && this.isDefaultRotation(special.armorStandPose.body, "0", "0")
                 && this.isDefaultRotation(special.armorStandPose.leftArm, "-10", "-10")
@@ -257,6 +293,10 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         return equalsFloat(rotation.x, defaultX)
                 && equalsFloat(rotation.y, "0")
                 && equalsFloat(rotation.z, defaultZ);
+    }
+
+    private static String scaleAttributeId() {
+        return Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString();
     }
 
     private static boolean equalsFloat(String value, String defaultValue) {

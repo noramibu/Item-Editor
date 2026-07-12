@@ -24,10 +24,13 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public final class ArmorStandSpecialDataSection {
@@ -85,6 +88,14 @@ public final class ArmorStandSpecialDataSection {
             EquipmentSlot.FEET,
             EquipmentSlot.MAINHAND,
             EquipmentSlot.OFFHAND
+    );
+    private static final List<EquipmentSlot> EQUIPMENT_SLOT_ORDER = List.of(
+            EquipmentSlot.MAINHAND,
+            EquipmentSlot.OFFHAND,
+            EquipmentSlot.HEAD,
+            EquipmentSlot.CHEST,
+            EquipmentSlot.LEGS,
+            EquipmentSlot.FEET
     );
 
     private static final PosePreset DEFAULT_PRESET = new PosePreset(
@@ -342,14 +353,35 @@ public final class ArmorStandSpecialDataSection {
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.armor_stand.title"), Component.empty());
-        int previewColumnWidth = previewColumnWidth(context);
-        int poseColumnWidth = poseColumnWidth(context, previewColumnWidth);
-        OrbitingArmorStandComponent preview = createPreviewComponent(special, previewColumnWidth);
+        int panelWidth = effectivePanelWidth(context);
+        boolean stackedWorkbench = panelWidth < POSE_COLUMN_WIDTH_MIN
+                + PREVIEW_COLUMN_WIDTH_MIN
+                + UiFactory.scaledPixels(WORKBENCH_GAP);
+        int previewColumnWidth = stackedWorkbench ? panelWidth : previewColumnWidth(context);
+        int poseColumnWidth = stackedWorkbench ? panelWidth : poseColumnWidth(context, previewColumnWidth);
+        OrbitingArmorStandComponent preview = createPreviewComponent(context, special, previewColumnWidth);
         LabelComponent previewNameLabel = createPreviewNameLabel(special);
-        section.child(buildPoseWorkbench(context, special, preview, previewNameLabel, previewColumnWidth, poseColumnWidth));
+        section.child(buildPoseWorkbench(
+                context,
+                special,
+                preview,
+                previewNameLabel,
+                previewColumnWidth,
+                poseColumnWidth,
+                stackedWorkbench
+        ));
         section.child(buildNameCard(context, special, preview, previewNameLabel));
+        FlowLayout equipmentCard = UiFactory.subCard();
+        equipmentCard.child(EntitySpawnDataUi.equipment(
+                context,
+                special.armorStandEquipment,
+                EQUIPMENT_SLOT_ORDER,
+                false
+        ));
+        section.child(equipmentCard);
         section.child(buildDisabledSlotsCard(context, special));
         section.child(buildNumericCard(context, special));
+        section.child(buildEntityValuesCard(context, special));
         return section;
     }
 
@@ -359,24 +391,31 @@ public final class ArmorStandSpecialDataSection {
             OrbitingArmorStandComponent preview,
             LabelComponent previewNameLabel,
             int previewColumnWidth,
-            int poseColumnWidth
+            int poseColumnWidth,
+            boolean stacked
     ) {
-        FlowLayout workbench = UiFactory.row();
+        FlowLayout workbench = stacked ? UiFactory.column() : UiFactory.row();
         workbench.gap(UiFactory.scaledPixels(WORKBENCH_GAP));
         workbench.verticalAlignment(VerticalAlignment.TOP);
 
         FlowLayout poseCard = buildPoseCard(context, special, preview, poseColumnWidth);
-        FlowLayout previewCard = buildPreviewCard(special, preview, previewNameLabel, previewColumnWidth);
+        FlowLayout previewCard = buildPreviewCard(context, special, preview, previewNameLabel, previewColumnWidth);
         poseCard.horizontalSizing(Sizing.expand(100));
-        previewCard.horizontalSizing(Sizing.fixed(previewColumnWidth));
-        poseCard.verticalSizing(Sizing.fill(100));
-        previewCard.verticalSizing(Sizing.fill(100));
-        workbench.child(poseCard);
-        workbench.child(previewCard);
+        previewCard.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(previewColumnWidth));
+        if (stacked) {
+            workbench.child(previewCard);
+            workbench.child(poseCard);
+        } else {
+            poseCard.verticalSizing(Sizing.fill(100));
+            previewCard.verticalSizing(Sizing.fill(100));
+            workbench.child(poseCard);
+            workbench.child(previewCard);
+        }
         return workbench;
     }
 
     private static FlowLayout buildPreviewCard(
+            SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
             OrbitingArmorStandComponent preview,
             LabelComponent previewNameLabel,
@@ -385,7 +424,7 @@ public final class ArmorStandSpecialDataSection {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(ItemEditorText.tr("special.armor_stand.preview")).shadow(false));
 
-        boolean inlineMeta = useInlinePreviewMeta(previewColumnWidth, previewSize(previewColumnWidth));
+        boolean inlineMeta = useInlinePreviewMeta(previewColumnWidth, previewSize(context, previewColumnWidth));
         FlowLayout row = inlineMeta ? UiFactory.row() : UiFactory.column();
         row.gap(FLAG_ROW_GAP);
         row.child(preview);
@@ -411,10 +450,11 @@ public final class ArmorStandSpecialDataSection {
     }
 
     private static OrbitingArmorStandComponent createPreviewComponent(
+            SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
             int previewColumnWidth
     ) {
-        int previewSize = previewSize(previewColumnWidth);
+        int previewSize = previewSize(context, previewColumnWidth);
         OrbitingArmorStandComponent preview = new OrbitingArmorStandComponent(
                 Sizing.fixed(previewSize),
                 previewTag(special)
@@ -425,6 +465,7 @@ public final class ArmorStandSpecialDataSection {
         preview.allowMouseRotation(true);
         preview.lookAtCursor(false);
         preview.showNametag(special.armorStandCustomNameVisible && !special.armorStandCustomName.isBlank());
+        updatePreviewEquipment(preview, special.armorStandEquipment);
         return preview;
     }
 
@@ -577,6 +618,32 @@ public final class ArmorStandSpecialDataSection {
         ));
         card.child(row);
 
+        return card;
+    }
+
+    private static FlowLayout buildEntityValuesCard(
+            SpecialDataPanelContext context,
+            ItemEditorState.SpecialData special
+    ) {
+        String entityId = EntityType.getKey(EntityType.ARMOR_STAND).toString();
+        FlowLayout card = UiFactory.subCard();
+        card.child(EntitySpawnDataUi.health(
+                context,
+                special.armorStandHealth,
+                value -> special.armorStandHealth = value,
+                entityId,
+                special.armorStandAttributes,
+                isCompactLayout(context)
+        ));
+        card.child(EntitySpawnDataUi.attributes(
+                context,
+                entityId,
+                special.armorStandAttributes,
+                special.uiArmorStandAttributesCollapsed,
+                () -> context.mutateRefresh(() -> special.uiArmorStandAttributesCollapsed =
+                        !special.uiArmorStandAttributesCollapsed),
+                Set.of(Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString())
+        ));
         return card;
     }
 
@@ -864,13 +931,15 @@ public final class ArmorStandSpecialDataSection {
         lines.add(rotationTooltipLine("special.armor_stand.part.right_arm", preset.rightArm));
         lines.add(rotationTooltipLine("special.armor_stand.part.left_leg", preset.leftLeg));
         lines.add(rotationTooltipLine("special.armor_stand.part.right_leg", preset.rightLeg));
-        String flags = "Arms "
-                + (preset.showArms ? "ON" : "OFF")
-                + " | No Base Plate "
-                + (preset.noBasePlate ? "ON" : "OFF")
-                + " | Marker "
-                + (preset.marker ? "ON" : "OFF");
-        lines.add(Component.literal(flags));
+        lines.add(ItemEditorText.tr(
+                "special.armor_stand.preset.flags",
+                ItemEditorText.str("special.armor_stand.show_arms"),
+                ItemEditorText.str(preset.showArms ? "common.true" : "common.false"),
+                ItemEditorText.str("special.armor_stand.no_base_plate"),
+                ItemEditorText.str(preset.noBasePlate ? "common.true" : "common.false"),
+                ItemEditorText.str("special.armor_stand.marker"),
+                ItemEditorText.str(preset.marker ? "common.true" : "common.false")
+        ));
         return lines;
     }
 
@@ -910,13 +979,16 @@ public final class ArmorStandSpecialDataSection {
         return row;
     }
 
-    private static int previewSize(int previewColumnWidth) {
-        int responsiveSize = UiFactory.responsiveSquareSize(0.16, 0.30, 82, 200);
-        return Math.clamp(
-                previewColumnWidth - PREVIEW_COLUMN_RESERVE,
-                Math.min(56, responsiveSize),
-                responsiveSize
+    private static int previewSize(SpecialDataPanelContext context, int previewColumnWidth) {
+        int responsiveSize = UiFactory.responsiveSquareSize(
+                context.panelWidthHint(),
+                context.screen().editorContentHeightHint(),
+                0.16,
+                0.30,
+                82,
+                200
         );
+        return Math.min(Math.max(1, previewColumnWidth - PREVIEW_COLUMN_RESERVE), responsiveSize);
     }
 
     private static int previewHintWidth(int previewColumnWidth, boolean inlineMeta) {
@@ -951,9 +1023,7 @@ public final class ArmorStandSpecialDataSection {
     }
 
     private static int effectivePanelWidth(SpecialDataPanelContext context) {
-        int hintedWidth = Math.max(1, context.panelWidthHint());
-        int windowWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
-        return Math.max(hintedWidth, windowWidth - 96);
+        return Math.max(1, context.panelWidthHint());
     }
 
     private static FlowLayout axisBox(
@@ -1036,6 +1106,15 @@ public final class ArmorStandSpecialDataSection {
         preview.entity().setRightArmPose(rotations(special.armorStandPose.rightArm, DEFAULT_PRESET.rightArm));
         preview.entity().setLeftLegPose(rotations(special.armorStandPose.leftLeg, DEFAULT_PRESET.leftLeg));
         preview.entity().setRightLegPose(rotations(special.armorStandPose.rightLeg, DEFAULT_PRESET.rightLeg));
+    }
+
+    private static void updatePreviewEquipment(
+            OrbitingArmorStandComponent preview,
+            ItemEditorState.EntityEquipmentDraft equipment
+    ) {
+        for (EquipmentSlot slot : EQUIPMENT_SLOT_ORDER) {
+            preview.entity().setItemSlot(slot, slot.limit(equipment.stack(slot).copy()));
+        }
     }
 
     private static void updatePreviewName(
@@ -1141,7 +1220,10 @@ public final class ArmorStandSpecialDataSection {
         if (!special.armorStandScale.isBlank() && scale >= MIN_SCALE && scale <= MAX_SCALE && scale != 1.0F) {
             ListTag attributes = new ListTag();
             CompoundTag scaleTag = new CompoundTag();
-            scaleTag.putString("id", "minecraft:scale");
+            scaleTag.putString(
+                    "id",
+                    Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString()
+            );
             scaleTag.putDouble("base", scale);
             attributes.add(scaleTag);
             entityTag.put("attributes", attributes);

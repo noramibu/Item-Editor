@@ -20,7 +20,6 @@ import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -41,9 +40,6 @@ public final class DisplayEditorPanel implements EditorPanel {
     private static final int CLEAR_BUTTON_WIDTH_MIN = 72;
     private static final int CLEAR_BUTTON_WIDTH_MAX = 140;
     private static final int CLEAR_BUTTON_WIDTH_BASE = 116;
-    private static final int CLEAR_BUTTON_TEXT_WIDTH_MIN = 40;
-    private static final int CLEAR_BUTTON_TEXT_WIDTH_RESERVE = 10;
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 720;
     private static final int LORE_HEIGHT_RATIO_THRESHOLD_LARGE = 760;
     private static final int LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM = 620;
@@ -52,7 +48,6 @@ public final class DisplayEditorPanel implements EditorPanel {
     private static final double LORE_HEIGHT_RATIO_SMALL = 0.22d;
     private static final int LORE_WIDTH_RATIO_PENALTY_THRESHOLD = 1000;
     private static final double LORE_WIDTH_RATIO_PENALTY = 0.03d;
-    private static final double LORE_SCALE_RATIO_PENALTY = 0.02d;
     private static final double LORE_RATIO_MIN = 0.18d;
     private static final double LORE_RATIO_MAX = 0.34d;
     private static final int LORE_EDITOR_HEIGHT_MIN = 100;
@@ -145,8 +140,11 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     private FlowLayout buildFooter(RichTextAreaComponent editor, Consumer<RichTextDocument> commitDocument, LabelComponent lineCount) {
-        boolean compactLayout = this.useCompactLayout();
         int contentWidth = this.screen.editorContentWidthHint();
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.gap(Math.max(2, UiFactory.scaleProfile().tightSpacing()));
 
@@ -173,7 +171,6 @@ public final class DisplayEditorPanel implements EditorPanel {
         int clearWidth = Math.min(contentWidth, preferredClearWidth);
         clearLore.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
         if (!compactLayout) {
-            clearLore.setMessage(UiFactory.fitToWidth(clearLabel, Math.max(CLEAR_BUTTON_TEXT_WIDTH_MIN, clearWidth - UiFactory.scaledPixels(CLEAR_BUTTON_TEXT_WIDTH_RESERVE))));
             clearLore.tooltip(List.of(clearLabel));
         }
         row.child(clearLore);
@@ -244,41 +241,22 @@ public final class DisplayEditorPanel implements EditorPanel {
         return RichTextStyle.fromStyle(Component.empty().withStyle(ChatFormatting.DARK_PURPLE).getStyle());
     }
 
-    private boolean useCompactLayout() {
-        var window = this.screen.session().minecraft().getWindow();
-        return LayoutModeUtil.isCompactWindowAndContent(
-                window.getGuiScale(),
-                window.getGuiScaledWidth(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                this.screen.editorContentWidthHint(),
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
-    }
-
     private int resolveLoreEditorHeight() {
-        Minecraft minecraft = this.screen.session().minecraft();
-        var window = minecraft.getWindow();
-        int guiHeight = window.getGuiScaledHeight();
-        int guiWidth = window.getGuiScaledWidth();
-        double ratio = this.resolveLoreHeightRatio(window, guiHeight, guiWidth);
-        int target = (int) Math.round(guiHeight * Math.clamp(ratio, LORE_RATIO_MIN, LORE_RATIO_MAX));
+        int contentHeight = this.screen.editorContentHeightHint();
+        int contentWidth = this.screen.editorContentWidthHint();
+        double ratio = this.resolveLoreHeightRatio(contentHeight, contentWidth);
+        int target = (int) Math.round(contentHeight * Math.clamp(ratio, LORE_RATIO_MIN, LORE_RATIO_MAX));
         int min = Math.max(LORE_EDITOR_HEIGHT_MIN, UiFactory.scaledPixels(LORE_EDITOR_MIN_SCALED));
         int max = Math.max(min, UiFactory.scaledPixels(LORE_EDITOR_MAX_SCALED));
         return Math.clamp(target, min, max);
     }
 
-    private double resolveLoreHeightRatio(com.mojang.blaze3d.platform.Window window, int guiHeight, int guiWidth) {
-        double ratio = guiHeight >= LORE_HEIGHT_RATIO_THRESHOLD_LARGE
+    private double resolveLoreHeightRatio(int contentHeight, int contentWidth) {
+        double ratio = contentHeight >= LORE_HEIGHT_RATIO_THRESHOLD_LARGE
                 ? LORE_HEIGHT_RATIO_LARGE
-                : (guiHeight >= LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM ? LORE_HEIGHT_RATIO_MEDIUM : LORE_HEIGHT_RATIO_SMALL);
-        if (guiWidth < LORE_WIDTH_RATIO_PENALTY_THRESHOLD) {
+                : (contentHeight >= LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM ? LORE_HEIGHT_RATIO_MEDIUM : LORE_HEIGHT_RATIO_SMALL);
+        if (contentWidth < LORE_WIDTH_RATIO_PENALTY_THRESHOLD) {
             ratio -= LORE_WIDTH_RATIO_PENALTY;
-        }
-        if (LayoutModeUtil.isCompactScale(
-                window.getGuiScale(),
-                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-        )) {
-            ratio -= LORE_SCALE_RATIO_PENALTY;
         }
         return ratio;
     }

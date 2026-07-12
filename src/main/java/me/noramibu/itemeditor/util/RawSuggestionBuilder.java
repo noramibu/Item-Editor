@@ -45,15 +45,7 @@ final class RawSuggestionBuilder {
             UnaryOperator<String> insertMapper,
             int contextRank
     ) {
-        addSuggestions(
-                values,
-                prefix,
-                kind,
-                insertMapper,
-                contextRank,
-                null,
-                ""
-        );
+        addSuggestions(values, prefix, kind, insertMapper, contextRank, null, "");
     }
 
     void addSuggestions(
@@ -105,24 +97,6 @@ final class RawSuggestionBuilder {
                 break;
             }
         }
-    }
-
-    void addNearestSuggestions(
-            List<String> values,
-            String prefix,
-            RawAutocompleteUtil.SuggestionKind kind,
-            UnaryOperator<String> insertMapper,
-            int contextRank
-    ) {
-        addNearestSuggestions(
-                values,
-                prefix,
-                kind,
-                insertMapper,
-                contextRank,
-                null,
-                ""
-        );
     }
 
     void addNearestSuggestions(

@@ -176,6 +176,7 @@ Save items into a built-in storage menu:
 | Language | Native name | Code |
 |----------|-------------|------|
 | English | English | `en_us` |
+| Japanese | 日本語 | `ja_jp` |
 | Spanish | Español | `es_es` |
 | Russian | Русский | `ru_ru` |
 | Simplified Chinese | 简体中文 | `zh_cn` |
