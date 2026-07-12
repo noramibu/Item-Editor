@@ -6,7 +6,6 @@ import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 
 import java.util.List;
@@ -112,10 +111,6 @@ public final class StyledTextFieldSection {
                 ? toolbarWidthHint
                 : screen.editorContentWidthHint();
         boolean effectiveCompactToolbar = compactToolbar
-                || LayoutModeUtil.isCompactScale(
-                        screen.session().minecraft().getWindow().getGuiScale(),
-                        LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-                )
                 || effectiveToolbarWidthHint < UiFactory.scaledPixels(COMPACT_TOOLBAR_CONTENT_WIDTH_THRESHOLD);
         RichTextAreaComponent editor = new RichTextAreaComponent(width, height, initialDocument);
         editor.placeholder(placeholder);

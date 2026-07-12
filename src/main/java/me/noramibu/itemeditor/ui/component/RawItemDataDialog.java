@@ -48,8 +48,6 @@ public final class RawItemDataDialog {
     private static final int REGULAR_BUTTON_EXTRA = 16;
     private static final int FOOTER_BUTTON_MIN_WIDTH = 64;
     private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
-    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
-    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
     private static final int FOOTER_BUTTON_ROW_RESERVE = 80;
     private static final int FOOTER_BUTTON_COUNT = 6;
     private static final int STATUS_RESERVE = 18;
@@ -179,8 +177,6 @@ public final class RawItemDataDialog {
                 FOOTER_BUTTON_MAX_WIDTH,
                 Math.max(1, footerButtonCount),
                 FOOTER_BUTTON_ROW_RESERVE,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
                 footerActions
         );
 

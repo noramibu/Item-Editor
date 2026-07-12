@@ -12,6 +12,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
@@ -44,6 +45,17 @@ public final class SpawnEggSpecialDataSection {
         section.child(buildNameCard(context, special));
         section.child(buildFlagsCard(context, special));
         section.child(buildValuesCard(context, special));
+        FlowLayout attributesCard = UiFactory.subCard();
+        attributesCard.child(EntitySpawnDataUi.attributes(context, special.spawnEggEntity));
+        section.child(attributesCard);
+        FlowLayout equipmentCard = UiFactory.subCard();
+        equipmentCard.child(EntitySpawnDataUi.equipment(
+                context,
+                special.spawnEggEntity.equipment,
+                EquipmentSlot.VALUES,
+                true
+        ));
+        section.child(equipmentCard);
         if (isVillagerSelected(context, special.spawnEggEntity.entityId)) {
             section.child(buildVillagerCard(context, special));
         }
@@ -116,7 +128,8 @@ public final class SpawnEggSpecialDataSection {
             String previousEntityId,
             String nextEntityId
     ) {
-        return !Objects.equals(
+        return EntitySpawnDataUi.attributeSchemaChanged(context, previousEntityId, nextEntityId)
+                || !Objects.equals(
                 variantFieldGroup(context, previousEntityId),
                 variantFieldGroup(context, nextEntityId)
         );
@@ -197,7 +210,7 @@ public final class SpawnEggSpecialDataSection {
         FlowLayout presets = compactLayout ? UiFactory.column() : UiFactory.row();
         presets.gap(6);
         int flagsActionWidth = resolveButtonWidth(context, 2);
-        ButtonComponent resetFlags = UiFactory.button(Component.literal("Reset Flags"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+        ButtonComponent resetFlags = UiFactory.button(ItemEditorText.tr("special.spawn_egg.reset_flags"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     special.spawnEggEntity.noAi = false;
                     special.spawnEggEntity.silent = false;
@@ -210,7 +223,7 @@ public final class SpawnEggSpecialDataSection {
         );
         resetFlags.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(flagsActionWidth));
         presets.child(resetFlags);
-        ButtonComponent displayPreset = UiFactory.button(Component.literal("Display Preset"), UiFactory.ButtonTextPreset.STANDARD,  button ->
+        ButtonComponent displayPreset = UiFactory.button(ItemEditorText.tr("special.spawn_egg.display_preset"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                 context.mutateRefresh(() -> {
                     special.spawnEggEntity.noAi = true;
                     special.spawnEggEntity.silent = true;
@@ -222,7 +235,7 @@ public final class SpawnEggSpecialDataSection {
         displayPreset.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(flagsActionWidth));
         presets.child(displayPreset);
         card.child(presets);
-        card.child(EntitySpawnDataUi.flags(context, special.spawnEggEntity, compactLayout ? 2 : 3));
+        card.child(EntitySpawnDataUi.flags(context, special.spawnEggEntity));
         return card;
     }
 
@@ -330,10 +343,10 @@ public final class SpawnEggSpecialDataSection {
                     ItemEditorText.str("special.spawn_egg.villager.trade.sell")
             ));
             tradeCard.child(UiFactory.actionButtonRow(
-                    UiFactory.button(Component.literal("Swap Buy/Sell"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                    UiFactory.button(ItemEditorText.tr("special.spawn_egg.villager.trade.swap"), UiFactory.ButtonTextPreset.STANDARD, button ->
                             context.mutateRefresh(() -> swapBuyAndSell(trade))
                     ),
-                    UiFactory.button(Component.literal("Reset Trade"), UiFactory.ButtonTextPreset.STANDARD, button ->
+                    UiFactory.button(ItemEditorText.tr("special.spawn_egg.villager.trade.reset"), UiFactory.ButtonTextPreset.STANDARD, button ->
                             context.mutateRefresh(() -> resetTrade(trade))
                     )
             ));

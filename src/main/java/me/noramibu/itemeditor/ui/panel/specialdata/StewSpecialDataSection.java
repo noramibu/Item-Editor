@@ -18,8 +18,6 @@ import net.minecraft.world.item.Items;
 import java.util.List;
 
 public final class StewSpecialDataSection {
-    private static final int ADD_BUTTON_TEXT_RESERVE = 28;
-    private static final int ADD_BUTTON_MIN_TEXT_WIDTH = 24;
 
     private StewSpecialDataSection() {
     }
@@ -71,15 +69,7 @@ public final class StewSpecialDataSection {
                         () -> special.stewEffects.add(new ItemEditorState.SuspiciousStewEffectDraft())
                 )
         );
-        int textBudget = Math.max(
-                ADD_BUTTON_MIN_TEXT_WIDTH,
-                context.panelWidthHint() - UiFactory.scaledPixels(ADD_BUTTON_TEXT_RESERVE)
-        );
-        Component fitted = UiFactory.fitToWidth(label, textBudget);
-        button.setMessage(fitted);
-        if (!fitted.getString().equals(label.getString())) {
-            button.tooltip(List.of(label));
-        }
+        button.tooltip(List.of(label));
         button.horizontalSizing(Sizing.fill(100));
         return button;
     }

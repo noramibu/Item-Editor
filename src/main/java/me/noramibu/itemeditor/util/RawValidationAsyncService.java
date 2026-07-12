@@ -25,10 +25,9 @@ public final class RawValidationAsyncService {
             long parseIdleDelayMs,
             long heavyIdleDelayMs,
             Consumer<ParsePhaseResult> onParseResult,
-            Consumer<Result> onHeavyResult
+        Consumer<Result> onHeavyResult
     ) {
         String safeText = rawText == null ? "" : rawText;
-        ItemStack safeOriginal = originalStack == null ? ItemStack.EMPTY : originalStack.copy();
         long parseIdleDelay = Math.max(0L, parseIdleDelayMs);
         long idleDelay = Math.max(0L, heavyIdleDelayMs);
         Consumer<ParsePhaseResult> parseConsumer = AsyncDispatchUtil.nullSafeConsumer(onParseResult);
@@ -47,7 +46,7 @@ public final class RawValidationAsyncService {
         });
 
         CompletableFuture<Result> heavyFuture = CompletableFuture.supplyAsync(
-                () -> this.computeHeavyWithIdle(requestId, safeOriginal, registryAccess, idleDelay, parseFuture),
+                () -> this.computeHeavyWithIdle(requestId, originalStack, registryAccess, idleDelay, parseFuture),
                 HEAVY_EXECUTOR
         );
         AsyncDispatchUtil.deliverIfLatest(heavyFuture, this.requestVersion, requestId, result -> {
@@ -125,7 +124,8 @@ public final class RawValidationAsyncService {
             }
         }
 
-        ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(originalStack, parsedStack, registryAccess);
+        ItemStack safeOriginal = originalStack == null ? ItemStack.EMPTY : originalStack.copy();
+        ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(safeOriginal, parsedStack, registryAccess);
         return new Result(
                 true,
                 null,

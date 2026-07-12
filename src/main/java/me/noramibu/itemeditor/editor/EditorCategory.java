@@ -16,18 +16,12 @@ public enum EditorCategory {
     SPECIAL_DATA("category.special_data");
 
     private final Component title;
-    private final Component description;
 
     EditorCategory(String key) {
         this.title = ItemEditorText.tr(key + ".title");
-        this.description = Component.empty();
     }
 
     public Component title() {
         return this.title;
-    }
-
-    public Component description() {
-        return this.description;
     }
 }

@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.scale;
 
 public record UiScaleProfile(
-        double scale,
         int spacing,
         int tightSpacing,
         int padding,

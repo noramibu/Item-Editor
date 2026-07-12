@@ -145,7 +145,7 @@ final class EntityVariantSpecialDataApplier extends AbstractPreviewApplierSuppor
             return;
         }
 
-        DyeColor color = parseDyeColor(current);
+        DyeColor color = DyeColor.byName(current.trim().toLowerCase(Locale.ROOT), null);
         if (color == null) {
             this.reportMissing(labelKey, current, context);
             return;
@@ -162,14 +162,6 @@ final class EntityVariantSpecialDataApplier extends AbstractPreviewApplierSuppor
             }
         }
         return null;
-    }
-
-    private static DyeColor parseDyeColor(String raw) {
-        try {
-            return DyeColor.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
     }
 
     private void reportMissing(String labelKey, String raw, SpecialDataApplyContext context) {

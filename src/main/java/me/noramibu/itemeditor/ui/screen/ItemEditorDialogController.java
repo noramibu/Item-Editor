@@ -38,12 +38,10 @@ final class ItemEditorDialogController {
     private static final DateTimeFormatter EXPORT_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String EXPORT_DIRECTORY = "itemeditor/exports";
     private static final String DEFAULT_EXPORT_BASENAME = "item-data";
-    private static final String UNKNOWN_ERROR_MESSAGE = "unknown error";
     private static final String EXPORT_PREFIX_CURRENT_ITEM = "current-item";
     private static final String EXPORT_PREFIX_ORIGINAL_ITEM = "original-item";
     private static final String EXPORT_EXTENSION_NBT = "nbt";
     private static final String EXPORT_EXTENSION_JSON = "json";
-    private static final String RAW_DIFF_HELP_TEXT = "Green background = added/changed, Red background = removed";
     private static final String DIFF_LINE_UPDATED_PREFIX = "~ ";
     private static final String DIFF_LINE_UNCHANGED_PREFIX = "  ";
     private static final String DIFF_LINE_REMOVED_PREFIX = "- ";
@@ -88,9 +86,12 @@ final class ItemEditorDialogController {
         if (!body.isBlank()) {
             body += "\n";
         }
-        body += RAW_DIFF_HELP_TEXT;
+        body += ItemEditorText.str("dialog.raw_data.diff_help");
+        String titleKey = this.session().hasStorageOrigin()
+                ? "dialog.apply.place_inventory_title"
+                : this.session().origin() instanceof ItemEditorSessionOrigin.External ? "screen.title" : "dialog.apply.title";
         this.showDialog(RawItemDataDialog.createConfirmation(
-                ItemEditorText.str(this.session().hasStorageOrigin() ? "dialog.apply.place_inventory_title" : "dialog.apply.title"),
+                ItemEditorText.str(titleKey),
                 body,
                 this.buildRawDiffLines(originalRaw, currentRaw),
                 ItemEditorText.tr("common.save_apply"),
@@ -227,7 +228,7 @@ final class ItemEditorDialogController {
         List<RawItemDataDialog.Line> lines = previewData
                 ? this.buildRawDiffLines(originalRaw, currentRaw)
                 : this.toNeutralRawLines(rawData);
-        String body = previewData ? RAW_DIFF_HELP_TEXT : "";
+        String body = previewData ? ItemEditorText.str("dialog.raw_data.diff_help") : "";
         RawItemDataDialog.Feedback feedback = new RawItemDataDialog.Feedback();
         FlowLayout dialog = RawItemDataDialog.create(
                 title,
@@ -373,7 +374,7 @@ final class ItemEditorDialogController {
     private void exportRawData(String baseName, String extension, String content, RawItemDataDialog.Feedback feedback) {
         Minecraft minecraft = this.minecraft();
         if (minecraft == null) {
-            feedback.error(ItemEditorText.str("dialog.raw_data.export_failed", UNKNOWN_ERROR_MESSAGE));
+            feedback.error(ItemEditorText.str("dialog.raw_data.export_failed", ItemEditorText.str("raw.unknown_error")));
             return;
         }
 
@@ -409,7 +410,7 @@ final class ItemEditorDialogController {
     private void copyRawData(String rawData, RawItemDataDialog.Feedback feedback) {
         Minecraft minecraft = this.minecraft();
         if (minecraft == null) {
-            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", UNKNOWN_ERROR_MESSAGE));
+            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", ItemEditorText.str("raw.unknown_error")));
             return;
         }
 
@@ -429,7 +430,7 @@ final class ItemEditorDialogController {
     private void copyCommand(Supplier<String> commandSupplier, String successKey, RawItemDataDialog.Feedback feedback) {
         Minecraft minecraft = this.minecraft();
         if (minecraft == null) {
-            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", UNKNOWN_ERROR_MESSAGE));
+            feedback.error(ItemEditorText.str("dialog.raw_data.copy_failed", ItemEditorText.str("raw.unknown_error")));
             return;
         }
 
@@ -463,7 +464,7 @@ final class ItemEditorDialogController {
 
     private String errorMessage(Throwable exception) {
         String message = exception.getMessage();
-        return message == null ? UNKNOWN_ERROR_MESSAGE : message;
+        return message == null ? ItemEditorText.str("raw.unknown_error") : message;
     }
 
     private void sendSystemMessage(Minecraft minecraft, String message, ChatFormatting color) {
@@ -529,10 +530,12 @@ final class ItemEditorDialogController {
         this.clearDialog();
 
         Minecraft minecraft = this.minecraft();
-        int selectedSlot = minecraft.player != null ? minecraft.player.getInventory().getSelectedSlot() : -1;
+        int verificationSlot = this.session().origin() instanceof ItemEditorSessionOrigin.External external
+                ? external.verificationSlot()
+                : minecraft.player != null ? minecraft.player.getInventory().getSelectedSlot() : -1;
         var result = this.session().apply();
 
-        if (minecraft.player != null) {
+        if (minecraft.player != null && !result.message().isBlank()) {
             minecraft.player.displayClientMessage(
                     Component.literal(result.message()).withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED),
                     true
@@ -544,15 +547,17 @@ final class ItemEditorDialogController {
             return;
         }
 
-        PostApplyVerificationService.schedule(minecraft, expectedPreview, selectedSlot, verification -> {
-            if (minecraft.player == null || verification.matchesExpected() || verification.message().isBlank()) {
-                return;
-            }
-            minecraft.player.displayClientMessage(
-                    Component.literal(ItemEditorText.prefixedMessage(verification.message())).withStyle(ChatFormatting.YELLOW),
-                    false
-            );
-        });
+        if (verificationSlot >= 0) {
+            PostApplyVerificationService.schedule(minecraft, expectedPreview, verificationSlot, verification -> {
+                if (minecraft.player == null || verification.matchesExpected() || verification.message().isBlank()) {
+                    return;
+                }
+                minecraft.player.displayClientMessage(
+                        Component.literal(ItemEditorText.prefixedMessage(verification.message())).withStyle(ChatFormatting.YELLOW),
+                        false
+                );
+            });
+        }
 
         this.closeWithoutPrompt();
     }
@@ -604,7 +609,9 @@ final class ItemEditorDialogController {
         this.clearDialog();
         Minecraft minecraft = this.minecraft();
         if (minecraft != null) {
-            minecraft.setScreen(null);
+            minecraft.setScreen(this.session().origin() instanceof ItemEditorSessionOrigin.External external
+                    ? external.returnScreen()
+                    : null);
         }
     }
 

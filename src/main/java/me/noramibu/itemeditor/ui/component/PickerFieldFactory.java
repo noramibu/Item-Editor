@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 public final class PickerFieldFactory {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
+    private static final int MIN_TEXT_INPUT_WIDTH = 160;
 
     private PickerFieldFactory() {
     }
@@ -27,7 +27,7 @@ public final class PickerFieldFactory {
             Function<T, String> labelMapper,
             Consumer<T> onSelected
     ) {
-        int effectiveButtonWidth = compactButtonWidth(context, buttonWidth);
+        int effectiveButtonWidth = boundedButtonWidth(context, buttonWidth);
         return UiFactory.pickerField(
                 label,
                 helpText,
@@ -49,7 +49,7 @@ public final class PickerFieldFactory {
             Function<String, String> labelMapper,
             Consumer<String> onSelected
     ) {
-        int effectiveButtonWidth = compactButtonWidth(context, buttonWidth);
+        int effectiveButtonWidth = boundedButtonWidth(context, buttonWidth);
         return UiFactory.pickerField(
                 label,
                 helpText,
@@ -71,8 +71,9 @@ public final class PickerFieldFactory {
             Function<String, String> labelMapper,
             Consumer<String> onSelected
     ) {
-        int effectiveButtonWidth = compactButtonWidth(context, pickButtonWidth);
-        boolean stacked = effectiveButtonWidth < 0;
+        int effectiveButtonWidth = Math.min(Math.max(1, pickButtonWidth), context.panelWidthHint());
+        int rowGap = Math.max(1, UiFactory.scaleProfile().tightSpacing());
+        boolean stacked = context.panelWidthHint() < MIN_TEXT_INPUT_WIDTH + effectiveButtonWidth + rowGap;
         FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
         row.child(UiFactory.textBox(value, context.bindText(setter))
                 .horizontalSizing(stacked ? Sizing.fill(100) : Sizing.expand(100)));
@@ -92,10 +93,11 @@ public final class PickerFieldFactory {
         return Component.literal(value);
     }
 
-    private static int compactButtonWidth(SpecialDataPanelContext context, int requestedButtonWidth) {
-        if (context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD)) {
+    private static int boundedButtonWidth(SpecialDataPanelContext context, int requestedButtonWidth) {
+        int panelWidth = context.panelWidthHint();
+        if (panelWidth < requestedButtonWidth + UiFactory.scaleProfile().padding() * 2) {
             return -1;
         }
-        return requestedButtonWidth;
+        return Math.min(panelWidth, requestedButtonWidth);
     }
 }

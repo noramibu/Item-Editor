@@ -8,6 +8,7 @@ import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
+import me.noramibu.itemeditor.editor.text.RawEditorPreparedText;
 import me.noramibu.itemeditor.ui.component.raw.RawEditorLayout;
 import me.noramibu.itemeditor.ui.component.raw.RawEditorRenderer;
 import me.noramibu.itemeditor.ui.component.raw.RawFontMetrics;
@@ -22,7 +23,6 @@ import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
 import org.joml.Matrix3x2fStack;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -120,20 +120,33 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private int[] lineStarts = new int[]{0};
     private List<FoldRegion> foldRegions = List.of();
     private FoldRegion[] foldByStartLine = new FoldRegion[0];
-    private boolean[] hiddenLines = new boolean[]{false};
     private RawEditorLayout layout = RawEditorLayout.empty();
     private int[] lineDepthStarts = new int[]{0};
     private boolean lineDepthStartsDirty = true;
     private int contentHeight = 1;
     private int maxVisibleLineWidth;
     private int wrapLayoutWidth = -1;
+    private boolean layoutPending;
     private int fontSizePercent = 100;
     private float cachedTextScale = Float.NaN;
     public RawTextAreaComponent(Sizing horizontalSizing, Sizing verticalSizing, String value) {
+        this(horizontalSizing, verticalSizing);
+        this.resetText(value == null ? "" : value);
+    }
+
+    public RawTextAreaComponent(
+            Sizing horizontalSizing,
+            Sizing verticalSizing,
+            RawEditorPreparedText preparedText
+    ) {
+        this(horizontalSizing, verticalSizing);
+        this.resetPreparedText(preparedText);
+    }
+
+    private RawTextAreaComponent(Sizing horizontalSizing, Sizing verticalSizing) {
         this.horizontalSizing(horizontalSizing);
         this.verticalSizing(verticalSizing);
         this.cursorStyle(CursorStyle.TEXT);
-        this.resetText(value == null ? "" : value);
     }
 
     public RawTextAreaComponent displayCharCount(boolean ignored) {
@@ -216,10 +229,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     public RawTextAreaComponent wordWrap(boolean value) {
+        boolean changed = this.wordWrap != value;
         this.wordWrap = value;
         this.horizontalScroll = !value;
         if (value) {
             this.horizontalScrollAmount = 0d;
+        }
+        if (!changed || this.layoutPending) {
+            return this;
         }
         this.wrapLayoutWidth = -1;
         this.applyFoldVisibility();
@@ -246,6 +263,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         this.fontMetrics.setFontSizePercent(clamped);
         this.cachedTextScale = Float.NaN;
         this.wrapLayoutWidth = -1;
+        if (this.layoutPending) {
+            return this;
+        }
         this.applyFoldVisibility();
         this.ensureCursorVisible();
         this.notifyViewportChanged();
@@ -325,8 +345,10 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         );
         this.syncFromDocument();
         this.scrollAmount = scrollAmount;
-        this.clampScrollAmount();
-        this.clampHorizontalScrollAmount();
+        if (!this.layoutPending) {
+            this.clampScrollAmount();
+            this.clampHorizontalScrollAmount();
+        }
         this.notifyViewportChanged();
         this.historyChanged.run();
         return this;
@@ -1109,21 +1131,28 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
         if (edit.changed()) {
             this.historyChanged.run();
-            if (edit.incrementalLineStarts()) {
-                if (!foldStructuralEdit) {
-                    if (edit.lineDelta() == 0) {
-                        this.applyFoldVisibility();
-                    } else if (edit.startLineBefore() >= 0) {
-                        this.shiftFoldRegionsAfterLine(edit.startLineBefore(), edit.lineDelta());
-                        this.applyFoldVisibility();
+            boolean lineLayoutUpdated = edit.incrementalLineStarts()
+                    && !foldStructuralEdit
+                    && edit.lineDelta() == 0
+                    && edit.startLineBefore() >= 0
+                    && this.updateEditedLineLayout(edit.startLineBefore());
+            if (!lineLayoutUpdated) {
+                if (edit.incrementalLineStarts()) {
+                    if (!foldStructuralEdit) {
+                        if (edit.lineDelta() == 0) {
+                            this.applyFoldVisibility();
+                        } else if (edit.startLineBefore() >= 0) {
+                            this.shiftFoldRegionsAfterLine(edit.startLineBefore(), edit.lineDelta());
+                            this.applyFoldVisibility();
+                        } else {
+                            this.rebuildFoldLayout();
+                        }
                     } else {
                         this.rebuildFoldLayout();
                     }
                 } else {
                     this.rebuildFoldLayout();
                 }
-            } else {
-                this.rebuildFoldLayout();
             }
         }
 
@@ -1137,6 +1166,27 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         } else {
             this.changedEvents.sink().onChanged(this.text, ChangeDelta.none(this.text.length()));
         }
+    }
+
+    private boolean updateEditedLineLayout(int lineIndex) {
+        int wrapWidth = Math.max(1, this.contentWidth());
+        RawEditorLayout updated = this.layout.updateLine(
+                this.text,
+                this.lineStarts,
+                lineIndex,
+                this.fontMetrics,
+                wrapWidth,
+                this.lineHeightWithSpacing()
+        );
+        if (updated == null) {
+            return false;
+        }
+        this.layout = updated;
+        this.wrapLayoutWidth = wrapWidth;
+        this.contentHeight = updated.contentHeight();
+        this.maxVisibleLineWidth = updated.maxVisibleLineWidth();
+        this.clampHorizontalScrollAmount();
+        return true;
     }
 
     private void restoreDocumentState(RawTextDocument.RestoredState restored) {
@@ -1195,6 +1245,29 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         this.rebuildFoldLayout();
         this.scrollAmount = 0;
         this.horizontalScrollAmount = 0;
+        this.historyChanged.run();
+    }
+
+    private void resetPreparedText(RawEditorPreparedText preparedText) {
+        RawEditorPreparedText prepared = preparedText == null
+                ? RawEditorPreparedText.prepare("")
+                : preparedText;
+        this.document.reset(prepared.text(), prepared.lineStarts());
+        this.syncFromDocument();
+        this.foldRegions = prepared.folds().stream()
+                .map(fold -> new FoldRegion(fold.startLine(), fold.endLine(), fold.type()))
+                .toList();
+        this.foldByStartLine = new FoldRegion[0];
+        this.layout = RawEditorLayout.empty();
+        this.lineDepthStartsDirty = true;
+        this.syntaxHighlighter.clear();
+        this.clearVirtualCaret();
+        this.scrollAmount = 0;
+        this.horizontalScrollAmount = 0;
+        this.contentHeight = 1;
+        this.maxVisibleLineWidth = 0;
+        this.wrapLayoutWidth = -1;
+        this.layoutPending = true;
         this.historyChanged.run();
     }
 
@@ -1420,7 +1493,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int foldMarkerLeft = this.foldMarkerLeft();
         int foldMarkerRight = this.foldMarkerRight();
         int minNumberX = this.innerLeft() + this.gutterMetrics().numberLeftOffset();
-        for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
+        int firstVisibleRow = this.layout.firstVisibleRow(renderedScroll, lineHeight);
+        int lastVisibleRow = this.layout.lastVisibleRowExclusive(renderedScroll, visibleHeight, lineHeight);
+        for (int visibleLine = firstVisibleRow; visibleLine < lastVisibleRow; visibleLine++) {
             RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
             int lineIndex = row.lineIndex();
             int lineY = top + visibleLine * lineHeight - renderedScroll;
@@ -1459,7 +1534,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int[] depthStarts = this.lineDepthStartsForRender();
         int syntaxBudget = MAX_SYNTAX_RENDER_BUDGET_CHARS;
         int lastBudgetedLine = -1;
-        for (int visibleLine = 0; visibleLine < this.layout.rowCount(); visibleLine++) {
+        int firstVisibleRow = this.layout.firstVisibleRow(renderedScroll, lineHeight);
+        int lastVisibleRow = this.layout.lastVisibleRowExclusive(renderedScroll, visibleHeight, lineHeight);
+        for (int visibleLine = firstVisibleRow; visibleLine < lastVisibleRow; visibleLine++) {
             RawEditorLayout.VisualRow row = this.layout.row(visibleLine);
             int lineIndex = row.lineIndex();
             int lineY = top + visibleLine * lineHeight - renderedScroll;
@@ -1567,8 +1644,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             RawEditorLayout.VisualRow row
     ) {
         int lineStart = this.lineStarts[lineIndex];
-        int rowStart = row.documentStart();
-        int rowEnd = row.documentEnd();
+        int rowStart = this.layout.documentStart(row);
+        int rowEnd = this.layout.documentEnd(row);
         if (rowEnd <= rowStart) {
             return;
         }
@@ -1698,7 +1775,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         if (lineIndex >= this.lineStarts.length) {
             return;
         }
-        if (lineIndex < this.hiddenLines.length && this.hiddenLines[lineIndex]) {
+        if (this.layout.hiddenLine(lineIndex)) {
             return;
         }
 
@@ -2308,60 +2385,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private List<FoldRegion> scanFoldRegions() {
-        List<FoldRegion> regions = new ArrayList<>();
-        ArrayDeque<OpenSymbol> openStack = new ArrayDeque<>();
-        boolean inString = false;
-        boolean escaping = false;
-        int line = 0;
-
-        for (int index = 0; index < this.text.length(); index++) {
-            char value = this.text.charAt(index);
-            if (inString) {
-                if (escaping) {
-                    escaping = false;
-                } else if (value == '\\') {
-                    escaping = true;
-                } else if (value == '"') {
-                    inString = false;
-                }
-            } else {
-                if (value == '"') {
-                    inString = true;
-                } else if (value == '{' || value == '[') {
-                    openStack.addLast(new OpenSymbol(value, line));
-                } else if (value == '}' || value == ']') {
-                    char expectedOpen = value == '}' ? '{' : '[';
-                    OpenSymbol matched = null;
-                    while (!openStack.isEmpty()) {
-                        OpenSymbol candidate = openStack.removeLast();
-                        if (candidate.type == expectedOpen) {
-                            matched = candidate;
-                            break;
-                        }
-                    }
-                    if (matched != null && line > matched.line) {
-                        regions.add(new FoldRegion(matched.line, line, expectedOpen));
-                    }
-                }
-            }
-
-            if (value == '\n') {
-                line++;
-            }
-        }
-
-        regions.sort((left, right) -> {
-            if (left.startLine != right.startLine) {
-                return Integer.compare(left.startLine, right.startLine);
-            }
-            return Integer.compare(right.endLine, left.endLine);
-        });
-        return regions;
+        return RawEditorPreparedText.prepare(this.text).folds().stream()
+                .map(fold -> new FoldRegion(fold.startLine(), fold.endLine(), fold.type()))
+                .toList();
     }
 
     private void applyFoldVisibility() {
         int lineCount = this.lineStarts.length;
-        this.hiddenLines = new boolean[lineCount];
         this.foldByStartLine = new FoldRegion[lineCount];
 
         for (FoldRegion region : this.foldRegions) {
@@ -2371,11 +2401,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             FoldRegion current = this.foldByStartLine[region.startLine];
             if (current == null || region.endLine > current.endLine) {
                 this.foldByStartLine[region.startLine] = region;
-            }
-            if (region.collapsed) {
-                for (int line = region.startLine + 1; line <= Math.min(region.endLine, lineCount - 1); line++) {
-                    this.hiddenLines[line] = true;
-                }
             }
         }
 
@@ -2389,9 +2414,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.wordWrap,
                 this.layoutFoldSpans()
         );
-        for (int line = 0; line < lineCount; line++) {
-            this.hiddenLines[line] = this.layout.hiddenLine(line);
-        }
+        this.layoutPending = false;
         this.wrapLayoutWidth = wrapWidth;
         this.moveCursorOutOfHiddenRegion();
         this.contentHeight = this.layout.contentHeight();
@@ -2403,14 +2426,21 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         if (this.foldRegions.isEmpty()) {
             return List.of();
         }
-        List<RawEditorLayout.FoldSpan> spans = new ArrayList<>(this.foldRegions.size());
+        List<RawEditorLayout.FoldSpan> spans = new ArrayList<>();
         for (FoldRegion region : this.foldRegions) {
-            spans.add(new RawEditorLayout.FoldSpan(region.startLine, region.endLine, region.collapsed));
+            if (region.collapsed) {
+                spans.add(new RawEditorLayout.FoldSpan(region.startLine, region.endLine, true));
+            }
         }
         return spans;
     }
 
     private void refreshWrapLayoutIfNeeded() {
+        if (this.layoutPending) {
+            this.applyFoldVisibility();
+            this.ensureCursorVisible();
+            return;
+        }
         if (!this.wordWrap) {
             return;
         }
@@ -2423,11 +2453,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void moveCursorOutOfHiddenRegion() {
-        if (this.hiddenLines.length == 0) {
-            return;
-        }
         int cursorLine = this.lineIndexForCursor(this.cursor);
-        if (!this.hiddenLines[Math.clamp(cursorLine, 0, this.hiddenLines.length - 1)]) {
+        if (!this.layout.hiddenLine(cursorLine)) {
             return;
         }
         for (FoldRegion region : this.foldRegions) {
@@ -2758,9 +2785,6 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         this.cachedTextScale = scale;
         this.syntaxHighlighter.clear();
         this.lineDepthStartsDirty = true;
-    }
-
-    private record OpenSymbol(char type, int line) {
     }
 
     private enum SyntaxRunKind {

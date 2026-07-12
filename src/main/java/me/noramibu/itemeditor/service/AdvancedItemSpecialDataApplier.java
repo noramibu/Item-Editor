@@ -135,7 +135,6 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         this.applyAttackRange(context);
 
         this.applyItemName(context);
-        this.applyMaxStackSize(context);
         this.applyMinimumAttackCharge(context);
         this.applyEnchantable(context);
         this.applyOminousBottleAmplifier(context);
@@ -560,7 +559,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        DyeColor parsed = this.parseDyeColor(dyeColor);
+        DyeColor parsed = DyeColor.byName(dyeColor.trim().toLowerCase(java.util.Locale.ROOT), null);
         if (parsed == null) {
             context.messages().add(ValidationMessage.error(ItemEditorText.str(
                     "preview.validation.component_failed",
@@ -577,14 +576,6 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 .getOptional(DYE_COMPONENT_ID)
                 .orElse(null);
         return componentType == null ? null : (DataComponentType<DyeColor>) componentType;
-    }
-
-    private DyeColor parseDyeColor(String raw) {
-        try {
-            return DyeColor.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
     }
 
     private void applyLock(SpecialDataApplyContext context) {
@@ -1261,30 +1252,6 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         context.previewStack().set(DataComponents.ITEM_NAME, TextComponentUtil.parseMarkup(context.special().itemName));
-    }
-
-    private void applyMaxStackSize(SpecialDataApplyContext context) {
-        if (this.handleUnchangedOrCleared(
-                context,
-                DataComponents.MAX_STACK_SIZE,
-                Objects.equals(context.special().maxStackSize, context.baselineSpecial().maxStackSize),
-                context.special().maxStackSize.isBlank()
-        )) {
-            return;
-        }
-
-        Integer maxStackSize = ValidationUtil.parseInt(
-                context.special().maxStackSize,
-                ItemEditorText.str("special.advanced.component_tweaks.max_stack_size"),
-                1,
-                999,
-                context.messages()
-        );
-        if (maxStackSize == null) {
-            return;
-        }
-
-        context.previewStack().set(DataComponents.MAX_STACK_SIZE, maxStackSize);
     }
 
     private void applyMinimumAttackCharge(SpecialDataApplyContext context) {

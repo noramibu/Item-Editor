@@ -8,7 +8,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ChestMenu;
@@ -93,7 +92,7 @@ public final class ImportedItemsScreen extends ContainerScreen {
         super.renderBackground(context, mouseX, mouseY, delta);
         context.drawString(
                 this.font,
-                Component.literal(ItemEditorText.str("imported_items.page", this.page + 1, this.maxPage() + 1, this.importedItems.size())),
+                ItemEditorText.tr("imported_items.page", this.page + 1, this.maxPage() + 1, this.importedItems.size()),
                 this.leftPos + 8,
                 this.topPos + 6,
                 0xD5DEE8,

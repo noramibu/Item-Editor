@@ -141,10 +141,10 @@ public final class BookEditorPanel implements EditorPanel {
                     generationButton.horizontalSizing(Sizing.fixed(180))
             );
 
-            if (this.guiWidth() >= BOOK_METADATA_WIDE_THRESHOLD) {
+            if (this.availableContentWidth() >= BOOK_METADATA_WIDE_THRESHOLD) {
                 FlowLayout topRow = UiFactory.row();
-                topRow.child(titleField.horizontalSizing(Sizing.expand(100)));
-                topRow.child(authorField.horizontalSizing(Sizing.expand(100)));
+                topRow.child(titleField.horizontalSizing(Sizing.fill(49)));
+                topRow.child(authorField.horizontalSizing(Sizing.fill(49)));
                 metadata.child(topRow);
                 metadata.child(generationField);
             } else {
@@ -212,7 +212,7 @@ public final class BookEditorPanel implements EditorPanel {
         editorRow.child(this.buildPageLineNumberGutter(pageSection.editor(), lineNumberLabels));
         editorRow.child(pageSection.editor().horizontalSizing(Sizing.fill(100)));
         pageFrame.child(editorRow);
-        pageFrame.child(this.buildPageHorizontalScrollbar(pageSection.editor()));
+        pageFrame.child(UiFactory.horizontalScrollbarRow(pageSection.editor(), PAGE_LINE_NUMBER_WIDTH));
         refreshStats.run();
 
         FlowLayout pageShell = UiFactory.column();
@@ -396,11 +396,12 @@ public final class BookEditorPanel implements EditorPanel {
         for (int index = 0; index < book.pages.size(); index += 2) {
             FlowLayout row = UiFactory.row();
             ButtonComponent left = this.buildPageIndexButton(book, index, miniMapOffsetSupplier);
-            left.horizontalSizing(Sizing.expand(100));
+            boolean hasRight = index + 1 < book.pages.size();
+            left.horizontalSizing(Sizing.fill(hasRight ? 49 : 100));
             row.child(left);
-            if (index + 1 < book.pages.size()) {
+            if (hasRight) {
                 ButtonComponent right = this.buildPageIndexButton(book, index + 1, miniMapOffsetSupplier);
-                right.horizontalSizing(Sizing.expand(100));
+                right.horizontalSizing(Sizing.fill(49));
                 row.child(right);
             }
             pageList.child(row);
@@ -429,7 +430,7 @@ public final class BookEditorPanel implements EditorPanel {
         tooltip.add(ItemEditorText.tr("book.pages.current", pageIndex + 1, book.pages.size()));
         List<Component> lines = this.pagePreviewLines(book.pages.get(pageIndex), book.writtenBook);
         if (lines.isEmpty()) {
-            tooltip.add(Component.literal(ItemEditorText.str("book.pages.blank")));
+            tooltip.add(ItemEditorText.tr("book.pages.blank"));
         } else {
             tooltip.addAll(lines);
         }
@@ -581,10 +582,6 @@ public final class BookEditorPanel implements EditorPanel {
         return gutter;
     }
 
-    private FlowLayout buildPageHorizontalScrollbar(RichTextAreaComponent editor) {
-        return UiFactory.horizontalScrollbarRow(editor, PAGE_LINE_NUMBER_WIDTH);
-    }
-
     private void updateBookPageLineNumbers(
             RichTextAreaComponent editor,
             List<LabelComponent> labels
@@ -693,10 +690,6 @@ public final class BookEditorPanel implements EditorPanel {
                 .findFirst()
                 .orElse(GENERATION_OPTIONS.getFirst())
                 .labelKey());
-    }
-
-    private int guiWidth() {
-        return this.screen.session().minecraft().getWindow().getGuiScaledWidth();
     }
 
     private int availableContentWidth() {

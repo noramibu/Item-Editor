@@ -9,7 +9,6 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -129,11 +128,7 @@ final class DialogUiUtil {
     }
 
     static boolean compactButtons(int dialogWidth, int widthThreshold) {
-        return dialogWidth < widthThreshold
-                || LayoutModeUtil.isCompactScale(
-                        minecraft().getWindow().getGuiScale(),
-                        LayoutModeUtil.DIALOG_BUTTON_COMPACT_LAYOUT_SCALE_THRESHOLD
-                );
+        return dialogWidth < widthThreshold;
     }
 
     static int buttonRowReserve(boolean compactButtons, int compactRows, int compactExtra, int regularExtra) {
@@ -157,17 +152,15 @@ final class DialogUiUtil {
             int minWidth,
             int maxWidth,
             int widthDivisor,
-            int textMinWidth,
-            int textReserve,
             FooterAction... actions
     ) {
         int buttonWidth = compactButtons
                 ? 0
                 : clampUi(dialogWidth / Math.max(1, widthDivisor), minWidth, maxWidth);
         if (compactButtons) {
-            return compactFooterRows(dialogWidth, minWidth, maxWidth, textMinWidth, textReserve, actions);
+            return compactFooterRows(dialogWidth, minWidth, maxWidth, actions);
         }
-        return footerRow(buttonWidth, textMinWidth, textReserve, actions);
+        return footerRow(buttonWidth, actions);
     }
 
     static FlowLayout footerRowByCount(
@@ -177,30 +170,26 @@ final class DialogUiUtil {
             int maxWidth,
             int buttonCount,
             int rowReserve,
-            int textMinWidth,
-            int textReserve,
             FooterAction... actions
     ) {
         int buttonWidth = compactButtons
                 ? 0
                 : clampUi((dialogWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount), minWidth, maxWidth);
         if (compactButtons) {
-            return compactFooterRows(dialogWidth, minWidth, maxWidth, textMinWidth, textReserve, actions);
+            return compactFooterRows(dialogWidth, minWidth, maxWidth, actions);
         }
-        return footerRow(buttonWidth, textMinWidth, textReserve, actions);
+        return footerRow(buttonWidth, actions);
     }
 
     private static FlowLayout footerRow(
             int buttonWidth,
-            int textMinWidth,
-            int textReserve,
             FooterAction... actions
     ) {
         FlowLayout row = footerActionRow();
         row.horizontalAlignment(HorizontalAlignment.RIGHT);
         for (FooterAction action : actions) {
             ButtonComponent button = baseFooterButton(action.fullText(), false, action.onPress());
-            configureFooterButton(button, action.fullText(), buttonWidth, textMinWidth, textReserve);
+            configureFooterButton(button, action.fullText(), buttonWidth);
             row.child(button);
         }
         return row;
@@ -210,8 +199,6 @@ final class DialogUiUtil {
             int dialogWidth,
             int minWidth,
             int maxWidth,
-            int textMinWidth,
-            int textReserve,
             FooterAction... actions
     ) {
         FlowLayout column = UiFactory.column();
@@ -234,7 +221,7 @@ final class DialogUiUtil {
             }
 
             ButtonComponent button = baseFooterButton(action.fullText(), true, action.onPress());
-            configureFooterButton(button, action.fullText(), buttonWidth, textMinWidth, textReserve);
+            configureFooterButton(button, action.fullText(), buttonWidth);
             if (columns <= 1) {
                 button.horizontalSizing(Sizing.fill(100));
             }
@@ -281,14 +268,9 @@ final class DialogUiUtil {
     private static void configureFooterButton(
             ButtonComponent button,
             Component fullText,
-            int buttonWidth,
-            int textMinWidth,
-            int textReserve
+            int buttonWidth
     ) {
-        button.setMessage(UiFactory.fitToWidth(
-                fullText,
-                Math.max(textMinWidth, buttonWidth - UiFactory.scaledPixels(textReserve))
-        ));
+        button.setMessage(fullText);
         button.tooltip(List.of(fullText));
         button.horizontalSizing(Sizing.fixed(buttonWidth));
     }
@@ -323,7 +305,7 @@ final class DialogUiUtil {
 
     private static int clampUi(int value, int min, int max) {
         int safeMax = Math.max(VIEWPORT_MIN, max);
-        int safeMin = Math.min(Math.max(VIEWPORT_MIN, min), safeMax);
+        int safeMin = Math.clamp(min, VIEWPORT_MIN, safeMax);
         return Math.clamp(value, safeMin, safeMax);
     }
 

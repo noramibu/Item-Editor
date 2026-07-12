@@ -11,8 +11,6 @@ import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
-import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -68,7 +66,6 @@ public final class AdvancedItemSpecialDataSection {
     private static final int STORAGE_PICK_INPUT_MIN_WIDTH = 96;
     private static final int STORAGE_PICK_BUTTON_MIN = 92;
     private static final int STORAGE_PICK_BUTTON_BASE = 122;
-    private static final int STORAGE_PICK_BUTTON_TEXT_RESERVE = 14;
     private static final int BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD = 420;
     private static final int BLOCK_STATE_VALUE_WIDTH_PERCENT = 76;
     private static final int BLOCK_STATE_VALUE_WITH_RESET_WIDTH_PERCENT = 56;
@@ -491,10 +488,7 @@ public final class AdvancedItemSpecialDataSection {
         int panelWidth = guiWidth();
         int pickWidth = compactFixedPickButtonWidth();
         int storageWidth = storagePickButtonWidth();
-        int minInputWidth = Math.min(
-                Math.max(1, panelWidth),
-                Math.max(STORAGE_PICK_INPUT_MIN_WIDTH, UiFactory.scaledPixels(STORAGE_PICK_INPUT_MIN_WIDTH))
-        );
+        int minInputWidth = Math.min(Math.max(1, panelWidth), STORAGE_PICK_INPUT_MIN_WIDTH);
         boolean stacked = panelWidth < minInputWidth + pickWidth + storageWidth + (rowGap * 2);
         FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
         row.gap(rowGap);
@@ -518,8 +512,6 @@ public final class AdvancedItemSpecialDataSection {
             row.child(input.horizontalSizing(Sizing.fill(100)));
             FlowLayout buttons = UiFactory.row();
             buttons.gap(rowGap);
-            int buttonWidth = Math.max(1, (panelWidth - rowGap) / 2);
-            fitStoragePickButton(storageButton, buttonWidth);
             pickButton.horizontalSizing(Sizing.fill(50));
             storageButton.horizontalSizing(Sizing.fill(50));
             buttons.child(pickButton);
@@ -529,7 +521,6 @@ public final class AdvancedItemSpecialDataSection {
             row.child(input);
             pickButton.horizontalSizing(Sizing.fixed(pickWidth));
             row.child(pickButton);
-            fitStoragePickButton(storageButton, storageWidth);
             storageButton.horizontalSizing(Sizing.fixed(storageWidth));
             row.child(storageButton);
         }
@@ -541,20 +532,6 @@ public final class AdvancedItemSpecialDataSection {
                 STORAGE_PICK_BUTTON_MIN,
                 UiFactory.scaledPixels(STORAGE_PICK_BUTTON_BASE)
         ));
-    }
-
-    private static void fitStoragePickButton(ButtonComponent button, int width) {
-        Component fullText = ItemEditorText.tr("common.pick_from_storage")
-                .copy()
-                .withColor(UiColors.PICKER);
-        Component fitted = UiFactory.fitToWidth(
-                fullText,
-                Math.max(1, width - UiFactory.scaledPixels(STORAGE_PICK_BUTTON_TEXT_RESERVE))
-        );
-        button.setMessage(fitted);
-        if (!Objects.equals(fitted.getString(), fullText.getString())) {
-            button.tooltip(List.of(fullText));
-        }
     }
 
     private static String encodeItemStackTemplate(SpecialDataPanelContext context, ItemStack stack) {
@@ -735,25 +712,15 @@ public final class AdvancedItemSpecialDataSection {
             int reserve = Math.max(2, UiFactory.scaledPixels(PANEL_WIDTH_SAFETY_RESERVE));
             return Math.max(1, hinted - reserve);
         }
-        return Math.max(1, minecraft.getWindow().getGuiScaledWidth());
+        return UiFactory.responsiveBodyTextWidth();
     }
 
     private static boolean isNarrowLayout() {
-        Minecraft minecraft = Minecraft.getInstance();
-        double guiScale = minecraft.getWindow().getGuiScale();
-        return guiWidth() <= NARROW_LAYOUT_WIDTH_THRESHOLD || LayoutModeUtil.isCompactScale(
-                guiScale,
-                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-        );
+        return guiWidth() <= NARROW_LAYOUT_WIDTH_THRESHOLD;
     }
 
     static boolean prefersStackedCompactRows() {
-        Minecraft minecraft = Minecraft.getInstance();
-        double guiScale = minecraft.getWindow().getGuiScale();
-        return guiWidth() <= STACKED_COMPACT_WIDTH_THRESHOLD || LayoutModeUtil.isCompactScale(
-                guiScale,
-                LayoutModeUtil.STACKED_COMPACT_LAYOUT_SCALE_THRESHOLD
-        );
+        return guiWidth() <= STACKED_COMPACT_WIDTH_THRESHOLD;
     }
 
     private static boolean usesStackedPickerRows() {
@@ -1094,22 +1061,27 @@ public final class AdvancedItemSpecialDataSection {
 
     private static String consumableEffectSummary(ItemEditorState.ConsumableEffectDraft draft, String currentType) {
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
-            return "clear_all_effects";
+            return effectTypeLabel(currentType);
         }
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
             String sound = valueOrDefault(draft.soundId, "-");
-            return "play_sound - " + sound;
+            return effectTypeLabel(currentType) + " - " + sound;
         }
         int effectCount = draft.effects.size();
         String probability = draft.probability.isBlank() ? "1.0" : draft.probability;
-        return "apply_effects - " + effectCount + " effects - p=" + probability;
+        return ItemEditorText.str(
+                "special.advanced.consumable.effect_summary",
+                effectTypeLabel(currentType),
+                effectCount,
+                probability
+        );
     }
 
     private static String beeSummary(ItemEditorState.BeeOccupantDraft draft) {
         String entity = valueOrDefault(draft.entityId, "minecraft:bee");
         String ticks = valueOrDefault(draft.ticksInHive, "0");
         String minTicks = valueOrDefault(draft.minTicksInHive, "0");
-        return entity + " - " + ticks + "/" + minTicks + " ticks";
+        return ItemEditorText.str("special.advanced.container_meta.bee_summary", entity, ticks, minTicks);
     }
 
     private static String projectileSummary(ItemEditorState.ChargedProjectileDraft draft) {
@@ -1408,12 +1380,9 @@ public final class AdvancedItemSpecialDataSection {
             ButtonComponent expandAll = UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.tooltip(List.of(Component.literal("Expand all bees")));
-
             ButtonComponent collapseAll = UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.tooltip(List.of(Component.literal("Collapse all bees")));
 
             card.child(UiFactory.actionButtonRow(expandAll, collapseAll));
         }
@@ -1511,12 +1480,9 @@ public final class AdvancedItemSpecialDataSection {
                         ButtonComponent expandAll = UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                                 context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = false))
                         );
-                        expandAll.tooltip(List.of(Component.literal("Expand all projectiles")));
-
                         ButtonComponent collapseAll = UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                                 context.mutateRefresh(() -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = true))
                         );
-                        collapseAll.tooltip(List.of(Component.literal("Collapse all projectiles")));
 
                         content.child(UiFactory.actionButtonRow(expandAll, collapseAll));
                     } else {
@@ -1737,12 +1703,9 @@ public final class AdvancedItemSpecialDataSection {
             ButtonComponent expandAll = UiFactory.button(ItemEditorText.tr("common.expand_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = false))
             );
-            expandAll.tooltip(List.of(Component.literal("Expand all decorations")));
-
             ButtonComponent collapseAll = UiFactory.button(ItemEditorText.tr("common.collapse_all"), UiFactory.ButtonTextPreset.STANDARD,  button ->
                     context.mutateRefresh(() -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = true))
             );
-            collapseAll.tooltip(List.of(Component.literal("Collapse all decorations")));
 
             card.child(UiFactory.actionButtonRow(expandAll, collapseAll));
         }
@@ -2297,7 +2260,7 @@ public final class AdvancedItemSpecialDataSection {
 
     private static Component holderSetSummary(List<String> entries) {
         if (entries.isEmpty()) {
-            return Component.literal("No damage types or tags selected");
+            return ItemEditorText.tr("special.advanced.component_tweaks.damage_types_none");
         }
 
         int tags = 0;
@@ -2307,8 +2270,12 @@ public final class AdvancedItemSpecialDataSection {
             }
         }
         int types = entries.size() - tags;
-        return Component.literal(entries.size() + " entries: " + types + " type" + (types == 1 ? "" : "s")
-                + ", " + tags + " tag" + (tags == 1 ? "" : "s"));
+        return ItemEditorText.tr(
+                "special.advanced.component_tweaks.damage_types_summary",
+                entries.size(),
+                types,
+                tags
+        );
     }
 
     private static Component blockHolderSetSummary(List<String> entries) {
@@ -2323,12 +2290,12 @@ public final class AdvancedItemSpecialDataSection {
             }
         }
         int blocks = entries.size() - tags;
-        return Component.literal(ItemEditorText.str(
+        return ItemEditorText.tr(
                 "special.advanced.combat.tool_rule_blocks_summary",
                 entries.size(),
                 blocks,
                 tags
-        ));
+        );
     }
 
     private static boolean hasHolderSetExpansionWarning(
@@ -2373,10 +2340,10 @@ public final class AdvancedItemSpecialDataSection {
 
     private static Component holderSetEntryKind(String value) {
         if (value != null && value.trim().startsWith("#")) {
-            return Component.literal("Tag").withColor(0x8AC8FF);
+            return ItemEditorText.tr("common.tag").copy().withColor(0x8AC8FF);
         }
         if (value != null && !value.isBlank()) {
-            return Component.literal("Type").withColor(0x91E68C);
+            return ItemEditorText.tr("common.type").copy().withColor(0x91E68C);
         }
         return ItemEditorText.tr("common.entry");
     }

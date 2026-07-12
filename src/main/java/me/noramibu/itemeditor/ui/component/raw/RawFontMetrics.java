@@ -9,18 +9,6 @@ import java.util.Map;
 
 public final class RawFontMetrics implements RawEditorTextMeasurer {
     private static final Style RAW_STYLE = Style.EMPTY;
-    private static final double TEXT_SCALE_THRESHOLD_GS5 = 5.0d;
-    private static final double TEXT_SCALE_THRESHOLD_GS4 = 4.0d;
-    private static final double TEXT_SCALE_THRESHOLD_GS3 = 3.0d;
-    private static final float TEXT_SCALE_GS5 = 0.72F;
-    private static final float TEXT_SCALE_GS4 = 0.80F;
-    private static final float TEXT_SCALE_GS3 = 0.90F;
-    private static final int TEXT_SCALE_NARROW_WIDTH_THRESHOLD = 560;
-    private static final int TEXT_SCALE_NARROW_HEIGHT_THRESHOLD = 300;
-    private static final float TEXT_SCALE_NARROW_PENALTY = 0.04F;
-    private static final int TEXT_SCALE_WIDE_WIDTH_THRESHOLD = 1200;
-    private static final int TEXT_SCALE_WIDE_HEIGHT_THRESHOLD = 700;
-    private static final float TEXT_SCALE_WIDE_BONUS = 0.04F;
     private static final float TEXT_SCALE_MIN = 0.10F;
     private static final float TEXT_SCALE_MAX = 5.00F;
 
@@ -141,30 +129,7 @@ public final class RawFontMetrics implements RawEditorTextMeasurer {
     }
 
     private float computeTextScale() {
-        Minecraft minecraft = Minecraft.getInstance();
-        double guiScale = minecraft.getWindow().getGuiScale();
-        int guiWidth = minecraft.getWindow().getGuiScaledWidth();
-        int guiHeight = minecraft.getWindow().getGuiScaledHeight();
-
-        float scale = this.baseScaleForGuiScale(guiScale);
-
-        if (guiWidth <= TEXT_SCALE_NARROW_WIDTH_THRESHOLD || guiHeight <= TEXT_SCALE_NARROW_HEIGHT_THRESHOLD) {
-            scale -= TEXT_SCALE_NARROW_PENALTY;
-        } else if (guiWidth >= TEXT_SCALE_WIDE_WIDTH_THRESHOLD && guiHeight >= TEXT_SCALE_WIDE_HEIGHT_THRESHOLD) {
-            scale += TEXT_SCALE_WIDE_BONUS;
-        }
-
-        scale *= (this.fontSizePercent / 100.0F);
+        float scale = this.fontSizePercent / 100.0F;
         return Math.clamp(scale, TEXT_SCALE_MIN, TEXT_SCALE_MAX);
-    }
-
-    private float baseScaleForGuiScale(double guiScale) {
-        if (guiScale >= TEXT_SCALE_THRESHOLD_GS5) {
-            return TEXT_SCALE_GS5;
-        }
-        if (guiScale >= TEXT_SCALE_THRESHOLD_GS4) {
-            return TEXT_SCALE_GS4;
-        }
-        return guiScale >= TEXT_SCALE_THRESHOLD_GS3 ? TEXT_SCALE_GS3 : 1.0F;
     }
 }

@@ -7,6 +7,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
+import net.minecraft.world.entity.DropChances;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.DyeColor;
@@ -17,6 +19,8 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -315,7 +319,11 @@ public final class ItemEditorState {
         public String armorStandCustomName = "";
         public String armorStandDisabledSlots = "";
         public String armorStandScale = "";
+        public String armorStandHealth = "";
         public int armorStandSelectedPreset = -1;
+        public final EntityEquipmentDraft armorStandEquipment = new EntityEquipmentDraft();
+        public final List<EntityAttributeDraft> armorStandAttributes = new ArrayList<>();
+        public boolean uiArmorStandAttributesCollapsed = true;
         public final ArmorStandPoseDraft armorStandPose = new ArmorStandPoseDraft();
 
         public boolean itemFrameInvisible;
@@ -364,6 +372,8 @@ public final class ItemEditorState {
         public boolean bucketGlowing;
         public boolean bucketInvulnerable;
         public String bucketHealth = "";
+        public final List<EntityAttributeDraft> bucketAttributes = new ArrayList<>();
+        public boolean uiBucketAttributesCollapsed = true;
         public String bucketAge = "";
         public boolean bucketAgeLocked;
         public String bucketHuntingCooldown = "";
@@ -470,7 +480,88 @@ public final class ItemEditorState {
         public boolean customNameVisible;
         public String customName = "";
         public String health = "";
+        public final List<EntityAttributeDraft> attributes = new ArrayList<>();
+        public boolean uiAttributesCollapsed = true;
+        public final EntityEquipmentDraft equipment = new EntityEquipmentDraft();
         public CompoundTag originalEntityTag = new CompoundTag();
+    }
+
+    public static final class EntityAttributeDraft {
+        public String attributeId = "";
+        public String baseValue = "";
+        public CompoundTag originalTag = new CompoundTag();
+
+        public EntityAttributeDraft copy() {
+            EntityAttributeDraft copy = new EntityAttributeDraft();
+            copy.attributeId = this.attributeId;
+            copy.baseValue = this.baseValue;
+            copy.originalTag = this.originalTag.copy();
+            return copy;
+        }
+    }
+
+    public static final class EntityEquipmentDraft {
+        private static final String DEFAULT_DROP_CHANCE =
+                Float.toString(DropChances.DEFAULT_EQUIPMENT_DROP_CHANCE);
+
+        private final EnumMap<EquipmentSlot, ItemStack> stacks = new EnumMap<>(EquipmentSlot.class);
+        private final EnumMap<EquipmentSlot, String> dropChances = new EnumMap<>(EquipmentSlot.class);
+        private final EnumSet<EquipmentSlot> editedSlots = EnumSet.noneOf(EquipmentSlot.class);
+        public boolean uiCollapsed = true;
+
+        public ItemStack stack(EquipmentSlot slot) {
+            return this.stacks.getOrDefault(slot, ItemStack.EMPTY);
+        }
+
+        public void load(EquipmentSlot slot, ItemStack stack) {
+            if (stack != null && !stack.isEmpty()) {
+                this.stacks.put(slot, stack.copy());
+            }
+        }
+
+        public void set(EquipmentSlot slot, ItemStack stack) {
+            if (stack == null || stack.isEmpty()) {
+                this.stacks.remove(slot);
+            } else {
+                this.stacks.put(slot, stack.copyWithCount(1));
+            }
+            this.editedSlots.add(slot);
+        }
+
+        public boolean edited(EquipmentSlot slot) {
+            return this.editedSlots.contains(slot);
+        }
+
+        public String dropChance(EquipmentSlot slot) {
+            return this.dropChances.getOrDefault(slot, DEFAULT_DROP_CHANCE);
+        }
+
+        public void setDropChance(EquipmentSlot slot, String chance) {
+            String value = chance == null ? "" : chance.trim();
+            if (value.isBlank() || DEFAULT_DROP_CHANCE.equals(value)) {
+                this.dropChances.remove(slot);
+            } else {
+                this.dropChances.put(slot, value);
+            }
+        }
+
+        public boolean isEmpty() {
+            return this.stacks.isEmpty() && this.dropChances.isEmpty();
+        }
+
+        public void reset() {
+            this.stacks.clear();
+            this.dropChances.clear();
+            this.editedSlots.clear();
+        }
+
+        public void copyFrom(EntityEquipmentDraft source) {
+            this.reset();
+            source.stacks.forEach((slot, stack) -> this.stacks.put(slot, stack.copy()));
+            this.dropChances.putAll(source.dropChances);
+            this.editedSlots.addAll(source.editedSlots);
+            this.uiCollapsed = source.uiCollapsed;
+        }
     }
 
     public static final class ArmorStandPoseDraft {

@@ -10,14 +10,15 @@ import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.fish.Salmon;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 public final class BucketCreatureSpecialDataSection {
 
@@ -160,13 +161,23 @@ public final class BucketCreatureSpecialDataSection {
                         ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))
                 ));
             }
-            bucketEntityCard.child(UiFactory.field(
-                    ItemEditorText.tr("special.bucket.health"),
-                    Component.empty(),
-                    UiFactory.textBox(
-                            special.bucketHealth,
-                            context.bindText(value -> special.bucketHealth = value)
-                    ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))
+            String entityId = bucketType.entityId();
+            bucketEntityCard.child(EntitySpawnDataUi.health(
+                    context,
+                    special.bucketHealth,
+                    value -> special.bucketHealth = value,
+                    entityId,
+                    special.bucketAttributes,
+                    compactLayout
+            ));
+            bucketEntityCard.child(EntitySpawnDataUi.attributes(
+                    context,
+                    entityId,
+                    special.bucketAttributes,
+                    special.uiBucketAttributesCollapsed,
+                    () -> context.mutateRefresh(() -> special.uiBucketAttributesCollapsed =
+                            !special.uiBucketAttributesCollapsed),
+                    Set.of()
             ));
             section.child(bucketEntityCard);
         }
@@ -211,23 +222,11 @@ public final class BucketCreatureSpecialDataSection {
     }
 
     private static BucketType detectBucketType(ItemStack stack) {
-        if (stack.is(Items.AXOLOTL_BUCKET)) {
-            return BucketType.AXOLOTL;
-        }
-        if (stack.is(Items.SALMON_BUCKET)) {
-            return BucketType.SALMON;
-        }
-        if (stack.is(Items.TROPICAL_FISH_BUCKET)) {
-            return BucketType.TROPICAL_FISH;
-        }
-        if (stack.is(Items.PUFFERFISH_BUCKET)) {
-            return BucketType.PUFFERFISH;
-        }
-        if (stack.is(Items.COD_BUCKET)) {
-            return BucketType.COD;
-        }
-        if (stack.is(Items.TADPOLE_BUCKET)) {
-            return BucketType.TADPOLE;
+        EntityType<?> entityType = ItemEditorCapabilities.bucketCreatureEntityType(stack);
+        for (BucketType bucketType : BucketType.values()) {
+            if (bucketType.entityType == entityType) {
+                return bucketType;
+            }
         }
         return BucketType.UNKNOWN;
     }
@@ -246,12 +245,22 @@ public final class BucketCreatureSpecialDataSection {
     }
 
     private enum BucketType {
-        AXOLOTL,
-        SALMON,
-        TROPICAL_FISH,
-        PUFFERFISH,
-        COD,
-        TADPOLE,
-        UNKNOWN
+        AXOLOTL(EntityType.AXOLOTL),
+        SALMON(EntityType.SALMON),
+        TROPICAL_FISH(EntityType.TROPICAL_FISH),
+        PUFFERFISH(EntityType.PUFFERFISH),
+        COD(EntityType.COD),
+        TADPOLE(EntityType.TADPOLE),
+        UNKNOWN(null);
+
+        private final EntityType<?> entityType;
+
+        BucketType(EntityType<?> entityType) {
+            this.entityType = entityType;
+        }
+
+        String entityId() {
+            return this.entityType == null ? "" : EntityType.getKey(this.entityType).toString();
+        }
     }
 }

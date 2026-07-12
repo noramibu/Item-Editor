@@ -116,7 +116,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
                             ItemEditorText.str("import.file_dialog_title"),
                             this.minecraft.gameDirectory.toPath().toString(),
                             patterns,
-                            "Item data (*.nbt, *.snbt, *.json)",
+                            ItemEditorText.str("import.file_dialog_filter"),
                             false
                     );
                 }
@@ -135,7 +135,7 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void handleImportResult(ItemImportService.ImportResult result, Throwable throwable) {
         if (throwable != null) {
-            this.setStatus(Component.literal(ItemEditorText.str("import.failed", throwable.getMessage())), UiColors.DANGER);
+            this.setStatus(ItemEditorText.tr("import.failed", throwable.getMessage()), UiColors.DANGER);
             return;
         }
         if (result == null || !result.success()) {
@@ -153,7 +153,10 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
         String message = ItemEditorText.str("import.file_picker_failed", failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
         this.setStatus(Component.literal(message), UiColors.DANGER);
         if (this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(Component.literal("[Item Editor] " + message).withStyle(ChatFormatting.RED), false);
+            this.minecraft.player.displayClientMessage(
+                    Component.literal(ItemEditorText.prefixedMessage(message)).withStyle(ChatFormatting.RED),
+                    false
+            );
         }
     }
 

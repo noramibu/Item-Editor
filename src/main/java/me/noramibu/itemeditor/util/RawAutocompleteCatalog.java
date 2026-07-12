@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 final class RawAutocompleteCatalog {
 
@@ -217,15 +216,11 @@ final class RawAutocompleteCatalog {
         }
 
         LinkedHashSet<String> result = new LinkedHashSet<>();
-        Set<String> normalizedProfiles = new LinkedHashSet<>();
         for (String profile : profiles) {
             if (profile != null && !profile.isBlank()) {
-                normalizedProfiles.add(profile.toLowerCase(Locale.ROOT));
+                String normalized = profile.toLowerCase(Locale.ROOT);
+                result.addAll(PROFILE_COMPONENTS.getOrDefault(normalized, List.of()));
             }
-        }
-
-        for (String profile : normalizedProfiles) {
-            result.addAll(PROFILE_COMPONENTS.getOrDefault(profile, List.of()));
         }
 
         return List.copyOf(result);

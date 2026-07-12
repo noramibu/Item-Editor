@@ -11,7 +11,6 @@ import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.network.chat.Component;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -20,7 +19,6 @@ import java.util.Collections;
 import java.util.List;
 
 public final class EnchantmentEditorPanel implements EditorPanel {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 520;
     private static final int SUMMARY_WIDTH_MIN = 200;
     private static final int SUMMARY_WIDTH_RESERVE = 280;
@@ -76,8 +74,11 @@ public final class EnchantmentEditorPanel implements EditorPanel {
             boolean stored,
             List<String> enchantmentIds
     ) {
-        boolean compactLayout = this.isCompactLayout();
-        int contentWidth = this.availableContentWidth();
+        int contentWidth = Math.max(1, this.screen.editorContentWidthHint());
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
         FlowLayout section = UiFactory.section(ItemEditorText.tr(titleKey), Component.empty());
 
         boolean hasEntries = !drafts.isEmpty();
@@ -114,7 +115,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         int summaryWidth = Math.clamp(
                 Math.max(SUMMARY_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(SUMMARY_WIDTH_RESERVE)),
                 1,
-                Math.max(1, contentWidth)
+                contentWidth
         );
 
         for (int index = 0; index < drafts.size(); index++) {
@@ -207,21 +208,6 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         }
         value += delta;
         return Math.max(1, value);
-    }
-
-    private boolean isCompactLayout() {
-        var window = Minecraft.getInstance().getWindow();
-        return LayoutModeUtil.isCompactEditorContentInclusive(
-                window.getGuiScale(),
-                window.getGuiScaledWidth(),
-                this.screen.editorContentWidthHint(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
-    }
-
-    private int availableContentWidth() {
-        return LayoutModeUtil.safeContentWidth(this.screen.editorContentWidthHint());
     }
 
 }

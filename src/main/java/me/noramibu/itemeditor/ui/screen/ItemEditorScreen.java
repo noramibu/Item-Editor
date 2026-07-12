@@ -34,6 +34,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -59,8 +60,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final double DROPDOWN_ROW_HEIGHT_ESTIMATE = 18d;
     private static final int DROPDOWN_CHROME_RESERVE = 12;
     private static final int DROPDOWN_ROW_HEIGHT_EXTRA_CHROME = 4;
-    private static final int SHELL_MAX_WIDTH = 1600;
-    private static final int SHELL_SIDE_PADDING_TOTAL = 16;
     private static final int BODY_GAP_BASE = 8;
     private static final int RAIL_TOGGLE_BASE = 16;
     private static final int ESTIMATED_TABS_MIN = 56;
@@ -107,6 +106,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private boolean previewValidationCollapsed;
     private boolean categoriesRailCollapsed;
     private boolean previewRailCollapsed;
+    private CompletableFuture<?> rawPanelPreparation;
     private boolean pendingInitialResponsiveRefresh;
     private int initialRelayoutPassBudget;
     private int initialRelayoutWaitTicks;
@@ -252,6 +252,24 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     public void refreshCurrentPanel() {
         this.categoryController.refreshCurrentPanel(true);
+    }
+
+    public void refreshRawPanelWhenReady(CompletableFuture<?> preparation) {
+        if (preparation == null || this.rawPanelPreparation == preparation) {
+            return;
+        }
+        this.rawPanelPreparation = preparation;
+        preparation.whenComplete((ignored, error) -> this.minecraft.execute(() -> {
+            if (this.rawPanelPreparation != preparation) {
+                return;
+            }
+            this.rawPanelPreparation = null;
+            if (error == null
+                    && this.minecraft.screen == this
+                    && this.selectedModule.category() == EditorCategory.RAW_EDITOR) {
+                this.refreshCurrentPanel();
+            }
+        }));
     }
 
     public <T> void openDropdown(ButtonComponent anchor, List<T> values, Function<T, String> labelMapper, Consumer<T> selectionConsumer) {
@@ -570,6 +588,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     void rebuildLayout() {
+        this.preservePanelScrollOnNextBuild(this.panelScrollOffset());
         this.resize(this.width, this.height);
     }
 
@@ -578,10 +597,6 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             return ItemEditorCapabilities.specialDataTitle(this.session.originalStack());
         }
         return module.category().title();
-    }
-
-    Component categoryDescription(EditorModule module) {
-        return module.category().description();
     }
 
     String applyModeText() {
@@ -804,7 +819,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     int estimatedShellWidth() {
-        return Math.min(SHELL_MAX_WIDTH, this.width - SHELL_SIDE_PADDING_TOTAL);
+        return ItemEditorLayoutBuilder.estimatedShellWidth(this.width, this.height);
     }
 
 }
