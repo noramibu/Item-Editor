@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
@@ -169,7 +171,7 @@ public final class SpawnEggSpecialDataSection {
 
     private static boolean isVillagerSelected(SpecialDataPanelContext context, String rawEntityId) {
         EntityType<?> selectedType = resolveSelectedEntityType(context, rawEntityId);
-        return selectedType == EntityType.VILLAGER;
+        return selectedType == VILLAGER;
     }
 
     private static EntityType<?> resolveSelectedEntityType(SpecialDataPanelContext context, String rawEntityId) {

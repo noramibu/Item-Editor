@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.component;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import io.wispforest.owo.ui.component.EntityComponent;
 import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -14,7 +16,7 @@ public final class OrbitingArmorStandComponent extends EntityComponent<@NotNull 
     private float pitchDegrees = 18.0F;
 
     public OrbitingArmorStandComponent(@NotNull Sizing size, @NotNull CompoundTag tag) {
-        super(size, EntityType.ARMOR_STAND, tag);
+        super(size, ARMOR_STAND, tag);
         this.transform(matrix -> matrix.rotateX((float) Math.toRadians(-this.pitchDegrees)));
     }
 

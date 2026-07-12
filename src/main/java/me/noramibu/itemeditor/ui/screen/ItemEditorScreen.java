@@ -265,7 +265,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             }
             this.rawPanelPreparation = null;
             if (error == null
-                    && this.minecraft.screen == this
+                    && this.minecraft.gui.screen() == this
                     && this.selectedModule.category() == EditorCategory.RAW_EDITOR) {
                 this.refreshCurrentPanel();
             }

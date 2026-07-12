@@ -140,7 +140,7 @@ public record SpecialDataPanelContext(ItemEditorScreen screen) {
                 UiFactory.ButtonTextPreset.STANDARD,
                 button -> {
                     double panelScroll = this.screen.panelScrollOffset();
-                    this.screen.session().minecraft().setScreen(new StorageScreen(
+                    this.screen.session().minecraft().setScreenAndShow(new StorageScreen(
                             1,
                             "",
                             StorageSortMode.REGULAR,

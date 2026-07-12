@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import com.mojang.serialization.DataResult;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
@@ -121,7 +123,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             SpecialDataApplyContext context
     ) {
         ItemEditorState.SpecialData special = context.special();
-        if (entityType != EntityType.VILLAGER || special.spawnEggVillagerTrades.isEmpty()) {
+        if (entityType != VILLAGER || special.spawnEggVillagerTrades.isEmpty()) {
             return true;
         }
 
@@ -442,7 +444,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private static boolean isVillagerEntity(EntityType<?> entityType) {
-        return entityType == EntityType.VILLAGER || entityType == EntityType.WANDERING_TRADER;
+        return entityType == VILLAGER || entityType == WANDERING_TRADER;
     }
 
     private boolean sameSpawnEggData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {

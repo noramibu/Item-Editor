@@ -915,7 +915,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void openStoragePage(int page) {
-        this.minecraft.setScreen(new StorageScreen(
+        this.minecraft.setScreenAndShow(new StorageScreen(
                 page,
                 this.returnQuery,
                 this.returnSortMode,
@@ -926,7 +926,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void openOtherModsImport() {
-        this.minecraft.setScreen(new OtherModsImportScreen(
+        this.minecraft.setScreenAndShow(new OtherModsImportScreen(
                 this.minecraft,
                 this.returnPage,
                 this.returnQuery,

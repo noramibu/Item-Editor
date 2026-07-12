@@ -210,7 +210,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
     private void returnToEditor() {
         this.returnScreen.resize(this.width, this.height);
         this.returnScreen.requestResponsiveRelayout();
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
     private void putCarriedBack() {

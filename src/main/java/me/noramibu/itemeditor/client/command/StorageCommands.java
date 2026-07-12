@@ -95,7 +95,7 @@ public final class StorageCommands {
             return 0;
         }
         int safePage = Math.max(1, page);
-        minecraft.execute(() -> minecraft.setScreen(new StorageScreen(safePage, query, sortMode)));
+        minecraft.execute(() -> minecraft.setScreenAndShow(new StorageScreen(safePage, query, sortMode)));
         return 1;
     }
 
@@ -105,7 +105,7 @@ public final class StorageCommands {
             context.getSource().sendError(ItemEditorText.tr("storage.command.no_world").copy().withStyle(ChatFormatting.RED));
             return 0;
         }
-        minecraft.execute(() -> minecraft.setScreen(new StoragePagesScreen(
+        minecraft.execute(() -> minecraft.setScreenAndShow(new StoragePagesScreen(
                 minecraft,
                 1,
                 "",

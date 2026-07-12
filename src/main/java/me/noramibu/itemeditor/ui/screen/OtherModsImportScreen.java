@@ -227,7 +227,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void openPages() {
-        this.minecraft.setScreen(new StoragePagesScreen(
+        this.minecraft.setScreenAndShow(new StoragePagesScreen(
                 this.minecraft,
                 this.returnPage,
                 this.returnQuery,

@@ -606,7 +606,7 @@ final class ItemEditorDialogController {
         this.clearDialog();
         Minecraft minecraft = this.minecraft();
         if (minecraft != null) {
-            minecraft.setScreen(this.session().origin() instanceof ItemEditorSessionOrigin.External external
+            minecraft.setScreenAndShow(this.session().origin() instanceof ItemEditorSessionOrigin.External external
                     ? external.returnScreen()
                     : null);
         }

@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -145,17 +147,17 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         if (context.previewStack().is(Items.COMMAND_BLOCK)
                 || context.previewStack().is(Items.REPEATING_COMMAND_BLOCK)
                 || context.previewStack().is(Items.CHAIN_COMMAND_BLOCK)) {
-            return BlockEntityType.COMMAND_BLOCK;
+            return COMMAND_BLOCK;
         }
 
         TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && previewData.type() == BlockEntityType.COMMAND_BLOCK) {
-            return BlockEntityType.COMMAND_BLOCK;
+        if (previewData != null && previewData.type() == COMMAND_BLOCK) {
+            return COMMAND_BLOCK;
         }
 
         TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.COMMAND_BLOCK) {
-            return BlockEntityType.COMMAND_BLOCK;
+        if (originalData != null && originalData.type() == COMMAND_BLOCK) {
+            return COMMAND_BLOCK;
         }
 
         return null;

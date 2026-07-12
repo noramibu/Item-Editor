@@ -121,11 +121,11 @@ public final class ImportedItemsScreen extends ContainerScreen {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
     private void openEditor(ItemStack stack) {
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack.copy())));
+        this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack.copy())));
     }
 
     private void changePage(int delta) {

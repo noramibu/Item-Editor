@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import static me.noramibu.itemeditor.util.ValidationUtil.trimTrailingZeros;
 
 import com.mojang.serialization.DataResult;
@@ -8,9 +10,9 @@ import me.noramibu.itemeditor.util.InstrumentDetails;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.advancements.criterion.DataComponentMatchers;
-import net.minecraft.advancements.criterion.ItemPredicate;
-import net.minecraft.advancements.criterion.MinMaxBounds;
+import net.minecraft.advancements.predicates.DataComponentMatchers;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.predicates.MinMaxBounds;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryAccess;
@@ -560,7 +562,7 @@ public final class ItemEditorStateMapper {
             state.special.commandBlockItemId = commandBlockItemId(stack);
         }
         if (blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
+                && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN)) {
             var blockTag = blockEntityData.copyTagWithoutId();
             SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
             SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
@@ -569,18 +571,18 @@ public final class ItemEditorStateMapper {
             this.readSignSide(back, state.special.sign.back);
             state.special.sign.waxed = blockTag.getBooleanOr("is_waxed", false);
         }
-        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER) {
+        if (blockEntityData != null && blockEntityData.type() == MOB_SPAWNER) {
             this.readSpawnerData(blockEntityData.copyTagWithoutId(), state.special, registryAccess);
         }
-        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.COMMAND_BLOCK) {
+        if (blockEntityData != null && blockEntityData.type() == COMMAND_BLOCK) {
             this.readCommandBlockData(blockEntityData.copyTagWithoutId(), state.special);
         }
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
-        if (entityData != null && entityData.type() == EntityType.ARMOR_STAND) {
+        if (entityData != null && entityData.type() == ARMOR_STAND) {
             this.readArmorStandData(entityData.copyTagWithoutId(), state.special, registryAccess);
         }
         if (entityData != null
-                && (entityData.type() == EntityType.ITEM_FRAME || entityData.type() == EntityType.GLOW_ITEM_FRAME)) {
+                && (entityData.type() == ITEM_FRAME || entityData.type() == GLOW_ITEM_FRAME)) {
             this.readItemFrameData(entityData.copyTagWithoutId(), state.special);
         }
         if (ItemEditorCapabilities.supportsSpawnEggData(stack)) {

@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.ARMOR_STAND;
+
 import io.wispforest.owo.ui.component.DiscreteSliderComponent;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
@@ -625,7 +627,7 @@ public final class ArmorStandSpecialDataSection {
             SpecialDataPanelContext context,
             ItemEditorState.SpecialData special
     ) {
-        String entityId = EntityType.getKey(EntityType.ARMOR_STAND).toString();
+        String entityId = EntityType.getKey(ARMOR_STAND).toString();
         FlowLayout card = UiFactory.subCard();
         card.child(EntitySpawnDataUi.health(
                 context,

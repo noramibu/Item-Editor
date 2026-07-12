@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.util;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
@@ -584,7 +586,7 @@ public final class RawItemDataUtil {
 
     private static boolean validateSpawnerEntityReferences(ItemStack preview, List<ValidationMessage> messages) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = preview.get(DataComponents.BLOCK_ENTITY_DATA);
-        if (blockEntityData == null || blockEntityData.type() != BlockEntityType.MOB_SPAWNER) {
+        if (blockEntityData == null || blockEntityData.type() != MOB_SPAWNER) {
             return true;
         }
 

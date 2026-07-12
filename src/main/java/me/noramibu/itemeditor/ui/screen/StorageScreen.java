@@ -301,7 +301,7 @@ public final class StorageScreen extends ContainerScreen {
                     int storageSlot = this.hoveredStorageSlotIndex();
                     return storageSlot >= 0 && this.openStorageItem(storageSlot);
                 }
-                this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
+                this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
                 return true;
             }
         }
@@ -515,9 +515,6 @@ public final class StorageScreen extends ContainerScreen {
             Throwable throwable
     ) {
         if (requestId != this.activeRefreshRequest) {
-            return;
-        }
-        if (this.minecraft.screen != this) {
             return;
         }
         if (throwable != null) {
@@ -927,7 +924,7 @@ public final class StorageScreen extends ContainerScreen {
         if (this.currentPageSaveFailedForModeChange()) {
             return;
         }
-        this.minecraft.setScreen(new StoragePagesScreen(
+        this.minecraft.setScreenAndShow(new StoragePagesScreen(
                 this.minecraft,
                 this.currentPage,
                 this.currentQuery,
@@ -1178,7 +1175,7 @@ public final class StorageScreen extends ContainerScreen {
             return true;
         }
         ItemEditorSessionOrigin.Storage origin = new ItemEditorSessionOrigin.Storage(entry, stack.copy());
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack, origin)));
+        this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack, origin)));
         return true;
     }
 
@@ -1200,7 +1197,7 @@ public final class StorageScreen extends ContainerScreen {
             itemEditorScreen.resize(this.width, this.height);
             itemEditorScreen.requestResponsiveRelayout();
         }
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
     private boolean isPickMode() {

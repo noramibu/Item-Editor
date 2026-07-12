@@ -325,7 +325,7 @@ public final class TextComponentUtil {
         if (formatting == ChatFormatting.RESET) {
             return Style.EMPTY;
         }
-        if (formatting.isColor()) {
+        if (isLegacyColor(formatting)) {
             Style updated = Style.EMPTY;
             if (style.getShadowColor() != null) {
                 updated = updated.withShadowColor(style.getShadowColor());
@@ -1241,7 +1241,7 @@ public final class TextComponentUtil {
         if (style.getColor() != null) {
             ChatFormatting formatting = findLegacyColor(style.getColor(), legacyPaletteOnly);
             if (formatting != null) {
-                builder.append(prefix).append(formatting.getChar());
+                builder.append(prefix).append(legacyCode(formatting));
             } else if (!legacyPaletteOnly) {
                 appendLegacyHex(builder, style.getColor().getValue(), prefix);
             }
@@ -1293,10 +1293,11 @@ public final class TextComponentUtil {
         ChatFormatting best = null;
         double bestDistance = Double.MAX_VALUE;
         for (ChatFormatting formatting : ChatFormatting.values()) {
-            if (!formatting.isColor() || formatting.getColor() == null) continue;
-            if (formatting.getColor() == color.getValue()) return formatting;
+            Integer formattingColor = legacyColorValue(formatting);
+            if (formattingColor == null) continue;
+            if (formattingColor == color.getValue()) return formatting;
             if (approximate) {
-                double distance = ColorInterpolationUtil.colorDistanceSquared(formatting.getColor(), color.getValue());
+                double distance = ColorInterpolationUtil.colorDistanceSquared(formattingColor, color.getValue());
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     best = formatting;
@@ -1304,6 +1305,20 @@ public final class TextComponentUtil {
             }
         }
         return approximate ? best : null;
+    }
+
+    private static boolean isLegacyColor(ChatFormatting formatting) {
+        return TextColor.fromLegacyFormat(formatting) != null;
+    }
+
+    private static Integer legacyColorValue(ChatFormatting formatting) {
+        TextColor color = TextColor.fromLegacyFormat(formatting);
+        return color == null ? null : color.getValue();
+    }
+
+    private static char legacyCode(ChatFormatting formatting) {
+        String code = formatting.toString();
+        return code.length() > 1 ? code.charAt(1) : 'r';
     }
 
     private static void appendLegacyHex(StringBuilder builder, int color, char prefix) {

@@ -54,7 +54,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
 
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("raw_import.title")).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen)));
+        header.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(this.returnScreen)));
         shell.child(header);
 
         this.editor = new RawTextAreaComponent(Sizing.fill(100), Sizing.expand(100), "");
@@ -67,7 +67,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
         actions.child(UiFactory.button(ItemEditorText.tr("common.save_apply"), UiFactory.ButtonTextPreset.STANDARD, button -> this.importText()));
         actions.child(UiFactory.button(ItemEditorText.tr("dialog.apply.raw.format"), UiFactory.ButtonTextPreset.STANDARD, button -> this.formatText()));
         actions.child(UiFactory.button(ItemEditorText.tr("dialog.apply.raw.minify"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minifyText()));
-        actions.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen)));
+        actions.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(this.returnScreen)));
         shell.child(actions);
 
         UiFactory.centerInRoot(root, shell, 8);
@@ -93,7 +93,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
             this.setStatus(ItemEditorText.tr("import.empty_item"), UiColors.DANGER);
             return;
         }
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, parsed.stack())));
+        this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, parsed.stack())));
     }
 
     private void formatText() {
@@ -124,6 +124,6 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 }

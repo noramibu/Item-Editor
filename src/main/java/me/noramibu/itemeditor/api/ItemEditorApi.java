@@ -83,15 +83,15 @@ public final class ItemEditorApi {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null
                 || minecraft.level == null
-                || minecraft.screen instanceof ItemEditorScreen) {
+                || minecraft.gui.screen() instanceof ItemEditorScreen) {
             return false;
         }
         ItemEditorSessionOrigin.External origin = new ItemEditorSessionOrigin.External(
-                minecraft.screen,
+                minecraft.gui.screen(),
                 saveHandler,
                 verificationSlot
         );
-        minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(minecraft, stack, origin)));
+        minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(minecraft, stack, origin)));
         return true;
     }
 

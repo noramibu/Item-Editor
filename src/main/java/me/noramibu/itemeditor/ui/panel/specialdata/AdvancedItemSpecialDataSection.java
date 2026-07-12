@@ -17,9 +17,9 @@ import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.LootTableIds;
 import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.advancements.criterion.DataComponentMatchers;
-import net.minecraft.advancements.criterion.ItemPredicate;
-import net.minecraft.advancements.criterion.MinMaxBounds;
+import net.minecraft.advancements.predicates.DataComponentMatchers;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.predicates.MinMaxBounds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentExactPredicate;
@@ -709,7 +709,7 @@ public final class AdvancedItemSpecialDataSection {
 
     private static int guiWidth() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof ItemEditorScreen itemEditorScreen) {
+        if (minecraft.gui.screen() instanceof ItemEditorScreen itemEditorScreen) {
             int hinted = itemEditorScreen.editorContentWidthHint();
             int reserve = Math.max(2, UiFactory.scaledPixels(PANEL_WIDTH_SAFETY_RESERVE));
             return Math.max(1, hinted - reserve);

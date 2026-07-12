@@ -8,6 +8,7 @@ import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ItemEditorTypes;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
@@ -245,12 +246,12 @@ public final class BucketCreatureSpecialDataSection {
     }
 
     private enum BucketType {
-        AXOLOTL(EntityType.AXOLOTL),
-        SALMON(EntityType.SALMON),
-        TROPICAL_FISH(EntityType.TROPICAL_FISH),
-        PUFFERFISH(EntityType.PUFFERFISH),
-        COD(EntityType.COD),
-        TADPOLE(EntityType.TADPOLE),
+        AXOLOTL(ItemEditorTypes.AXOLOTL),
+        SALMON(ItemEditorTypes.SALMON),
+        TROPICAL_FISH(ItemEditorTypes.TROPICAL_FISH),
+        PUFFERFISH(ItemEditorTypes.PUFFERFISH),
+        COD(ItemEditorTypes.COD),
+        TADPOLE(ItemEditorTypes.TADPOLE),
         UNKNOWN(null);
 
         private final EntityType<?> entityType;

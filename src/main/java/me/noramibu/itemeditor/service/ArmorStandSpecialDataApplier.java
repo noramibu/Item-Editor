@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -39,7 +41,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
 
         CompoundTag entityTag = new CompoundTag();
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        if (originalData != null && originalData.type() == EntityType.ARMOR_STAND) {
+        if (originalData != null && originalData.type() == ARMOR_STAND) {
             entityTag = originalData.copyTagWithoutId();
         }
 
@@ -71,7 +73,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         ) || !EntitySpawnDataUtil.applyHealth(
                 entityTag,
                 context.special().armorStandHealth,
-                EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                EntityType.getKey(ARMOR_STAND).toString(),
                 0.0F,
                 context,
                 ItemEditorText.str("special.spawn_egg.health")
@@ -94,15 +96,15 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
             this.clearToPrototype(context.previewStack(), DataComponents.ENTITY_DATA);
             return;
         }
-        context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(EntityType.ARMOR_STAND, entityTag));
+        context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(ARMOR_STAND, entityTag));
     }
 
     private boolean supportsArmorStandData(SpecialDataApplyContext context) {
         TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
         return context.previewStack().is(Items.ARMOR_STAND)
-                || previewData != null && previewData.type() == EntityType.ARMOR_STAND
-                || originalData != null && originalData.type() == EntityType.ARMOR_STAND;
+                || previewData != null && previewData.type() == ARMOR_STAND
+                || originalData != null && originalData.type() == ARMOR_STAND;
     }
 
     private void applyPose(CompoundTag entityTag, SpecialDataApplyContext context) {

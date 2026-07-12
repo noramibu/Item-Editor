@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.util;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -72,7 +74,7 @@ public final class ItemEditorCapabilities {
     public static boolean supportsSpawnerData(ItemStack stack) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
         return stack.is(Items.SPAWNER)
-                || (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER);
+                || (blockEntityData != null && blockEntityData.type() == MOB_SPAWNER);
     }
 
     public static boolean supportsCommandBlockData(ItemStack stack) {
@@ -80,13 +82,13 @@ public final class ItemEditorCapabilities {
         return stack.is(Items.COMMAND_BLOCK)
                 || stack.is(Items.REPEATING_COMMAND_BLOCK)
                 || stack.is(Items.CHAIN_COMMAND_BLOCK)
-                || (blockEntityData != null && blockEntityData.type() == BlockEntityType.COMMAND_BLOCK);
+                || (blockEntityData != null && blockEntityData.type() == COMMAND_BLOCK);
     }
 
     public static boolean supportsArmorStandData(ItemStack stack) {
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
         return stack.is(Items.ARMOR_STAND)
-                || (entityData != null && entityData.type() == EntityType.ARMOR_STAND);
+                || (entityData != null && entityData.type() == ARMOR_STAND);
     }
 
     public static boolean supportsItemFrameData(ItemStack stack) {
@@ -94,7 +96,7 @@ public final class ItemEditorCapabilities {
         return stack.is(Items.ITEM_FRAME)
                 || stack.is(Items.GLOW_ITEM_FRAME)
                 || (entityData != null
-                && (entityData.type() == EntityType.ITEM_FRAME || entityData.type() == EntityType.GLOW_ITEM_FRAME));
+                && (entityData.type() == ITEM_FRAME || entityData.type() == GLOW_ITEM_FRAME));
     }
 
     public static boolean supportsSpawnEggData(ItemStack stack) {
@@ -147,22 +149,22 @@ public final class ItemEditorCapabilities {
 
     public static EntityType<?> bucketCreatureEntityType(ItemStack stack) {
         if (stack.is(Items.COD_BUCKET)) {
-            return EntityType.COD;
+            return COD;
         }
         if (stack.is(Items.SALMON_BUCKET)) {
-            return EntityType.SALMON;
+            return SALMON;
         }
         if (stack.is(Items.PUFFERFISH_BUCKET)) {
-            return EntityType.PUFFERFISH;
+            return PUFFERFISH;
         }
         if (stack.is(Items.TROPICAL_FISH_BUCKET)) {
-            return EntityType.TROPICAL_FISH;
+            return TROPICAL_FISH;
         }
         if (stack.is(Items.AXOLOTL_BUCKET)) {
-            return EntityType.AXOLOTL;
+            return AXOLOTL;
         }
         if (stack.is(Items.TADPOLE_BUCKET)) {
-            return EntityType.TADPOLE;
+            return TADPOLE;
         }
         return null;
     }
@@ -237,7 +239,7 @@ public final class ItemEditorCapabilities {
     private static boolean hasSignBlockEntityData(ItemStack stack) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
         return blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN);
+                && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN);
     }
 
     private static SpecialDataFocus detectSpecialDataFocus(ItemStack stack) {
@@ -315,7 +317,7 @@ public final class ItemEditorCapabilities {
         return stack.has(DataComponents.BANNER_PATTERNS)
                 || stack.getItem() instanceof BannerItem
                 || stack.is(Items.SHIELD)
-                || stack.is(Items.WHITE_BANNER);
+                || stack.is(WHITE_BANNER);
     }
 
     private static boolean isInstrumentRelated(ItemStack stack) {

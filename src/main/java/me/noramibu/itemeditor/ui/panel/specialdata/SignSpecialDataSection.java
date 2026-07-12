@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
@@ -351,7 +353,7 @@ public final class SignSpecialDataSection {
             return true;
         }
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return blockEntityData != null && blockEntityData.type() == BlockEntityType.HANGING_SIGN;
+        return blockEntityData != null && blockEntityData.type() == HANGING_SIGN;
     }
 
     private static void ensureSignLineCount(ItemEditorState.SignSideDraft sideDraft) {

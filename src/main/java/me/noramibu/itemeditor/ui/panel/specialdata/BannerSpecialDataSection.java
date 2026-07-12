@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.ItemComponent;
@@ -58,7 +60,7 @@ public final class BannerSpecialDataSection {
 
     public static boolean supports(ItemStack stack) {
         return stack.has(DataComponents.BANNER_PATTERNS)
-                || stack.is(Items.WHITE_BANNER)
+                || stack.is(WHITE_BANNER)
                 || stack.is(Items.SHIELD)
                 || stack.getItem() instanceof BannerItem;
     }
@@ -270,7 +272,7 @@ public final class BannerSpecialDataSection {
         } else if (context.screen().session().previewStack().getItem() instanceof BannerItem) {
             baseItem = baseColor == null ? context.screen().session().previewStack().getItem() : bannerItemForColor(baseColor);
         } else {
-            baseItem = baseColor == null ? Items.WHITE_BANNER : bannerItemForColor(baseColor);
+            baseItem = baseColor == null ? WHITE_BANNER : bannerItemForColor(baseColor);
         }
 
         ItemStack stack = new ItemStack(baseItem);
@@ -319,22 +321,22 @@ public final class BannerSpecialDataSection {
 
     private static Item bannerItemForColor(DyeColor color) {
         return switch (color) {
-            case WHITE -> Items.WHITE_BANNER;
-            case ORANGE -> Items.ORANGE_BANNER;
-            case MAGENTA -> Items.MAGENTA_BANNER;
-            case LIGHT_BLUE -> Items.LIGHT_BLUE_BANNER;
-            case YELLOW -> Items.YELLOW_BANNER;
-            case LIME -> Items.LIME_BANNER;
-            case PINK -> Items.PINK_BANNER;
-            case GRAY -> Items.GRAY_BANNER;
-            case LIGHT_GRAY -> Items.LIGHT_GRAY_BANNER;
-            case CYAN -> Items.CYAN_BANNER;
-            case PURPLE -> Items.PURPLE_BANNER;
-            case BLUE -> Items.BLUE_BANNER;
-            case BROWN -> Items.BROWN_BANNER;
-            case GREEN -> Items.GREEN_BANNER;
-            case RED -> Items.RED_BANNER;
-            case BLACK -> Items.BLACK_BANNER;
+            case WHITE -> WHITE_BANNER;
+            case ORANGE -> ORANGE_BANNER;
+            case MAGENTA -> MAGENTA_BANNER;
+            case LIGHT_BLUE -> LIGHT_BLUE_BANNER;
+            case YELLOW -> YELLOW_BANNER;
+            case LIME -> LIME_BANNER;
+            case PINK -> PINK_BANNER;
+            case GRAY -> GRAY_BANNER;
+            case LIGHT_GRAY -> LIGHT_GRAY_BANNER;
+            case CYAN -> CYAN_BANNER;
+            case PURPLE -> PURPLE_BANNER;
+            case BLUE -> BLUE_BANNER;
+            case BROWN -> BROWN_BANNER;
+            case GREEN -> GREEN_BANNER;
+            case RED -> RED_BANNER;
+            case BLACK -> BLACK_BANNER;
         };
     }
 
