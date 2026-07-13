@@ -8,6 +8,7 @@ import me.noramibu.itemeditor.service.PostApplyVerificationService;
 import me.noramibu.itemeditor.storage.StorageServices;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.Minecraft;
+import org.slf4j.LoggerFactory;
 
 public final class ItemEditorClient implements ClientModInitializer {
 
@@ -15,9 +16,15 @@ public final class ItemEditorClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        new FabricContext.Factory(MOD_ID, "a5479221f69d76f653f372d49aef2b24")
-                .metrics(Metrics.Factory::create)
-                .create();
+        try {
+            new FabricContext.Factory(MOD_ID, "a5479221f69d76f653f372d49aef2b24")
+                    .metrics(Metrics.Factory::create)
+                    .create();
+        } catch (UnsupportedClassVersionError error) {
+            LoggerFactory.getLogger(MOD_ID).warn(
+                    "[Item Editor] FastStats disabled because its compatibility layer requires a newer Java runtime"
+            );
+        }
         StorageServices.initialize(Minecraft.getInstance());
         ItemEditorKeybinds.register();
         StorageCommands.register();
