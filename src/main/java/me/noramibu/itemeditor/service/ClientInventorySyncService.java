@@ -1,12 +1,15 @@
 package me.noramibu.itemeditor.service;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 public final class ClientInventorySyncService {
@@ -67,13 +70,18 @@ public final class ClientInventorySyncService {
         ItemStack copy = stack == null ? ItemStack.EMPTY : stack.copy();
         var singleplayerServer = minecraft.getSingleplayerServer();
         if (singleplayerServer != null) {
+            RegistryAccess clientRegistryAccess = minecraft.level == null ? RegistryAccess.EMPTY : minecraft.level.registryAccess();
+            Optional<ItemStack> serverStack = rebindForRegistryTransfer(copy, clientRegistryAccess, singleplayerServer.registryAccess());
+            if (serverStack.isEmpty()) {
+                return false;
+            }
             UUID playerId = minecraft.player.getUUID();
             singleplayerServer.execute(() -> {
                 ServerPlayer serverPlayer = singleplayerServer.getPlayerList().getPlayer(playerId);
                 if (serverPlayer == null) {
                     return;
                 }
-                serverPlayer.getInventory().setItem(slot, copy.copy());
+                serverPlayer.getInventory().setItem(slot, serverStack.get().copy());
                 serverPlayer.inventoryMenu.broadcastChanges();
                 serverPlayer.containerMenu.broadcastChanges();
             });
@@ -87,5 +95,25 @@ public final class ClientInventorySyncService {
             return true;
         }
         return false;
+    }
+
+    private static Optional<ItemStack> rebindForRegistryTransfer(
+            ItemStack stack,
+            RegistryAccess sourceRegistryAccess,
+            RegistryAccess targetRegistryAccess
+    ) {
+        if (stack.isEmpty()) {
+            return Optional.of(ItemStack.EMPTY);
+        }
+        return ItemStack.CODEC.encodeStart(
+                        sourceRegistryAccess.createSerializationContext(NbtOps.INSTANCE),
+                        stack
+                )
+                .flatMap(encoded -> ItemStack.CODEC.parse(
+                        targetRegistryAccess.createSerializationContext(NbtOps.INSTANCE),
+                        encoded
+                ))
+                .result()
+                .map(ItemStack::copy);
     }
 }
