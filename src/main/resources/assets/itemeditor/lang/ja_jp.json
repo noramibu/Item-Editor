@@ -820,6 +820,7 @@
     "itemeditor.apply.verify.warning":  "サーバーが一部のフィールドを書き換えたか、拒否しました。詳細はMinecraftのログを確認してください。(%s)",
     "itemeditor.apply.verify.error":  "適用された項目の状態を確認できませんでした。",
     "itemeditor.preview.validation.component_failed":  "アイテムコンポーネントの検証が失敗しました： %s",
+    "itemeditor.preview.validation.count_exceeds_max":  "スタック数 %s が最大スタックサイズ %s を超えています。",
     "itemeditor.preview.validation.unknown_rarity":  "不明なレアリティ'%s'",
     "itemeditor.preview.validation.item_model_id":  "アイテムモデルIDには、有効な識別子を入れる必要があります。",
     "itemeditor.preview.validation.unknown_attribute":  "不明な属性'%s'.",

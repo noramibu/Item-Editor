@@ -820,6 +820,7 @@
   "itemeditor.apply.verify.warning":  "Server rewrote or rejected some field, check Minecraft log for details. (%s)",
     "itemeditor.apply.verify.error":  "Could not verify the applied item state.",
     "itemeditor.preview.validation.component_failed":  "Item component validation failed: %s",
+    "itemeditor.preview.validation.count_exceeds_max":  "Stack count %s exceeds the maximum stack size of %s.",
     "itemeditor.preview.validation.unknown_rarity":  "Unknown rarity '%s'.",
     "itemeditor.preview.validation.item_model_id":  "Item model ID must be a valid identifier.",
     "itemeditor.preview.validation.unknown_attribute":  "Unknown attribute '%s'.",

@@ -820,6 +820,7 @@
     "itemeditor.apply.verify.warning": "Сервер переписал или отклонил часть полей (различий: %s).",
     "itemeditor.apply.verify.error": "Не удалось проверить состояние предмета после применения.",
     "itemeditor.preview.validation.component_failed": "Проверка компонента предмета не пройдена: %s",
+    "itemeditor.preview.validation.count_exceeds_max": "Размер стака %s превышает максимальный размер стака %s.",
     "itemeditor.preview.validation.unknown_rarity": "Неизвестная редкость '%s'.",
     "itemeditor.preview.validation.item_model_id": "ID модели предмета должен быть корректным идентификатором.",
     "itemeditor.preview.validation.unknown_attribute": "Неизвестный атрибут '%s'.",

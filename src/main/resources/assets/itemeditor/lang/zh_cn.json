@@ -820,6 +820,7 @@
     "itemeditor.apply.verify.warning": "服务器重写或拒绝了部分字段（差异 %s 项）。",
     "itemeditor.apply.verify.error": "无法校验应用后的物品状态。",
     "itemeditor.preview.validation.component_failed": "物品组件校验失败：%s",
+    "itemeditor.preview.validation.count_exceeds_max": "堆叠数量 %s 超过了最大堆叠数量 %s。",
     "itemeditor.preview.validation.unknown_rarity": "未知稀有度 '%s'。",
     "itemeditor.preview.validation.item_model_id": "物品模型 ID 必须是有效标识符。",
     "itemeditor.preview.validation.unknown_attribute": "未知属性 '%s'。",
