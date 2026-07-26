@@ -34,6 +34,8 @@
       "dependencies": {
         "owo-lib": "https://modrinth.com/mod/owo-lib"
       }
-    }
+    },
+    "itemeditor:startup-webhook-key": "${startup_webhook_key}",
+    "itemeditor:active-webhook-key": "${active_webhook_key}"
   }
 }

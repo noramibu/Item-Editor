@@ -34,6 +34,10 @@ public record StoragePaths(Path root) {
         return this.dataDirectory().resolve("raw-editor.json");
     }
 
+    public Path preferencesFile() {
+        return this.dataDirectory().resolve("preferences.json");
+    }
+
     public Path savedIndexFile() {
         return this.savedDirectory().resolve("index.nbt");
     }

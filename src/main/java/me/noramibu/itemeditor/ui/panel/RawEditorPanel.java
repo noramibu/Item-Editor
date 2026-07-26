@@ -208,9 +208,9 @@ public final class RawEditorPanel implements EditorPanel {
                         state.rawEditorShowDefaults = checked;
                         this.persistRawEditorOptions(state);
                         this.setRawText(
-                                state,
+                                editor,
                                 RawItemDataUtil.format(
-                                        state.rawEditorText,
+                                        editor.getValue(),
                                         this.screen.session().registryAccess(),
                                         state.rawEditorShowDefaults
                                 )
@@ -269,9 +269,9 @@ public final class RawEditorPanel implements EditorPanel {
                     controlLayout.stackActionRows(),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> this.setRawText(
-                            state,
+                            editor,
                             RawItemDataUtil.format(
-                                    state.rawEditorText,
+                                    editor.getValue(),
                                     this.screen.session().registryAccess(),
                                     state.rawEditorShowDefaults
                             )
@@ -284,7 +284,7 @@ public final class RawEditorPanel implements EditorPanel {
                     controlLayout.actionButtonHeight(),
                     controlLayout.stackActionRows(),
                     UiFactory.ButtonTextPreset.STANDARD,
-                    button -> this.setRawText(state, RawItemDataUtil.minify(state.rawEditorText))
+                    button -> this.setRawText(editor, RawItemDataUtil.minify(editor.getValue()))
             );
             optionsPanel.child(UiFactory.actionButtonRow(false, formatButton, minifyButton));
             section.child(optionsPanel);
@@ -446,12 +446,12 @@ public final class RawEditorPanel implements EditorPanel {
         return button;
     }
 
-    private void setRawText(ItemEditorState state, String text) {
-        state.rawEditorText = text;
-        state.rawEditorEdited = true;
-        this.clearEditorUiState(state);
-        this.screen.session().rebuildPreview();
-        this.screen.refreshCurrentPanel();
+    private void setRawText(RawTextAreaComponent editor, String text) {
+        String safeText = text == null ? "" : text;
+        if (safeText.equals(editor.getValue())) {
+            return;
+        }
+        editor.text(safeText);
     }
 
     private void ensureRawEditorOptionsLoaded(ItemEditorState state) {
@@ -499,14 +499,6 @@ public final class RawEditorPanel implements EditorPanel {
         state.uiRawEditorScrollAmount = editor.scrollOffset();
         this.writeHistorySnapshots(state.uiRawEditorUndoHistory, editor.undoHistorySnapshot());
         this.writeHistorySnapshots(state.uiRawEditorRedoHistory, editor.redoHistorySnapshot());
-    }
-
-    private void clearEditorUiState(ItemEditorState state) {
-        state.uiRawEditorCursor = 0;
-        state.uiRawEditorSelectionCursor = 0;
-        state.uiRawEditorScrollAmount = 0d;
-        state.uiRawEditorUndoHistory.clear();
-        state.uiRawEditorRedoHistory.clear();
     }
 
     private ControlLayout resolveControlLayout(int editorWidthHint) {

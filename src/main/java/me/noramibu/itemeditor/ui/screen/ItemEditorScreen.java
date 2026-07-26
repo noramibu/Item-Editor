@@ -34,7 +34,9 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -264,12 +266,21 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                 return;
             }
             this.rawPanelPreparation = null;
-            if (error == null
-                    && this.minecraft.gui.screen() == this
-                    && this.selectedModule.category() == EditorCategory.RAW_EDITOR) {
+            if (this.minecraft.gui.screen() != this
+                    || this.selectedModule.category() != EditorCategory.RAW_EDITOR) {
+                return;
+            }
+            if (error == null || isSupersededPreparation(error)) {
                 this.refreshCurrentPanel();
             }
         }));
+    }
+
+    private static boolean isSupersededPreparation(Throwable error) {
+        Throwable cause = error instanceof CompletionException && error.getCause() != null
+                ? error.getCause()
+                : error;
+        return cause instanceof CancellationException;
     }
 
     public <T> void openDropdown(ButtonComponent anchor, List<T> values, Function<T, String> labelMapper, Consumer<T> selectionConsumer) {
