@@ -13,16 +13,7 @@ base {
 repositories {
 	maven { url 'https://maven.wispforest.io' }
 	maven { url 'https://jitpack.io' }
-	maven {
-		name = 'faststatsReleases'
-		url = uri('https://repo.faststats.dev/releases')
-	}
 	mavenCentral()
-}
-
-configurations {
-	faststatsRuntime
-	faststatsCompatibility
 }
 
 configurations.configureEach {
@@ -46,12 +37,6 @@ dependencies {
 	add("modImplementation", "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}")
 	add("modImplementation", "io.wispforest:owo-lib:${project.owo_version}")
 	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
-	faststatsRuntime "dev.faststats.metrics:fabric:${project.faststats_version}"
-	faststatsCompatibility("dev.faststats.metrics:fabric:${project.faststats_compat_version}") {
-		transitive = false
-	}
-	implementation files(configurations.faststatsRuntime)
-	implementation files(configurations.faststatsCompatibility)
 }
 
 def localTests = file("local-tests.gradle")
@@ -59,12 +44,21 @@ if (localTests.exists()) {
 	apply from: localTests
 }
 
+def startupWebhookKey = providers.gradleProperty("itemeditorStartupWebhookKey")
+		.orElse(providers.environmentVariable("ITEMEDITOR_STARTUP_WEBHOOK_KEY")).getOrElse("")
+def activeWebhookKey = providers.gradleProperty("itemeditorActiveWebhookKey")
+		.orElse(providers.environmentVariable("ITEMEDITOR_ACTIVE_WEBHOOK_KEY")).getOrElse("")
+
 processResources {
-	def modVersion = "b${project.build_number}"
+	def modVersion = "${project.build_number}"
 	inputs.property "version", modVersion
+	inputs.property "startupWebhookKey", startupWebhookKey
+	inputs.property "activeWebhookKey", activeWebhookKey
 
 	filesMatching("fabric.mod.json") {
-		expand "version": modVersion
+		expand "version": modVersion,
+				"startup_webhook_key": startupWebhookKey,
+				"active_webhook_key": activeWebhookKey
 	}
 }
 
@@ -81,14 +75,6 @@ java {
 
 jar {
 	inputs.property "archivesName", project.base.archivesName
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-	from({
-		configurations.faststatsRuntime.files.collect { zipTree(it) }.plus(
-				configurations.faststatsCompatibility.files.collect { zipTree(it) }
-		)
-	}) {
-		exclude 'META-INF/MANIFEST.MF', 'module-info.class', 'META-INF/*.SF', 'META-INF/*.RSA'
-	}
 
 	from("LICENSE") {
 		rename { "${it}_${inputs.properties.archivesName}"}

@@ -820,6 +820,7 @@
     "itemeditor.apply.verify.warning": "El servidor reescribió o rechazó algunos campos (%s diferencias).",
     "itemeditor.apply.verify.error": "No se pudo verificar el estado del objeto aplicado.",
     "itemeditor.preview.validation.component_failed": "Falló la validación de componentes del objeto: %s",
+    "itemeditor.preview.validation.count_exceeds_max": "El tamaño de pila %s supera el máximo de %s.",
     "itemeditor.preview.validation.unknown_rarity": "Rareza desconocida '%s'.",
     "itemeditor.preview.validation.item_model_id": "El ID de modelo del objeto debe ser un identificador válido.",
     "itemeditor.preview.validation.unknown_attribute": "Atributo desconocido '%s'.",

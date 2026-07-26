@@ -466,7 +466,18 @@ public final class RawItemDataUtil {
             return messages;
         }
 
-        DataResult<ItemStack> strictResult = ItemStack.validateStrict(preview);
+        ItemStack strictTarget = preview;
+        int maxStackSize = preview.getMaxStackSize();
+        if (preview.getCount() > maxStackSize) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.count_exceeds_max",
+                    preview.getCount(),
+                    maxStackSize
+            )));
+            strictTarget = preview.copyWithCount(maxStackSize);
+        }
+
+        DataResult<ItemStack> strictResult = ItemStack.validateStrict(strictTarget);
         strictResult.resultOrPartial(problem ->
                 messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
         return messages;

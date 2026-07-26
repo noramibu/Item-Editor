@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
 import me.noramibu.itemeditor.storage.io.GsonJsonCodec;
 import me.noramibu.itemeditor.storage.model.ColorsFileModel;
+import me.noramibu.itemeditor.storage.model.PreferencesFileModel;
 import me.noramibu.itemeditor.storage.model.RawEditorFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
@@ -36,11 +37,13 @@ public final class StorageDataFoundation {
 
     private final StoragePaths paths;
     private final GsonJsonCodec<ColorsFileModel> colorsCodec;
+    private final GsonJsonCodec<PreferencesFileModel> preferencesCodec;
     private final GsonJsonCodec<RawEditorFileModel> rawEditorCodec;
 
     private StorageDataFoundation(StoragePaths paths) {
         this.paths = paths;
         this.colorsCodec = new GsonJsonCodec<>(GSON, ColorsFileModel.class);
+        this.preferencesCodec = new GsonJsonCodec<>(GSON, PreferencesFileModel.class);
         this.rawEditorCodec = new GsonJsonCodec<>(GSON, RawEditorFileModel.class);
     }
 
@@ -63,10 +66,12 @@ public final class StorageDataFoundation {
         }
 
         ColorsFileModel colors = this.loadColors();
+        PreferencesFileModel preferences = this.loadPreferences();
         RawEditorFileModel rawEditor = this.loadRawEditor();
         SavedIndexFileModel savedIndex = this.loadSavedIndex();
 
         this.saveColors(colors);
+        this.savePreferences(preferences);
         this.saveRawEditor(rawEditor);
         this.saveSavedIndex(savedIndex);
     }
@@ -89,6 +94,23 @@ public final class StorageDataFoundation {
                 this.paths.colorsFile(),
                 this.colorsCodec,
                 sanitizeColors(model)
+        );
+    }
+
+    public PreferencesFileModel loadPreferences() {
+        PreferencesFileModel file = AtomicFileUtil.readJson(
+                this.paths.preferencesFile(),
+                this.preferencesCodec,
+                PreferencesFileModel::new
+        );
+        return file == null ? new PreferencesFileModel() : file;
+    }
+
+    public void savePreferences(PreferencesFileModel model) {
+        AtomicFileUtil.writeJson(
+                this.paths.preferencesFile(),
+                this.preferencesCodec,
+                model == null ? new PreferencesFileModel() : model
         );
     }
 

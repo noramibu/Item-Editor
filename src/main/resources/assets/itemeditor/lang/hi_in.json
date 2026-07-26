@@ -820,6 +820,7 @@
     "itemeditor.apply.verify.warning": "सर्वर ने कुछ फ़ील्ड्स को फिर से लिखा या अस्वीकार कर दिया (%s अंतर)।",
     "itemeditor.apply.verify.error": "लागू आइटम स्थिति को सत्यापित नहीं किया जा सका.",
     "itemeditor.preview.validation.component_failed": "आइटम घटक सत्यापन विफल: %s",
+    "itemeditor.preview.validation.count_exceeds_max": "स्टैक संख्या %s अधिकतम स्टैक आकार %s से अधिक है।",
     "itemeditor.preview.validation.unknown_rarity": "अज्ञात दुर्लभता '%s'।",
     "itemeditor.preview.validation.item_model_id": "आइटम मॉडल आईडी एक वैध पहचानकर्ता होना चाहिए।",
     "itemeditor.preview.validation.unknown_attribute": "अज्ञात विशेषता '%s'.",
