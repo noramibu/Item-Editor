@@ -70,11 +70,8 @@ public final class UnifiedColorPickerDialog {
     private static final int FOOTER_BUTTON_MIN_WIDTH = 72;
     private static final int FOOTER_BUTTON_MAX_WIDTH = 150;
     private static final int FOOTER_BUTTON_DIVISOR = 4;
-    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
-    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
     private static final int MODE_BUTTON_MIN_WIDTH = 64;
     private static final int MODE_BUTTON_TEXT_RESERVE = 26;
-    private static final int MODE_BUTTON_TEXT_MIN_WIDTH = 18;
     private static final int MODE_CHECKBOX_TEXT_RESERVE = 34;
     private static final int CONTENT_BOTTOM_PADDING_EXTRA = 8;
     private static final String SAMPLE_TEXT = "lorem ipsum dolar sit amet consectetur adipiscing elit sed do eiusmod tempor";
@@ -131,8 +128,6 @@ public final class UnifiedColorPickerDialog {
                     FOOTER_BUTTON_MIN_WIDTH,
                     FOOTER_BUTTON_MAX_WIDTH,
                     FOOTER_BUTTON_DIVISOR,
-                    FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                    FOOTER_BUTTON_TEXT_RESERVE,
                     new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run()),
                     new DialogUiUtil.FooterAction(ItemEditorText.tr(applyKey(state)), button -> onApply.accept(state.result()))
             );
@@ -320,7 +315,7 @@ public final class UnifiedColorPickerDialog {
                     refreshSaved.get().run();
                 }
         );
-        saveCurrentButton.setMessage(UiFactory.fitToWidth(saveLabel, Math.max(24, savedContentWidth - UiFactory.scaledPixels(SAVED_LABEL_TEXT_RESERVE))));
+        saveCurrentButton.setMessage(saveLabel);
         if (!saveCurrentButton.getMessage().getString().equals(saveLabel.getString())) {
             saveCurrentButton.tooltip(List.of(saveLabel));
         }
@@ -450,12 +445,10 @@ public final class UnifiedColorPickerDialog {
             FlowLayout row = UiFactory.row();
             row.horizontalSizing(Sizing.fill(100));
             Component label = Component.literal(stopButtonLabel(state, stopIndex)).withColor(rgb);
-            ButtonComponent select = ButtonFitUtil.fixedWidthFittedButton(
+            ButtonComponent select = UiFactory.fixedWidthButton(
                     label,
                     UiFactory.ButtonTextPreset.COMPACT,
                     selectButtonWidth,
-                    24,
-                    8,
                     button -> {
                         state.select(stopIndex);
                         syncInputs.run();
@@ -500,8 +493,8 @@ public final class UnifiedColorPickerDialog {
             refreshUi.run();
         });
         FlowLayout row = UiFactory.row();
-        add.horizontalSizing(Sizing.expand(100));
-        remove.horizontalSizing(Sizing.expand(100));
+        add.horizontalSizing(Sizing.fill(49));
+        remove.horizontalSizing(Sizing.fill(49));
         row.child(add);
         row.child(remove);
         stopActions.child(row);
@@ -829,7 +822,7 @@ public final class UnifiedColorPickerDialog {
             tooltip.append(Component.literal(prefix));
         }
         if (normalized.size() > 1) {
-            tooltip.append(Component.literal(normalized.size() + " colors: "));
+            tooltip.append(ItemEditorText.tr("dialog.unified_color_picker.colors_summary", normalized.size()));
         }
         for (int index = 0; index < normalized.size(); index++) {
             if (index > 0) {
@@ -876,12 +869,10 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static ButtonComponent modeButton(ModeButtonSpec spec, int width) {
-        ButtonComponent button = ButtonFitUtil.fixedWidthFittedButton(
+        ButtonComponent button = UiFactory.fixedWidthButton(
                 spec.label(),
                 UiFactory.ButtonTextPreset.STANDARD,
                 width,
-                MODE_BUTTON_TEXT_MIN_WIDTH,
-                MODE_BUTTON_TEXT_RESERVE,
                 ignored -> spec.action().run()
         );
         button.active(spec.active());

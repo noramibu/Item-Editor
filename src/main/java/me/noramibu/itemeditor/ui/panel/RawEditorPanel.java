@@ -10,6 +10,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.editor.text.RawEditorPreparedText;
 import me.noramibu.itemeditor.storage.RawEditorOptionsService;
 import me.noramibu.itemeditor.storage.model.RawEditorOptions;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
@@ -17,7 +18,6 @@ import me.noramibu.itemeditor.ui.component.SafeDiscreteSliderComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.component.raw.RawAutocompleteController;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.LootTableIds;
@@ -25,6 +25,7 @@ import me.noramibu.itemeditor.util.RawItemDataUtil;
 import me.noramibu.itemeditor.util.RawValidationAsyncService;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.Locale;
@@ -41,11 +42,11 @@ public final class RawEditorPanel implements EditorPanel {
     private static final int VERY_LARGE_TEXT_THRESHOLD = 350000;
     private static final long RAW_VALIDATION_PARSE_IDLE_BASE_MS = 180L;
     private static final long RAW_VALIDATION_PARSE_IDLE_LARGE_MS = 380L;
-    private static final long RAW_VALIDATION_PARSE_IDLE_VERY_LARGE_MS = 700L;
+    private static final long RAW_VALIDATION_PARSE_IDLE_VERY_LARGE_MS = 0L;
     private static final long RAW_VALIDATION_PARSE_IDLE_INCOMPLETE_MS = 950L;
     private static final long RAW_VALIDATION_IDLE_BASE_MS = 350L;
     private static final long RAW_VALIDATION_IDLE_LARGE_MS = 700L;
-    private static final long RAW_VALIDATION_IDLE_VERY_LARGE_MS = 1300L;
+    private static final long RAW_VALIDATION_IDLE_VERY_LARGE_MS = 0L;
     private static final long RAW_VALIDATION_IDLE_INCOMPLETE_MS = 1900L;
     private static final int MAX_STATUS_ERROR_LENGTH = 120;
     private static final int MAX_VALIDATION_ERROR_LENGTH = 320;
@@ -54,7 +55,6 @@ public final class RawEditorPanel implements EditorPanel {
             Pattern.CASE_INSENSITIVE
     );
     private static final int PANEL_SCROLLBAR_BASE_THICKNESS = 8;
-    private static final int CONTROL_COMPACT_WIDTH_THRESHOLD = 980;
     private static final int CONTROL_STACK_WIDTH_HINT = 420;
     private static final int ACTION_ROW_BUTTON_COUNT = 3;
     private static final double CONTROL_COMPACT_HEIGHT_RATIO = 0.78d;
@@ -69,9 +69,6 @@ public final class RawEditorPanel implements EditorPanel {
     private static final int SECTION_RIGHT_SAFETY_PADDING_BASE = 12;
     private static final int ACTION_BUTTON_WIDTH_MIN = 78;
     private static final int ACTION_BUTTON_WIDTH_BASE = 96;
-    private static final int ACTION_BUTTON_TEXT_WIDTH_MIN = 24;
-    private static final int ACTION_BUTTON_TEXT_HORIZONTAL_RESERVE = 10;
-    private static final int ACTION_BUTTON_TEXT_NON_COMPACT_RESERVE = 16;
     private static final int STATUS_LINE_COUNT = 3;
     private static final int STATUS_TEXT_SAFETY_PADDING = 4;
     private static final int OPTIONS_INLINE_WIDTH_THRESHOLD = 620;
@@ -87,14 +84,21 @@ public final class RawEditorPanel implements EditorPanel {
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
         this.ensureRawEditorOptionsLoaded(state);
-        if (state.rawEditorText == null || state.rawEditorText.isBlank()) {
-            state.rawEditorText = RawItemDataUtil.serialize(
-                    this.screen.session().previewStack(),
-                    this.screen.session().registryAccess(),
-                    state.rawEditorShowDefaults
-            );
+        RawEditorPreparedText preparedText = this.screen.session().preparedRawEditorText();
+        if (preparedText == null) {
+            this.screen.refreshRawPanelWhenReady(this.screen.session().prepareRawEditorTextAsync());
+            FlowLayout loading = UiFactory.column();
+            loading.child(UiFactory.muted(
+                    ItemEditorText.tr("raw_editor.loading"),
+                    Math.max(120, this.screen.editorContentWidthHint())
+            ));
+            return loading;
         }
 
+        return this.buildPrepared(state, preparedText);
+    }
+
+    private UIComponent buildPrepared(ItemEditorState state, RawEditorPreparedText preparedText) {
         FlowLayout root = UiFactory.column();
         FlowLayout section = UiFactory.column();
         int rightSafetyPadding = UiFactory.scaledPixels(SECTION_RIGHT_SAFETY_PADDING_BASE);
@@ -108,13 +112,18 @@ public final class RawEditorPanel implements EditorPanel {
                 editorWidthHint
         );
 
-        RawTextAreaComponent editor = new RawTextAreaComponent(Sizing.fill(100), Sizing.fixed(editorHeight), state.rawEditorText);
+        RawTextAreaComponent editor = new RawTextAreaComponent(
+                Sizing.fill(100),
+                Sizing.fixed(editorHeight),
+                preparedText
+        );
         editor.displayCharCount(false);
         editor.wordWrap(state.rawEditorWordWrap);
         editor.horizontalScroll(state.rawEditorHorizontalScroll);
         editor.fontSizePercent(state.rawEditorFontSizePercent);
         this.restoreEditorUiState(state, editor);
         RawValidationAsyncService validationService = new RawValidationAsyncService();
+        ItemStack validationOriginalStack = this.screen.session().originalStack();
         RawAutocompleteController autocomplete = new RawAutocompleteController(
                 state,
                 editor,
@@ -199,9 +208,9 @@ public final class RawEditorPanel implements EditorPanel {
                         state.rawEditorShowDefaults = checked;
                         this.persistRawEditorOptions(state);
                         this.setRawText(
-                                state,
+                                editor,
                                 RawItemDataUtil.format(
-                                        state.rawEditorText,
+                                        editor.getValue(),
                                         this.screen.session().registryAccess(),
                                         state.rawEditorShowDefaults
                                 )
@@ -222,7 +231,7 @@ public final class RawEditorPanel implements EditorPanel {
 
             int fontLabelWidth = Math.max(120, editorWidthHint - UiFactory.scaledPixels(20));
             LabelComponent fontSizeLabel = UiFactory.muted(
-                    Component.literal(ItemEditorText.str("raw_editor.font_size.current", state.rawEditorFontSizePercent)),
+                    ItemEditorText.tr("raw_editor.font_size.current", state.rawEditorFontSizePercent),
                     fontLabelWidth
             );
             optionsPanel.child(fontSizeLabel);
@@ -236,7 +245,7 @@ public final class RawEditorPanel implements EditorPanel {
                 }
                 state.rawEditorFontSizePercent = clamped;
                 editor.fontSizePercent(clamped);
-                fontSizeLabel.text(Component.literal(ItemEditorText.str("raw_editor.font_size.current", clamped)));
+                fontSizeLabel.text(ItemEditorText.tr("raw_editor.font_size.current", clamped));
                 this.persistRawEditorOptions(state);
                 this.persistEditorUiState(state, editor);
             });
@@ -260,9 +269,9 @@ public final class RawEditorPanel implements EditorPanel {
                     controlLayout.stackActionRows(),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> this.setRawText(
-                            state,
+                            editor,
                             RawItemDataUtil.format(
-                                    state.rawEditorText,
+                                    editor.getValue(),
                                     this.screen.session().registryAccess(),
                                     state.rawEditorShowDefaults
                             )
@@ -275,7 +284,7 @@ public final class RawEditorPanel implements EditorPanel {
                     controlLayout.actionButtonHeight(),
                     controlLayout.stackActionRows(),
                     UiFactory.ButtonTextPreset.STANDARD,
-                    button -> this.setRawText(state, RawItemDataUtil.minify(state.rawEditorText))
+                    button -> this.setRawText(editor, RawItemDataUtil.minify(editor.getValue()))
             );
             optionsPanel.child(UiFactory.actionButtonRow(false, formatButton, minifyButton));
             section.child(optionsPanel);
@@ -298,13 +307,14 @@ public final class RawEditorPanel implements EditorPanel {
 
         Runnable requestValidation = () -> {
             String rawText = editor.getValue();
-            boolean likelyIncomplete = this.isLikelyIncompleteRawState(rawText);
             int rawTextLength = rawText.length();
+            boolean likelyIncomplete = rawTextLength < VERY_LARGE_TEXT_THRESHOLD
+                    && this.isLikelyIncompleteRawState(rawText);
             long parseIdleDelay = this.resolveValidationDelay(rawTextLength, likelyIncomplete, RAW_VALIDATION_PARSE_IDLE_BASE_MS, RAW_VALIDATION_PARSE_IDLE_LARGE_MS, RAW_VALIDATION_PARSE_IDLE_VERY_LARGE_MS, RAW_VALIDATION_PARSE_IDLE_INCOMPLETE_MS);
             long heavyIdleDelay = this.resolveValidationDelay(rawTextLength, likelyIncomplete, RAW_VALIDATION_IDLE_BASE_MS, RAW_VALIDATION_IDLE_LARGE_MS, RAW_VALIDATION_IDLE_VERY_LARGE_MS, RAW_VALIDATION_IDLE_INCOMPLETE_MS);
             validationService.requestTwoPhase(
                     rawText,
-                    this.screen.session().originalStack(),
+                    validationOriginalStack,
                     this.screen.session().registryAccess(),
                     parseIdleDelay,
                     heavyIdleDelay,
@@ -328,7 +338,7 @@ public final class RawEditorPanel implements EditorPanel {
                         this.setStatusText(parseStatus, ItemEditorText.tr("raw_editor.status.valid"), UiColors.SUCCESS, statusWidth);
                         editor.setErrorLocation(-1, -1, 0);
                         this.setStatusText(diffStatus, Component.literal(STATUS_VALIDATING_TEXT), UiColors.MUTED, statusWidth);
-                        this.screen.session().queueRebuildPreview(0L);
+                        this.screen.session().rebuildRawPreview(rawText, parseResult.parsedStack());
                     },
                     result -> {
                         if (!result.success()) {
@@ -347,7 +357,7 @@ public final class RawEditorPanel implements EditorPanel {
                         if (result.diffError() != null) {
                             this.setStatusText(
                                     diffStatus,
-                                    Component.literal(ItemEditorText.str("dialog.apply.diff_failed", result.diffError())),
+                                    ItemEditorText.tr("dialog.apply.diff_failed", result.diffError()),
                                     UiColors.DANGER,
                                     statusWidth
                             );
@@ -390,7 +400,7 @@ public final class RawEditorPanel implements EditorPanel {
             int caretLine = editor.caretLine();
             this.setStatusText(
                     caretStatus,
-                    Component.literal(ItemEditorText.str("raw_editor.caret", caretLine, editor.caretColumn())),
+                    ItemEditorText.tr("raw_editor.caret", caretLine, editor.caretColumn()),
                     UiColors.MUTED,
                     statusWidth
             );
@@ -405,7 +415,7 @@ public final class RawEditorPanel implements EditorPanel {
         autocomplete.request();
         this.setStatusText(
                 caretStatus,
-                Component.literal(ItemEditorText.str("raw_editor.caret", activeLine[0], editor.caretColumn())),
+                ItemEditorText.tr("raw_editor.caret", activeLine[0], editor.caretColumn()),
                 UiColors.MUTED,
                 statusWidth
         );
@@ -425,13 +435,8 @@ public final class RawEditorPanel implements EditorPanel {
             Consumer<ButtonComponent> onPress
     ) {
         int width = fixedWidth > 0 ? fixedWidth : Math.max(ACTION_BUTTON_WIDTH_MIN, UiFactory.scaledPixels(ACTION_BUTTON_WIDTH_BASE));
-        int textReserve = compact ? ACTION_BUTTON_TEXT_HORIZONTAL_RESERVE : ACTION_BUTTON_TEXT_NON_COMPACT_RESERVE;
-        int textWidth = Math.max(ACTION_BUTTON_TEXT_WIDTH_MIN, width - UiFactory.scaledPixels(textReserve));
-        Component fitted = UiFactory.fitToWidth(label, textWidth);
-        ButtonComponent button = UiFactory.button(fitted, preset, onPress);
-        if (compact || !fitted.getString().equals(label.getString())) {
-            button.tooltip(List.of(label));
-        }
+        ButtonComponent button = UiFactory.button(label, preset, onPress);
+        button.tooltip(List.of(label));
         if (compact) {
             button.verticalSizing(Sizing.fixed(fixedHeight));
             button.horizontalSizing(fillWidth ? Sizing.fill(100) : Sizing.fixed(width));
@@ -441,12 +446,12 @@ public final class RawEditorPanel implements EditorPanel {
         return button;
     }
 
-    private void setRawText(ItemEditorState state, String text) {
-        state.rawEditorText = text;
-        state.rawEditorEdited = true;
-        this.clearEditorUiState(state);
-        this.screen.session().rebuildPreview();
-        this.screen.refreshCurrentPanel();
+    private void setRawText(RawTextAreaComponent editor, String text) {
+        String safeText = text == null ? "" : text;
+        if (safeText.equals(editor.getValue())) {
+            return;
+        }
+        editor.text(safeText);
     }
 
     private void ensureRawEditorOptionsLoaded(ItemEditorState state) {
@@ -496,40 +501,26 @@ public final class RawEditorPanel implements EditorPanel {
         this.writeHistorySnapshots(state.uiRawEditorRedoHistory, editor.redoHistorySnapshot());
     }
 
-    private void clearEditorUiState(ItemEditorState state) {
-        state.uiRawEditorCursor = 0;
-        state.uiRawEditorSelectionCursor = 0;
-        state.uiRawEditorScrollAmount = 0d;
-        state.uiRawEditorUndoHistory.clear();
-        state.uiRawEditorRedoHistory.clear();
-    }
-
     private ControlLayout resolveControlLayout(int editorWidthHint) {
-        int scaledWidth = this.screen.session().minecraft().getWindow().getGuiScaledWidth();
-        double guiScale = this.screen.session().minecraft().getWindow().getGuiScale();
-        boolean compactControls = LayoutModeUtil.isCompactScale(
-                guiScale,
-                LayoutModeUtil.DEFAULT_COMPACT_LAYOUT_SCALE_THRESHOLD
-        ) || scaledWidth < CONTROL_COMPACT_WIDTH_THRESHOLD;
         int nonCompactButtonWidth = UiFactory.scaledPixels(ACTION_BUTTON_WIDTH_BASE);
         int nonCompactActionRowMinWidth = (nonCompactButtonWidth * ACTION_ROW_BUTTON_COUNT) + UiFactory.scaleProfile().spacing();
         int staticStackThreshold = UiFactory.scaledPixels(CONTROL_STACK_WIDTH_HINT);
         int stackThreshold = Math.max(nonCompactActionRowMinWidth, staticStackThreshold);
-        boolean stackActionRows = compactControls || editorWidthHint < stackThreshold;
+        boolean compactControls = editorWidthHint < stackThreshold;
         int baseControlHeight = UiFactory.scaleProfile().controlHeight();
         int compactControlHeight = Math.max(12, (int) Math.round(baseControlHeight * CONTROL_COMPACT_HEIGHT_RATIO));
         int actionButtonHeight = compactControls ? compactControlHeight : baseControlHeight;
         int secondaryButtonWidth = compactControls
-                ? Math.clamp(scaledWidth / CONTROL_SECONDARY_BUTTON_DIVISOR, CONTROL_SECONDARY_BUTTON_MIN, CONTROL_SECONDARY_BUTTON_MAX)
+                ? Math.clamp(editorWidthHint / CONTROL_SECONDARY_BUTTON_DIVISOR, CONTROL_SECONDARY_BUTTON_MIN, CONTROL_SECONDARY_BUTTON_MAX)
                 : -1;
         int undoRedoButtonWidth = Math.clamp(
-                scaledWidth / CONTROL_UNDO_REDO_BUTTON_DIVISOR,
+                editorWidthHint / CONTROL_UNDO_REDO_BUTTON_DIVISOR,
                 CONTROL_UNDO_REDO_BUTTON_MIN,
                 CONTROL_UNDO_REDO_BUTTON_MAX
         );
         return new ControlLayout(
                 compactControls,
-                stackActionRows,
+                compactControls,
                 actionButtonHeight,
                 compactControlHeight,
                 secondaryButtonWidth,
@@ -787,8 +778,8 @@ public final class RawEditorPanel implements EditorPanel {
         errorColumn[0] = highlight.column();
         String conciseError = this.compactError(failure.error(), MAX_STATUS_ERROR_LENGTH);
         String parseMessage = highlight.hasPosition()
-                ? "Parse error L" + highlight.line() + ":" + highlight.column() + " - " + conciseError
-                : "Parse error - " + conciseError;
+                ? ItemEditorText.str("raw_editor.status.parse_error_position", highlight.line(), highlight.column(), conciseError)
+                : ItemEditorText.str("raw_editor.status.parse_error", conciseError);
         String validationError = this.compactError(failure.error(), MAX_VALIDATION_ERROR_LENGTH);
         String validationMessage = highlight.hasPosition()
                 ? ItemEditorText.str(

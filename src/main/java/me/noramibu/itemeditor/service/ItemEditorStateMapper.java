@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import static me.noramibu.itemeditor.util.ValidationUtil.trimTrailingZeros;
 
 import com.mojang.serialization.DataResult;
@@ -8,9 +10,9 @@ import me.noramibu.itemeditor.util.InstrumentDetails;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.advancements.criterion.DataComponentMatchers;
-import net.minecraft.advancements.criterion.ItemPredicate;
-import net.minecraft.advancements.criterion.MinMaxBounds;
+import net.minecraft.advancements.predicates.DataComponentMatchers;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.predicates.MinMaxBounds;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.RegistryAccess;
@@ -94,6 +96,7 @@ import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.equipment.trim.TrimMaterial;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.fish.Salmon;
 import net.minecraft.world.entity.animal.fish.TropicalFish;
@@ -110,6 +113,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -558,7 +562,7 @@ public final class ItemEditorStateMapper {
             state.special.commandBlockItemId = commandBlockItemId(stack);
         }
         if (blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
+                && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN)) {
             var blockTag = blockEntityData.copyTagWithoutId();
             SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
             SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
@@ -567,18 +571,18 @@ public final class ItemEditorStateMapper {
             this.readSignSide(back, state.special.sign.back);
             state.special.sign.waxed = blockTag.getBooleanOr("is_waxed", false);
         }
-        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.MOB_SPAWNER) {
-            this.readSpawnerData(blockEntityData.copyTagWithoutId(), state.special);
+        if (blockEntityData != null && blockEntityData.type() == MOB_SPAWNER) {
+            this.readSpawnerData(blockEntityData.copyTagWithoutId(), state.special, registryAccess);
         }
-        if (blockEntityData != null && blockEntityData.type() == BlockEntityType.COMMAND_BLOCK) {
+        if (blockEntityData != null && blockEntityData.type() == COMMAND_BLOCK) {
             this.readCommandBlockData(blockEntityData.copyTagWithoutId(), state.special);
         }
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
-        if (entityData != null && entityData.type() == EntityType.ARMOR_STAND) {
-            this.readArmorStandData(entityData.copyTagWithoutId(), state.special);
+        if (entityData != null && entityData.type() == ARMOR_STAND) {
+            this.readArmorStandData(entityData.copyTagWithoutId(), state.special, registryAccess);
         }
         if (entityData != null
-                && (entityData.type() == EntityType.ITEM_FRAME || entityData.type() == EntityType.GLOW_ITEM_FRAME)) {
+                && (entityData.type() == ITEM_FRAME || entityData.type() == GLOW_ITEM_FRAME)) {
             this.readItemFrameData(entityData.copyTagWithoutId(), state.special);
         }
         if (ItemEditorCapabilities.supportsSpawnEggData(stack)) {
@@ -717,6 +721,7 @@ public final class ItemEditorStateMapper {
             state.special.bucketGlowing = tag.getBooleanOr("Glowing", false);
             state.special.bucketInvulnerable = tag.getBooleanOr("Invulnerable", false);
             tag.getFloat("Health").ifPresent(value -> state.special.bucketHealth = Float.toString(value));
+            EntitySpawnDataUtil.readAttributes(tag, state.special.bucketAttributes, Set.of());
             tag.getInt("Age").ifPresent(value -> state.special.bucketAge = Integer.toString(value));
             state.special.bucketAgeLocked = tag.getBooleanOr("AgeLocked", false);
             tag.getLong("HuntingCooldown").ifPresent(value -> state.special.bucketHuntingCooldown = Long.toString(value));
@@ -938,7 +943,11 @@ public final class ItemEditorStateMapper {
         return rebuilt;
     }
 
-    private void readSpawnerData(CompoundTag blockTag, ItemEditorState.SpecialData special) {
+    private void readSpawnerData(
+            CompoundTag blockTag,
+            ItemEditorState.SpecialData special,
+            RegistryAccess registryAccess
+    ) {
         special.spawnerDelay = readOptionalInt(blockTag, "Delay");
         special.spawnerMinSpawnDelay = readOptionalInt(blockTag, "MinSpawnDelay");
         special.spawnerMaxSpawnDelay = readOptionalInt(blockTag, "MaxSpawnDelay");
@@ -953,7 +962,7 @@ public final class ItemEditorStateMapper {
         if (spawnEntityTag.isEmpty() && !spawnDataTag.getStringOr("id", "").isBlank()) {
             spawnEntityTag.putString("id", spawnDataTag.getStringOr("id", ""));
         }
-        EntitySpawnDataUtil.readEntity(spawnEntityTag, special.spawnerSpawnData.entity);
+        EntitySpawnDataUtil.readEntity(spawnEntityTag, special.spawnerSpawnData.entity, registryAccess);
         this.readSpawnerSpawnRules(spawnDataTag, special.spawnerSpawnData);
 
         ListTag potentialsTag = blockTag.getListOrEmpty("SpawnPotentials");
@@ -974,7 +983,7 @@ public final class ItemEditorStateMapper {
                     entityTag.putString("id", entityId);
                 }
                 draft.spawnData.originalDataTag = dataTag.copy();
-                EntitySpawnDataUtil.readEntity(entityTag, draft.spawnData.entity);
+                EntitySpawnDataUtil.readEntity(entityTag, draft.spawnData.entity, registryAccess);
                 this.readSpawnerSpawnRules(dataTag, draft.spawnData);
                 int weight = Math.max(1, potentialTag.getIntOr("weight", 1));
                 draft.weight = Integer.toString(weight);
@@ -1033,7 +1042,11 @@ public final class ItemEditorStateMapper {
         ));
     }
 
-    private void readArmorStandData(CompoundTag entityTag, ItemEditorState.SpecialData special) {
+    private void readArmorStandData(
+            CompoundTag entityTag,
+            ItemEditorState.SpecialData special,
+            RegistryAccess registryAccess
+    ) {
         special.armorStandSmall = entityTag.getBooleanOr("Small", false);
         special.armorStandShowArms = entityTag.getBooleanOr("ShowArms", false);
         special.armorStandNoBasePlate = entityTag.getBooleanOr("NoBasePlate", false);
@@ -1044,7 +1057,15 @@ public final class ItemEditorStateMapper {
         special.armorStandMarker = entityTag.getBooleanOr("Marker", false);
         entityTag.read("CustomName", ComponentSerialization.CODEC)
                 .ifPresent(component -> special.armorStandCustomName = TextComponentUtil.toMarkup(component));
+        entityTag.getFloat("Health")
+                .ifPresent(value -> special.armorStandHealth = ValidationUtil.trimTrailingZeros(value));
         special.armorStandDisabledSlots = readOptionalInt(entityTag, "DisabledSlots");
+        EntitySpawnDataUtil.readEquipment(entityTag, special.armorStandEquipment, registryAccess);
+        EntitySpawnDataUtil.readAttributes(
+                entityTag,
+                special.armorStandAttributes,
+                Set.of(Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString())
+        );
 
         CompoundTag poseTag = entityTag.getCompoundOrEmpty("Pose");
         this.readPosePart(
@@ -1091,10 +1112,11 @@ public final class ItemEditorStateMapper {
         );
 
         ListTag attributes = entityTag.getListOrEmpty("attributes");
+        String scaleAttributeId = Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString();
         for (int index = 0; index < attributes.size(); index++) {
             CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
             String id = attributeTag.getStringOr("id", "");
-            if (!"minecraft:scale".equals(id)) {
+            if (!scaleAttributeId.equals(id)) {
                 continue;
             }
             double scale = attributeTag.getDoubleOr("base", 1.0D);
@@ -1140,7 +1162,7 @@ public final class ItemEditorStateMapper {
 
         CompoundTag entityTag = entityData.copyTagWithoutId();
         entityTag.putString("id", special.spawnEggEntity.entityId);
-        EntitySpawnDataUtil.readEntity(entityTag, special.spawnEggEntity);
+        EntitySpawnDataUtil.readEntity(entityTag, special.spawnEggEntity, registryAccess);
         this.readVillagerDataAndTrades(entityTag, special, registryAccess);
     }
 

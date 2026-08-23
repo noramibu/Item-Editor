@@ -36,13 +36,9 @@ final class ItemEditorLayoutBuilder {
     private static final int TOP_ACTION_BUTTON_MIN_WIDTH = 46;
     private static final int TOP_ACTION_BUTTON_MAX_WIDTH = 116;
     private static final int TOP_ACTION_BUTTON_MAX_WIDTH_COMPACT = 98;
-    private static final int TOP_ACTION_BUTTON_ABSOLUTE_MIN_WIDTH = 36;
-    private static final int TOP_ACTION_BUTTON_LABEL_PADDING_MIN = 10;
-    private static final int TOP_ACTION_BUTTON_LABEL_PADDING_BASE = 14;
     private static final int TOP_ACTION_BUTTON_TEXT_PADDING_COMPACT = 14;
     private static final int TOP_ACTION_BUTTON_TEXT_PADDING_REGULAR = 18;
     private static final int TOP_ACTION_BUTTON_COMPACT_MIN_WIDTH = 34;
-    private static final int TOP_ACTION_BUTTON_ADAPTIVE_MIN_FALLBACK = 42;
     private static final int TOP_ACTION_BUTTON_COMPACT_TARGET_MIN = 44;
     private static final int TOP_ACTION_BUTTON_COMPACT_TARGET_MAX = 96;
     private static final int TOP_ACTION_BUTTON_REGULAR_TARGET_MIN = 56;
@@ -77,16 +73,7 @@ final class ItemEditorLayoutBuilder {
     private static final double TOP_ACTION_BUTTON_TARGET_RATIO_REGULAR = 0.11d;
     private static final double TOP_BAR_TITLE_RATIO_COMPACT = 0.28d;
     private static final double TOP_BAR_TITLE_RATIO_REGULAR = 0.24d;
-    private static final double GUI_SCALE_HIGH_THRESHOLD = 3.0d;
-    private static final double GUI_SCALE_VERY_HIGH_THRESHOLD = 4.0d;
-    private static final int SHELL_BOTTOM_SAFETY_EXTRA_HIGH = 4;
-    private static final int SHELL_BOTTOM_SAFETY_EXTRA_VERY_HIGH = 8;
     private static final double TOP_BAR_HEIGHT_MAX_RATIO = 0.18d;
-    private static final double PREVIEW_SCALE_NORMAL = 0.70d;
-    private static final double PREVIEW_SCALE_HIGH = 0.65d * 0.95d;
-    private static final double TABS_SCALE_NORMAL = 1.0d;
-    private static final double TABS_SCALE_HIGH = 0.95d;
-    private static final double TABS_SCALE_VERY_HIGH = 0.92d;
     private static final int WIDE_BODY_GAP_MIN = 4;
     private static final double WIDE_TABS_MIN_RATIO = 0.06d;
     private static final int WIDE_TABS_MIN_FALLBACK = 64;
@@ -110,6 +97,9 @@ final class ItemEditorLayoutBuilder {
     private static final double WIDE_TABS_HARD_MIN_RATIO = 0.03d;
     private static final int WIDE_TABS_HARD_MIN_FALLBACK = 48;
     private static final int WIDE_ABSOLUTE_EDITOR_FLOOR = 140;
+    private static final double PREVIEW_WIDTH_SCALE = 0.70d;
+    private static final int FULL_WIDTH_SHELL_THRESHOLD = 480;
+    private static final int FULL_HEIGHT_SHELL_THRESHOLD = 270;
     private static final String SYMBOL_LEFT = "<";
     private static final String SYMBOL_RIGHT = ">";
     private static final String SYMBOL_PLUS = "+";
@@ -165,21 +155,15 @@ final class ItemEditorLayoutBuilder {
     }
 
     private UIComponent buildShell() {
-        double guiScale = this.currentGuiScale();
-        boolean fullViewportShell = guiScale >= GUI_SCALE_HIGH_THRESHOLD;
-        this.shellWidth = fullViewportShell
-                ? Math.max(1, this.screen.screenWidth())
-                : Math.clamp(this.screen.screenWidth() - (SHELL_SIDE_PADDING * 2), 1, SHELL_MAX_WIDTH);
+        boolean fullViewportShell = usesFullViewportShell(this.screen.screenWidth(), this.screen.screenHeight());
+        this.shellWidth = estimatedShellWidth(this.screen.screenWidth(), this.screen.screenHeight());
         int outerPadding = fullViewportShell ? 0 : UiFactory.scaledPixels(SHELL_SIDE_PADDING / 2);
         int verticalPadding = fullViewportShell ? 0 : this.scaledMin(2, 2);
-        int bottomSafetyExtra = guiScale >= GUI_SCALE_VERY_HIGH_THRESHOLD
-                ? SHELL_BOTTOM_SAFETY_EXTRA_VERY_HIGH
-                : (guiScale >= GUI_SCALE_HIGH_THRESHOLD ? SHELL_BOTTOM_SAFETY_EXTRA_HIGH : 0);
         int bottomSafety = fullViewportShell
                 ? 0
                 : Math.max(
                 2,
-                UiFactory.scaledPixels(SHELL_VERTICAL_SAFE_PADDING + bottomSafetyExtra)
+                UiFactory.scaledPixels(SHELL_VERTICAL_SAFE_PADDING)
         );
         int shellGap = UiFactory.scaleProfile().spacing();
         int availableShellHeight = Math.max(
@@ -259,20 +243,12 @@ final class ItemEditorLayoutBuilder {
     private FlowLayout buildTopBar() {
         FlowLayout card = UiFactory.card();
         card.gap(2);
-        boolean highGuiScale = this.currentGuiScale() >= GUI_SCALE_HIGH_THRESHOLD;
-        boolean compact = this.shellWidth <= TOP_BAR_COMPACT_WIDTH_THRESHOLD || highGuiScale;
+        boolean compact = this.shellWidth <= TOP_BAR_COMPACT_WIDTH_THRESHOLD;
         int effectivePadding = UiFactory.scaleProfile().padding();
-        if (highGuiScale) {
-            effectivePadding = this.tightSpacingFloor2();
-            card.padding(Insets.of(effectivePadding));
-        }
 
         FlowLayout topRow = UiFactory.row();
 
         int topButtonHeight = UiFactory.scaleProfile().controlHeight();
-        if (highGuiScale) {
-            topButtonHeight -= this.scaledMin(2, 3);
-        }
         int rowGap = this.tightSpacingFloor2();
         int minTextGroupWidth = this.clamp(
                 TOP_BAR_MIN_TEXT_WIDTH,
@@ -700,35 +676,28 @@ final class ItemEditorLayoutBuilder {
         int toggleWidth = (categoriesCollapsed ? Math.max(0, categoriesToggleWidth) : 0)
                 + (previewCollapsed ? Math.max(0, previewToggleWidth) : 0);
         int available = Math.max(1, shellWidth - (bodyGap * gapCount) - toggleWidth);
-        double guiScale = this.currentGuiScale();
-        boolean highGuiScale = guiScale >= GUI_SCALE_HIGH_THRESHOLD;
-        double previewScale = highGuiScale ? PREVIEW_SCALE_HIGH : PREVIEW_SCALE_NORMAL;
-        double tabsScale = guiScale >= GUI_SCALE_VERY_HIGH_THRESHOLD
-                ? TABS_SCALE_VERY_HIGH
-                : (highGuiScale ? TABS_SCALE_HIGH : TABS_SCALE_NORMAL);
-
         int tabsMin = 0;
         int tabsWidth = 0;
         if (!categoriesCollapsed) {
-            tabsMin = (int) Math.round(this.widthByRatio(available, WIDE_TABS_MIN_RATIO, WIDE_TABS_MIN_FALLBACK) * tabsScale);
-            int tabsMax = Math.max(tabsMin + WIDE_TABS_MAX_EXTRA, (int) Math.round(this.widthByRatio(available, WIDE_TABS_MAX_RATIO, RAIL_MAX_WIDTH) * tabsScale));
-            int tabsTarget = (int) Math.round(this.widthByRatio(available, WIDE_TABS_TARGET_RATIO, WIDE_TABS_TARGET_FALLBACK) * tabsScale);
+            tabsMin = this.widthByRatio(available, WIDE_TABS_MIN_RATIO, WIDE_TABS_MIN_FALLBACK);
+            int tabsMax = Math.max(tabsMin + WIDE_TABS_MAX_EXTRA, this.widthByRatio(available, WIDE_TABS_MAX_RATIO, RAIL_MAX_WIDTH));
+            int tabsTarget = this.widthByRatio(available, WIDE_TABS_TARGET_RATIO, WIDE_TABS_TARGET_FALLBACK);
             tabsWidth = this.clamp(tabsTarget, tabsMin, tabsMax);
         }
 
         int previewWidth = 0;
         int editorMin = this.widthByRatio(available, WIDE_EDITOR_MIN_RATIO, WIDE_EDITOR_MIN_FALLBACK);
         if (!previewCollapsed) {
-            int previewMin = Math.max(WIDE_PREVIEW_MIN_WIDTH, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_MIN_RATIO, WIDE_PREVIEW_MIN_FALLBACK) * previewScale));
-            int previewMax = Math.max(previewMin + WIDE_PREVIEW_MAX_EXTRA, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_MAX_RATIO, WIDE_PREVIEW_MAX_FALLBACK) * previewScale));
-            int previewTarget = (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_TARGET_RATIO, WIDE_PREVIEW_TARGET_FALLBACK) * previewScale);
+            int previewMin = Math.max(WIDE_PREVIEW_MIN_WIDTH, this.previewWidth(available, WIDE_PREVIEW_MIN_RATIO, WIDE_PREVIEW_MIN_FALLBACK));
+            int previewMax = Math.max(previewMin + WIDE_PREVIEW_MAX_EXTRA, this.previewWidth(available, WIDE_PREVIEW_MAX_RATIO, WIDE_PREVIEW_MAX_FALLBACK));
+            int previewTarget = this.previewWidth(available, WIDE_PREVIEW_TARGET_RATIO, WIDE_PREVIEW_TARGET_FALLBACK);
             previewWidth = this.clamp(previewTarget, previewMin, previewMax);
         }
         int editorWidth = available - tabsWidth - previewWidth;
 
         if (!previewCollapsed && editorWidth < editorMin) {
             int deficit = editorMin - editorWidth;
-            int previewHardFloor = Math.max(WIDE_PREVIEW_HARD_FLOOR_MIN, (int) Math.round(this.widthByRatio(available, WIDE_PREVIEW_HARD_FLOOR_RATIO, WIDE_PREVIEW_HARD_FLOOR_FALLBACK) * previewScale));
+            int previewHardFloor = Math.max(WIDE_PREVIEW_HARD_FLOOR_MIN, this.previewWidth(available, WIDE_PREVIEW_HARD_FLOOR_RATIO, WIDE_PREVIEW_HARD_FLOOR_FALLBACK));
             int previewCut = Math.clamp(previewWidth - previewHardFloor, 0, deficit);
             previewWidth -= previewCut;
             deficit -= previewCut;
@@ -774,6 +743,10 @@ final class ItemEditorLayoutBuilder {
         return Math.max(fallbackMin, (int) Math.round(sourceWidth * ratio));
     }
 
+    private int previewWidth(int sourceWidth, double ratio, int fallbackMin) {
+        return (int) Math.round(this.widthByRatio(sourceWidth, ratio, fallbackMin) * PREVIEW_WIDTH_SCALE);
+    }
+
     private int componentTextWidth(Component component) {
         return Math.max(0, Minecraft.getInstance().font.width(component.getString()));
     }
@@ -798,10 +771,6 @@ final class ItemEditorLayoutBuilder {
         button.horizontalSizing(fillWidth ? Sizing.fill(100) : Sizing.fixed(size));
         button.verticalSizing(Sizing.fixed(size));
         button.tooltip(List.of(tooltip));
-    }
-
-    private double currentGuiScale() {
-        return Minecraft.getInstance().getWindow().getGuiScale();
     }
 
     private FlowLayout buildTopBarTextGroup(int textGroupWidth, int rowGap, boolean compact) {
@@ -837,14 +806,9 @@ final class ItemEditorLayoutBuilder {
         return textGroup;
     }
 
-    private ButtonComponent topActionButton(Component fullText, int maxTextWidth, int buttonWidth, int buttonHeight, Consumer<ButtonComponent> onPress) {
-        Component fitted = UiFactory.fitToWidth(fullText, maxTextWidth);
-        ButtonComponent button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD, onPress);
-        int minWidth = Math.clamp(UiFactory.scaledPixels(TOP_ACTION_BUTTON_ADAPTIVE_MIN_FALLBACK), Math.min(TOP_ACTION_BUTTON_ABSOLUTE_MIN_WIDTH, buttonWidth), buttonWidth);
-        int labelWidth = Math.max(1, this.componentTextWidth(fitted));
-        int horizontalPadding = Math.max(TOP_ACTION_BUTTON_LABEL_PADDING_MIN, UiFactory.scaledPixels(TOP_ACTION_BUTTON_LABEL_PADDING_BASE));
-        int adaptiveWidth = Math.clamp(labelWidth + horizontalPadding, minWidth, buttonWidth);
-        button.horizontalSizing(Sizing.fixed(adaptiveWidth));
+    private ButtonComponent topActionButton(Component fullText, int buttonWidth, int buttonHeight, Consumer<ButtonComponent> onPress) {
+        ButtonComponent button = UiFactory.button(fullText, UiFactory.ButtonTextPreset.STANDARD, onPress);
+        button.horizontalSizing(Sizing.fixed(buttonWidth));
         button.verticalSizing(Sizing.fixed(buttonHeight));
         button.tooltip(List.of(fullText));
         return button;
@@ -861,7 +825,6 @@ final class ItemEditorLayoutBuilder {
                 ? this.clamp((int) Math.round(this.shellWidth * TOP_ACTION_BUTTON_TARGET_RATIO_COMPACT), TOP_ACTION_BUTTON_COMPACT_TARGET_MIN, TOP_ACTION_BUTTON_COMPACT_TARGET_MAX)
                 : this.clamp((int) Math.round(this.shellWidth * TOP_ACTION_BUTTON_TARGET_RATIO_REGULAR), TOP_ACTION_BUTTON_REGULAR_TARGET_MIN, TOP_ACTION_BUTTON_REGULAR_TARGET_MAX);
         int minButtonWidth = compact ? Math.max(TOP_ACTION_BUTTON_COMPACT_MIN_WIDTH, TOP_ACTION_BUTTON_MIN_WIDTH - 8) : TOP_ACTION_BUTTON_MIN_WIDTH;
-        int maxButtonWidth = compact ? TOP_ACTION_BUTTON_MAX_WIDTH_COMPACT : TOP_ACTION_BUTTON_MAX_WIDTH;
         int[] desiredWidths = new int[labels.length];
         int[] minWidths = new int[labels.length];
         int basePadding = compact
@@ -877,7 +840,7 @@ final class ItemEditorLayoutBuilder {
         }
         int maxButtonGroupWidth = Math.max(1, availableRowWidth - rowGap - minTextGroupWidth);
         this.fitTopActionWidths(desiredWidths, minWidths, maxButtonGroupWidth, rowGap);
-        return new TopActionLayout(labels, desiredWidths, maxButtonWidth);
+        return new TopActionLayout(labels, desiredWidths);
     }
 
     private Component[] topActionLabels() {
@@ -905,38 +868,32 @@ final class ItemEditorLayoutBuilder {
     private FlowLayout buildTopActionButtons(TopActionLayout layout, int topButtonHeight, int rowGap, int buttonGroupWidth) {
         Component[] labels = layout.labels();
         int[] widths = layout.widths();
-        int maxButtonWidth = layout.maxButtonWidth();
         ButtonComponent originalButton = this.topActionButton(
                 labels[0],
-                this.topButtonTextWidth(widths[0], maxButtonWidth),
                 widths[0],
                 topButtonHeight,
                 button -> this.screen.openRawItemDataDialog(ItemEditorText.str("dialog.raw_data.original_item_title"), false)
         );
         ButtonComponent currentButton = this.topActionButton(
                 labels[1],
-                this.topButtonTextWidth(widths[1], maxButtonWidth),
                 widths[1],
                 topButtonHeight,
                 button -> this.screen.openRawItemDataDialog(ItemEditorText.str("dialog.raw_data.current_item_title"), true)
         );
         this.resetButton = this.topActionButton(
                 labels[2],
-                this.topButtonTextWidth(widths[2], maxButtonWidth),
                 widths[2],
                 topButtonHeight,
                 button -> this.screen.requestReset()
         );
         ButtonComponent cancelButton = this.topActionButton(
                 labels[3],
-                this.topButtonTextWidth(widths[3], maxButtonWidth),
                 widths[3],
                 topButtonHeight,
                 button -> this.screen.requestClose()
         );
         this.applyButton = this.topActionButton(
                 labels[4],
-                this.topButtonTextWidth(widths[4], maxButtonWidth),
                 widths[4],
                 topButtonHeight,
                 button -> this.screen.requestApply()
@@ -950,14 +907,12 @@ final class ItemEditorLayoutBuilder {
         if (this.screen.session().hasStorageOrigin() && labels.length >= 7) {
             ButtonComponent storageButton = this.topActionButton(
                     labels[5],
-                    this.topButtonTextWidth(widths[5], maxButtonWidth),
                     widths[5],
                     topButtonHeight,
                     button -> this.screen.requestSaveStorage()
             );
             ButtonComponent placeStorageButton = this.topActionButton(
                     labels[6],
-                    this.topButtonTextWidth(widths[6], maxButtonWidth),
                     widths[6],
                     topButtonHeight,
                     button -> this.screen.requestPlaceAndSaveStorage()
@@ -976,15 +931,21 @@ final class ItemEditorLayoutBuilder {
         return row;
     }
 
-    private record TopActionLayout(Component[] labels, int[] widths, int maxButtonWidth) {
+    private record TopActionLayout(Component[] labels, int[] widths) {
     }
 
     private record PreviewSectionHeights(int tooltipHeight, int validationHeight) {
     }
 
-    private int topButtonTextWidth(int buttonWidth, int maxButtonWidth) {
-        int width = Math.clamp(buttonWidth, 1, maxButtonWidth);
-        return Math.max(1, width - UiFactory.scaledPixels(8));
+    static int estimatedShellWidth(int screenWidth, int screenHeight) {
+        if (usesFullViewportShell(screenWidth, screenHeight)) {
+            return Math.max(1, screenWidth);
+        }
+        return Math.clamp(screenWidth - (SHELL_SIDE_PADDING * 2), 1, SHELL_MAX_WIDTH);
+    }
+
+    private static boolean usesFullViewportShell(int screenWidth, int screenHeight) {
+        return screenWidth <= FULL_WIDTH_SHELL_THRESHOLD || screenHeight <= FULL_HEIGHT_SHELL_THRESHOLD;
     }
 
     private int sumTopActionWidths(int[] widths, int rowGap) {

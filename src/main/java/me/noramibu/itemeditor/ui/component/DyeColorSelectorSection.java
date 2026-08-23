@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
@@ -80,7 +79,7 @@ public final class DyeColorSelectorSection {
     }
 
     public static String optionText(DyeColor color) {
-        return toTitleCase(color.name().toLowerCase(Locale.ROOT).replace('_', ' '));
+        return Component.translatable("color.minecraft." + color.name().toLowerCase(Locale.ROOT)).getString();
     }
 
     public static Component shortLabel(DyeColor color) {
@@ -99,23 +98,13 @@ public final class DyeColorSelectorSection {
             label.append(name.charAt(1));
         }
 
-        if (label.isEmpty()) {
-            label.append("C");
-        }
-
         return Component.literal(label.toString()).withColor(color.getTextColor());
     }
 
     public static DyeColor parse(String rawColor) {
-        if (rawColor == null || rawColor.isBlank()) {
-            return null;
-        }
-
-        try {
-            return DyeColor.valueOf(rawColor.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+        return rawColor == null || rawColor.isBlank()
+                ? null
+                : DyeColor.byName(rawColor.trim().toLowerCase(Locale.ROOT), null);
     }
 
     private static FlowLayout colorPalette(SpecialDataPanelContext context, String selectedColor, Consumer<DyeColor> onSelected) {
@@ -128,10 +117,9 @@ public final class DyeColorSelectorSection {
             int end = Math.min(start + colorsPerRow, DYE_COLORS.size());
             for (int index = start; index < end; index++) {
                 DyeColor color = DYE_COLORS.get(index);
-                ButtonComponent chip = UIComponents.button(shortLabel(color), button ->
+                ButtonComponent chip = UiFactory.button(shortLabel(color), UiFactory.ButtonTextPreset.COMPACT, button ->
                         context.mutateRefresh(() -> onSelected.accept(color))
                 );
-                UiFactory.applyButtonPreset(chip, UiFactory.ButtonPreset.COMPACT);
                 chip.horizontalSizing(Sizing.fixed(chipButtonWidth));
                 if (selected != null && selected == color) {
                     chip.active(false);

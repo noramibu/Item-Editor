@@ -5,6 +5,7 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -13,12 +14,12 @@ import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public final class SpawnerSpecialDataSection {
 
@@ -165,16 +166,17 @@ public final class SpawnerSpecialDataSection {
             ItemEditorState.SpawnerSpawnDataDraft draft,
             FlowLayout card
     ) {
-        card.child(UiFactory.field(
+        card.child(PickerFieldFactory.searchableTextField(
+                context,
                 ItemEditorText.tr("special.spawner.entity_id"),
-                Component.empty(),
-                buildEntityInput(
-                        context,
-                        entityIds,
-                        draft.entity.entityId,
-                        value -> draft.entity.entityId = value,
-                        () -> draft.entity.entityId
-                )
+                draft.entity.entityId,
+                value -> draft.entity.entityId = IdFieldNormalizer.normalize(value),
+                PICKER_BUTTON_WIDTH,
+                ItemEditorText.str("special.spawner.entity_picker_title"),
+                "",
+                entityIds,
+                id -> id,
+                id -> context.mutateRefresh(() -> draft.entity.entityId = id)
         ));
         card.child(EntitySpawnDataUi.nameEditor(
                 context,
@@ -184,8 +186,10 @@ public final class SpawnerSpecialDataSection {
                 "special.spawner.name.color_title",
                 "special.spawner.name.gradient_title"
         ));
-        card.child(EntitySpawnDataUi.flags(context, draft.entity, flagColumns(context)));
+        card.child(EntitySpawnDataUi.flags(context, draft.entity));
         card.child(EntitySpawnDataUi.health(context, draft.entity, isCompactLayout(context)));
+        card.child(EntitySpawnDataUi.attributes(context, draft.entity));
+        card.child(EntitySpawnDataUi.equipment(context, draft.entity.equipment, EquipmentSlot.VALUES, true));
         card.child(buildCustomSpawnRules(context, draft));
     }
 
@@ -295,6 +299,10 @@ public final class SpawnerSpecialDataSection {
         target.entity.customNameVisible = source.entity.customNameVisible;
         target.entity.customName = source.entity.customName;
         target.entity.health = source.entity.health;
+        target.entity.attributes.clear();
+        source.entity.attributes.forEach(attribute -> target.entity.attributes.add(attribute.copy()));
+        target.entity.uiAttributesCollapsed = source.entity.uiAttributesCollapsed;
+        target.entity.equipment.copyFrom(source.entity.equipment);
         target.entity.originalEntityTag = source.entity.originalEntityTag.copy();
         target.blockLightMin = source.blockLightMin;
         target.blockLightMax = source.blockLightMax;
@@ -318,67 +326,8 @@ public final class SpawnerSpecialDataSection {
         special.spawnerPotentials.add(draft);
     }
 
-    private static FlowLayout buildEntityInput(
-            SpecialDataPanelContext context,
-            List<String> entityIds,
-            String rawInput,
-            Consumer<String> setter,
-            Supplier<String> currentValueSupplier
-    ) {
-        FlowLayout input = UiFactory.column().gap(2);
-        boolean compactLayout = isCompactLayout(context);
-
-        FlowLayout inputRow = compactLayout ? UiFactory.column() : UiFactory.row();
-        inputRow.child(UiFactory.textBox(
-                rawInput,
-                value -> context.mutateRefresh(() -> setter.accept(IdFieldNormalizer.normalize(value)))
-        ));
-        inputRow.child(buildPickerButton(context, entityIds, currentValueSupplier, setter, compactLayout));
-        input.child(inputRow);
-
-        return input;
-    }
-
-    private static ButtonComponent buildPickerButton(
-            SpecialDataPanelContext context,
-            List<String> entityIds,
-            Supplier<String> currentValueSupplier,
-            Consumer<String> setter,
-            boolean compactLayout
-    ) {
-        ButtonComponent button = UiFactory.button(ItemEditorText.tr("common.pick"), UiFactory.ButtonTextPreset.STANDARD,  component ->
-                context.openSearchablePicker(
-                        ItemEditorText.str("special.spawner.entity_picker_title"),
-                        "",
-                        entityIds,
-                        id -> id,
-                        id -> context.mutateRefresh(() -> setter.accept(id))
-                )
-        );
-        button.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(PICKER_BUTTON_WIDTH));
-        String current = currentValueSupplier.get();
-        if (current != null && !current.isBlank()) {
-            button.tooltip(List.of(Component.literal(current)));
-        }
-        return button;
-    }
-
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
         return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private static int flagColumns(SpecialDataPanelContext context) {
-        if (isCompactLayout(context)) {
-            return 2;
-        }
-        int width = context.panelWidthHint();
-        if (width >= 760) {
-            return 7;
-        }
-        if (width >= 560) {
-            return 5;
-        }
-        return width >= 420 ? 4 : 3;
     }
 
     private static void addPackedRows(FlowLayout parent, int perRow, UIComponent... components) {

@@ -43,11 +43,21 @@ if (localTests.exists()) {
 	apply from: localTests
 }
 
+def startupWebhookKey = providers.gradleProperty("itemeditorStartupWebhookKey")
+		.orElse(providers.environmentVariable("ITEMEDITOR_STARTUP_WEBHOOK_KEY")).getOrElse("")
+def activeWebhookKey = providers.gradleProperty("itemeditorActiveWebhookKey")
+		.orElse(providers.environmentVariable("ITEMEDITOR_ACTIVE_WEBHOOK_KEY")).getOrElse("")
+
 processResources {
-	inputs.property "version", project.version
+	def modVersion = "${project.build_number}"
+	inputs.property "version", modVersion
+	inputs.property "startupWebhookKey", startupWebhookKey
+	inputs.property "activeWebhookKey", activeWebhookKey
 
 	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
+		expand "version": modVersion,
+				"startup_webhook_key": startupWebhookKey,
+				"active_webhook_key": activeWebhookKey
 	}
 }
 

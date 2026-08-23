@@ -21,22 +21,27 @@ public final class RawEditorRenderer {
             return List.of();
         }
         List<RenderRect> rectangles = new ArrayList<>();
-        for (RawEditorLayout.VisualRow row : layout.rows()) {
-            if (selection.end() < row.documentStart() || selection.start() > row.documentEnd()) {
+        int firstVisibleRow = layout.firstVisibleRow(renderedScroll, lineHeight);
+        int lastVisibleRow = layout.lastVisibleRowExclusive(renderedScroll, visibleHeight, lineHeight);
+        for (int rowIndex = firstVisibleRow; rowIndex < lastVisibleRow; rowIndex++) {
+            RawEditorLayout.VisualRow row = layout.row(rowIndex);
+            int documentStart = layout.documentStart(row);
+            int documentEnd = layout.documentEnd(row);
+            if (selection.end() < documentStart || selection.start() > documentEnd) {
                 continue;
             }
-            int lineY = top + row.visualIndex() * lineHeight - renderedScroll;
+            int lineY = top + rowIndex * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) {
                 continue;
             }
-            int from = Math.max(selection.start(), row.documentStart());
-            int to = Math.min(selection.end(), row.documentEnd());
+            int from = Math.max(selection.start(), documentStart);
+            int to = Math.min(selection.end(), documentEnd);
             if (from >= to) {
                 continue;
             }
-            int startX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), from, measurer);
-            int endX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), to, measurer);
-            if (selection.end() > row.documentEnd()) {
+            int startX = contentLeft - horizontalOffset + layout.localVisualX(rowIndex, from, measurer);
+            int endX = contentLeft - horizontalOffset + layout.localVisualX(rowIndex, to, measurer);
+            if (selection.end() > documentEnd) {
                 int contentRight = contentLeft + contentWidth;
                 endX = Math.clamp(endX + 2, Math.min(startX + 1, contentRight), contentRight);
             }
@@ -76,11 +81,14 @@ public final class RawEditorRenderer {
         boolean markLineEnd = errorStart >= line.length();
         List<RenderRect> rectangles = new ArrayList<>();
 
-        for (RawEditorLayout.VisualRow row : layout.rows()) {
+        int firstVisibleRow = layout.firstVisibleRow(renderedScroll, lineHeight);
+        int lastVisibleRow = layout.lastVisibleRowExclusive(renderedScroll, visibleHeight, lineHeight);
+        for (int rowIndex = firstVisibleRow; rowIndex < lastVisibleRow; rowIndex++) {
+            RawEditorLayout.VisualRow row = layout.row(rowIndex);
             if (row.lineIndex() != lineIndex) {
                 continue;
             }
-            int lineY = top + row.visualIndex() * lineHeight - renderedScroll;
+            int lineY = top + rowIndex * lineHeight - renderedScroll;
             if (lineY + lineHeight < top || lineY > top + visibleHeight) {
                 continue;
             }
@@ -90,8 +98,8 @@ public final class RawEditorRenderer {
             if (from < to) {
                 int startOffset = document.lineStart(lineIndex) + from;
                 int endOffset = document.lineStart(lineIndex) + to;
-                int startX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), startOffset, measurer);
-                int endX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), endOffset, measurer);
+                int startX = contentLeft - horizontalOffset + layout.localVisualX(rowIndex, startOffset, measurer);
+                int endX = contentLeft - horizontalOffset + layout.localVisualX(rowIndex, endOffset, measurer);
                 startX = Math.max(contentLeft, startX);
                 endX = Math.min(contentLeft + contentWidth, endX);
                 if (endX <= startX) {
@@ -103,7 +111,7 @@ public final class RawEditorRenderer {
 
             if (markLineEnd && row.localEnd() == line.length()) {
                 int caretOffset = document.lineStart(lineIndex) + row.localEnd();
-                int caretX = contentLeft - horizontalOffset + layout.localVisualX(row.visualIndex(), caretOffset, measurer);
+                int caretX = contentLeft - horizontalOffset + layout.localVisualX(rowIndex, caretOffset, measurer);
                 int startX = Math.clamp(caretX, contentLeft, contentLeft + contentWidth);
                 int endX = Math.min(contentLeft + contentWidth, startX + Math.max(2, underlineHeight * 2));
                 rectangles.add(new RenderRect(startX, underlineY, endX, underlineY + underlineHeight));

@@ -99,7 +99,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("item_picker.title")).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.button(ItemEditorText.tr("item_picker.back"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen)));
+        header.child(UiFactory.button(ItemEditorText.tr("item_picker.back"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(this.returnScreen)));
         shell.child(header);
 
         FlowLayout controls = UiFactory.row();
@@ -116,7 +116,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         shell.child(controls);
 
         this.itemGrid = new VirtualItemGridComponent(pickable ->
-                this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, new ItemStack(pickable.item()))))
+                this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, new ItemStack(pickable.item()))))
         );
         this.itemGrid.horizontalSizing(Sizing.fill(100));
         this.itemGrid.verticalSizing(Sizing.expand(100));
@@ -216,7 +216,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
     private record PickableItem(Identifier id, Item item, ItemStack previewStack, Component displayName, String searchIndex) {
@@ -285,7 +285,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                                 Minecraft.getInstance().font,
                                 List.of(
                                         pickable.displayName(),
-                                        Component.literal(ItemEditorText.str("item_picker.tooltip.registry_id", pickable.id().toString()))
+                                        ItemEditorText.tr("item_picker.tooltip.registry_id", pickable.id().toString())
                                 ),
                                 mouseX,
                                 mouseY

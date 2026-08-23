@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -115,14 +117,14 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
             return data.type();
         }
         if (context.previewStack().is(Items.GLOW_ITEM_FRAME) || context.originalStack().is(Items.GLOW_ITEM_FRAME)) {
-            return EntityType.GLOW_ITEM_FRAME;
+            return GLOW_ITEM_FRAME;
         }
-        return EntityType.ITEM_FRAME;
+        return ITEM_FRAME;
     }
 
     private static boolean isItemFrameType(TypedEntityData<EntityType<?>> data) {
         return data != null
-                && (data.type() == EntityType.ITEM_FRAME || data.type() == EntityType.GLOW_ITEM_FRAME);
+                && (data.type() == ITEM_FRAME || data.type() == GLOW_ITEM_FRAME);
     }
 
     private boolean sameItemFrameData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {

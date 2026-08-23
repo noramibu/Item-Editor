@@ -39,7 +39,7 @@ public final class ItemEditorKeybinds {
             new KeyMapping(
                     "key.itemeditor.open_storage_pages",
                     InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_O,
+                    GLFW.GLFW_KEY_U,
                     CATEGORY
             )
     );
@@ -54,12 +54,12 @@ public final class ItemEditorKeybinds {
             }
             while (OPEN_STORAGE.consumeClick()) {
                 if (client.player != null && client.level != null) {
-                    client.setScreen(new StorageScreen(1, "", StorageSortMode.REGULAR));
+                    client.setScreenAndShow(new StorageScreen(1, "", StorageSortMode.REGULAR));
                 }
             }
             while (OPEN_STORAGE_PAGES.consumeClick()) {
                 if (client.player != null && client.level != null) {
-                    client.setScreen(new StoragePagesScreen(
+                    client.setScreenAndShow(new StoragePagesScreen(
                             client,
                             1,
                             "",

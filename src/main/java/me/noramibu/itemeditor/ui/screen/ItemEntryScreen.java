@@ -46,20 +46,20 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
                 this.showCreativeRequired();
                 return;
             }
-            this.minecraft.setScreen(new ItemPickerScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
+            this.minecraft.setScreenAndShow(new ItemPickerScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
         });
         createButton.horizontalSizing(Sizing.fill(100));
         createButton.active(canCreate);
         card.child(createButton);
 
         var storageButton = UiFactory.button(ItemEditorText.tr("entry.storage"), UiFactory.ButtonTextPreset.LARGE, button ->
-                this.minecraft.setScreen(new StorageScreen(1, "", StorageSortMode.REGULAR))
+                this.minecraft.setScreenAndShow(new StorageScreen(1, "", StorageSortMode.REGULAR))
         );
         storageButton.horizontalSizing(Sizing.fill(100));
         card.child(storageButton);
 
         var storagePagesButton = UiFactory.button(ItemEditorText.tr("storage.pages.title"), UiFactory.ButtonTextPreset.LARGE, button ->
-                this.minecraft.setScreen(new StoragePagesScreen(
+                this.minecraft.setScreenAndShow(new StoragePagesScreen(
                         this.minecraft,
                         1,
                         "",
@@ -76,7 +76,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
                 this.showCreativeRequired();
                 return;
             }
-            this.minecraft.setScreen(new ImportScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
+            this.minecraft.setScreenAndShow(new ImportScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
         });
         importButton.horizontalSizing(Sizing.fill(100));
         importButton.active(canCreate);
@@ -87,7 +87,7 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
                     .maxWidth(UiFactory.scaledPixels(220)));
         }
 
-        var cancel = UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(null));
+        var cancel = UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(null));
         cancel.horizontalSizing(Sizing.fill(100));
         card.child(cancel);
 

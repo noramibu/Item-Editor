@@ -295,10 +295,16 @@ public final class RawTextDocument {
     }
 
     public void reset(String value) {
+        this.reset(value, null);
+    }
+
+    public void reset(String value, int[] preparedLineStarts) {
         this.text = value == null ? "" : value;
         this.caret = Math.clamp(this.caret, 0, this.text.length());
         this.anchor = Math.clamp(this.anchor, 0, this.text.length());
-        this.rebuildLineStarts();
+        this.lineStarts = validLineStarts(preparedLineStarts, this.text.length())
+                ? Arrays.copyOf(preparedLineStarts, preparedLineStarts.length)
+                : computedLineStarts(this.text);
         this.undoHistory.clear();
         this.redoHistory.clear();
     }
@@ -414,14 +420,32 @@ public final class RawTextDocument {
     }
 
     private void rebuildLineStarts() {
-        List<Integer> starts = new ArrayList<>();
-        starts.add(0);
-        for (int index = 0; index < this.text.length(); index++) {
-            if (this.text.charAt(index) == '\n') {
-                starts.add(index + 1);
+        this.lineStarts = computedLineStarts(this.text);
+    }
+
+    private static int[] computedLineStarts(String text) {
+        int[] starts = new int[newlineCount(text) + 1];
+        int line = 1;
+        for (int index = 0; index < text.length(); index++) {
+            if (text.charAt(index) == '\n') {
+                starts[line++] = index + 1;
             }
         }
-        this.lineStarts = starts.stream().mapToInt(Integer::intValue).toArray();
+        return starts;
+    }
+
+    private static boolean validLineStarts(int[] starts, int textLength) {
+        if (starts == null || starts.length == 0 || starts[0] != 0) {
+            return false;
+        }
+        int previous = -1;
+        for (int start : starts) {
+            if (start <= previous || start > textLength) {
+                return false;
+            }
+            previous = start;
+        }
+        return true;
     }
 
     private boolean rebuildLineStartsIncremental(
@@ -440,53 +464,22 @@ public final class RawTextDocument {
         }
 
         int delta = replacement.length() - (safeEnd - safeStart);
-        List<Integer> starts = this.updatedLineStarts(safeStart, safeEnd, replacement, delta);
-        if (starts.isEmpty()) {
-            starts.add(0);
-        }
-
-        int[] startArray = starts.stream().mapToInt(Integer::intValue).toArray();
-        Arrays.sort(startArray);
-        int textLength = this.text.length();
-        int write = 0;
-        for (int read = 0; read < startArray.length; read++) {
-            int clamped = Math.clamp(startArray[read], 0, textLength);
-            if (write == 0 || clamped != startArray[write - 1]) {
-                startArray[write++] = clamped;
-            }
-        }
-        if (write == 0 || startArray[0] != 0) {
-            int[] normalized = new int[write + 1];
-            normalized[0] = 0;
-            if (write > 0) {
-                System.arraycopy(startArray, 0, normalized, 1, write);
-            }
-            this.lineStarts = normalized;
+        if (delta == 0) {
             return true;
         }
-        this.lineStarts = write == startArray.length ? startArray : Arrays.copyOf(startArray, write);
-        return true;
-    }
-
-    private List<Integer> updatedLineStarts(int safeStart, int safeEnd, String replacement, int delta) {
-        List<Integer> starts = new ArrayList<>(this.lineStarts.length + 8);
-        for (int start : this.lineStarts) {
+        int[] starts = Arrays.copyOf(this.lineStarts, this.lineStarts.length);
+        for (int index = 1; index < starts.length; index++) {
+            int start = starts[index];
             if (start <= safeStart) {
-                starts.add(start);
                 continue;
             }
             if (start < safeEnd) {
-                continue;
+                return false;
             }
-            starts.add(start + delta);
+            starts[index] = start + delta;
         }
-
-        for (int index = 0; index < replacement.length(); index++) {
-            if (replacement.charAt(index) == '\n') {
-                starts.add(safeStart + index + 1);
-            }
-        }
-        return starts;
+        this.lineStarts = starts;
+        return true;
     }
 
     private static int newlineCount(String value) {

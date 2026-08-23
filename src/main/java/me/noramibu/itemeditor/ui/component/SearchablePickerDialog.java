@@ -36,8 +36,6 @@ public final class SearchablePickerDialog {
     private static final int FOOTER_BUTTON_MIN_WIDTH = 72;
     private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
     private static final int FOOTER_BUTTON_DIVISOR = 4;
-    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
-    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
     private static final String EMPTY_TEXT = "";
 
     private SearchablePickerDialog() {
@@ -124,13 +122,12 @@ public final class SearchablePickerDialog {
                 }
 
                 matches++;
-                Component fitted = UiFactory.fitToWidth(Component.literal(label), maxLabelWidth);
-                var button = UiFactory.button(fitted, UiFactory.ButtonTextPreset.STANDARD,  component -> onSelect.accept(value));
-                button.setMessage(fitted);
+                Component fullLabel = Component.literal(label);
+                var button = UiFactory.button(fullLabel, UiFactory.ButtonTextPreset.STANDARD, component -> onSelect.accept(value));
                 button.horizontalSizing(Sizing.fill(100));
-                if (!label.equals(rawValue) || !fitted.getString().equals(label)) {
-                    button.tooltip(List.of(Component.literal(label), Component.literal(rawValue)));
-                }
+                button.tooltip(label.equals(rawValue)
+                        ? List.of(fullLabel)
+                        : List.of(fullLabel, Component.literal(rawValue)));
                 results.child(button);
             }
 
@@ -149,8 +146,6 @@ public final class SearchablePickerDialog {
                 FOOTER_BUTTON_MIN_WIDTH,
                 FOOTER_BUTTON_MAX_WIDTH,
                 FOOTER_BUTTON_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run())
         );
         dialog.child(buttonRow);

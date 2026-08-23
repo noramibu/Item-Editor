@@ -20,8 +20,6 @@ public final class ConfirmationDialog {
     private static final int FOOTER_BUTTON_MIN_WIDTH = 72;
     private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
     private static final int FOOTER_BUTTON_WIDTH_DIVISOR = 4;
-    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
-    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
 
     private ConfirmationDialog() {
     }
@@ -72,8 +70,6 @@ public final class ConfirmationDialog {
                 FOOTER_BUTTON_MIN_WIDTH,
                 FOOTER_BUTTON_MAX_WIDTH,
                 FOOTER_BUTTON_WIDTH_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
                 new DialogUiUtil.FooterAction(Component.literal(cancelText), button -> onCancel.run()),
                 new DialogUiUtil.FooterAction(Component.literal(confirmText), button -> onConfirm.run())
         );

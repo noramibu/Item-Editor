@@ -42,8 +42,6 @@ public final class RichTextTokenDialog {
     private static final int FOOTER_BUTTON_MIN_WIDTH = 72;
     private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
     private static final int FOOTER_BUTTON_DIVISOR = 4;
-    private static final int FOOTER_BUTTON_TEXT_MIN_WIDTH = 24;
-    private static final int FOOTER_BUTTON_TEXT_RESERVE = 10;
     private static final int CONTENT_SCROLLBAR_GUTTER_BASE = 10;
     private static final int CONTENT_TEXT_MARGIN_OBJECT_PICKER_EXTRA = 12;
     private static final int ERROR_COLOR = 0xFF8A8A;
@@ -511,8 +509,6 @@ public final class RichTextTokenDialog {
                 FOOTER_BUTTON_MIN_WIDTH,
                 FOOTER_BUTTON_MAX_WIDTH,
                 FOOTER_BUTTON_DIVISOR,
-                FOOTER_BUTTON_TEXT_MIN_WIDTH,
-                FOOTER_BUTTON_TEXT_RESERVE,
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), ignored -> onCancel.run()),
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.rich_text.apply"), ignored -> {
                     ModeSpec mode = modes.get(selectedMode.get());

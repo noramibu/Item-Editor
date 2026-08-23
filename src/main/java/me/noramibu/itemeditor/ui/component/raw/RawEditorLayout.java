@@ -8,13 +8,16 @@ public final class RawEditorLayout {
     private static final RawEditorLayout EMPTY = new RawEditorLayout(
             "",
             new int[]{0},
-            List.of(new VisualRow(0, 0, 0, 0, 0, 0, 0, 0, false)),
+            List.of(new VisualRow(0, 0, 0, false)),
             new int[]{0},
             new int[]{0},
             new boolean[]{false},
+            new int[]{0},
             1,
             0,
-            false
+            false,
+            1,
+            1
     );
 
     private final String text;
@@ -23,9 +26,12 @@ public final class RawEditorLayout {
     private final int[] firstRowByLine;
     private final int[] lastRowByLine;
     private final boolean[] hiddenLines;
+    private final int[] lineWidths;
     private final int contentHeight;
     private final int maxVisibleLineWidth;
     private final boolean wordWrap;
+    private final int wrapWidth;
+    private final int lineHeight;
 
     private RawEditorLayout(
             String text,
@@ -34,9 +40,12 @@ public final class RawEditorLayout {
             int[] firstRowByLine,
             int[] lastRowByLine,
             boolean[] hiddenLines,
+            int[] lineWidths,
             int contentHeight,
             int maxVisibleLineWidth,
-            boolean wordWrap
+            boolean wordWrap,
+            int wrapWidth,
+            int lineHeight
     ) {
         this.text = text;
         this.lineStarts = lineStarts;
@@ -44,9 +53,12 @@ public final class RawEditorLayout {
         this.firstRowByLine = firstRowByLine;
         this.lastRowByLine = lastRowByLine;
         this.hiddenLines = hiddenLines;
+        this.lineWidths = lineWidths;
         this.contentHeight = contentHeight;
         this.maxVisibleLineWidth = maxVisibleLineWidth;
         this.wordWrap = wordWrap;
+        this.wrapWidth = wrapWidth;
+        this.lineHeight = lineHeight;
     }
 
     public static RawEditorLayout empty() {
@@ -68,8 +80,10 @@ public final class RawEditorLayout {
         int wrapWidth = Math.max(1, contentWidth);
         int rowHeight = Math.max(1, lineHeight);
         boolean[] hidden = hiddenLines(lineCount, folds);
+        boolean[] collapsedStarts = collapsedStarts(lineCount, folds);
         int[] firstRows = new int[lineCount];
         int[] lastRows = new int[lineCount];
+        int[] lineWidths = new int[lineCount];
         Arrays.fill(firstRows, -1);
         Arrays.fill(lastRows, -1);
 
@@ -82,20 +96,16 @@ public final class RawEditorLayout {
             int lineStart = starts[line];
             int lineEnd = lineEnd(safeText, starts, line);
             String lineText = safeText.substring(lineStart, lineEnd);
-            maxWidth = Math.max(maxWidth, measurer.textWidth(lineText));
-            boolean collapsed = isCollapsedStart(folds, line);
-            if (collapsed || !wordWrap) {
-                addRow(rows, firstRows, lastRows, line, lineStart, lineText, 0, lineText.length(), measurer, rowHeight, collapsed);
-                continue;
-            }
-            int added = appendWrappedRows(rows, firstRows, lastRows, line, lineStart, lineText, measurer, wrapWidth, rowHeight);
-            if (added == 0) {
-                addRow(rows, firstRows, lastRows, line, lineStart, "", 0, 0, measurer, rowHeight, false);
-            }
+            lineWidths[line] = measurer.textWidth(lineText);
+            maxWidth = Math.max(maxWidth, lineWidths[line]);
+            boolean collapsed = collapsedStarts[line];
+            firstRows[line] = rows.size();
+            appendRows(rows, line, lineText, measurer, wrapWidth, wordWrap, collapsed);
+            lastRows[line] = rows.size() - 1;
         }
 
         if (rows.isEmpty()) {
-            rows.add(new VisualRow(0, 0, 0, 0, 0, 0, 0, 0, false));
+            rows.add(new VisualRow(0, 0, 0, false));
             firstRows[0] = 0;
             lastRows[0] = 0;
         }
@@ -103,13 +113,97 @@ public final class RawEditorLayout {
         return new RawEditorLayout(
                 safeText,
                 starts,
-                List.copyOf(rows),
+                rows,
                 firstRows,
                 lastRows,
                 hidden,
+                lineWidths,
                 rows.size() * rowHeight,
                 maxWidth,
-                wordWrap
+                wordWrap,
+                wrapWidth,
+                rowHeight
+        );
+    }
+
+    public RawEditorLayout updateLine(
+            String text,
+            int[] lineStarts,
+            int lineIndex,
+            RawEditorTextMeasurer measurer,
+            int contentWidth,
+            int lineHeight
+    ) {
+        String safeText = text == null ? "" : text;
+        int[] starts = lineStarts == null ? new int[0] : lineStarts;
+        int line = Math.clamp(lineIndex, 0, Math.max(0, starts.length - 1));
+        int requestedWrapWidth = Math.max(1, contentWidth);
+        int requestedLineHeight = Math.max(1, lineHeight);
+        if (starts.length != this.lineStarts.length
+                || starts.length == 0
+                || requestedWrapWidth != this.wrapWidth
+                || requestedLineHeight != this.lineHeight
+                || this.hiddenLine(line)) {
+            return null;
+        }
+
+        int first = this.firstRowByLine[line];
+        int last = this.lastRowByLine[line];
+        if (first < 0 || last < first || last >= this.rows.size()) {
+            return null;
+        }
+
+        String lineText = safeText.substring(starts[line], lineEnd(safeText, starts, line));
+        List<VisualRow> replacement = new ArrayList<>();
+        appendRows(
+                replacement,
+                line,
+                lineText,
+                measurer,
+                requestedWrapWidth,
+                this.wordWrap,
+                this.rows.get(first).folded()
+        );
+
+        List<VisualRow> updatedRows = new ArrayList<>(this.rows.size() - (last - first + 1) + replacement.size());
+        updatedRows.addAll(this.rows.subList(0, first));
+        updatedRows.addAll(replacement);
+        updatedRows.addAll(this.rows.subList(last + 1, this.rows.size()));
+
+        int rowDelta = replacement.size() - (last - first + 1);
+        int[] firstRows = Arrays.copyOf(this.firstRowByLine, this.firstRowByLine.length);
+        int[] lastRows = Arrays.copyOf(this.lastRowByLine, this.lastRowByLine.length);
+        firstRows[line] = first;
+        lastRows[line] = first + replacement.size() - 1;
+        if (rowDelta != 0) {
+            for (int nextLine = line + 1; nextLine < firstRows.length; nextLine++) {
+                if (firstRows[nextLine] >= 0) {
+                    firstRows[nextLine] += rowDelta;
+                    lastRows[nextLine] += rowDelta;
+                }
+            }
+        }
+
+        int[] lineWidths = Arrays.copyOf(this.lineWidths, this.lineWidths.length);
+        lineWidths[line] = measurer.textWidth(lineText);
+        int maxWidth = 0;
+        for (int width : lineWidths) {
+            maxWidth = Math.max(maxWidth, width);
+        }
+
+        return new RawEditorLayout(
+                safeText,
+                starts,
+                updatedRows,
+                firstRows,
+                lastRows,
+                this.hiddenLines,
+                lineWidths,
+                updatedRows.size() * requestedLineHeight,
+                maxWidth,
+                this.wordWrap,
+                requestedWrapWidth,
+                requestedLineHeight
         );
     }
 
@@ -122,8 +216,15 @@ public final class RawEditorLayout {
         return this.rows.get(index);
     }
 
-    public List<VisualRow> rows() {
-        return this.rows;
+    public int firstVisibleRow(int renderedScroll, int lineHeight) {
+        int height = Math.max(1, lineHeight);
+        return Math.clamp(Math.max(0, renderedScroll) / height - 1, 0, this.rows.size());
+    }
+
+    public int lastVisibleRowExclusive(int renderedScroll, int visibleHeight, int lineHeight) {
+        int height = Math.max(1, lineHeight);
+        int last = (Math.max(0, renderedScroll) + Math.max(0, visibleHeight)) / height + 2;
+        return Math.clamp(last, this.firstVisibleRow(renderedScroll, height), this.rows.size());
     }
 
     public int contentHeight() {
@@ -139,6 +240,16 @@ public final class RawEditorLayout {
             return false;
         }
         return this.hiddenLines[lineIndex];
+    }
+
+    public int documentStart(VisualRow row) {
+        int line = Math.clamp(row.lineIndex(), 0, this.lineStarts.length - 1);
+        return this.lineStarts[line] + row.localStart();
+    }
+
+    public int documentEnd(VisualRow row) {
+        int line = Math.clamp(row.lineIndex(), 0, this.lineStarts.length - 1);
+        return this.lineStarts[line] + row.localEnd();
     }
 
     public int actualLineForRow(int visualIndex) {
@@ -230,46 +341,47 @@ public final class RawEditorLayout {
             return lineStart + (this.wordWrap ? row.localStart() : 0);
         }
         if (segment.isEmpty()) {
-            return row.documentStart();
+            return this.documentStart(row);
         }
         if (localX <= 0d) {
-            return row.documentStart();
+            return this.documentStart(row);
         }
         int lineWidth = measurer.textWidth(segment);
         if (localX > lineWidth + endOfLineTolerance) {
-            return expandWrappedLineEnd ? this.expandedWrappedLineEnd(row) : row.documentEnd();
+            return expandWrappedLineEnd ? this.expandedWrappedLineEnd(rowIndex, row) : this.documentEnd(row);
         }
         if (localX > lineWidth) {
-            return expandWrappedLineEnd ? this.expandedWrappedLineEnd(row) : row.documentEnd();
+            return expandWrappedLineEnd ? this.expandedWrappedLineEnd(rowIndex, row) : this.documentEnd(row);
         }
-        return row.documentStart() + measurer.indexAtWidth(segment, localX);
+        return this.documentStart(row) + measurer.indexAtWidth(segment, localX);
     }
 
-    private int expandedWrappedLineEnd(VisualRow row) {
+    private int expandedWrappedLineEnd(int rowIndex, VisualRow row) {
         if (!this.wordWrap || row.folded()) {
-            return row.documentEnd();
+            return this.documentEnd(row);
         }
         int line = Math.clamp(row.lineIndex(), 0, this.lastRowByLine.length - 1);
         int lastRow = this.lastRowByLine[line];
-        if (lastRow <= row.visualIndex() || lastRow < 0 || lastRow >= this.rows.size()) {
-            return row.documentEnd();
+        if (lastRow <= rowIndex || lastRow < 0 || lastRow >= this.rows.size()) {
+            return this.documentEnd(row);
         }
-        return this.rows.get(lastRow).documentEnd();
+        return this.documentEnd(this.rows.get(lastRow));
     }
 
     public int cursorForRowAndX(int visualIndex, int targetX, RawEditorTextMeasurer measurer) {
         VisualRow row = this.row(visualIndex);
         String segment = this.segmentText(row);
         if (segment.isEmpty()) {
-            return row.documentStart();
+            return this.documentStart(row);
         }
-        return row.documentStart() + measurer.indexAtWidth(segment, Math.max(0, targetX));
+        return this.documentStart(row) + measurer.indexAtWidth(segment, Math.max(0, targetX));
     }
 
     public int localVisualX(int visualIndex, int offset, RawEditorTextMeasurer measurer) {
         VisualRow row = this.row(visualIndex);
-        int safeOffset = Math.clamp(offset, row.documentStart(), row.documentEnd());
-        if (safeOffset <= row.documentStart()) {
+        int documentStart = this.documentStart(row);
+        int safeOffset = Math.clamp(offset, documentStart, this.documentEnd(row));
+        if (safeOffset <= documentStart) {
             return 0;
         }
         String line = this.lineText(row.lineIndex());
@@ -325,92 +437,65 @@ public final class RawEditorLayout {
         if (folds == null || folds.isEmpty()) {
             return hidden;
         }
+        int[] changes = new int[lineCount + 1];
         for (FoldSpan fold : folds) {
             if (fold == null || !fold.collapsed()) {
                 continue;
             }
             int start = Math.clamp(fold.startLine() + 1, 0, lineCount);
             int end = Math.clamp(fold.endLine(), 0, lineCount - 1);
-            for (int line = start; line <= end; line++) {
-                hidden[line] = true;
+            if (start <= end) {
+                changes[start]++;
+                changes[end + 1]--;
             }
+        }
+        int active = 0;
+        for (int line = 0; line < lineCount; line++) {
+            active += changes[line];
+            hidden[line] = active > 0;
         }
         return hidden;
     }
 
-    private static boolean isCollapsedStart(List<FoldSpan> folds, int lineIndex) {
-        if (folds == null || folds.isEmpty()) {
-            return false;
+    private static boolean[] collapsedStarts(int lineCount, List<FoldSpan> folds) {
+        boolean[] collapsed = new boolean[lineCount];
+        if (folds == null) {
+            return collapsed;
         }
         for (FoldSpan fold : folds) {
-            if (fold != null && fold.collapsed() && fold.startLine() == lineIndex && fold.endLine() > lineIndex) {
-                return true;
+            if (fold != null && fold.collapsed() && fold.endLine() > fold.startLine()) {
+                int start = fold.startLine();
+                if (start >= 0 && start < lineCount) {
+                    collapsed[start] = true;
+                }
             }
         }
-        return false;
+        return collapsed;
     }
 
-    private static int appendWrappedRows(
+    private static void appendRows(
             List<VisualRow> rows,
-            int[] firstRows,
-            int[] lastRows,
             int line,
-            int lineStart,
             String lineText,
             RawEditorTextMeasurer measurer,
             int wrapWidth,
-            int lineHeight
+            boolean wordWrap,
+            boolean folded
     ) {
-        if (lineText.isEmpty()) {
-            addRow(rows, firstRows, lastRows, line, lineStart, "", 0, 0, measurer, lineHeight, false);
-            return 1;
+        if (folded || !wordWrap || lineText.isEmpty()) {
+            rows.add(new VisualRow(line, 0, lineText.length(), folded));
+            return;
         }
 
         int segmentStart = 0;
-        int added = 0;
         while (segmentStart < lineText.length()) {
             int segmentEnd = wrapSegmentEnd(lineText, segmentStart, wrapWidth, measurer);
             if (segmentEnd <= segmentStart) {
                 segmentEnd = Math.min(lineText.length(), segmentStart + 1);
             }
-            String segment = lineText.substring(segmentStart, segmentEnd);
-            addRow(rows, firstRows, lastRows, line, lineStart, segment, segmentStart, segmentEnd, measurer, lineHeight, false);
+            rows.add(new VisualRow(line, segmentStart, segmentEnd, false));
             segmentStart = segmentEnd;
-            added++;
         }
-        return added;
-    }
-
-    private static void addRow(
-            List<VisualRow> rows,
-            int[] firstRows,
-            int[] lastRows,
-            int line,
-            int lineStart,
-            String segment,
-            int localStart,
-            int localEnd,
-            RawEditorTextMeasurer measurer,
-            int lineHeight,
-            boolean folded
-    ) {
-        int visualIndex = rows.size();
-        int width = measurer.textWidth(segment);
-        rows.add(new VisualRow(
-                visualIndex,
-                line,
-                lineStart + localStart,
-                lineStart + localEnd,
-                localStart,
-                localEnd,
-                visualIndex * lineHeight,
-                width,
-                folded
-        ));
-        if (firstRows[line] < 0) {
-            firstRows[line] = visualIndex;
-        }
-        lastRows[line] = visualIndex;
     }
 
     private static int wrapSegmentEnd(
@@ -465,14 +550,9 @@ public final class RawEditorLayout {
     }
 
     public record VisualRow(
-            int visualIndex,
             int lineIndex,
-            int documentStart,
-            int documentEnd,
             int localStart,
             int localEnd,
-            int y,
-            int width,
             boolean folded
     ) {
     }

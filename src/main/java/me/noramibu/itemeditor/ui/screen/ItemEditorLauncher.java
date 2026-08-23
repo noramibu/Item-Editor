@@ -16,10 +16,10 @@ public final class ItemEditorLauncher {
 
         ItemStack held = client.player.getInventory().getSelectedItem();
         if (held.isEmpty()) {
-            client.setScreen(new ItemEntryScreen(client));
+            client.setScreenAndShow(new ItemEntryScreen(client));
             return;
         }
 
-        client.setScreen(new ItemEditorScreen(new ItemEditorSession(client, held)));
+        client.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(client, held)));
     }
 }

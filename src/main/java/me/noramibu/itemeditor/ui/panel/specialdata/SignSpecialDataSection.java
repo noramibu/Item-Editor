@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
@@ -9,26 +11,31 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
-import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.core.Direction;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.HangingSignItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.storage.TagValueInput;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,7 +119,7 @@ public final class SignSpecialDataSection {
                 value -> context.mutateRefresh(() -> sideDraft.glowing = value)
         ));
 
-        SignPreviewWidgets preview = buildPreviewWidgets(sideDraft, boardStyle, hangingSign);
+        SignPreviewWidgets preview = buildPreviewWidgets(context, sideDraft, boardStyle, hangingSign);
         AtomicBoolean normalizingDocument = new AtomicBoolean(false);
         AtomicReference<StyledTextFieldSection.BoundEditor> editorRef = new AtomicReference<>();
         StyledTextFieldSection.BoundEditor editorSection = StyledTextFieldSection.create(
@@ -173,7 +180,7 @@ public final class SignSpecialDataSection {
         editorStack.gap(0);
         editorStack.padding(Insets.of(0, 0, 0, UiFactory.scaledPixels(SIGN_EDITOR_RIGHT_PADDING)));
         editorStack.child(editorRow);
-        editorStack.child(buildHorizontalScrollbar(editorSection.editor()));
+        editorStack.child(UiFactory.horizontalScrollbarRow(editorSection.editor(), SIGN_LINE_NUMBER_WIDTH));
         editorFrame.child(editorStack);
         editorFrame.child(editorSection.validation());
 
@@ -239,35 +246,37 @@ public final class SignSpecialDataSection {
     }
 
     private static SignPreviewWidgets buildPreviewWidgets(
+            SpecialDataPanelContext context,
             ItemEditorState.SignSideDraft sideDraft,
             SignBoardStyle boardStyle,
             boolean hangingSign
     ) {
+        int previewSize = UiFactory.responsiveSquareSize(
+                context.panelWidthHint(),
+                context.screen().editorContentHeightHint(),
+                0.13,
+                0.24,
+                SIGN_PREVIEW_SIZE_MIN,
+                SIGN_PREVIEW_SIZE_MAX
+        );
         FlowLayout previewCard = UiFactory.subCard();
         previewCard.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
+        BlockState previewState = orientedPreviewState(boardStyle.previewBlock(hangingSign).defaultBlockState());
+        SignBlockEntity previewEntity = (SignBlockEntity) Objects.requireNonNull(
+                ((EntityBlock) previewState.getBlock()).newBlockEntity(BlockPos.ZERO, previewState)
+        );
+        var level = Minecraft.getInstance().level;
+        if (level != null) {
+            previewEntity.setLevel(level);
+        }
+        updatePreviewEntity(previewEntity, sideDraft);
         FlowLayout previewRow = UiFactory.row();
-        previewRow.child(buildRealSignPreview(sideDraft, boardStyle, hangingSign));
-        previewRow.child(UiFactory.muted(ItemEditorText.tr("special.sign.preview_hint"), SIGN_PREVIEW_HINT_WIDTH));
-        previewCard.child(previewRow);
-        return new SignPreviewWidgets(previewCard, previewRow, boardStyle, hangingSign);
-    }
-
-    private static FlowLayout buildRealSignPreview(
-            ItemEditorState.SignSideDraft sideDraft,
-            SignBoardStyle boardStyle,
-            boolean hangingSign
-    ) {
-        int previewSize = UiFactory.responsiveSquareSize(0.13, 0.24, SIGN_PREVIEW_SIZE_MIN, SIGN_PREVIEW_SIZE_MAX);
-        Block previewBlock = boardStyle.previewBlock(hangingSign);
-        BlockState previewState = orientedPreviewState(previewBlock.defaultBlockState());
-        CompoundTag signTag = new CompoundTag();
-        SignText sideText = buildSignText(sideDraft);
-        signTag.store("front_text", SignText.DIRECT_CODEC, sideText);
-        signTag.store("back_text", SignText.DIRECT_CODEC, sideText);
-        signTag.putBoolean("is_waxed", false);
-        return UiFactory.row().child(UIComponents.block(previewState, signTag)
+        previewRow.child(UIComponents.block(previewState, previewEntity)
                 .horizontalSizing(UiFactory.fixed(previewSize))
                 .verticalSizing(UiFactory.fixed(previewSize)));
+        previewRow.child(UiFactory.muted(ItemEditorText.tr("special.sign.preview_hint"), SIGN_PREVIEW_HINT_WIDTH));
+        previewCard.child(previewRow);
+        return new SignPreviewWidgets(previewCard, previewEntity);
     }
 
     private static BlockState orientedPreviewState(BlockState state) {
@@ -285,9 +294,23 @@ public final class SignSpecialDataSection {
 
     private static void refreshPreview(SignPreviewWidgets preview, ItemEditorState.SignSideDraft sideDraft) {
         ensureSignLineCount(sideDraft);
-        preview.previewRow().clearChildren();
-        preview.previewRow().child(buildRealSignPreview(sideDraft, preview.boardStyle(), preview.hangingSign()));
-        preview.previewRow().child(UiFactory.muted(ItemEditorText.tr("special.sign.preview_hint"), SIGN_PREVIEW_HINT_WIDTH));
+        updatePreviewEntity(preview.entity(), sideDraft);
+    }
+
+    private static void updatePreviewEntity(SignBlockEntity entity, ItemEditorState.SignSideDraft sideDraft) {
+        var level = entity.getLevel();
+        if (level == null) {
+            return;
+        }
+        SignText text = buildSignText(sideDraft);
+        CompoundTag tag = new CompoundTag();
+        tag.store("front_text", SignText.DIRECT_CODEC, text);
+        tag.store("back_text", SignText.DIRECT_CODEC, text);
+        entity.loadWithComponents(TagValueInput.create(
+                ProblemReporter.DISCARDING,
+                level.registryAccess(),
+                tag
+        ));
     }
 
     private static SignText buildSignText(ItemEditorState.SignSideDraft sideDraft) {
@@ -330,7 +353,7 @@ public final class SignSpecialDataSection {
             return true;
         }
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return blockEntityData != null && blockEntityData.type() == BlockEntityType.HANGING_SIGN;
+        return blockEntityData != null && blockEntityData.type() == HANGING_SIGN;
     }
 
     private static void ensureSignLineCount(ItemEditorState.SignSideDraft sideDraft) {
@@ -362,20 +385,11 @@ public final class SignSpecialDataSection {
         return gutter;
     }
 
-    private static FlowLayout buildHorizontalScrollbar(RichTextAreaComponent editor) {
-        return UiFactory.horizontalScrollbarRow(editor, SIGN_LINE_NUMBER_WIDTH);
-    }
-
     private static int signEditorHeight() {
         return (SIGN_LINE_COUNT * SIGN_LINE_SLOT_HEIGHT) + UiFactory.scaledPixels(SIGN_EDITOR_VERTICAL_PADDING_BASE);
     }
 
-    private record SignPreviewWidgets(
-            FlowLayout card,
-            FlowLayout previewRow,
-            SignBoardStyle boardStyle,
-            boolean hangingSign
-    ) {
+    private record SignPreviewWidgets(FlowLayout card, SignBlockEntity entity) {
     }
 
     private enum SignBoardStyle {

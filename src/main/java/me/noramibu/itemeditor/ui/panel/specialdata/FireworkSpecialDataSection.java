@@ -4,7 +4,6 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorState;
-import me.noramibu.itemeditor.ui.component.ButtonFitUtil;
 import me.noramibu.itemeditor.ui.component.ColorTokenListEditor;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -29,13 +28,9 @@ public final class FireworkSpecialDataSection {
     private static final int SHAPE_QUICK_PICK_BUTTON_MIN = 72;
     private static final int SHAPE_QUICK_PICK_BUTTON_MAX = 140;
     private static final int SHAPE_QUICK_PICK_ROW_RESERVE = 48;
-    private static final int SHAPE_QUICK_PICK_TEXT_MIN = 24;
-    private static final int SHAPE_QUICK_PICK_TEXT_RESERVE = 10;
     private static final int MATERIAL_HINT_WIDTH = 260;
     private static final int ADD_EXPLOSION_BUTTON_MIN = 92;
     private static final int ADD_EXPLOSION_BUTTON_MAX = 180;
-    private static final int ADD_EXPLOSION_BUTTON_TEXT_MIN = 24;
-    private static final int ADD_EXPLOSION_BUTTON_TEXT_RESERVE = 10;
 
     private FireworkSpecialDataSection() {
     }
@@ -74,9 +69,7 @@ public final class FireworkSpecialDataSection {
                 addExplosionButton,
                 compactLayout,
                 addExplosionText,
-                addExplosionWidth,
-                ADD_EXPLOSION_BUTTON_TEXT_MIN,
-                ADD_EXPLOSION_BUTTON_TEXT_RESERVE
+                addExplosionWidth
         );
         section.child(addExplosionButton);
 
@@ -149,6 +142,7 @@ public final class FireworkSpecialDataSection {
                 currentValueSupplier,
                 setter,
                 fallbackColor,
+                context.panelWidthHint(),
                 context::mutateRefresh,
                 (initialColor, onApply) -> context.screen().openUnifiedColorPickerDialog(
                         ItemEditorText.str(labelKey),
@@ -198,9 +192,7 @@ public final class FireworkSpecialDataSection {
                 button,
                 compactLayout,
                 label,
-                buttonWidth,
-                SHAPE_QUICK_PICK_TEXT_MIN,
-                SHAPE_QUICK_PICK_TEXT_RESERVE
+                buttonWidth
         );
         return button;
     }
@@ -209,21 +201,13 @@ public final class FireworkSpecialDataSection {
             ButtonComponent button,
             boolean compactLayout,
             Component label,
-            int fixedWidth,
-            int textMinWidth,
-            int textReserve
+            int fixedWidth
     ) {
         if (compactLayout) {
             button.horizontalSizing(Sizing.fill(100));
             return;
         }
-        ButtonFitUtil.applyFittedFixedLabel(
-                button,
-                label,
-                fixedWidth,
-                textMinWidth,
-                textReserve
-        );
+        UiFactory.applyFixedButtonLabel(button, label, fixedWidth);
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {

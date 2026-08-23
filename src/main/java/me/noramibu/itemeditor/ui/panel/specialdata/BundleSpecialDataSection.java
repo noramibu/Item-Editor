@@ -89,7 +89,7 @@ public final class BundleSpecialDataSection {
         return UiFactory.button(
                 ItemEditorText.tr("special.bundle.open_editor"),
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.screen().session().minecraft().setScreen(ContainerEditorScreen.bundle(
+                ignored -> context.screen().session().minecraft().setScreenAndShow(ContainerEditorScreen.bundle(
                         context.screen(),
                         special
                 ))

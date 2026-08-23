@@ -87,12 +87,12 @@ public final class StorageScreen extends ContainerScreen {
     private static final DateTimeFormatter SAVED_AT_FORMATTER = DateTimeFormatter
             .ofPattern("yyyy-MM-dd HH:mm:ss")
             .withZone(ZoneId.systemDefault());
-    private static final Component HINT_OPEN_EDITOR = Component.literal("I on hovered item: open editor");
+    private static final Component HINT_OPEN_EDITOR = ItemEditorText.tr("storage.hint.open_editor");
     private static final Component HINT_PICK_OPEN_EDITOR = ItemEditorText.tr("storage.pick_hint");
     private static final Component HINT_PICK_STACK = ItemEditorText.tr("storage.pick_stack_hint");
-    private static final Component HINT_VANILLA = Component.literal("Left/Right/Drag behaves like vanilla chest");
-    private static final Component HINT_SYNC = Component.literal("Edit slots in regular sort with no search filter");
-    private static final Component HINT_SEARCH = Component.literal("Live search updates as you type");
+    private static final Component HINT_VANILLA = ItemEditorText.tr("storage.hint.vanilla");
+    private static final Component HINT_SYNC = ItemEditorText.tr("storage.hint.sync");
+    private static final Component HINT_SEARCH = ItemEditorText.tr("storage.hint.search");
 
     private final SimpleContainer storageContainer;
     private final SavedItemStorageService storage = StorageServices.savedItems();
@@ -218,7 +218,7 @@ public final class StorageScreen extends ContainerScreen {
             return;
         }
         if (this.isReadOnlyStorageSlot(slotId)) {
-            this.feedback(Component.literal(ItemEditorText.str("storage.edit_requires_regular")), UiColors.MUTED);
+            this.feedback(ItemEditorText.tr("storage.edit_requires_regular"), UiColors.MUTED);
             this.refreshData();
             return;
         }
@@ -301,7 +301,7 @@ public final class StorageScreen extends ContainerScreen {
                     int storageSlot = this.hoveredStorageSlotIndex();
                     return storageSlot >= 0 && this.openStorageItem(storageSlot);
                 }
-                this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
+                this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
                 return true;
             }
         }
@@ -366,13 +366,13 @@ public final class StorageScreen extends ContainerScreen {
             return tooltip;
         }
         tooltip.add(Component.empty());
-        tooltip.add(Component.literal("Storage Info"));
+        tooltip.add(ItemEditorText.tr("storage.info.title"));
         int nbtBytes = entry.nbtBytes > 0 ? entry.nbtBytes : this.estimateStackNbtBytes(stack);
         tooltip.add(Component.literal(StorageSizeText.sizeLine(nbtBytes)));
-        tooltip.add(Component.literal("Saved: " + this.formatSavedAt(entry.savedAt)));
-        tooltip.add(Component.literal("Version: " + this.storageMinecraftVersion(entry)));
-        tooltip.add(Component.literal("DataVersion: " + this.storageDataVersion(entry)));
-        tooltip.add(Component.literal("Page " + Math.max(1, entry.page) + ", slot " + (Math.max(0, entry.slotInChunk) + 1)));
+        tooltip.add(ItemEditorText.tr("storage.info.saved", this.formatSavedAt(entry.savedAt)));
+        tooltip.add(ItemEditorText.tr("storage.info.version", this.storageMinecraftVersion(entry)));
+        tooltip.add(ItemEditorText.tr("storage.info.data_version", this.storageDataVersion(entry)));
+        tooltip.add(ItemEditorText.tr("storage.info.location", Math.max(1, entry.page), Math.max(0, entry.slotInChunk) + 1));
         return tooltip;
     }
 
@@ -382,10 +382,10 @@ public final class StorageScreen extends ContainerScreen {
         int y = this.topPos;
         int halfWidth = (this.panelWidth - GAP) / 2;
 
-        this.searchInput = new EditBox(this.font, this.panelX, y, this.panelWidth, BUTTON_HEIGHT, Component.literal("Filter"));
+        this.searchInput = new EditBox(this.font, this.panelX, y, this.panelWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.filter"));
         this.searchInput.setMaxLength(256);
         this.searchInput.setValue(this.currentQuery);
-        this.searchInput.setHint(Component.literal("Filter items"));
+        this.searchInput.setHint(ItemEditorText.tr("storage.filter_hint"));
         this.searchInput.setResponder(value -> {
             this.liveSearchDueAt = System.currentTimeMillis() + SEARCH_DEBOUNCE_MS;
             this.updateAutocompleteHint(value);
@@ -447,38 +447,18 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private Button addPanelButton(int x, int y, int width, Component label, Runnable action) {
-        Component fittedLabel = this.fitPanelButtonLabel(label, width);
-        Button button = Button.builder(fittedLabel, ignored -> action.run())
+        Button button = Button.builder(label, ignored -> action.run())
                 .bounds(x, y, Math.max(1, width), BUTTON_HEIGHT)
                 .build();
-        if (!fittedLabel.getString().equals(label.getString())) {
-            button.setTooltip(Tooltip.create(label));
-        }
+        this.updatePanelButtonLabel(button, label);
         return this.addPanelWidget(button);
     }
 
-    private Component fitPanelButtonLabel(Component label, int width) {
-        String text = label.getString();
-        int maxTextWidth = Math.max(4, width - 6);
-        if (this.font.width(text) <= maxTextWidth) {
-            return label;
-        }
-        return Component.literal(this.fitStringToWidth(text, maxTextWidth)).withStyle(label.getStyle());
-    }
-
-    private String fitStringToWidth(String text, int maxTextWidth) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        String ellipsis = "...";
-        if (this.font.width(ellipsis) > maxTextWidth) {
-            return "";
-        }
-        int end = text.length();
-        while (end > 0 && this.font.width(text.substring(0, end) + ellipsis) > maxTextWidth) {
-            end--;
-        }
-        return end <= 0 ? ellipsis : text.substring(0, end) + ellipsis;
+    private void updatePanelButtonLabel(Button button, Component label) {
+        button.setMessage(label);
+        button.setTooltip(this.font.width(label) > Math.max(4, button.getWidth() - 6)
+                ? Tooltip.create(label)
+                : null);
     }
 
     private void addTokenButton(int x, int y, int width, String tokenTemplate) {
@@ -521,7 +501,7 @@ public final class StorageScreen extends ContainerScreen {
         long requestId = ++this.refreshRequestSequence;
         this.activeRefreshRequest = requestId;
         String query = this.currentQuery;
-        this.feedback(Component.literal("Loading storage page..."), COLOR_HINT);
+        this.feedback(ItemEditorText.tr("storage.loading"), COLOR_HINT);
         this.applyContainerEntries(List.of(), Map.of(), true);
         this.captureBaselineVisibleStacks();
         this.storage
@@ -537,25 +517,22 @@ public final class StorageScreen extends ContainerScreen {
         if (requestId != this.activeRefreshRequest) {
             return;
         }
-        if (this.minecraft.screen != this) {
-            return;
-        }
         if (throwable != null) {
             Throwable root = throwable instanceof CompletionException completion && completion.getCause() != null
                     ? completion.getCause()
                     : throwable;
-            String reason = root.getMessage() == null ? "unknown error" : root.getMessage();
-            this.feedback(Component.literal("Storage load failed: " + this.trimToPanel(reason)), UiColors.DANGER);
+            String reason = root.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : root.getMessage();
+            this.feedback(ItemEditorText.tr("storage.load_failed", this.trimToPanel(reason)), UiColors.DANGER);
             return;
         }
         if (snapshot == null) {
-            this.feedback(Component.literal("Storage load failed: empty result"), UiColors.DANGER);
+            this.feedback(ItemEditorText.tr("storage.load_empty"), UiColors.DANGER);
             return;
         }
 
         SavedItemStorageService.PageResult result = snapshot.result();
         if (result == null) {
-            this.feedback(Component.literal("Storage load failed: empty page result"), UiColors.DANGER);
+            this.feedback(ItemEditorText.tr("storage.load_empty_page"), UiColors.DANGER);
             return;
         }
         this.currentResult = result;
@@ -563,21 +540,23 @@ public final class StorageScreen extends ContainerScreen {
         this.storageTitleLabel = this.storageTitleComponent(result);
         this.pageLabel = Component.literal(this.pageLabelText(result));
         this.refreshStoredPagesLabel(snapshot.stats());
-        this.totalLabel = Component.literal(ItemEditorText.str("storage.total", result.totalResults()));
-        String searchText = this.currentQuery.isBlank() ? "all items" : this.currentQuery;
-        this.searchLabel = Component.literal("Search: " + this.trimToPanel(searchText));
+        this.totalLabel = ItemEditorText.tr("storage.total", result.totalResults());
+        String searchText = this.currentQuery.isBlank() ? ItemEditorText.str("storage.all_items") : this.currentQuery;
+        this.searchLabel = ItemEditorText.tr("storage.search", this.trimToPanel(searchText));
         if (this.currentQuery.isBlank()) {
-            this.searchMetaLabel = Component.literal("Filters: none (showing all)");
+            this.searchMetaLabel = ItemEditorText.tr("storage.filters_none");
         } else {
             StorageSearchQuery query = StorageSearchParser.parse(this.currentQuery);
-            String summary = "Filters i:" + query.itemTokens.size()
-                    + " n:" + query.nameTokens.size()
-                    + " l:" + query.loreTokens.size()
-                    + " a:" + query.amountFilters.size()
-                    + " z:" + query.nbtSizeFilters.size()
-                    + " t:" + (query.beforeDurationsMs.size() + query.afterDurationsMs.size())
-                    + " free:" + query.freeTokens.size();
-            this.searchMetaLabel = Component.literal(summary);
+            this.searchMetaLabel = ItemEditorText.tr(
+                    "storage.filters_summary",
+                    query.itemTokens.size(),
+                    query.nameTokens.size(),
+                    query.loreTokens.size(),
+                    query.amountFilters.size(),
+                    query.nbtSizeFilters.size(),
+                    query.beforeDurationsMs.size() + query.afterDurationsMs.size(),
+                    query.freeTokens.size()
+            );
         }
         this.searchAutoLabel = this.buildAutocompleteLabel(this.searchInput == null ? this.currentQuery : this.searchInput.getValue());
         if (this.jumpInput != null) {
@@ -592,13 +571,13 @@ public final class StorageScreen extends ContainerScreen {
                 case AMOUNT_DESC -> ItemEditorText.tr("storage.sort_amount");
                 case NBT_SIZE_DESC -> ItemEditorText.tr("storage.sort_size_bytes");
             };
-            this.sortButton.setMessage(this.fitPanelButtonLabel(label, this.sortButton.getWidth()));
+            this.updatePanelButtonLabel(this.sortButton, label);
             this.sortButton.visible = true;
             this.sortButton.active = true;
             if (this.reverseSortButton != null) {
                 this.reverseSortButton.visible = true;
                 this.reverseSortButton.active = this.sortMode != StorageSortMode.REGULAR;
-                this.reverseSortButton.setMessage(this.fitPanelButtonLabel(this.reverseSortButtonLabel(), this.reverseSortButton.getWidth()));
+                this.updatePanelButtonLabel(this.reverseSortButton, this.reverseSortButtonLabel());
                 this.reverseSortButton.setTooltip(Tooltip.create(this.reverseSortTooltip()));
             }
             this.updateModeButton();
@@ -698,15 +677,15 @@ public final class StorageScreen extends ContainerScreen {
             hoveredEntry = this.slotEntries.get(hoveredStorageSlot);
         }
         if (hoveredEntry == null) {
-            y = this.drawPanelLine(context, textX, y, Component.literal("Hover a saved item to see page/slot"), COLOR_HINT);
+            y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.hover_location"), COLOR_HINT);
         } else {
-            y = this.drawPanelLine(context, textX, y, Component.literal("This item is in:"), UiColors.SUCCESS);
-            y = this.drawPanelLine(context, textX, y, Component.literal("Page " + hoveredEntry.page + ", slot " + (hoveredEntry.slotInChunk + 1)), UiColors.SUCCESS);
+            y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.item_location"), UiColors.SUCCESS);
+            y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.info.location", hoveredEntry.page, hoveredEntry.slotInChunk + 1), UiColors.SUCCESS);
             if (hoveredEntry.pageNamePlain != null && !hoveredEntry.pageNamePlain.isBlank()) {
                 y = this.drawPanelLine(context, textX, y, Component.literal(this.trimToPanel(hoveredEntry.pageNamePlain)), COLOR_HINT);
             }
             if (hoveredEntry.lorePlain != null && !hoveredEntry.lorePlain.isEmpty()) {
-                y = this.drawPanelLine(context, textX, y, Component.literal("Lore: " + this.trimToPanel(hoveredEntry.lorePlain.getFirst())), COLOR_HINT);
+                y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.lore", this.trimToPanel(hoveredEntry.lorePlain.getFirst())), COLOR_HINT);
             }
         }
         y += 6;
@@ -727,16 +706,16 @@ public final class StorageScreen extends ContainerScreen {
     private String pageLabelText(SavedItemStorageService.PageResult result) {
         String base = ItemEditorText.str("storage.page_current", result.currentPage());
         if (result.pageNamePlain() == null || result.pageNamePlain().isBlank()) {
-            return base + ": Chest";
+            return base + ": " + ItemEditorText.str("storage.default_page");
         }
         return base + ": " + result.pageNamePlain();
     }
 
     private Component storageTitleComponent(SavedItemStorageService.PageResult result) {
         String name = result.pageName() == null || result.pageName().isBlank()
-                ? "Chest"
+                ? ItemEditorText.str("storage.default_page")
                 : result.pageName();
-        return Component.literal("P:" + result.currentPage() + " | ")
+        return ItemEditorText.tr("storage.page_short", result.currentPage()).copy().append(" | ")
                 .append(TextComponentUtil.parseMarkup(name));
     }
 
@@ -765,7 +744,7 @@ public final class StorageScreen extends ContainerScreen {
         this.interactionSnapshot = null;
         if (this.isReadOnlyLayoutView()) {
             this.refreshData();
-            this.feedback(Component.literal(ItemEditorText.str("storage.edit_requires_regular")), UiColors.MUTED);
+            this.feedback(ItemEditorText.tr("storage.edit_requires_regular"), UiColors.MUTED);
             return;
         }
         this.persistMutations(snapshot.beforeEntries(), snapshot.beforeStacks());
@@ -781,7 +760,7 @@ public final class StorageScreen extends ContainerScreen {
         int synced = ClientInventorySyncService.syncChangedSlots(this.minecraft, this.playerInventoryBeforeInteraction);
         this.playerInventoryBeforeInteraction.clear();
         if (synced > 0) {
-            this.feedback(Component.literal("Synced " + synced + " inventory slot(s)."), UiColors.SUCCESS);
+            this.feedback(ItemEditorText.tr("storage.synced_slots", synced), UiColors.SUCCESS);
         }
     }
 
@@ -926,8 +905,8 @@ public final class StorageScreen extends ContainerScreen {
             this.refreshStoredPagesLabel(this.storage.pageStats());
             return false;
         } catch (RuntimeException exception) {
-            String reason = exception.getMessage() == null ? "unknown error" : exception.getMessage();
-            this.feedback(Component.literal("Storage save failed: " + this.trimToPanel(reason)), UiColors.DANGER);
+            String reason = exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage();
+            this.feedback(ItemEditorText.tr("editor.apply.save_storage_failed", this.trimToPanel(reason)), UiColors.DANGER);
             return true;
         }
     }
@@ -936,7 +915,7 @@ public final class StorageScreen extends ContainerScreen {
         if (this.modeButton == null) {
             return;
         }
-        this.modeButton.setMessage(this.fitPanelButtonLabel(this.modeButtonLabel(), this.modeButton.getWidth()));
+        this.updatePanelButtonLabel(this.modeButton, this.modeButtonLabel());
         this.modeButton.active = this.pickedStackConsumer == null;
         this.modeButton.setTooltip(Tooltip.create(this.modeButtonTooltip()));
     }
@@ -945,7 +924,7 @@ public final class StorageScreen extends ContainerScreen {
         if (this.currentPageSaveFailedForModeChange()) {
             return;
         }
-        this.minecraft.setScreen(new StoragePagesScreen(
+        this.minecraft.setScreenAndShow(new StoragePagesScreen(
                 this.minecraft,
                 this.currentPage,
                 this.currentQuery,
@@ -982,13 +961,13 @@ public final class StorageScreen extends ContainerScreen {
         StorageSearchAutocompleteUtil.Completion autocomplete = StorageSearchAutocompleteUtil.complete(value, SEARCH_AUTOCOMPLETE_TOKENS);
         String[] suggestions = autocomplete.suggestions();
         if (suggestions.length == 0) {
-            return Component.literal("Autocomplete: no suggestions");
+            return ItemEditorText.tr("storage.autocomplete.none");
         }
         String preview = suggestions[0];
         if (suggestions.length > 1) {
             preview += " | " + suggestions[1];
         }
-        return Component.literal("Autocomplete (Tab): " + this.trimToPanel(preview));
+        return ItemEditorText.tr("storage.autocomplete.suggestion", this.trimToPanel(preview));
     }
 
     private boolean applyAutocomplete(boolean reverse) {
@@ -1028,31 +1007,33 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private Component reverseSortButtonLabel() {
-        return Component.literal(switch (this.sortMode) {
-            case REGULAR -> "Slot";
-            case SAVED_AT_DESC -> this.reverseSort ? "Old->New" : "New->Old";
-            case NAME_ASC -> this.reverseSort ? "Z->A" : "A->Z";
-            case AMOUNT_DESC -> this.reverseSort ? "1->64" : "64->1";
-            case NBT_SIZE_DESC -> this.reverseSort ? "Small->Big" : "Big->Small";
-        });
+        String key = switch (this.sortMode) {
+            case REGULAR -> "storage.sort.direction.slot";
+            case SAVED_AT_DESC -> this.reverseSort ? "storage.sort.direction.old_new" : "storage.sort.direction.new_old";
+            case NAME_ASC -> this.reverseSort ? "storage.sort.direction.z_a" : "storage.sort.direction.a_z";
+            case AMOUNT_DESC -> this.reverseSort ? "storage.sort.direction.low_high" : "storage.sort.direction.high_low";
+            case NBT_SIZE_DESC -> this.reverseSort ? "storage.sort.direction.small_big" : "storage.sort.direction.big_small";
+        };
+        return ItemEditorText.tr(key);
     }
 
     private Component reverseSortTooltip() {
-        return Component.literal(switch (this.sortMode) {
-            case REGULAR -> "Regular slot order (page/slot).";
+        String key = switch (this.sortMode) {
+            case REGULAR -> "storage.sort.tooltip.regular";
             case SAVED_AT_DESC -> this.reverseSort
-                    ? "Saved Time: oldest to newest."
-                    : "Saved Time: newest to oldest.";
+                    ? "storage.sort.tooltip.saved_asc"
+                    : "storage.sort.tooltip.saved_desc";
             case NAME_ASC -> this.reverseSort
-                    ? "Name: Z to A."
-                    : "Name: A to Z.";
+                    ? "storage.sort.tooltip.name_desc"
+                    : "storage.sort.tooltip.name_asc";
             case AMOUNT_DESC -> this.reverseSort
-                    ? "Amount: low stack count to high."
-                    : "Amount: high stack count to low.";
+                    ? "storage.sort.tooltip.amount_asc"
+                    : "storage.sort.tooltip.amount_desc";
             case NBT_SIZE_DESC -> this.reverseSort
-                    ? "NBT Size: small bytes to large bytes."
-                    : "NBT Size: large bytes to small bytes.";
-        });
+                    ? "storage.sort.tooltip.size_asc"
+                    : "storage.sort.tooltip.size_desc";
+        };
+        return ItemEditorText.tr(key);
     }
 
     private @Nullable SavedIndexItemEntry hoveredStorageEntry() {
@@ -1065,21 +1046,21 @@ public final class StorageScreen extends ContainerScreen {
 
     private String storageMinecraftVersion(SavedIndexItemEntry entry) {
         if (entry == null || entry.minecraftVersion == null || entry.minecraftVersion.isBlank()) {
-            return "current";
+            return ItemEditorText.str("common.current");
         }
         return entry.minecraftVersion;
     }
 
     private String storageDataVersion(SavedIndexItemEntry entry) {
         if (entry == null || entry.dataVersion <= 0) {
-            return "current";
+            return ItemEditorText.str("common.current");
         }
         return Integer.toString(entry.dataVersion);
     }
 
     private String formatSavedAt(long savedAt) {
         if (savedAt <= 0L) {
-            return "unknown";
+            return ItemEditorText.str("raw.unknown_error");
         }
         return SAVED_AT_FORMATTER.format(Instant.ofEpochMilli(savedAt));
     }
@@ -1152,7 +1133,7 @@ public final class StorageScreen extends ContainerScreen {
             return;
         }
         this.storage.enqueueApplySlotMutations(this.currentPage, mutations, registryAccess);
-        this.feedback(Component.literal(ItemEditorText.str("storage.saved_ok")), UiColors.SUCCESS);
+        this.feedback(ItemEditorText.tr("storage.saved_ok"), UiColors.SUCCESS);
         this.captureBaselineVisibleStacks();
         this.pageStatsRefreshPending = true;
         this.pageStatsRefreshDueAt = System.currentTimeMillis() + PAGE_STATS_REFRESH_MS;
@@ -1194,7 +1175,7 @@ public final class StorageScreen extends ContainerScreen {
             return true;
         }
         ItemEditorSessionOrigin.Storage origin = new ItemEditorSessionOrigin.Storage(entry, stack.copy());
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack, origin)));
+        this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack, origin)));
         return true;
     }
 
@@ -1216,7 +1197,7 @@ public final class StorageScreen extends ContainerScreen {
             itemEditorScreen.resize(this.width, this.height);
             itemEditorScreen.requestResponsiveRelayout();
         }
-        this.minecraft.setScreen(this.returnScreen);
+        this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
     private boolean isPickMode() {

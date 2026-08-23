@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.util;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
@@ -466,7 +468,18 @@ public final class RawItemDataUtil {
             return messages;
         }
 
-        DataResult<ItemStack> strictResult = ItemStack.validateStrict(preview);
+        ItemStack strictTarget = preview;
+        int maxStackSize = preview.getMaxStackSize();
+        if (preview.getCount() > maxStackSize) {
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.count_exceeds_max",
+                    preview.getCount(),
+                    maxStackSize
+            )));
+            strictTarget = preview.copyWithCount(maxStackSize);
+        }
+
+        DataResult<ItemStack> strictResult = ItemStack.validateStrict(strictTarget);
         strictResult.resultOrPartial(problem ->
                 messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
         return messages;
@@ -584,7 +597,7 @@ public final class RawItemDataUtil {
 
     private static boolean validateSpawnerEntityReferences(ItemStack preview, List<ValidationMessage> messages) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = preview.get(DataComponents.BLOCK_ENTITY_DATA);
-        if (blockEntityData == null || blockEntityData.type() != BlockEntityType.MOB_SPAWNER) {
+        if (blockEntityData == null || blockEntityData.type() != MOB_SPAWNER) {
             return true;
         }
 

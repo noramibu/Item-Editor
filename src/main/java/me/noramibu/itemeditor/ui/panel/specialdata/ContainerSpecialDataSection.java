@@ -61,7 +61,7 @@ public final class ContainerSpecialDataSection {
         return UiFactory.button(
                 ItemEditorText.tr("special.container.open_editor"),
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.screen().session().minecraft().setScreen(new ContainerEditorScreen(
+                ignored -> context.screen().session().minecraft().setScreenAndShow(new ContainerEditorScreen(
                         context.screen(),
                         context.special(),
                         context.originalStack()

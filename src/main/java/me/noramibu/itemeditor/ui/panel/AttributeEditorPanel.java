@@ -11,7 +11,6 @@ import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -37,7 +36,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public final class AttributeEditorPanel implements EditorPanel {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 430;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 560;
     private static final int AMOUNT_STEP_BUTTON_MIN = 24;
     private static final int AMOUNT_STEP_BUTTON_BASE = 30;
@@ -60,7 +58,10 @@ public final class AttributeEditorPanel implements EditorPanel {
     @Override
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
-        boolean compactLayout = this.isCompactLayout();
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(
+                this.screen.editorContentWidthHint(),
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
         Registry<Attribute> attributeRegistry = this.screen.session().registryAccess().lookupOrThrow(Registries.ATTRIBUTE);
         List<String> attributeIds = RegistryUtil.ids(attributeRegistry);
         ItemAttributeModifiers originalModifiers = this.screen.session().originalStack()
@@ -249,7 +250,7 @@ public final class AttributeEditorPanel implements EditorPanel {
         );
         ButtonComponent resetButton = null;
         if (originalDraft != null) {
-            resetButton = UiFactory.button(Component.literal("Reset This"), UiFactory.ButtonTextPreset.COMPACT, button ->
+            resetButton = UiFactory.button(ItemEditorText.tr("attributes.modifier.reset_this"), UiFactory.ButtonTextPreset.COMPACT, button ->
                     PanelBindings.mutateRefresh(this.screen, () -> state.attributeModifiers.set(currentIndex, this.copyDraft(originalDraft)))
             );
         }
@@ -277,7 +278,7 @@ public final class AttributeEditorPanel implements EditorPanel {
         row.child(modifierIdField);
 
         ButtonComponent generateButton = UiFactory.actionToneButton(
-                Component.literal("Generate"),
+                ItemEditorText.tr("attributes.modifier.generate"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 UiFactory.ActionTone.PICKER,
                 button -> PanelBindings.mutateRefresh(this.screen, () -> draft.modifierId = this.generatedModifierId(draft))
@@ -366,7 +367,7 @@ public final class AttributeEditorPanel implements EditorPanel {
                 attribute,
                 modifier
         );
-        return previewLines.isEmpty() ? Component.literal("Preview: no visible tooltip change") : previewLines.getFirst();
+        return previewLines.isEmpty() ? ItemEditorText.tr("attributes.preview.no_tooltip_change") : previewLines.getFirst();
     }
 
     private String adjustAmount(String raw, double delta) {
@@ -544,17 +545,6 @@ public final class AttributeEditorPanel implements EditorPanel {
             return Integer.toString((int) amount);
         }
         return String.format(Locale.ROOT, "%.2f", amount);
-    }
-
-    private boolean isCompactLayout() {
-        var window = Minecraft.getInstance().getWindow();
-        return LayoutModeUtil.isCompactEditorContentInclusive(
-                window.getGuiScale(),
-                window.getGuiScaledWidth(),
-                this.screen.editorContentWidthHint(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
     }
 
     private ButtonComponent introActionButton(

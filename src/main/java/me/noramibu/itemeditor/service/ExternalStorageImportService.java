@@ -11,12 +11,10 @@ import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageItemBackupService;
 import me.noramibu.itemeditor.storage.StorageConstants;
 import me.noramibu.itemeditor.storage.StorageMetadataUtil;
-import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.inventory.Hotbar;
 import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtAccounter;
@@ -26,7 +24,6 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
-import net.minecraft.resources.Identifier;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.util.datafix.fixes.References;
 import net.minecraft.world.item.ItemStack;
@@ -300,7 +297,7 @@ public final class ExternalStorageImportService {
             originalTag.remove("dynamic");
         }
         int sourceDataVersion = rawDataVersion > 0 ? rawDataVersion : StorageMetadataUtil.currentDataVersion();
-        ItemStack directStack = parseItemStack(originalTag, registryAccess);
+        ItemStack directStack = ItemImportService.parseItemStack(originalTag, registryAccess);
         if (!directStack.isEmpty()) {
             return new ImportedItem(directStack.copy(), originalTag.copy(), sourceDataVersion);
         }
@@ -342,7 +339,7 @@ public final class ExternalStorageImportService {
                         + "\"");
             }
         }
-        ItemStack stack = parseItemStack(decodeTag, registryAccess);
+        ItemStack stack = ItemImportService.parseItemStack(decodeTag, registryAccess);
         if (stack.isEmpty()) {
             if (backup.isBlank()) {
                 backup = backupExternalItem(
@@ -471,37 +468,6 @@ public final class ExternalStorageImportService {
         for (int index = 0; index < warnings.size(); index++) {
             LOGGER.warn("[Item Editor] External storage import warning [{}/{}] {}", index + 1, warnings.size(), warnings.get(index));
         }
-    }
-
-    private static ItemStack parseItemStack(CompoundTag itemTag, RegistryAccess registryAccess) {
-        DataResult<ItemStack> optional = ItemStack.OPTIONAL_CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                itemTag
-        );
-        return optional.result().orElseGet(() -> {
-            DataResult<ItemStack> strict = ItemStack.CODEC.parse(
-                    registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                    itemTag
-            );
-            return strict.result().orElseGet(() -> parseLegacyItemStack(itemTag));
-        });
-    }
-
-    private static ItemStack parseLegacyItemStack(CompoundTag itemTag) {
-        String rawId = itemTag.getString("id").orElse("");
-        if (rawId.isBlank()) {
-            return ItemStack.EMPTY;
-        }
-        Identifier id = Identifier.tryParse(IdFieldNormalizer.normalize(rawId));
-        if (id == null) {
-            return ItemStack.EMPTY;
-        }
-        var item = BuiltInRegistries.ITEM.getOptional(id).orElse(null);
-        if (item == null) {
-            return ItemStack.EMPTY;
-        }
-        int count = itemTag.getInt("count").orElseGet(() -> itemTag.getByte("Count").map(Byte::intValue).orElse(1));
-        return count <= 0 ? ItemStack.EMPTY : new ItemStack(item, count);
     }
 
     private static List<Integer> numericRowKeys(CompoundTag tag) {

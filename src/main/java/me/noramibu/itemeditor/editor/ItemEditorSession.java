@@ -1,10 +1,13 @@
 package me.noramibu.itemeditor.editor;
 
+import me.noramibu.itemeditor.editor.text.RawEditorPreparedText;
 import me.noramibu.itemeditor.service.ItemApplyService;
 import me.noramibu.itemeditor.service.ItemEditorStateMapper;
 import me.noramibu.itemeditor.service.ItemPreviewService;
 import me.noramibu.itemeditor.storage.RawEditorOptionsService;
 import me.noramibu.itemeditor.storage.model.RawEditorOptions;
+import me.noramibu.itemeditor.util.AsyncDispatchUtil;
+import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
@@ -16,9 +19,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 public final class ItemEditorSession {
     private static final long RAW_TYPING_REBUILD_MIN_INTERVAL_NANOS = 130_000_000L;
+    private static final ExecutorService RAW_PREPARATION_EXECUTOR =
+            AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-raw-prepare");
     private static final Set<String> RAW_EDITOR_FIELDS = Set.of(
             "rawEditorEdited",
             "rawEditorText",
@@ -51,6 +59,9 @@ public final class ItemEditorSession {
     private ItemPreviewService.PreviewBuildResult cachedRawPreviewResult;
     private String cachedRawParsedInput;
     private RawItemDataUtil.ParseResult cachedRawParsedResult;
+    private long rawPreparationVersion;
+    private CompletableFuture<RawEditorPreparedText> rawPreparation;
+    private RawEditorPreparedText preparedRawText;
 
     public ItemEditorSession(Minecraft minecraft, ItemStack originalStack) {
         this(minecraft, originalStack, ItemEditorSessionOrigin.TRANSIENT);
@@ -65,9 +76,6 @@ public final class ItemEditorSession {
         this.applyService = new ItemApplyService();
         this.baselineState = this.stateMapper.map(this.originalStack, this.registryAccess());
         this.state = this.stateMapper.map(this.originalStack, this.registryAccess());
-        String initialRaw = RawItemDataUtil.serialize(this.originalStack, this.registryAccess());
-        this.baselineState.rawEditorText = initialRaw;
-        this.state.rawEditorText = initialRaw;
         this.applySavedRawEditorOptions(this.baselineState);
         this.applySavedRawEditorOptions(this.state);
         ItemPreviewService.PreviewBuildResult initialResult = this.previewService.buildPreview(this.originalStack, this.state, this.baselineState, this.registryAccess());
@@ -102,6 +110,47 @@ public final class ItemEditorSession {
         return this.state;
     }
 
+    public RawEditorPreparedText preparedRawEditorText() {
+        String rawText = this.state.rawEditorText;
+        return this.preparedRawText != null && this.preparedRawText.text().equals(rawText)
+                ? this.preparedRawText
+                : null;
+    }
+
+    public CompletableFuture<RawEditorPreparedText> prepareRawEditorTextAsync() {
+        RawEditorPreparedText prepared = this.preparedRawEditorText();
+        if (prepared != null) {
+            return CompletableFuture.completedFuture(prepared);
+        }
+        if (this.rawPreparation != null) {
+            return this.rawPreparation;
+        }
+
+        long version = this.rawPreparationVersion;
+        String existingRaw = this.state.rawEditorText == null ? "" : this.state.rawEditorText;
+        boolean serializePreview = existingRaw.isBlank() && !this.state.rawEditorEdited;
+        ItemStack stack = serializePreview ? this.previewStack.copy() : null;
+        RegistryAccess registryAccess = this.registryAccess();
+        boolean showDefaults = this.state.rawEditorShowDefaults;
+        CompletableFuture<RawEditorPreparedText> result = new CompletableFuture<>();
+        this.rawPreparation = result;
+
+        CompletableFuture.supplyAsync(() -> {
+            String rawText = serializePreview
+                    ? RawItemDataUtil.serialize(stack, registryAccess, showDefaults)
+                    : existingRaw;
+            return RawEditorPreparedText.prepare(rawText);
+        }, RAW_PREPARATION_EXECUTOR).whenComplete((rawText, error) ->
+                this.minecraft.execute(() -> this.completeRawPreparation(
+                        result,
+                        version,
+                        serializePreview,
+                        rawText,
+                        error
+                )));
+        return result;
+    }
+
     public List<ValidationMessage> messages() {
         return this.messages;
     }
@@ -115,6 +164,17 @@ public final class ItemEditorSession {
     }
 
     public void rebuildPreview() {
+        this.rebuildPreview(null);
+    }
+
+    public void rebuildRawPreview(String rawText, ItemStack parsedStack) {
+        if (rawText == null || parsedStack == null || !rawText.equals(this.state.rawEditorText)) {
+            return;
+        }
+        this.rebuildPreview(new RawItemDataUtil.ParseResult(parsedStack.copy(), null, -1, -1));
+    }
+
+    private void rebuildPreview(RawItemDataUtil.ParseResult suppliedRawParse) {
         boolean rawEdited = this.state.rawEditorEdited;
         String rawText = this.state.rawEditorText;
         boolean rawShowDefaults = this.state.rawEditorShowDefaults;
@@ -122,7 +182,13 @@ public final class ItemEditorSession {
 
         ItemPreviewService.PreviewBuildResult result;
         if (rawEdited) {
-            rawParse = this.cachedRawParse(rawText);
+            if (suppliedRawParse == null) {
+                rawParse = this.cachedRawParse(rawText);
+            } else {
+                rawParse = suppliedRawParse;
+                this.cachedRawParsedInput = rawText;
+                this.cachedRawParsedResult = suppliedRawParse;
+            }
             result = this.cachedRawResult(rawText, rawParse);
         } else {
             this.clearRawPreviewCache();
@@ -134,7 +200,7 @@ public final class ItemEditorSession {
         if (rawEdited) {
             this.syncStructuredStateFromRaw(rawParse, rawText, rawShowDefaults);
         } else {
-            this.state.rawEditorText = RawItemDataUtil.serialize(this.previewStack, this.registryAccess());
+            this.invalidateRawPreparation(true);
         }
 
         this.dirty = !ItemStack.isSameItemSameComponents(this.cleanPreviewStack, this.previewStack)
@@ -191,7 +257,7 @@ public final class ItemEditorSession {
         ItemEditorState previous = this.state;
         this.state = this.stateMapper.map(this.originalStack, this.registryAccess());
         this.state.rawEditorEdited = false;
-        this.state.rawEditorText = RawItemDataUtil.serialize(this.originalStack, this.registryAccess());
+        this.invalidateRawPreparation(true);
         this.state.rawEditorShowDefaults = previous.rawEditorShowDefaults;
         this.state.rawEditorAutocompleteDisabled = previous.rawEditorAutocompleteDisabled;
         this.state.rawEditorWordWrap = previous.rawEditorWordWrap;
@@ -205,6 +271,19 @@ public final class ItemEditorSession {
     }
 
     public ItemApplyService.ApplyResult apply() {
+        if (this.origin instanceof ItemEditorSessionOrigin.External external) {
+            try {
+                ItemApplyService.ApplyResult result = external.saveHandler().apply(this.previewStack.copy());
+                return result == null
+                        ? ItemApplyService.ApplyResult.failure(ItemEditorText.str("apply.verify.error"))
+                        : result;
+            } catch (RuntimeException exception) {
+                String message = exception.getMessage();
+                return ItemApplyService.ApplyResult.failure(message == null || message.isBlank()
+                        ? ItemEditorText.str("apply.verify.error")
+                        : message);
+            }
+        }
         return this.applyService.apply(this.minecraft, this.previewStack);
     }
 
@@ -259,6 +338,48 @@ public final class ItemEditorSession {
         this.cachedRawParsedResult = null;
     }
 
+    private void completeRawPreparation(
+            CompletableFuture<RawEditorPreparedText> result,
+            long version,
+            boolean serializedPreview,
+            RawEditorPreparedText prepared,
+            Throwable error
+    ) {
+        if (this.rawPreparation == result) {
+            this.rawPreparation = null;
+        }
+        if (version != this.rawPreparationVersion) {
+            result.completeExceptionally(new CancellationException("Raw editor preparation was superseded"));
+            return;
+        }
+        if (error != null || prepared == null) {
+            result.completeExceptionally(error == null
+                    ? new IllegalStateException("Raw editor preparation failed")
+                    : error);
+            return;
+        }
+        String currentRaw = this.state.rawEditorText == null ? "" : this.state.rawEditorText;
+        if (serializedPreview && !this.state.rawEditorEdited && currentRaw.isBlank()) {
+            this.state.rawEditorText = prepared.text();
+            currentRaw = prepared.text();
+        }
+        if (!prepared.text().equals(currentRaw)) {
+            result.completeExceptionally(new CancellationException("Raw editor text changed during preparation"));
+            return;
+        }
+        this.preparedRawText = prepared;
+        result.complete(prepared);
+    }
+
+    private void invalidateRawPreparation(boolean clearText) {
+        this.rawPreparationVersion++;
+        this.rawPreparation = null;
+        this.preparedRawText = null;
+        if (clearText) {
+            this.state.rawEditorText = "";
+        }
+    }
+
     private void syncStructuredStateFromRaw(
             RawItemDataUtil.ParseResult parsed,
             String rawText,
@@ -273,6 +394,7 @@ public final class ItemEditorSession {
 
         ItemEditorState mapped = this.stateMapper.map(parsed.stack(), this.registryAccess());
         this.copyStateIntoExisting(this.state, mapped, true);
+        this.invalidateRawPreparation(false);
         this.state.rawEditorEdited = true;
         this.state.rawEditorText = rawText;
         this.state.rawEditorShowDefaults = rawShowDefaults;

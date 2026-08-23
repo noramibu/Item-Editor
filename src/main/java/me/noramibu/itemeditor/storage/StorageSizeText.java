@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.storage;
 
+import me.noramibu.itemeditor.util.ItemEditorText;
+
 import java.util.Locale;
 
 public final class StorageSizeText {
@@ -19,11 +21,11 @@ public final class StorageSizeText {
         }
 
         if (unitIndex == 0) {
-            return "Size: " + bytes + " bytes";
+            return ItemEditorText.str("storage.size.bytes", bytes);
         }
         String display = Math.rint(value) == value
                 ? Long.toString(Math.round(value))
                 : String.format(Locale.ROOT, "%.1f", value);
-        return "Size: " + display + UNIT_NAMES[unitIndex] + " (" + bytes + " bytes)";
+        return ItemEditorText.str("storage.size.scaled", display, UNIT_NAMES[unitIndex], bytes);
     }
 }

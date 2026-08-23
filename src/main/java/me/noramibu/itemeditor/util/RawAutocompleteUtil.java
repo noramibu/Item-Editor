@@ -1500,7 +1500,7 @@ public final class RawAutocompleteUtil {
             int level
     ) {
         out.append('\n').append(baseIndent);
-        out.append(indentUnit.repeat(Math.max(0, level)));
+        out.repeat(indentUnit, Math.max(0, level));
     }
 
     private static boolean nextNonWhitespaceIs(String text, int start, char expected) {
@@ -2166,8 +2166,7 @@ public final class RawAutocompleteUtil {
             return false;
         }
 
-        int afterToken = skipWhitespaceForward(text, tokenEnd);
-        return afterToken < text.length() && text.charAt(afterToken) == ':';
+        return suffixStartsWithColon(text, tokenEnd);
     }
 
     private static boolean isObjectKeyAheadTokenCharacter(char value) {

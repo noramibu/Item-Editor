@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -49,10 +51,10 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
 
     private BlockEntityType<?> resolveSignBlockEntityType(SpecialDataApplyContext context) {
         if (context.previewStack().getItem() instanceof HangingSignItem) {
-            return BlockEntityType.HANGING_SIGN;
+            return HANGING_SIGN;
         }
         if (context.previewStack().getItem() instanceof SignItem) {
-            return BlockEntityType.SIGN;
+            return SIGN;
         }
 
         TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
@@ -69,7 +71,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
     }
 
     private boolean isSignBlockEntityType(BlockEntityType<?> blockEntityType) {
-        return blockEntityType == BlockEntityType.SIGN || blockEntityType == BlockEntityType.HANGING_SIGN;
+        return blockEntityType == SIGN || blockEntityType == HANGING_SIGN;
     }
 
     private SignText buildSignText(ItemEditorState.SignSideDraft sideDraft, List<ValidationMessage> messages) {

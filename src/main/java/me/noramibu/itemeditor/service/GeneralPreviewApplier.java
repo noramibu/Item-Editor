@@ -7,8 +7,8 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.advancements.criterion.BlockPredicate;
-import net.minecraft.advancements.criterion.DataComponentMatchers;
+import net.minecraft.advancements.predicates.BlockPredicate;
+import net.minecraft.advancements.predicates.DataComponentMatchers;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
@@ -42,6 +42,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             context.previewStack().set(DataComponents.CUSTOM_NAME, this.rebuiltCustomName(state.customName));
         }
 
+        this.applyMaxStackSize(context);
         if (!Objects.equals(state.count, baselineState.count)) {
             Integer count = ValidationUtil.parseInt(state.count, ItemEditorText.str("general.stack_count"), 1, context.previewStack().getMaxStackSize(), context.messages());
             if (count != null) {
@@ -152,6 +153,30 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 DataComponents.CAN_PLACE_ON,
                 ItemEditorText.str("general.adventure.can_place_on")
         );
+    }
+
+    private void applyMaxStackSize(ItemPreviewApplyContext context) {
+        String current = context.state().special.maxStackSize;
+        String baseline = context.baselineState().special.maxStackSize;
+        if (Objects.equals(current, baseline)) {
+            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.MAX_STACK_SIZE);
+            return;
+        }
+        if (current.isBlank()) {
+            this.clearToPrototype(context.previewStack(), DataComponents.MAX_STACK_SIZE);
+            return;
+        }
+
+        Integer maxStackSize = ValidationUtil.parseInt(
+                current,
+                ItemEditorText.str("special.advanced.component_tweaks.max_stack_size"),
+                1,
+                999,
+                context.messages()
+        );
+        if (maxStackSize != null) {
+            context.previewStack().set(DataComponents.MAX_STACK_SIZE, maxStackSize);
+        }
     }
 
     private Component rebuiltCustomName(String rawName) {

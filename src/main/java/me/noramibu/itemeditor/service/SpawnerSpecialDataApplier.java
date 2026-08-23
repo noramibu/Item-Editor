@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -41,7 +43,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
         CompoundTag blockTag = new CompoundTag();
         TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
+        if (originalData != null && originalData.type() == MOB_SPAWNER) {
             blockTag = originalData.copyTagWithoutId();
         }
 
@@ -267,17 +269,17 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
     private BlockEntityType<?> resolveSpawnerType(SpecialDataApplyContext context) {
         if (context.previewStack().is(Items.SPAWNER)) {
-            return BlockEntityType.MOB_SPAWNER;
+            return MOB_SPAWNER;
         }
 
         TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && previewData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
+        if (previewData != null && previewData.type() == MOB_SPAWNER) {
+            return MOB_SPAWNER;
         }
 
         TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
+        if (originalData != null && originalData.type() == MOB_SPAWNER) {
+            return MOB_SPAWNER;
         }
 
         return null;

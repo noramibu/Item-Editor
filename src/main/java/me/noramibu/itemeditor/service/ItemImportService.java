@@ -176,7 +176,7 @@ public final class ItemImportService {
             if (!(entry instanceof CompoundTag itemTag)) {
                 continue;
             }
-            ItemStack stack = this.parseItemStack(itemTag, registryAccess);
+            ItemStack stack = parseItemStack(itemTag, registryAccess);
             if (stack.isEmpty()) {
                 continue;
             }
@@ -186,15 +186,15 @@ public final class ItemImportService {
         return slottedStacks.stream().map(SlottedStack::stack).toList();
     }
 
-    private ItemStack parseItemStack(CompoundTag itemTag, RegistryAccess registryAccess) {
+    static ItemStack parseItemStack(CompoundTag itemTag, RegistryAccess registryAccess) {
         DataResult<ItemStack> optional = ItemStack.OPTIONAL_CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
         return optional.result().orElseGet(() -> {
             DataResult<ItemStack> strict = ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
-            return strict.result().orElseGet(() -> this.parseLegacyItemStack(itemTag));
+            return strict.result().orElseGet(() -> parseLegacyItemStack(itemTag));
         });
     }
 
-    private ItemStack parseLegacyItemStack(CompoundTag itemTag) {
+    private static ItemStack parseLegacyItemStack(CompoundTag itemTag) {
         String rawId = itemTag.getString("id").orElse("");
         if (rawId.isBlank()) {
             return ItemStack.EMPTY;

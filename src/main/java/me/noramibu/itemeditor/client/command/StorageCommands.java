@@ -17,7 +17,6 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -74,7 +73,7 @@ public final class StorageCommands {
                                             StorageSortMode sortMode = StorageSortMode.fromCommandToken(modeToken);
                                             if (sortMode == null) {
                                                 context.getSource().sendError(
-                                                        Component.literal("Unknown sort mode: " + modeToken + " (use: regular, saved, name, amount, size)")
+                                                        ItemEditorText.tr("storage.command.unknown_sort_mode", modeToken).copy()
                                                                 .withStyle(ChatFormatting.RED)
                                                 );
                                                 return 0;
@@ -92,21 +91,21 @@ public final class StorageCommands {
     ) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
-            context.getSource().sendError(Component.literal(ItemEditorText.str("storage.command.no_world")).withStyle(ChatFormatting.RED));
+            context.getSource().sendError(ItemEditorText.tr("storage.command.no_world").copy().withStyle(ChatFormatting.RED));
             return 0;
         }
         int safePage = Math.max(1, page);
-        minecraft.execute(() -> minecraft.setScreen(new StorageScreen(safePage, query, sortMode)));
+        minecraft.execute(() -> minecraft.setScreenAndShow(new StorageScreen(safePage, query, sortMode)));
         return 1;
     }
 
     private static int openStoragePages(CommandContext<FabricClientCommandSource> context) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
-            context.getSource().sendError(Component.literal(ItemEditorText.str("storage.command.no_world")).withStyle(ChatFormatting.RED));
+            context.getSource().sendError(ItemEditorText.tr("storage.command.no_world").copy().withStyle(ChatFormatting.RED));
             return 0;
         }
-        minecraft.execute(() -> minecraft.setScreen(new StoragePagesScreen(
+        minecraft.execute(() -> minecraft.setScreenAndShow(new StoragePagesScreen(
                 minecraft,
                 1,
                 "",

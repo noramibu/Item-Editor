@@ -22,7 +22,6 @@ import java.util.Locale;
 
 public final class FlagsEditorPanel implements EditorPanel {
     private static final int FLAG_CHECKBOX_RESERVE = 42;
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 1150;
     private static final int COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD = 560;
     private static final int OPTION_LABEL_WIDTH_MIN = 96;
     private static final int OPTION_COLUMN_WIDTH_MIN = 120;
@@ -42,7 +41,10 @@ public final class FlagsEditorPanel implements EditorPanel {
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
         int contentWidth = Math.max(1, this.screen.editorContentWidthHint());
-        boolean compactLayout = this.useCompactLayout(contentWidth);
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(
+                contentWidth,
+                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
+        );
         FlowLayout root = UiFactory.column();
         root.padding(Insets.bottom(UiFactory.scaledPixels(BOTTOM_PADDING_BASE)));
 
@@ -102,8 +104,8 @@ public final class FlagsEditorPanel implements EditorPanel {
             FlowLayout optionsRow = UiFactory.row();
             FlowLayout left = UiFactory.column();
             FlowLayout right = UiFactory.column();
-            left.horizontalSizing(Sizing.expand(100));
-            right.horizontalSizing(Sizing.expand(100));
+            left.horizontalSizing(Sizing.fill(49));
+            right.horizontalSizing(Sizing.fill(49));
 
             int columnWidth = Math.max(1, Math.max(OPTION_COLUMN_WIDTH_MIN, (contentWidth - UiFactory.scaledPixels(OPTION_COLUMN_RESERVE)) / 2));
             int labelWidth = this.clampLabelWidth(columnWidth);
@@ -123,17 +125,6 @@ public final class FlagsEditorPanel implements EditorPanel {
 
         UiFactory.appendFillChild(root, common);
         return root;
-    }
-
-    private boolean useCompactLayout(int contentWidth) {
-        var window = this.screen.session().minecraft().getWindow();
-        return LayoutModeUtil.isCompactWindowAndContent(
-                window.getGuiScale(),
-                window.getGuiScaledWidth(),
-                COMPACT_LAYOUT_WIDTH_THRESHOLD,
-                contentWidth,
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
     }
 
     private int clampLabelWidth(int contentWidth) {
