@@ -1,17 +1,23 @@
 package me.noramibu.itemeditor.util;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.Identifier;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-
 public final class RegistryUtil {
 
-    private RegistryUtil() {
+    private RegistryUtil() {}
+
+    public static String resourceId(Identifier resource, String prefix, String suffix) {
+        String path = resource.getPath();
+        if (!path.startsWith(prefix) || !path.endsWith(suffix) || path.length() < prefix.length() + suffix.length())
+            return null;
+        String value = path.substring(prefix.length(), path.length() - suffix.length());
+        return value.isBlank() ? null : resource.getNamespace() + ":" + value;
     }
 
     public static <T> Holder<T> resolveHolder(Registry<T> registry, String rawId) {
@@ -22,7 +28,8 @@ public final class RegistryUtil {
         return registry.get(identifier).orElse(null);
     }
 
-    public static <T> Optional<Holder<T>> resolveOptionalHolder(Registry<T> registry, String rawId, String label, List<ValidationMessage> messages) {
+    public static <T> Optional<Holder<T>> resolveOptionalHolder(
+            Registry<T> registry, String rawId, String label, List<ValidationMessage> messages) {
         if (rawId.isBlank()) {
             return Optional.empty();
         }
@@ -36,6 +43,9 @@ public final class RegistryUtil {
     }
 
     public static <T> List<String> ids(Registry<T> registry) {
-        return registry.keySet().stream().map(Identifier::toString).sorted(Comparator.naturalOrder()).toList();
+        return registry.keySet().stream()
+                .map(Identifier::toString)
+                .sorted(Comparator.naturalOrder())
+                .toList();
     }
 }

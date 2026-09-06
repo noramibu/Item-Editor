@@ -2,13 +2,15 @@ package me.noramibu.itemeditor.util;
 
 import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
 
-import net.minecraft.core.component.DataComponents;
+import java.util.List;
+import java.util.Locale;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.BannerItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeItem;
@@ -24,16 +26,12 @@ import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
-import java.util.List;
-import java.util.Locale;
-
 public final class ItemEditorCapabilities {
 
     private static final RawRuntimeSuggestionProvider RUNTIME_SUGGESTIONS = new RawRuntimeSuggestionProvider();
     private static final Identifier DYE_COMPONENT_ID = Identifier.tryParse("minecraft:dye");
 
-    private ItemEditorCapabilities() {
-    }
+    private ItemEditorCapabilities() {}
 
     public static boolean supportsBook(ItemStack stack) {
         return stack.is(Items.WRITABLE_BOOK) || stack.is(Items.WRITTEN_BOOK);
@@ -62,9 +60,10 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsDyeData(ItemStack stack) {
-        var dyeComponentType = BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(DYE_COMPONENT_ID).orElse(null);
-        return stack.getItem() instanceof DyeItem
-                || (dyeComponentType != null && stack.has(dyeComponentType));
+        var dyeComponentType = BuiltInRegistries.DATA_COMPONENT_TYPE
+                .getOptional(DYE_COMPONENT_ID)
+                .orElse(null);
+        return stack.getItem() instanceof DyeItem || (dyeComponentType != null && stack.has(dyeComponentType));
     }
 
     public static boolean supportsSignData(ItemStack stack) {
@@ -73,8 +72,7 @@ public final class ItemEditorCapabilities {
 
     public static boolean supportsSpawnerData(ItemStack stack) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return stack.is(Items.SPAWNER)
-                || (blockEntityData != null && blockEntityData.type() == MOB_SPAWNER);
+        return stack.is(Items.SPAWNER) || (blockEntityData != null && blockEntityData.type() == MOB_SPAWNER);
     }
 
     public static boolean supportsCommandBlockData(ItemStack stack) {
@@ -86,21 +84,44 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsArmorStandData(ItemStack stack) {
+        return supportsArmorStandData(stack, null);
+    }
+
+    public static boolean supportsArmorStandData(ItemStack stack, TypedEntityData<EntityType<?>> originalData) {
+        if (supportsSpawnEggData(stack)) return false;
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
         return stack.is(Items.ARMOR_STAND)
-                || (entityData != null && entityData.type() == ARMOR_STAND);
+                || (entityData != null && entityData.type() == ARMOR_STAND)
+                || (originalData != null && originalData.type() == ARMOR_STAND);
     }
 
     public static boolean supportsItemFrameData(ItemStack stack) {
+        return supportsItemFrameData(stack, null);
+    }
+
+    public static boolean supportsItemFrameData(ItemStack stack, TypedEntityData<EntityType<?>> originalData) {
+        if (supportsSpawnEggData(stack)) return false;
         TypedEntityData<EntityType<?>> entityData = stack.get(DataComponents.ENTITY_DATA);
         return stack.is(Items.ITEM_FRAME)
                 || stack.is(Items.GLOW_ITEM_FRAME)
-                || (entityData != null
-                && (entityData.type() == ITEM_FRAME || entityData.type() == GLOW_ITEM_FRAME));
+                || isItemFrameType(entityData)
+                || isItemFrameType(originalData);
+    }
+
+    public static boolean isItemFrameType(TypedEntityData<EntityType<?>> data) {
+        return data != null && (data.type() == ITEM_FRAME || data.type() == GLOW_ITEM_FRAME);
     }
 
     public static boolean supportsSpawnEggData(ItemStack stack) {
         return stack.getItem() instanceof SpawnEggItem;
+    }
+
+    public static boolean supportsVillagerData(EntityType<?> type) {
+        return type == VILLAGER || type == ZOMBIE_VILLAGER;
+    }
+
+    public static boolean supportsVillagerTrades(EntityType<?> type) {
+        return supportsVillagerData(type) || type == WANDERING_TRADER;
     }
 
     public static boolean supportsEntityVariantData(ItemStack stack) {
@@ -139,8 +160,7 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsBucketCreature(ItemStack stack) {
-        return stack.has(DataComponents.BUCKET_ENTITY_DATA)
-                || isBucketCreatureBucketItem(stack);
+        return stack.has(DataComponents.BUCKET_ENTITY_DATA) || isBucketCreatureBucketItem(stack);
     }
 
     public static boolean isBucketCreatureBucketItem(ItemStack stack) {
@@ -174,19 +194,19 @@ public final class ItemEditorCapabilities {
             case CONTAINER -> ItemEditorText.tr("category.special_data.container.title");
             case BUNDLE -> ItemEditorText.tr("category.special_data.bundle.title");
             case SIGN -> ItemEditorText.tr("category.special_data.sign.title");
-            case COMMAND_BLOCK -> ItemEditorText.tr("category.special_data.command_block.title");
-            case SPAWNER -> ItemEditorText.tr("category.special_data.spawner.title");
-            case ARMOR_STAND -> ItemEditorText.tr("category.special_data.armor_stand.title");
-            case ITEM_FRAME -> ItemEditorText.tr("category.special_data.item_frame.title");
-            case SPAWN_EGG -> ItemEditorText.tr("category.special_data.spawn_egg.title");
+            case COMMAND_BLOCK -> ItemEditorText.tr("special.command_block.title");
+            case SPAWNER -> ItemEditorText.tr("special.spawner.title");
+            case ARMOR_STAND -> ItemEditorText.tr("special.armor_stand.title");
+            case ITEM_FRAME -> ItemEditorText.tr("special.item_frame.title");
+            case SPAWN_EGG -> ItemEditorText.tr("special.spawn_egg.title");
             case ENTITY_VARIANTS -> ItemEditorText.tr("special.entity_variant.title");
-            case BUCKET_CREATURE -> ItemEditorText.tr("category.special_data.bucket.title");
+            case BUCKET_CREATURE -> ItemEditorText.tr("special.bucket.title");
             case POTION -> ItemEditorText.tr("category.special_data.potion.title");
             case FIREWORK -> ItemEditorText.tr("category.special_data.firework.title");
             case BANNER -> ItemEditorText.tr("category.special_data.banner.title");
             case PROFILE -> ItemEditorText.tr("category.special_data.profile.title");
             case INSTRUMENT -> ItemEditorText.tr("category.special_data.instrument.title");
-            case DEBUG_STICK -> ItemEditorText.tr("category.special_data.debug_stick.title");
+            case DEBUG_STICK -> ItemEditorText.tr("special.debug_stick.title");
             default -> ItemEditorText.tr("category.special_data.title");
         };
     }
@@ -206,7 +226,9 @@ public final class ItemEditorCapabilities {
             return false;
         }
 
-        var builtInType = BuiltInRegistries.DATA_COMPONENT_TYPE.getOptional(componentIdentifier).orElse(null);
+        var builtInType = BuiltInRegistries.DATA_COMPONENT_TYPE
+                .getOptional(componentIdentifier)
+                .orElse(null);
         if (builtInType != null && stack.has(builtInType)) {
             return true;
         }
@@ -238,8 +260,7 @@ public final class ItemEditorCapabilities {
 
     private static boolean hasSignBlockEntityData(ItemStack stack) {
         TypedEntityData<BlockEntityType<?>> blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
-        return blockEntityData != null
-                && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN);
+        return blockEntityData != null && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN);
     }
 
     private static SpecialDataFocus detectSpecialDataFocus(ItemStack stack) {
@@ -337,10 +358,7 @@ public final class ItemEditorCapabilities {
     private static List<String> allowedComponents(RegistryAccess registryAccess) {
         RegistryAccess effectiveRegistryAccess = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         return RUNTIME_SUGGESTIONS.registryIds(
-                effectiveRegistryAccess,
-                Registries.DATA_COMPONENT_TYPE,
-                BuiltInRegistries.DATA_COMPONENT_TYPE
-        );
+                effectiveRegistryAccess, Registries.DATA_COMPONENT_TYPE, BuiltInRegistries.DATA_COMPONENT_TYPE);
     }
 
     private static String normalizeComponentId(String componentId) {

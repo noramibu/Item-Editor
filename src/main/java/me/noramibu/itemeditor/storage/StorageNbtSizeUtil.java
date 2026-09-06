@@ -1,16 +1,14 @@
 package me.noramibu.itemeditor.storage;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtIo;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 
 public final class StorageNbtSizeUtil {
 
-    private StorageNbtSizeUtil() {
-    }
+    private StorageNbtSizeUtil() {}
 
     public static int nbtByteSize(CompoundTag tag) {
         if (tag == null) {

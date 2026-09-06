@@ -11,6 +11,7 @@ public final class ItemEditorTypes {
 
     @SuppressWarnings("unchecked")
     public static final EntityType<ArmorStand> ARMOR_STAND = (EntityType<ArmorStand>) entity("armor_stand");
+
     public static final EntityType<?> AXOLOTL = entity("axolotl");
     public static final EntityType<?> COD = entity("cod");
     public static final EntityType<?> GLOW_ITEM_FRAME = entity("glow_item_frame");
@@ -20,6 +21,7 @@ public final class ItemEditorTypes {
     public static final EntityType<?> TADPOLE = entity("tadpole");
     public static final EntityType<?> TROPICAL_FISH = entity("tropical_fish");
     public static final EntityType<?> VILLAGER = entity("villager");
+    public static final EntityType<?> ZOMBIE_VILLAGER = entity("zombie_villager");
     public static final EntityType<?> WANDERING_TRADER = entity("wandering_trader");
 
     public static final BlockEntityType<?> COMMAND_BLOCK = blockEntity("command_block");
@@ -44,8 +46,7 @@ public final class ItemEditorTypes {
     public static final Item WHITE_BANNER = item("white_banner");
     public static final Item YELLOW_BANNER = item("yellow_banner");
 
-    private ItemEditorTypes() {
-    }
+    private ItemEditorTypes() {}
 
     private static BlockEntityType<?> blockEntity(String path) {
         return BuiltInRegistries.BLOCK_ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(path));

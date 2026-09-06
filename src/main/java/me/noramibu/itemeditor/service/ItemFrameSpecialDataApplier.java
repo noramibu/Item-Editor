@@ -2,23 +2,26 @@ package me.noramibu.itemeditor.service;
 
 import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
-
-import java.util.Objects;
 
 final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (!this.supportsItemFrameData(context)) {
+        if (!ItemEditorCapabilities.supportsItemFrameData(
+                context.previewStack(), context.originalStack().get(DataComponents.ENTITY_DATA))) {
             return;
         }
 
@@ -34,11 +37,20 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
 
         CompoundTag entityTag = new CompoundTag();
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        if (isItemFrameType(originalData)) {
+        if (ItemEditorCapabilities.isItemFrameType(originalData)) {
             entityTag = originalData.copyTagWithoutId();
         }
 
         NbtTagUtil.setBooleanKey(entityTag, "Invisible", context.special().itemFrameInvisible);
+        if (!ItemStack.matches(context.special().itemFrameItem, context.baselineSpecial().itemFrameItem)) {
+            if (context.special().itemFrameItem.isEmpty()) entityTag.remove("Item");
+            else
+                entityTag.store(
+                        "Item",
+                        ItemStack.CODEC,
+                        context.registryAccess().createSerializationContext(NbtOps.INSTANCE),
+                        context.special().itemFrameItem);
+        }
         NbtTagUtil.setBooleanKey(entityTag, "Fixed", context.special().itemFrameFixed);
         NbtTagUtil.setBooleanKey(entityTag, "NoGravity", context.special().itemFrameNoGravity);
         NbtTagUtil.setBooleanKey(entityTag, "Invulnerable", context.special().itemFrameInvulnerable);
@@ -51,8 +63,7 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
                 ItemEditorText.str("special.item_frame.item_rotation"),
                 0,
                 7,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 entityTag,
                 "Facing",
@@ -60,18 +71,15 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
                 ItemEditorText.str("special.item_frame.facing"),
                 0,
                 5,
-                context.messages()
-        );
+                context.messages());
         this.applyDropChance(entityTag, context);
 
         if (entityTag.isEmpty()) {
             this.clearToPrototype(context.previewStack(), DataComponents.ENTITY_DATA);
             return;
         }
-        context.previewStack().set(
-                DataComponents.ENTITY_DATA,
-                TypedEntityData.of(resolveItemFrameType(context), entityTag)
-        );
+        context.previewStack()
+                .set(DataComponents.ENTITY_DATA, TypedEntityData.of(resolveItemFrameType(context), entityTag));
     }
 
     private void applyDropChance(CompoundTag entityTag, SpecialDataApplyContext context) {
@@ -82,53 +90,37 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
         }
 
         Float value = ValidationUtil.parseFloat(
-                raw,
-                ItemEditorText.str("special.item_frame.item_drop_chance"),
-                context.messages()
-        );
+                raw, ItemEditorText.str("special.item_frame.item_drop_chance"), context.messages());
         if (value == null) {
             return;
         }
         if (value < 0.0F || value > 1.0F) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.range",
-                    ItemEditorText.str("special.item_frame.item_drop_chance"),
-                    0,
-                    1
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.range", ItemEditorText.str("special.item_frame.item_drop_chance"), 0, 1)));
             return;
         }
         entityTag.putFloat("ItemDropChance", value);
     }
 
-    private boolean supportsItemFrameData(SpecialDataApplyContext context) {
-        return context.previewStack().is(Items.ITEM_FRAME)
-                || context.previewStack().is(Items.GLOW_ITEM_FRAME)
-                || isItemFrameType(context.previewStack().get(DataComponents.ENTITY_DATA))
-                || isItemFrameType(context.originalStack().get(DataComponents.ENTITY_DATA));
-    }
-
     private static EntityType<?> resolveItemFrameType(SpecialDataApplyContext context) {
         TypedEntityData<EntityType<?>> data = context.previewStack().get(DataComponents.ENTITY_DATA);
-        if (!isItemFrameType(data)) {
+        if (!ItemEditorCapabilities.isItemFrameType(data)) {
             data = context.originalStack().get(DataComponents.ENTITY_DATA);
         }
-        if (isItemFrameType(data)) {
+        if (ItemEditorCapabilities.isItemFrameType(data)) {
             return data.type();
         }
-        if (context.previewStack().is(Items.GLOW_ITEM_FRAME) || context.originalStack().is(Items.GLOW_ITEM_FRAME)) {
+        if (context.previewStack().is(Items.GLOW_ITEM_FRAME)
+                || context.originalStack().is(Items.GLOW_ITEM_FRAME)) {
             return GLOW_ITEM_FRAME;
         }
         return ITEM_FRAME;
     }
 
-    private static boolean isItemFrameType(TypedEntityData<EntityType<?>> data) {
-        return data != null
-                && (data.type() == ITEM_FRAME || data.type() == GLOW_ITEM_FRAME);
-    }
-
     private boolean sameItemFrameData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {
-        return current.itemFrameInvisible == baseline.itemFrameInvisible
+        return ItemStack.matches(current.itemFrameItem, baseline.itemFrameItem)
+                && current.itemFrameInvisible == baseline.itemFrameInvisible
                 && current.itemFrameFixed == baseline.itemFrameFixed
                 && current.itemFrameNoGravity == baseline.itemFrameNoGravity
                 && current.itemFrameInvulnerable == baseline.itemFrameInvulnerable
@@ -140,7 +132,8 @@ final class ItemFrameSpecialDataApplier extends AbstractPreviewApplierSupport im
     }
 
     private boolean isItemFrameDataDefault(ItemEditorState.SpecialData special) {
-        return !special.itemFrameInvisible
+        return special.itemFrameItem.isEmpty()
+                && !special.itemFrameInvisible
                 && !special.itemFrameFixed
                 && !special.itemFrameNoGravity
                 && !special.itemFrameInvulnerable

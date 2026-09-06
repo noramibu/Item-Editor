@@ -1,6 +1,16 @@
 package me.noramibu.itemeditor.ui.screen;
 
 import com.mojang.serialization.DataResult;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
+import me.noramibu.itemeditor.compat.rei.ItemEditorReiClientPlugin;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
@@ -9,6 +19,7 @@ import me.noramibu.itemeditor.storage.StorageNbtSizeUtil;
 import me.noramibu.itemeditor.storage.StorageServices;
 import me.noramibu.itemeditor.storage.StorageSizeText;
 import me.noramibu.itemeditor.storage.StorageSortMode;
+import me.noramibu.itemeditor.storage.model.PreferencesFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 import me.noramibu.itemeditor.storage.search.StorageSearchAutocompleteUtil;
 import me.noramibu.itemeditor.storage.search.StorageSearchParser;
@@ -16,12 +27,14 @@ import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.input.CharacterEvent;
@@ -42,53 +55,44 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletionException;
-import java.util.function.Consumer;
-
 public final class StorageScreen extends ContainerScreen {
 
     private static final int SLOT_COUNT = 54;
     private static final int PANEL_MIN_WIDTH = 148;
-    private static final int PANEL_MAX_WIDTH = 236;
     private static final int PANEL_HARD_MIN_WIDTH = 116;
     private static final int BUTTON_HEIGHT = 20;
     private static final int GAP = 2;
     private static final int PANEL_MARGIN = 8;
-    private static final int PANEL_DRAW_HEIGHT = 320;
     private static final int PANEL_TEXT_LINE_HEIGHT = 10;
     private static final long SEARCH_DEBOUNCE_MS = 220L;
     private static final long PAGE_STATS_REFRESH_MS = 250L;
+    private static int lastPage = 1;
+    private static String lastQuery = "";
+    private static StorageSortMode lastSortMode = StorageSortMode.REGULAR;
+    private static boolean lastReverseSort;
     private static final String[] SEARCH_AUTOCOMPLETE_TOKENS = {
-            "item:\"minecraft:*_shulker_*\"",
-            "item:\"minecraft:stone\"",
-            "name:\"\"",
-            "lore:\"\"",
-            "amount:64",
-            "a:>=16",
-            "amount:1-32",
-            "size:>=128",
-            "size:256-2048",
-            "before:30m",
-            "before:24h",
-            "before:7d",
-            "after:30m",
-            "after:24h",
-            "after:7d"
+        "item:\"minecraft:*_shulker_*\"",
+        "item:\"minecraft:stone\"",
+        "name:\"\"",
+        "lore:\"\"",
+        "amount:64",
+        "a:>=16",
+        "amount:1-32",
+        "size:>=128",
+        "size:256-2048",
+        "before:30m",
+        "before:24h",
+        "before:7d",
+        "after:30m",
+        "after:24h",
+        "after:7d"
     };
     private static final int COLOR_TEXT = 0xD5DEE8;
     private static final int COLOR_HINT = 0x8EA0B0;
-    private static final DateTimeFormatter SAVED_AT_FORMATTER = DateTimeFormatter
-            .ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter SAVED_AT_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final Component HINT_OPEN_EDITOR = ItemEditorText.tr("storage.hint.open_editor");
-    private static final Component HINT_PICK_OPEN_EDITOR = ItemEditorText.tr("storage.pick_hint");
+    private static final Component HINT_LOCK = ItemEditorText.tr("storage.hint.lock");
     private static final Component HINT_PICK_STACK = ItemEditorText.tr("storage.pick_stack_hint");
     private static final Component HINT_VANILLA = ItemEditorText.tr("storage.hint.vanilla");
     private static final Component HINT_SYNC = ItemEditorText.tr("storage.hint.sync");
@@ -100,6 +104,7 @@ public final class StorageScreen extends ContainerScreen {
     private final Map<Integer, ItemStack> baselineVisibleStacks = new HashMap<>();
     private final Map<Integer, ItemStack> playerInventoryBeforeInteraction = new HashMap<>();
     private StorageScreenMode mode;
+    private StorageScreenMode preferredMode;
     private final Screen returnScreen;
     private final Consumer<ItemStack> pickedStackConsumer;
 
@@ -136,18 +141,16 @@ public final class StorageScreen extends ContainerScreen {
     private long refreshRequestSequence;
     private long activeRefreshRequest;
 
-    public StorageScreen(int initialPage, String initialQuery, StorageSortMode initialSortMode) {
-        this(initialPage, initialQuery, initialSortMode, StorageScreenMode.MANAGE, null);
+    public StorageScreen() {
+        this(lastPage, lastQuery, lastSortMode, rememberedMode(), null, null);
     }
 
-    public StorageScreen(
-            int initialPage,
-            String initialQuery,
-            StorageSortMode initialSortMode,
-            StorageScreenMode mode,
-            Screen returnScreen
-    ) {
-        this(initialPage, initialQuery, initialSortMode, mode, returnScreen, null);
+    public StorageScreen(StorageScreenMode mode, Screen returnScreen, Consumer<ItemStack> pickedStackConsumer) {
+        this(lastPage, lastQuery, lastSortMode, mode, returnScreen, pickedStackConsumer);
+    }
+
+    public StorageScreen(int initialPage, String initialQuery, StorageSortMode initialSortMode) {
+        this(initialPage, initialQuery, initialSortMode, rememberedMode(), null, null);
     }
 
     public StorageScreen(
@@ -156,9 +159,16 @@ public final class StorageScreen extends ContainerScreen {
             StorageSortMode initialSortMode,
             StorageScreenMode mode,
             Screen returnScreen,
-            Consumer<ItemStack> pickedStackConsumer
-    ) {
-        this(new SimpleContainer(SLOT_COUNT), requireInventory(), initialPage, initialQuery, initialSortMode, mode, returnScreen, pickedStackConsumer);
+            Consumer<ItemStack> pickedStackConsumer) {
+        this(
+                new SimpleContainer(SLOT_COUNT),
+                requireInventory(),
+                initialPage,
+                initialQuery,
+                initialSortMode,
+                mode,
+                returnScreen,
+                pickedStackConsumer);
     }
 
     private StorageScreen(
@@ -169,17 +179,19 @@ public final class StorageScreen extends ContainerScreen {
             StorageSortMode initialSortMode,
             StorageScreenMode mode,
             Screen returnScreen,
-            Consumer<ItemStack> pickedStackConsumer
-    ) {
+            Consumer<ItemStack> pickedStackConsumer) {
         super(ChestMenu.sixRows(0, inventory, storageContainer), inventory, ItemEditorText.tr("storage.title"));
         this.storageContainer = storageContainer;
         this.mode = mode == null ? StorageScreenMode.MANAGE : mode;
+        this.preferredMode = this.mode;
         this.returnScreen = returnScreen;
         this.pickedStackConsumer = pickedStackConsumer;
         this.currentPage = Math.max(1, initialPage);
         this.currentQuery = initialQuery == null ? "" : initialQuery;
         this.sortMode = initialSortMode == null ? StorageSortMode.REGULAR : initialSortMode;
-        this.reverseSort = false;
+        this.reverseSort = lastReverseSort;
+        this.updateModeForCurrentView();
+        this.rememberRuntimeView();
     }
 
     @Override
@@ -194,27 +206,39 @@ public final class StorageScreen extends ContainerScreen {
     @Override
     public void extractBackground(@NotNull GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         super.extractBackground(context, mouseX, mouseY, delta);
-        int panelTop = this.topPos - 4;
-        int panelBottom = Math.min(this.height - 4, panelTop + PANEL_DRAW_HEIGHT);
-        context.fill(this.panelX - 4, panelTop, this.panelX + this.panelWidth + 4, panelBottom, 0x88000000);
+        ScreenRectangle bounds = this.controllerBounds();
+        context.fill(bounds.left(), bounds.top(), bounds.right(), bounds.bottom(), 0x88000000);
         this.extractPanelText(context);
     }
 
     @Override
     protected void extractLabels(@NotNull GuiGraphicsExtractor context, int mouseX, int mouseY) {
         context.text(this.font, this.storageTitleLabel, this.titleLabelX, this.titleLabelY, -12566464, false);
-        context.text(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, -12566464, false);
+        context.text(
+                this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, -12566464, false);
     }
 
     @Override
     protected void slotClicked(@Nullable Slot slot, int slotId, int button, @NotNull ContainerInput input) {
-        if (this.isPickMode()) {
+        if (this.isSelectMode()) {
             if (button == 0 && slot != null && slot.hasItem() && this.pickClickedStack(slot, slotId)) {
                 return;
             }
-            if (button == 0 && slot != null && this.isStorageSlotId(slotId) && slot.hasItem()) {
-                this.openStorageItem(slot.index);
+            return;
+        }
+        if (this.isLockMode() && this.isStorageSlotId(slotId)) {
+            if (slot != null && slot.hasItem()) {
+                if (button == 0 && input == ContainerInput.QUICK_MOVE) {
+                    this.copyStorageItemToInventory(slot);
+                } else if (input == ContainerInput.PICKUP && button == 0) {
+                    this.copyStorageItem(slot);
+                } else if (input == ContainerInput.PICKUP && button == 1) {
+                    this.openStorageItem(slot.index);
+                }
             }
+            return;
+        }
+        if (this.isLockMode() && input != ContainerInput.PICKUP) {
             return;
         }
         if (this.isReadOnlyStorageSlot(slotId)) {
@@ -249,7 +273,10 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     public boolean mouseReleased(@NotNull MouseButtonEvent input) {
-        if (input.button() == 0 && this.isDragging() && this.getFocused() instanceof AbstractWidget focused && this.panelWidgets.contains(focused)) {
+        if (input.button() == 0
+                && this.isDragging()
+                && this.getFocused() instanceof AbstractWidget focused
+                && this.panelWidgets.contains(focused)) {
             this.setDragging(false);
             focused.mouseReleased(input);
             return true;
@@ -264,7 +291,9 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     public boolean mouseDragged(@NotNull MouseButtonEvent input, double dragX, double dragY) {
-        if (this.isDragging() && this.getFocused() instanceof AbstractWidget focused && this.panelWidgets.contains(focused)) {
+        if (this.isDragging()
+                && this.getFocused() instanceof AbstractWidget focused
+                && this.panelWidgets.contains(focused)) {
             return focused.mouseDragged(input, dragX, dragY);
         }
         return super.mouseDragged(input, dragX, dragY);
@@ -293,15 +322,16 @@ public final class StorageScreen extends ContainerScreen {
         if (input.key() == GLFW.GLFW_KEY_I) {
             Slot hovered = this.hoveredSlot;
             if (hovered != null && hovered.hasItem()) {
-                if (this.isPickMode()) {
+                if (!this.isManageMode()) {
                     int slotId = this.menu.slots.indexOf(hovered);
-                    if (this.pickClickedStack(hovered, slotId)) {
+                    if (this.isSelectMode() && this.pickClickedStack(hovered, slotId)) {
                         return true;
                     }
                     int storageSlot = this.hoveredStorageSlotIndex();
                     return storageSlot >= 0 && this.openStorageItem(storageSlot);
                 }
-                this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
+                this.minecraft.setScreenAndShow(new ItemEditorScreen(
+                        new ItemEditorSession(this.minecraft, hovered.getItem().copy())));
                 return true;
             }
         }
@@ -326,7 +356,16 @@ public final class StorageScreen extends ContainerScreen {
         }
         boolean typingInInputs = (this.searchInput != null && this.searchInput.isFocused())
                 || (this.jumpInput != null && this.jumpInput.isFocused());
-        if (this.isPickMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
+        if (!typingInInputs && this.minecraft.options.keyDrop.matches(input)) {
+            if (this.isLockMode()) {
+                this.dropHoveredStorageItem(input.hasControlDownWithQuirk(), false);
+                return true;
+            }
+            if (this.isManageMode() && this.dropHoveredStorageItem(input.hasControlDownWithQuirk(), true)) {
+                return true;
+            }
+        }
+        if (!this.isManageMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
             this.returnToPreviousScreen();
             return true;
         }
@@ -334,7 +373,7 @@ public final class StorageScreen extends ContainerScreen {
         if (typingInInputs && inventoryCloseKey) {
             return true;
         }
-        if (this.isPickMode()) {
+        if (!this.isManageMode()) {
             return true;
         }
         this.beginInteractionSnapshot();
@@ -372,7 +411,8 @@ public final class StorageScreen extends ContainerScreen {
         tooltip.add(ItemEditorText.tr("storage.info.saved", this.formatSavedAt(entry.savedAt)));
         tooltip.add(ItemEditorText.tr("storage.info.version", this.storageMinecraftVersion(entry)));
         tooltip.add(ItemEditorText.tr("storage.info.data_version", this.storageDataVersion(entry)));
-        tooltip.add(ItemEditorText.tr("storage.info.location", Math.max(1, entry.page), Math.max(0, entry.slotInChunk) + 1));
+        tooltip.add(ItemEditorText.tr(
+                "storage.info.location", Math.max(1, entry.page), Math.max(0, entry.slotInChunk) + 1));
         return tooltip;
     }
 
@@ -382,7 +422,8 @@ public final class StorageScreen extends ContainerScreen {
         int y = this.topPos;
         int halfWidth = (this.panelWidth - GAP) / 2;
 
-        this.searchInput = new EditBox(this.font, this.panelX, y, this.panelWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.filter"));
+        this.searchInput = new EditBox(
+                this.font, this.panelX, y, this.panelWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.filter"));
         this.searchInput.setMaxLength(256);
         this.searchInput.setValue(this.currentQuery);
         this.searchInput.setHint(ItemEditorText.tr("storage.filter_hint"));
@@ -396,48 +437,76 @@ public final class StorageScreen extends ContainerScreen {
         int thirdWidth = (this.panelWidth - (GAP * 2)) / 3;
         this.addTokenButton(this.panelX, y, thirdWidth, "item:\"minecraft:stone\"");
         this.addTokenButton(this.panelX + thirdWidth + GAP, y, thirdWidth, "name:\"\"");
-        this.addTokenButton(this.panelX + ((thirdWidth + GAP) * 2), y, this.panelWidth - ((thirdWidth + GAP) * 2), "lore:\"\"");
+        this.addTokenButton(
+                this.panelX + ((thirdWidth + GAP) * 2), y, this.panelWidth - ((thirdWidth + GAP) * 2), "lore:\"\"");
         y += BUTTON_HEIGHT + GAP;
 
         this.addTokenButton(this.panelX, y, thirdWidth, "amount:64");
         this.addTokenButton(this.panelX + thirdWidth + GAP, y, thirdWidth, "size:>=128");
-        this.addTokenButton(this.panelX + ((thirdWidth + GAP) * 2), y, this.panelWidth - ((thirdWidth + GAP) * 2), "before:7d");
+        this.addTokenButton(
+                this.panelX + ((thirdWidth + GAP) * 2), y, this.panelWidth - ((thirdWidth + GAP) * 2), "before:7d");
         y += BUTTON_HEIGHT + GAP;
 
-        this.addPanelButton(this.panelX, y, this.panelWidth, ItemEditorText.tr("storage.search_clear"), this::clearSearch);
+        this.addPanelButton(
+                this.panelX, y, this.panelWidth, ItemEditorText.tr("storage.search_clear"), this::clearSearch);
         y += BUTTON_HEIGHT + GAP;
 
-        this.addPanelButton(this.panelX, y, halfWidth, ItemEditorText.tr("common.prev"), () -> this.changeView(() -> this.currentPage = Math.max(1, this.currentPage - 1)));
-        this.addPanelButton(this.panelX + halfWidth + GAP, y, halfWidth, ItemEditorText.tr("common.next"), () -> this.changeView(() -> this.currentPage++));
+        this.addPanelButton(
+                this.panelX,
+                y,
+                halfWidth,
+                ItemEditorText.tr("common.prev"),
+                () -> this.changeView(() -> this.currentPage = Math.max(1, this.currentPage - 1)));
+        this.addPanelButton(
+                this.panelX + halfWidth + GAP,
+                y,
+                halfWidth,
+                ItemEditorText.tr("common.next"),
+                () -> this.changeView(() -> this.currentPage++));
         y += BUTTON_HEIGHT + GAP;
 
         int jumpButtonWidth = 40;
         int jumpInputWidth = this.panelWidth - jumpButtonWidth - GAP;
-        this.jumpInput = new EditBox(this.font, this.panelX, y, jumpInputWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.jump"));
+        this.jumpInput = new EditBox(
+                this.font, this.panelX, y, jumpInputWidth, BUTTON_HEIGHT, ItemEditorText.tr("storage.jump"));
         this.jumpInput.setMaxLength(8);
         this.jumpInput.setValue(Integer.toString(this.currentPage));
         this.jumpInput.setHint(ItemEditorText.tr("storage.jump"));
         this.addPanelWidget(this.jumpInput);
-        this.addPanelButton(this.panelX + jumpInputWidth + GAP, y, jumpButtonWidth, ItemEditorText.tr("storage.jump_apply"), this::jumpToPage);
+        this.addPanelButton(
+                this.panelX + jumpInputWidth + GAP,
+                y,
+                jumpButtonWidth,
+                ItemEditorText.tr("storage.jump_apply"),
+                this::jumpToPage);
         y += BUTTON_HEIGHT + GAP;
 
         int reverseWidth = 72;
         int sortWidth = Math.max(32, this.panelWidth - reverseWidth - GAP);
-        this.sortButton = this.addPanelButton(this.panelX, y, sortWidth, ItemEditorText.tr("storage.sort_saved"), () -> this.changeView(() -> this.sortMode = this.sortMode.next()));
+        this.sortButton = this.addPanelButton(
+                this.panelX,
+                y,
+                sortWidth,
+                ItemEditorText.tr("storage.sort_saved"),
+                () -> this.changeView(() -> this.sortMode = this.sortMode.next()));
         this.reverseSortButton = this.addPanelButton(
                 this.panelX + sortWidth + GAP,
                 y,
                 this.panelWidth - sortWidth - GAP,
                 this.reverseSortButtonLabel(),
-                () -> this.changeView(() -> this.reverseSort = !this.reverseSort)
-        );
+                () -> this.changeView(() -> this.reverseSort = !this.reverseSort));
         this.reverseSortButton.setTooltip(Tooltip.create(this.reverseSortTooltip()));
         y += BUTTON_HEIGHT + GAP;
 
         this.modeButton = this.addPanelButton(this.panelX, y, halfWidth, this.modeButtonLabel(), this::toggleMode);
-        this.modeButton.active = this.pickedStackConsumer == null;
+        this.modeButton.active = !this.isSelectMode();
         this.modeButton.setTooltip(Tooltip.create(this.modeButtonTooltip()));
-        this.addPanelButton(this.panelX + halfWidth + GAP, y, halfWidth, ItemEditorText.tr("storage.pages.button"), this::openPages);
+        this.addPanelButton(
+                this.panelX + halfWidth + GAP,
+                y,
+                halfWidth,
+                ItemEditorText.tr("storage.pages.button"),
+                this::openPages);
         this.panelTextStartY = y + BUTTON_HEIGHT + 4;
     }
 
@@ -456,14 +525,15 @@ public final class StorageScreen extends ContainerScreen {
 
     private void updatePanelButtonLabel(Button button, Component label) {
         button.setMessage(label);
-        button.setTooltip(this.font.width(label) > Math.max(4, button.getWidth() - 6)
-                ? Tooltip.create(label)
-                : null);
+        button.setTooltip(this.font.width(label) > Math.max(4, button.getWidth() - 6) ? Tooltip.create(label) : null);
     }
 
     private void addTokenButton(int x, int y, int width, String tokenTemplate) {
-        String label = tokenTemplate.contains(":") ? tokenTemplate.substring(0, tokenTemplate.indexOf(':') + 1) : tokenTemplate;
-        Button button = this.addPanelButton(x, y, width, Component.literal(label), () -> this.insertSearchToken(tokenTemplate));
+        String label = tokenTemplate.contains(":")
+                ? tokenTemplate.substring(0, tokenTemplate.indexOf(':') + 1)
+                : tokenTemplate;
+        Button button =
+                this.addPanelButton(x, y, width, Component.literal(label), () -> this.insertSearchToken(tokenTemplate));
         button.setTooltip(Tooltip.create(Component.literal(tokenTemplate)));
     }
 
@@ -481,8 +551,12 @@ public final class StorageScreen extends ContainerScreen {
         int rightSpace = Math.max(0, (this.width - PANEL_MARGIN) - rightStart);
         int leftSpace = Math.max(0, (this.leftPos - PANEL_MARGIN) - PANEL_MARGIN);
         boolean useRight = rightSpace >= leftSpace;
+        if (FabricLoader.getInstance().isModLoaded("roughlyenoughitems")) {
+            boolean preferredRight = ItemEditorReiClientPlugin.preferRightController(useRight);
+            if ((preferredRight ? rightSpace : leftSpace) >= PANEL_HARD_MIN_WIDTH) useRight = preferredRight;
+        }
         int space = useRight ? rightSpace : leftSpace;
-        this.panelWidth = Math.clamp(space, PANEL_HARD_MIN_WIDTH, PANEL_MAX_WIDTH);
+        this.panelWidth = Math.clamp(space, PANEL_HARD_MIN_WIDTH, this.imageWidth - 8);
         if (useRight) {
             this.panelX = rightStart;
         } else {
@@ -497,6 +571,12 @@ public final class StorageScreen extends ContainerScreen {
         }
     }
 
+    public ScreenRectangle controllerBounds() {
+        int top = this.topPos;
+        int bottom = Math.min(this.height - 4, top + this.imageHeight);
+        return new ScreenRectangle(this.panelX - 4, top, this.panelWidth + 8, Math.max(0, bottom - top));
+    }
+
     private void refreshData() {
         long requestId = ++this.refreshRequestSequence;
         this.activeRefreshRequest = requestId;
@@ -505,15 +585,14 @@ public final class StorageScreen extends ContainerScreen {
         this.applyContainerEntries(List.of(), Map.of(), true);
         this.captureBaselineVisibleStacks();
         this.storage
-                .loadSnapshotAsync(this.currentPage, query, this.sortMode, this.reverseSort, this.sessionRegistryAccess())
-                .whenComplete((snapshot, throwable) -> this.minecraft.execute(() -> this.applyLoadedSnapshot(requestId, snapshot, throwable)));
+                .loadSnapshotAsync(
+                        this.currentPage, query, this.sortMode, this.reverseSort, this.sessionRegistryAccess())
+                .whenComplete((snapshot, throwable) ->
+                        this.minecraft.execute(() -> this.applyLoadedSnapshot(requestId, snapshot, throwable)));
     }
 
     private void applyLoadedSnapshot(
-            long requestId,
-            SavedItemStorageService.PageSnapshot snapshot,
-            Throwable throwable
-    ) {
+            long requestId, SavedItemStorageService.PageSnapshot snapshot, Throwable throwable) {
         if (requestId != this.activeRefreshRequest) {
             return;
         }
@@ -537,6 +616,7 @@ public final class StorageScreen extends ContainerScreen {
         }
         this.currentResult = result;
         this.currentPage = result.currentPage();
+        this.rememberRuntimeView();
         this.storageTitleLabel = this.storageTitleComponent(result);
         this.pageLabel = Component.literal(this.pageLabelText(result));
         this.refreshStoredPagesLabel(snapshot.stats());
@@ -555,22 +635,23 @@ public final class StorageScreen extends ContainerScreen {
                     query.amountFilters.size(),
                     query.nbtSizeFilters.size(),
                     query.beforeDurationsMs.size() + query.afterDurationsMs.size(),
-                    query.freeTokens.size()
-            );
+                    query.freeTokens.size());
         }
-        this.searchAutoLabel = this.buildAutocompleteLabel(this.searchInput == null ? this.currentQuery : this.searchInput.getValue());
+        this.searchAutoLabel =
+                this.buildAutocompleteLabel(this.searchInput == null ? this.currentQuery : this.searchInput.getValue());
         if (this.jumpInput != null) {
             this.jumpInput.setValue(Integer.toString(this.currentPage));
         }
 
         if (this.sortButton != null && this.currentResult != null) {
-            Component label = switch (this.sortMode) {
-                case REGULAR -> ItemEditorText.tr("storage.sort_regular");
-                case SAVED_AT_DESC -> ItemEditorText.tr("storage.sort_saved");
-                case NAME_ASC -> ItemEditorText.tr("storage.sort_name");
-                case AMOUNT_DESC -> ItemEditorText.tr("storage.sort_amount");
-                case NBT_SIZE_DESC -> ItemEditorText.tr("storage.sort_size_bytes");
-            };
+            Component label =
+                    switch (this.sortMode) {
+                        case REGULAR -> ItemEditorText.tr("storage.sort_regular");
+                        case SAVED_AT_DESC -> ItemEditorText.tr("storage.sort_saved");
+                        case NAME_ASC -> ItemEditorText.tr("storage.sort_name");
+                        case AMOUNT_DESC -> ItemEditorText.tr("storage.sort_amount");
+                        case NBT_SIZE_DESC -> ItemEditorText.tr("storage.sort_size_bytes");
+                    };
             this.updatePanelButtonLabel(this.sortButton, label);
             this.sortButton.visible = true;
             this.sortButton.active = true;
@@ -590,10 +671,7 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void applyContainerEntries(
-            List<SavedIndexItemEntry> entries,
-            Map<String, ItemStack> loadedStacks,
-            boolean forceBroadcast
-    ) {
+            List<SavedIndexItemEntry> entries, Map<String, ItemStack> loadedStacks, boolean forceBroadcast) {
         this.slotEntries.clear();
         boolean changed = false;
         for (int slot = 0; slot < SLOT_COUNT; slot++) {
@@ -609,7 +687,8 @@ public final class StorageScreen extends ContainerScreen {
             if (slot < 0 || slot >= SLOT_COUNT) {
                 continue;
             }
-            ItemStack stack = loadedStacks.getOrDefault(entry.id, ItemStack.EMPTY).copy();
+            ItemStack stack =
+                    loadedStacks.getOrDefault(entry.id, ItemStack.EMPTY).copy();
             if (!ItemStack.matches(this.storageContainer.getItem(slot), stack)) {
                 changed = true;
             }
@@ -663,7 +742,12 @@ public final class StorageScreen extends ContainerScreen {
         context.text(this.font, Component.literal(fittedHeader), this.leftPos + 8, this.topPos + 6, UiColors.SUCCESS);
 
         int textX = this.panelX;
+        ScreenRectangle bounds = this.controllerBounds();
+        context.enableScissor(bounds.left(), bounds.top(), bounds.right(), bounds.bottom());
         int y = Math.max(this.topPos + 108, this.panelTextStartY) - PANEL_TEXT_LINE_HEIGHT;
+        if (!this.feedbackLabel.getString().isBlank()) {
+            y = this.drawPanelLine(context, textX, y, this.feedbackLabel, this.feedbackColor);
+        }
         y = this.drawPanelLine(context, textX, y, this.searchLabel, COLOR_HINT);
         y = this.drawPanelLine(context, textX, y, this.pageLabel, COLOR_TEXT);
         y = this.drawPanelLine(context, textX, y, this.storedPagesLabel, COLOR_TEXT);
@@ -680,22 +764,33 @@ public final class StorageScreen extends ContainerScreen {
             y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.hover_location"), COLOR_HINT);
         } else {
             y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.item_location"), UiColors.SUCCESS);
-            y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.info.location", hoveredEntry.page, hoveredEntry.slotInChunk + 1), UiColors.SUCCESS);
+            y = this.drawPanelLine(
+                    context,
+                    textX,
+                    y,
+                    ItemEditorText.tr("storage.info.location", hoveredEntry.page, hoveredEntry.slotInChunk + 1),
+                    UiColors.SUCCESS);
             if (hoveredEntry.pageNamePlain != null && !hoveredEntry.pageNamePlain.isBlank()) {
-                y = this.drawPanelLine(context, textX, y, Component.literal(this.trimToPanel(hoveredEntry.pageNamePlain)), COLOR_HINT);
+                y = this.drawPanelLine(
+                        context, textX, y, Component.literal(this.trimToPanel(hoveredEntry.pageNamePlain)), COLOR_HINT);
             }
             if (hoveredEntry.lorePlain != null && !hoveredEntry.lorePlain.isEmpty()) {
-                y = this.drawPanelLine(context, textX, y, ItemEditorText.tr("storage.lore", this.trimToPanel(hoveredEntry.lorePlain.getFirst())), COLOR_HINT);
+                y = this.drawPanelLine(
+                        context,
+                        textX,
+                        y,
+                        ItemEditorText.tr("storage.lore", this.trimToPanel(hoveredEntry.lorePlain.getFirst())),
+                        COLOR_HINT);
             }
         }
         y += 6;
-        y = this.drawPanelLine(context, textX, y, this.feedbackLabel, this.feedbackColor);
         y = this.drawPanelLine(context, textX, y, HINT_SEARCH, COLOR_HINT);
         y = this.drawPanelLine(context, textX, y, this.pickHint(), COLOR_HINT);
-        if (!this.isPickMode()) {
+        if (this.isManageMode()) {
             y = this.drawPanelLine(context, textX, y, HINT_VANILLA, COLOR_HINT);
             this.drawPanelLine(context, textX, y, HINT_SYNC, COLOR_HINT);
         }
+        context.disableScissor();
     }
 
     private void feedback(Component message, int color) {
@@ -715,7 +810,9 @@ public final class StorageScreen extends ContainerScreen {
         String name = result.pageName() == null || result.pageName().isBlank()
                 ? ItemEditorText.str("storage.default_page")
                 : result.pageName();
-        return ItemEditorText.tr("storage.page_short", result.currentPage()).copy().append(" | ")
+        return ItemEditorText.tr("storage.page_short", result.currentPage())
+                .copy()
+                .append(" | ")
                 .append(TextComponentUtil.parseMarkup(name));
     }
 
@@ -732,7 +829,7 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void finishInteractionSync() {
-        if (this.isPickMode()) {
+        if (this.isSelectMode()) {
             this.interactionSnapshot = null;
             this.playerInventoryBeforeInteraction.clear();
             return;
@@ -742,6 +839,10 @@ public final class StorageScreen extends ContainerScreen {
         }
         InteractionSnapshot snapshot = this.interactionSnapshot;
         this.interactionSnapshot = null;
+        if (this.isLockMode()) {
+            this.syncChangedPlayerInventorySlots();
+            return;
+        }
         if (this.isReadOnlyLayoutView()) {
             this.refreshData();
             this.feedback(ItemEditorText.tr("storage.edit_requires_regular"), UiColors.MUTED);
@@ -816,13 +917,21 @@ public final class StorageScreen extends ContainerScreen {
         this.commitStorageBeforeViewChange();
         this.currentQuery = normalized;
         this.currentPage = 1;
+        this.updateModeForCurrentView();
+        this.rememberRuntimeView();
         this.refreshData();
+    }
+
+    private void saveModePreference() {
+        PreferencesFileModel preferences = StorageServices.foundation().loadPreferences();
+        preferences.storageMode = this.mode.name();
+        StorageServices.foundation().savePreferences(preferences);
     }
 
     @Override
     public void onClose() {
-        if (!this.isPickMode()) {
-            this.commitStorageBeforeViewChange();
+        this.commitStorageBeforeViewChange();
+        if (this.isManageMode()) {
             this.storage.flushQueuedWrites();
         }
         super.onClose();
@@ -847,10 +956,8 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private boolean isPanelMouse(double mouseX, double mouseY) {
-        return mouseX >= this.panelX
-                && mouseX < this.panelX + this.panelWidth
-                && mouseY >= this.topPos
-                && mouseY < this.topPos + PANEL_DRAW_HEIGHT;
+        ScreenRectangle bounds = this.controllerBounds();
+        return mouseX >= bounds.left() && mouseX < bounds.right() && mouseY >= bounds.top() && mouseY < bounds.bottom();
     }
 
     private String trimToPanel(String value) {
@@ -869,11 +976,12 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void toggleMode() {
-        if (this.pickedStackConsumer != null) {
+        if (this.isSelectMode()) {
             return;
         }
-        if (this.isPickMode()) {
+        if (this.isLockMode()) {
             this.mode = StorageScreenMode.MANAGE;
+            this.preferredMode = this.mode;
             this.currentQuery = "";
             this.sortMode = StorageSortMode.REGULAR;
             this.reverseSort = false;
@@ -881,6 +989,8 @@ public final class StorageScreen extends ContainerScreen {
                 this.searchInput.setValue("");
             }
             this.updateModeButton();
+            this.saveModePreference();
+            this.rememberRuntimeView();
             this.refreshData();
             return;
         }
@@ -888,14 +998,16 @@ public final class StorageScreen extends ContainerScreen {
         if (this.currentPageSaveFailedForModeChange()) {
             return;
         }
-        this.mode = StorageScreenMode.PICK_FOR_EDIT;
+        this.mode = StorageScreenMode.COPY_IMPORT;
+        this.preferredMode = this.mode;
         this.updateModeButton();
+        this.saveModePreference();
         this.refreshData();
-        this.feedback(ItemEditorText.tr("storage.mode_import_enabled"), COLOR_HINT);
+        this.feedback(ItemEditorText.tr("storage.mode_lock_enabled"), COLOR_HINT);
     }
 
     private boolean currentPageSaveFailedForModeChange() {
-        if (this.isPickMode()) {
+        if (!this.isManageMode()) {
             return false;
         }
         try {
@@ -905,8 +1017,10 @@ public final class StorageScreen extends ContainerScreen {
             this.refreshStoredPagesLabel(this.storage.pageStats());
             return false;
         } catch (RuntimeException exception) {
-            String reason = exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage();
-            this.feedback(ItemEditorText.tr("editor.apply.save_storage_failed", this.trimToPanel(reason)), UiColors.DANGER);
+            String reason =
+                    exception.getMessage() == null ? ItemEditorText.str("raw.unknown_error") : exception.getMessage();
+            this.feedback(
+                    ItemEditorText.tr("editor.apply.save_storage_failed", this.trimToPanel(reason)), UiColors.DANGER);
             return true;
         }
     }
@@ -916,7 +1030,7 @@ public final class StorageScreen extends ContainerScreen {
             return;
         }
         this.updatePanelButtonLabel(this.modeButton, this.modeButtonLabel());
-        this.modeButton.active = this.pickedStackConsumer == null;
+        this.modeButton.active = !this.isSelectMode();
         this.modeButton.setTooltip(Tooltip.create(this.modeButtonTooltip()));
     }
 
@@ -929,36 +1043,40 @@ public final class StorageScreen extends ContainerScreen {
                 this.currentPage,
                 this.currentQuery,
                 this.sortMode,
-                this.mode,
+                this.preferredMode,
                 this.returnScreen,
-                this.pickedStackConsumer
-        ));
+                this.pickedStackConsumer));
     }
 
     private Component pickHint() {
-        return !this.isPickMode()
-                ? HINT_OPEN_EDITOR
-                : (this.pickedStackConsumer == null ? HINT_PICK_OPEN_EDITOR : HINT_PICK_STACK);
+        return switch (this.mode) {
+            case MANAGE -> HINT_OPEN_EDITOR;
+            case COPY_IMPORT -> HINT_LOCK;
+            case SELECT -> HINT_PICK_STACK;
+        };
     }
 
     private Component modeButtonLabel() {
-        if (this.pickedStackConsumer != null) {
-            return ItemEditorText.tr("storage.mode_selection");
-        }
-        return ItemEditorText.tr(this.isPickMode() ? "storage.mode_import" : "storage.mode_regular");
+        return ItemEditorText.tr(
+                switch (this.mode) {
+                    case MANAGE -> "storage.mode_manage";
+                    case COPY_IMPORT -> "storage.mode_lock";
+                    case SELECT -> "storage.mode_selection";
+                });
     }
 
     private Component modeButtonTooltip() {
-        if (this.pickedStackConsumer != null) {
-            return ItemEditorText.tr("storage.mode_selection.tooltip");
-        }
-        return ItemEditorText.tr(this.isPickMode()
-                ? "storage.mode_import.tooltip"
-                : "storage.mode_regular.tooltip");
+        return ItemEditorText.tr(
+                switch (this.mode) {
+                    case MANAGE -> "storage.mode_manage.tooltip";
+                    case COPY_IMPORT -> "storage.mode_lock.tooltip";
+                    case SELECT -> "storage.mode_selection.tooltip";
+                });
     }
 
     private Component buildAutocompleteLabel(String value) {
-        StorageSearchAutocompleteUtil.Completion autocomplete = StorageSearchAutocompleteUtil.complete(value, SEARCH_AUTOCOMPLETE_TOKENS);
+        StorageSearchAutocompleteUtil.Completion autocomplete =
+                StorageSearchAutocompleteUtil.complete(value, SEARCH_AUTOCOMPLETE_TOKENS);
         String[] suggestions = autocomplete.suggestions();
         if (suggestions.length == 0) {
             return ItemEditorText.tr("storage.autocomplete.none");
@@ -975,7 +1093,8 @@ public final class StorageScreen extends ContainerScreen {
             return false;
         }
         String current = this.searchInput.getValue();
-        StorageSearchAutocompleteUtil.Completion autocomplete = StorageSearchAutocompleteUtil.complete(current, SEARCH_AUTOCOMPLETE_TOKENS);
+        StorageSearchAutocompleteUtil.Completion autocomplete =
+                StorageSearchAutocompleteUtil.complete(current, SEARCH_AUTOCOMPLETE_TOKENS);
         String[] suggestions = autocomplete.suggestions();
         if (suggestions.length == 0) {
             return false;
@@ -985,9 +1104,8 @@ public final class StorageScreen extends ContainerScreen {
         int nextIndex = 0;
         for (int i = 0; i < suggestions.length; i++) {
             if (suggestions[i].equalsIgnoreCase(currentToken)) {
-                nextIndex = reverse
-                        ? Math.floorMod(i - 1, suggestions.length)
-                        : Math.floorMod(i + 1, suggestions.length);
+                nextIndex =
+                        reverse ? Math.floorMod(i - 1, suggestions.length) : Math.floorMod(i + 1, suggestions.length);
                 break;
             }
         }
@@ -1001,38 +1119,40 @@ public final class StorageScreen extends ContainerScreen {
 
     private void refreshStoredPagesLabel(SavedItemStorageService.PageStats stats) {
         int storedPages = stats.storedPages();
-        this.storedPagesLabel = Component.literal(stats.emptyPages() > 0
-                ? ItemEditorText.str("storage.stored_pages_with_empty", storedPages, stats.emptyPages())
-                : ItemEditorText.str("storage.stored_pages", storedPages));
+        this.storedPagesLabel = Component.literal(
+                stats.emptyPages() > 0
+                        ? ItemEditorText.str("storage.stored_pages_with_empty", storedPages, stats.emptyPages())
+                        : ItemEditorText.str("storage.stored_pages", storedPages));
     }
 
     private Component reverseSortButtonLabel() {
-        String key = switch (this.sortMode) {
-            case REGULAR -> "storage.sort.direction.slot";
-            case SAVED_AT_DESC -> this.reverseSort ? "storage.sort.direction.old_new" : "storage.sort.direction.new_old";
-            case NAME_ASC -> this.reverseSort ? "storage.sort.direction.z_a" : "storage.sort.direction.a_z";
-            case AMOUNT_DESC -> this.reverseSort ? "storage.sort.direction.low_high" : "storage.sort.direction.high_low";
-            case NBT_SIZE_DESC -> this.reverseSort ? "storage.sort.direction.small_big" : "storage.sort.direction.big_small";
-        };
+        String key =
+                switch (this.sortMode) {
+                    case REGULAR -> "storage.sort.direction.slot";
+                    case SAVED_AT_DESC ->
+                        this.reverseSort ? "storage.sort.direction.old_new" : "storage.sort.direction.new_old";
+                    case NAME_ASC -> this.reverseSort ? "storage.sort.direction.z_a" : "storage.sort.direction.a_z";
+                    case AMOUNT_DESC ->
+                        this.reverseSort ? "storage.sort.direction.low_high" : "storage.sort.direction.high_low";
+                    case NBT_SIZE_DESC ->
+                        this.reverseSort ? "storage.sort.direction.small_big" : "storage.sort.direction.big_small";
+                };
         return ItemEditorText.tr(key);
     }
 
     private Component reverseSortTooltip() {
-        String key = switch (this.sortMode) {
-            case REGULAR -> "storage.sort.tooltip.regular";
-            case SAVED_AT_DESC -> this.reverseSort
-                    ? "storage.sort.tooltip.saved_asc"
-                    : "storage.sort.tooltip.saved_desc";
-            case NAME_ASC -> this.reverseSort
-                    ? "storage.sort.tooltip.name_desc"
-                    : "storage.sort.tooltip.name_asc";
-            case AMOUNT_DESC -> this.reverseSort
-                    ? "storage.sort.tooltip.amount_asc"
-                    : "storage.sort.tooltip.amount_desc";
-            case NBT_SIZE_DESC -> this.reverseSort
-                    ? "storage.sort.tooltip.size_asc"
-                    : "storage.sort.tooltip.size_desc";
-        };
+        String key =
+                switch (this.sortMode) {
+                    case REGULAR -> "storage.sort.tooltip.regular";
+                    case SAVED_AT_DESC ->
+                        this.reverseSort ? "storage.sort.tooltip.saved_asc" : "storage.sort.tooltip.saved_desc";
+                    case NAME_ASC ->
+                        this.reverseSort ? "storage.sort.tooltip.name_desc" : "storage.sort.tooltip.name_asc";
+                    case AMOUNT_DESC ->
+                        this.reverseSort ? "storage.sort.tooltip.amount_asc" : "storage.sort.tooltip.amount_desc";
+                    case NBT_SIZE_DESC ->
+                        this.reverseSort ? "storage.sort.tooltip.size_asc" : "storage.sort.tooltip.size_desc";
+                };
         return ItemEditorText.tr(key);
     }
 
@@ -1070,9 +1190,7 @@ public final class StorageScreen extends ContainerScreen {
             return 0;
         }
         DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(
-                this.sessionRegistryAccess().createSerializationContext(NbtOps.INSTANCE),
-                stack
-        );
+                this.sessionRegistryAccess().createSerializationContext(NbtOps.INSTANCE), stack);
         Tag tag = encoded.result().orElse(null);
         if (!(tag instanceof CompoundTag compound)) {
             return 0;
@@ -1107,11 +1225,11 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private void commitStorageBeforeViewChange() {
-        if (this.isPickMode()) {
+        if (this.isSelectMode()) {
             return;
         }
         this.finishInteractionSync();
-        if (this.isReadOnlyLayoutView()) {
+        if (!this.isManageMode() || this.isReadOnlyLayoutView()) {
             return;
         }
         this.persistMutations(this.slotEntries, this.baselineVisibleStacks);
@@ -1120,13 +1238,23 @@ public final class StorageScreen extends ContainerScreen {
     private void changeView(Runnable viewChange) {
         this.commitStorageBeforeViewChange();
         viewChange.run();
+        this.updateModeForCurrentView();
+        this.rememberRuntimeView();
         this.refreshData();
     }
 
+    private void updateModeForCurrentView() {
+        if (this.isSelectMode()) {
+            return;
+        }
+        this.mode = this.sortMode != StorageSortMode.REGULAR || !this.currentQuery.isBlank()
+                ? StorageScreenMode.COPY_IMPORT
+                : this.preferredMode;
+        this.updateModeButton();
+    }
+
     private void persistMutations(
-            Map<Integer, SavedIndexItemEntry> entryBySlot,
-            Map<Integer, ItemStack> baselineStacks
-    ) {
+            Map<Integer, SavedIndexItemEntry> entryBySlot, Map<Integer, ItemStack> baselineStacks) {
         RegistryAccess registryAccess = this.sessionRegistryAccess();
         List<SavedItemStorageService.SlotMutation> mutations = this.collectSlotMutations(entryBySlot, baselineStacks);
         if (mutations.isEmpty()) {
@@ -1140,9 +1268,7 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private List<SavedItemStorageService.SlotMutation> collectSlotMutations(
-            Map<Integer, SavedIndexItemEntry> entryBySlot,
-            Map<Integer, ItemStack> baselineStacks
-    ) {
+            Map<Integer, SavedIndexItemEntry> entryBySlot, Map<Integer, ItemStack> baselineStacks) {
         List<SavedItemStorageService.SlotMutation> mutations = new ArrayList<>();
         for (int slot = 0; slot < SLOT_COUNT; slot++) {
             ItemStack before = baselineStacks.getOrDefault(slot, ItemStack.EMPTY);
@@ -1160,7 +1286,8 @@ public final class StorageScreen extends ContainerScreen {
     private void captureBaselineVisibleStacks() {
         this.baselineVisibleStacks.clear();
         for (int slot = 0; slot < SLOT_COUNT; slot++) {
-            this.baselineVisibleStacks.put(slot, this.storageContainer.getItem(slot).copy());
+            this.baselineVisibleStacks.put(
+                    slot, this.storageContainer.getItem(slot).copy());
         }
     }
 
@@ -1179,6 +1306,57 @@ public final class StorageScreen extends ContainerScreen {
         return true;
     }
 
+    private void copyStorageItem(Slot slot) {
+        ItemStack stored = slot.getItem();
+        ItemStack carried = this.menu.getCarried();
+        if (!carried.isEmpty() && !ItemStack.isSameItemSameComponents(stored, carried)) {
+            this.feedback(ItemEditorText.tr("storage.copy_cursor_occupied"), UiColors.DANGER);
+            return;
+        }
+        if (carried.isEmpty()) {
+            this.menu.setCarried(stored.copy());
+        } else {
+            carried.setCount(Math.min(carried.getMaxStackSize(), carried.getCount() + stored.getCount()));
+            this.menu.setCarried(carried);
+        }
+        this.feedback(ItemEditorText.tr("storage.copy_ok"), UiColors.SUCCESS);
+    }
+
+    private void copyStorageItemToInventory(Slot slot) {
+        if (ClientInventorySyncService.putInFreeSlot(this.minecraft, slot.getItem())) {
+            this.feedback(ItemEditorText.tr("storage.copy_inventory_ok"), UiColors.SUCCESS);
+        } else {
+            this.feedback(ItemEditorText.tr("storage.copy_inventory_failed"), UiColors.DANGER);
+        }
+    }
+
+    private boolean dropHoveredStorageItem(boolean wholeStack, boolean removeFromStorage) {
+        Slot slot = this.hoveredSlot;
+        int slotId = slot == null ? -1 : this.menu.slots.indexOf(slot);
+        if (slot == null || !this.isStorageSlotId(slotId) || !slot.hasItem()) {
+            return false;
+        }
+        if (removeFromStorage && this.isReadOnlyStorageSlot(slotId)) {
+            this.feedback(ItemEditorText.tr("storage.edit_requires_regular"), UiColors.MUTED);
+            return true;
+        }
+        int amount = dropAmount(slot.getItem(), wholeStack, removeFromStorage);
+        if (!ClientInventorySyncService.dropStack(this.minecraft, slot.getItem().copyWithCount(amount))) {
+            this.feedback(ItemEditorText.tr("storage.drop_unavailable"), UiColors.DANGER);
+            return true;
+        }
+        if (removeFromStorage) {
+            this.beginInteractionSnapshot();
+            slot.remove(amount);
+            this.finishInteractionSync();
+        }
+        return true;
+    }
+
+    static int dropAmount(ItemStack stack, boolean wholeStack, boolean removeFromStorage) {
+        return wholeStack ? (removeFromStorage ? stack.getCount() : stack.getMaxStackSize()) : 1;
+    }
+
     private boolean pickClickedStack(Slot slot, int slotId) {
         if (this.pickedStackConsumer == null
                 || slot == null
@@ -1187,8 +1365,14 @@ public final class StorageScreen extends ContainerScreen {
                 || slotId >= this.menu.slots.size()) {
             return false;
         }
-        this.pickedStackConsumer.accept(slot.getItem().copy());
-        this.returnToPreviousScreen();
+        ItemStack picked = slot.getItem().copy();
+        if (this.returnScreen instanceof ItemEditorScreen editor) {
+            this.returnToPreviousScreen();
+            editor.choosePickedItem(picked, this.pickedStackConsumer);
+        } else {
+            this.pickedStackConsumer.accept(picked);
+            this.returnToPreviousScreen();
+        }
         return true;
     }
 
@@ -1200,12 +1384,43 @@ public final class StorageScreen extends ContainerScreen {
         this.minecraft.setScreenAndShow(this.returnScreen);
     }
 
-    private boolean isPickMode() {
-        return this.mode == StorageScreenMode.PICK_FOR_EDIT;
+    private boolean isManageMode() {
+        return this.mode == StorageScreenMode.MANAGE;
+    }
+
+    private boolean isLockMode() {
+        return this.mode == StorageScreenMode.COPY_IMPORT;
+    }
+
+    private boolean isSelectMode() {
+        return this.mode == StorageScreenMode.SELECT;
     }
 
     private boolean isStorageSlotId(int slotId) {
         return slotId >= 0 && slotId < SLOT_COUNT;
+    }
+
+    static int lastRuntimePage() {
+        return lastPage;
+    }
+
+    static String lastRuntimeQuery() {
+        return lastQuery;
+    }
+
+    static StorageSortMode lastRuntimeSortMode() {
+        return lastSortMode;
+    }
+
+    static StorageScreenMode rememberedMode() {
+        return StorageScreenMode.valueOf(StorageServices.foundation().loadPreferences().storageMode);
+    }
+
+    private void rememberRuntimeView() {
+        lastPage = this.currentPage;
+        lastQuery = this.currentQuery;
+        lastSortMode = this.sortMode;
+        lastReverseSort = this.reverseSort;
     }
 
     private int hoveredStorageSlotIndex() {
@@ -1229,8 +1444,5 @@ public final class StorageScreen extends ContainerScreen {
     }
 
     private record InteractionSnapshot(
-            Map<Integer, SavedIndexItemEntry> beforeEntries,
-            Map<Integer, ItemStack> beforeStacks
-    ) {}
-
+            Map<Integer, SavedIndexItemEntry> beforeEntries, Map<Integer, ItemStack> beforeStacks) {}
 }

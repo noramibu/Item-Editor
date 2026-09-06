@@ -5,11 +5,10 @@ import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
+import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.Objects;
 
 public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent implements GreedyInputUIComponent {
     private static final int HEIGHT = 8;
@@ -67,20 +66,17 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
 
     @Override
     public boolean onMouseDown(MouseButtonEvent click, boolean doubled) {
-        return this.handleMouseDown(click.x(), click.y(), click.button())
-                || super.onMouseDown(click, doubled);
+        return this.handleMouseDown(click.x(), click.y(), click.button()) || super.onMouseDown(click, doubled);
     }
 
     @Override
     public boolean onMouseDrag(MouseButtonEvent click, double deltaX, double deltaY) {
-        return this.handleMouseDrag(click.button())
-                || super.onMouseDrag(click, deltaX, deltaY);
+        return this.handleMouseDrag(click.button()) || super.onMouseDrag(click, deltaX, deltaY);
     }
 
     @Override
     public boolean onMouseUp(MouseButtonEvent click) {
-        return this.handleMouseUp(click.button())
-                || super.onMouseUp(click);
+        return this.handleMouseUp(click.button()) || super.onMouseUp(click);
     }
 
     @Override
@@ -192,8 +188,7 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
     }
 
     private boolean eventOutside(double eventX, double eventY) {
-        return !this.isInBoundingBox(eventX, eventY)
-                && !this.isInBoundingBox(this.x() + eventX, this.y() + eventY);
+        return !this.isInBoundingBox(eventX, eventY) && !this.isInBoundingBox(this.x() + eventX, this.y() + eventY);
     }
 
     private double screenMouseX(double eventX, double eventY) {
@@ -202,7 +197,8 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
 
     private double currentGuiMouseX() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth() / (double) minecraft.getWindow().getScreenWidth();
+        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth()
+                / (double) minecraft.getWindow().getScreenWidth();
         return minecraft.mouseHandler.xpos() * scaleX;
     }
 

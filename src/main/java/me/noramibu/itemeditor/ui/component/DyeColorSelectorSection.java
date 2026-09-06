@@ -3,13 +3,12 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.DyeColor;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.DyeColor;
 
 public final class DyeColorSelectorSection {
 
@@ -20,8 +19,7 @@ public final class DyeColorSelectorSection {
     private static final int CHIP_BUTTON_WIDTH_MAX = 42;
     private static final int PALETTE_HORIZONTAL_BUDGET = 20;
 
-    private DyeColorSelectorSection() {
-    }
+    private DyeColorSelectorSection() {}
 
     public static FlowLayout build(
             SpecialDataPanelContext context,
@@ -31,8 +29,7 @@ public final class DyeColorSelectorSection {
             String selectedColor,
             int buttonWidth,
             Component quickPaletteLabel,
-            Consumer<DyeColor> onSelected
-    ) {
+            Consumer<DyeColor> onSelected) {
         FlowLayout wrapper = UiFactory.column().gap(3);
 
         wrapper.child(PickerFieldFactory.dropdownField(
@@ -43,15 +40,11 @@ public final class DyeColorSelectorSection {
                 buttonWidth,
                 DYE_COLORS,
                 DyeColorSelectorSection::optionText,
-                color -> context.mutateRefresh(() -> onSelected.accept(color))
-        ));
+                color -> context.mutateRefresh(() -> onSelected.accept(color))));
 
         if (quickPaletteLabel != null) {
             wrapper.child(UiFactory.field(
-                    quickPaletteLabel,
-                    Component.empty(),
-                    colorPalette(context, selectedColor, onSelected)
-            ));
+                    quickPaletteLabel, Component.empty(), colorPalette(context, selectedColor, onSelected)));
         }
 
         return wrapper;
@@ -62,8 +55,7 @@ public final class DyeColorSelectorSection {
             Component label,
             Component helpText,
             String selectedColor,
-            Consumer<DyeColor> onSelected
-    ) {
+            Consumer<DyeColor> onSelected) {
         FlowLayout content = UiFactory.column().gap(2);
         content.child(colorPalette(context, selectedColor, onSelected));
         return UiFactory.field(label, helpText, content);
@@ -79,7 +71,8 @@ public final class DyeColorSelectorSection {
     }
 
     public static String optionText(DyeColor color) {
-        return Component.translatable("color.minecraft." + color.name().toLowerCase(Locale.ROOT)).getString();
+        return Component.translatable("color.minecraft." + color.name().toLowerCase(Locale.ROOT))
+                .getString();
     }
 
     public static Component shortLabel(DyeColor color) {
@@ -107,7 +100,8 @@ public final class DyeColorSelectorSection {
                 : DyeColor.byName(rawColor.trim().toLowerCase(Locale.ROOT), null);
     }
 
-    private static FlowLayout colorPalette(SpecialDataPanelContext context, String selectedColor, Consumer<DyeColor> onSelected) {
+    private static FlowLayout colorPalette(
+            SpecialDataPanelContext context, String selectedColor, Consumer<DyeColor> onSelected) {
         FlowLayout palette = UiFactory.column().gap(2);
         int colorsPerRow = colorsPerRow(context);
         int chipButtonWidth = resolveChipButtonWidth(context, colorsPerRow);
@@ -117,9 +111,10 @@ public final class DyeColorSelectorSection {
             int end = Math.min(start + colorsPerRow, DYE_COLORS.size());
             for (int index = start; index < end; index++) {
                 DyeColor color = DYE_COLORS.get(index);
-                ButtonComponent chip = UiFactory.button(shortLabel(color), UiFactory.ButtonTextPreset.COMPACT, button ->
-                        context.mutateRefresh(() -> onSelected.accept(color))
-                );
+                ButtonComponent chip = UiFactory.button(
+                        shortLabel(color),
+                        UiFactory.ButtonTextPreset.COMPACT,
+                        button -> context.mutateRefresh(() -> onSelected.accept(color)));
                 chip.horizontalSizing(Sizing.fixed(chipButtonWidth));
                 if (selected != null && selected == color) {
                     chip.active(false);
@@ -148,8 +143,7 @@ public final class DyeColorSelectorSection {
                 minWidth,
                 context.panelWidthHint()
                         - UiFactory.scaledPixels(PALETTE_HORIZONTAL_BUDGET)
-                        - ((colorsPerRow - 1) * spacing)
-        );
+                        - ((colorsPerRow - 1) * spacing));
         int perChip = Math.max(minWidth, available / colorsPerRow);
         return Math.clamp(perChip, minWidth, maxWidth);
     }

@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
@@ -9,8 +10,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.equipment.trim.TrimMaterial;
 import net.minecraft.world.item.equipment.trim.TrimPattern;
-
-import java.util.Objects;
 
 final class TrimSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -22,7 +21,8 @@ final class TrimSpecialDataApplier extends AbstractPreviewApplierSupport impleme
             return;
         }
 
-        if (context.special().trimMaterialId.isBlank() || context.special().trimPatternId.isBlank()) {
+        if (context.special().trimMaterialId.isBlank()
+                || context.special().trimPatternId.isBlank()) {
             this.clearToPrototype(context.previewStack(), DataComponents.TRIM);
             return;
         }

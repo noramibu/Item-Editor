@@ -6,7 +6,6 @@ import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.ui.util.UiColors;
@@ -41,53 +40,55 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
         card.child(UiFactory.muted(ItemEditorText.tr("entry.subtitle"), UiFactory.scaledPixels(220)));
 
         boolean canCreate = this.canCreateItems();
-        var createButton = UiFactory.button(ItemEditorText.tr("entry.create"), UiFactory.ButtonTextPreset.LARGE, button -> {
-            if (!this.canCreateItems()) {
-                this.showCreativeRequired();
-                return;
-            }
-            this.minecraft.setScreenAndShow(new ItemPickerScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
-        });
+        var createButton =
+                UiFactory.button(ItemEditorText.tr("entry.create"), UiFactory.ButtonTextPreset.LARGE, button -> {
+                    if (!this.canCreateItems()) {
+                        this.showCreativeRequired();
+                        return;
+                    }
+                    this.minecraft.setScreenAndShow(
+                            new ItemPickerScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
+                });
         createButton.horizontalSizing(Sizing.fill(100));
         createButton.active(canCreate);
         card.child(createButton);
 
-        var storageButton = UiFactory.button(ItemEditorText.tr("entry.storage"), UiFactory.ButtonTextPreset.LARGE, button ->
-                this.minecraft.setScreenAndShow(new StorageScreen(1, "", StorageSortMode.REGULAR))
-        );
+        var storageButton = UiFactory.button(
+                ItemEditorText.tr("entry.storage"),
+                UiFactory.ButtonTextPreset.LARGE,
+                button -> this.minecraft.setScreenAndShow(new StorageScreen()));
         storageButton.horizontalSizing(Sizing.fill(100));
         card.child(storageButton);
 
-        var storagePagesButton = UiFactory.button(ItemEditorText.tr("storage.pages.title"), UiFactory.ButtonTextPreset.LARGE, button ->
-                this.minecraft.setScreenAndShow(new StoragePagesScreen(
-                        this.minecraft,
-                        1,
-                        "",
-                        StorageSortMode.REGULAR,
-                        StorageScreenMode.MANAGE,
-                        new ItemEntryScreen(this.minecraft)
-                ))
-        );
+        var storagePagesButton = UiFactory.button(
+                ItemEditorText.tr("storage.pages.title"),
+                UiFactory.ButtonTextPreset.LARGE,
+                button -> this.minecraft.setScreenAndShow(
+                        new StoragePagesScreen(this.minecraft, new ItemEntryScreen(this.minecraft))));
         storagePagesButton.horizontalSizing(Sizing.fill(100));
         card.child(storagePagesButton);
 
-        var importButton = UiFactory.button(ItemEditorText.tr("entry.import"), UiFactory.ButtonTextPreset.LARGE, button -> {
-            if (!this.canCreateItems()) {
-                this.showCreativeRequired();
-                return;
-            }
-            this.minecraft.setScreenAndShow(new ImportScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
-        });
+        var importButton =
+                UiFactory.button(ItemEditorText.tr("entry.import"), UiFactory.ButtonTextPreset.LARGE, button -> {
+                    if (!this.canCreateItems()) {
+                        this.showCreativeRequired();
+                        return;
+                    }
+                    this.minecraft.setScreenAndShow(
+                            new ImportScreen(this.minecraft, new ItemEntryScreen(this.minecraft)));
+                });
         importButton.horizontalSizing(Sizing.fill(100));
         importButton.active(canCreate);
         card.child(importButton);
 
         if (!canCreate) {
-            card.child(UiFactory.message(ItemEditorText.tr("launcher.creation_requires_creative"), UiColors.DANGER, 0.9F)
-                    .maxWidth(UiFactory.scaledPixels(220)));
+            card.child(
+                    UiFactory.message(ItemEditorText.tr("launcher.creation_requires_creative"), UiColors.DANGER, 0.9F)
+                            .maxWidth(UiFactory.scaledPixels(220)));
         }
 
-        var cancel = UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(null));
+        var cancel = UiFactory.button(
+                ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.onClose());
         cancel.horizontalSizing(Sizing.fill(100));
         card.child(cancel);
 
@@ -104,7 +105,6 @@ public final class ItemEntryScreen extends BaseOwoScreen<StackLayout> {
             return;
         }
         this.minecraft.player.sendOverlayMessage(
-                ItemEditorText.tr("launcher.creation_requires_creative").copy().withStyle(ChatFormatting.RED)
-        );
+                ItemEditorText.tr("launcher.creation_requires_creative").copy().withStyle(ChatFormatting.RED));
     }
 }

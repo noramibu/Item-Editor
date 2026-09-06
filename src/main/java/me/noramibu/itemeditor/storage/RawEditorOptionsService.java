@@ -7,8 +7,7 @@ public final class RawEditorOptionsService {
 
     private static final RawEditorOptionsService INSTANCE = new RawEditorOptionsService();
 
-    private RawEditorOptionsService() {
-    }
+    private RawEditorOptionsService() {}
 
     public static RawEditorOptionsService instance() {
         return INSTANCE;

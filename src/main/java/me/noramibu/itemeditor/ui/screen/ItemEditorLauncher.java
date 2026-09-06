@@ -6,8 +6,7 @@ import net.minecraft.world.item.ItemStack;
 
 public final class ItemEditorLauncher {
 
-    private ItemEditorLauncher() {
-    }
+    private ItemEditorLauncher() {}
 
     public static void open(Minecraft client) {
         if (client.player == null || client.level == null) {

@@ -7,8 +7,7 @@ public final class ItemEditorText {
     private static final String ROOT = "itemeditor";
     private static final String CHAT_PREFIX = "[Item Editor] ";
 
-    private ItemEditorText() {
-    }
+    private ItemEditorText() {}
 
     public static Component tr(String path, Object... args) {
         return Component.translatable(key(path), args);

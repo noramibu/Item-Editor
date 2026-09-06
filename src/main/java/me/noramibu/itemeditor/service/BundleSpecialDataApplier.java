@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -14,19 +17,18 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameList(context.special().bundleEntries, context.baselineSpecial().bundleEntries,
+        if (this.sameList(
+                context.special().bundleEntries,
+                context.baselineSpecial().bundleEntries,
                 (left, right) -> Objects.equals(left.itemId, right.itemId)
                         && Objects.equals(left.count, right.count)
                         && ItemStack.matches(left.templateStack, right.templateStack))) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BUNDLE_CONTENTS);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.BUNDLE_CONTENTS);
             return;
         }
 
@@ -37,13 +39,16 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
         List<ItemStackTemplate> bundleStacks = new ArrayList<>();
         for (int index = 0; index < context.special().bundleEntries.size(); index++) {
-            ItemEditorState.ContainerEntryDraft draft = context.special().bundleEntries.get(index);
+            ItemEditorState.ContainerEntryDraft draft =
+                    context.special().bundleEntries.get(index);
             ItemStack entryStack = this.buildEntryStack(draft, index, context.messages());
             if (entryStack.isEmpty()) {
                 continue;
             }
             if (!BundleContents.canItemBeInBundle(entryStack)) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.bundle_item_not_allowed", draft.itemId)));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("preview.validation.bundle_item_not_allowed", draft.itemId)));
                 continue;
             }
             bundleStacks.add(ItemStackTemplate.fromNonEmptyStack(entryStack));
@@ -61,7 +66,9 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
             mutable.toggleSelectedItem(selected);
             contents = mutable.toImmutable();
         } catch (RuntimeException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.bundle_build_failed", exception.getMessage())));
+            context.messages()
+                    .add(ValidationMessage.error(
+                            ItemEditorText.str("preview.validation.bundle_build_failed", exception.getMessage())));
             return;
         }
 
@@ -69,10 +76,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
     }
 
     private ItemStack buildEntryStack(
-            ItemEditorState.ContainerEntryDraft draft,
-            int index,
-            List<ValidationMessage> messages
-    ) {
+            ItemEditorState.ContainerEntryDraft draft, int index, List<ValidationMessage> messages) {
         if (draft.itemId.isBlank()) {
             return ItemStack.EMPTY;
         }
@@ -86,15 +90,13 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
         Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
         if (item == null || item == Items.AIR) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.container.item"),
-                    itemId
-            )));
+                    "validation.registry_missing", ItemEditorText.str("special.container.item"), itemId)));
             return ItemStack.EMPTY;
         }
 
         int maxStackSize = this.maxStackSize(draft, item);
-        Integer count = ValidationUtil.parseInt(draft.count, ItemEditorText.str("special.container.count"), 1, maxStackSize, messages);
+        Integer count =
+                ValidationUtil.parseInt(draft.count, ItemEditorText.str("common.count"), 1, maxStackSize, messages);
         if (count == null) {
             return ItemStack.EMPTY;
         }

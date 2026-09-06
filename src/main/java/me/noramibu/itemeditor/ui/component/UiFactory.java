@@ -16,6 +16,12 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Consumer;
 import me.noramibu.itemeditor.ui.scale.UiScaleProfile;
 import me.noramibu.itemeditor.ui.scale.UiScaleService;
 import me.noramibu.itemeditor.ui.util.UiColors;
@@ -24,11 +30,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.function.Consumer;
+import net.minecraft.world.inventory.MenuType;
 
 public final class UiFactory {
     private static final int UNBOUNDED_TEXT_LIMIT = Integer.MAX_VALUE;
@@ -106,8 +108,7 @@ public final class UiFactory {
         }
     }
 
-    private UiFactory() {
-    }
+    private UiFactory() {}
 
     public static FlowLayout column() {
         UiScaleProfile profile = scaleProfile();
@@ -216,9 +217,7 @@ public final class UiFactory {
     }
 
     public static LabelComponent muted(Component text, int maxWidth) {
-        return styledText(text, TextPreset.CAPTION)
-                .color(Color.ofRgb(0xA9B5C0))
-                .maxWidth(maxWidth);
+        return styledText(text, TextPreset.CAPTION).color(Color.ofRgb(0xA9B5C0)).maxWidth(maxWidth);
     }
 
     public static LabelComponent muted(Component text, int maxWidth, float scaleFactor) {
@@ -256,46 +255,30 @@ public final class UiFactory {
     }
 
     public static ButtonComponent button(Component text, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
-        return createAdaptiveButton(semanticallyTintActionText(text), buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
+        return createAdaptiveButton(
+                semanticallyTintActionText(text), buttonTextScale(preset.textPreset), preset.buttonPreset, onPress);
     }
 
     public static ButtonComponent positiveButton(
-            Component text,
-            ButtonTextPreset preset,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Component text, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
         return actionToneButton(text, preset, ActionTone.POSITIVE, onPress);
     }
 
     public static ButtonComponent negativeButton(
-            Component text,
-            ButtonTextPreset preset,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Component text, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
         return actionToneButton(text, preset, ActionTone.NEGATIVE, onPress);
     }
 
     public static ButtonComponent actionToneButton(
-            Component text,
-            ButtonTextPreset preset,
-            ActionTone tone,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Component text, ButtonTextPreset preset, ActionTone tone, Consumer<ButtonComponent> onPress) {
         return button(tintedActionText(text, tone), preset, onPress);
     }
 
     public static ButtonComponent actionRowButton(
-            Component text,
-            ButtonTextPreset preset,
-            ActionTone tone,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Component text, ButtonTextPreset preset, ActionTone tone, Consumer<ButtonComponent> onPress) {
         ButtonComponent button = new ScrollingButtonComponent(tintedActionText(text, tone), onPress);
         button.tooltip(List.of(text));
-        int controlHeight = Math.max(
-                scaleProfile().controlHeight(),
-                scaledPixels(preset.buttonPreset.minHeight)
-        );
+        int controlHeight = Math.max(scaleProfile().controlHeight(), scaledPixels(preset.buttonPreset.minHeight));
         button.verticalSizing(Sizing.fixed(controlHeight));
         applyButtonPreset(button, preset.buttonPreset);
         return button;
@@ -306,36 +289,25 @@ public final class UiFactory {
     }
 
     public static FlowLayout actionButtonRow(boolean stackWhenNarrow, ButtonComponent... buttons) {
-        List<ButtonComponent> present = buttons == null
-                ? List.of()
-                : java.util.Arrays.stream(buttons).filter(java.util.Objects::nonNull).toList();
-        if (present.isEmpty()) {
-            return row();
-        }
-        return new PackedActionLayout(
-                present,
-                Math.max(1, scaleProfile().tightSpacing()),
-                !stackWhenNarrow,
-                true
-        );
+        return actionButtonLayout(!stackWhenNarrow, true, buttons);
     }
 
     public static FlowLayout packedActionButtonRow(ButtonComponent... buttons) {
+        return actionButtonLayout(false, false, buttons);
+    }
+
+    private static FlowLayout actionButtonLayout(boolean forceSingleRow, boolean fillRows, ButtonComponent... buttons) {
         List<ButtonComponent> present = buttons == null
                 ? List.of()
-                : java.util.Arrays.stream(buttons).filter(java.util.Objects::nonNull).toList();
+                : Arrays.stream(buttons).filter(Objects::nonNull).toList();
         if (present.isEmpty()) {
             return row();
         }
-        return new PackedActionLayout(
-                present,
-                Math.max(1, scaleProfile().tightSpacing()),
-                false,
-                false
-        );
+        return new PackedActionLayout(present, Math.max(1, scaleProfile().tightSpacing()), forceSingleRow, fillRows);
     }
 
-    public static ButtonComponent scaledTextButton(Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
+    public static ButtonComponent scaledTextButton(
+            Component fullText, float textScale, ButtonTextPreset preset, Consumer<ButtonComponent> onPress) {
         float preferredScale = Math.clamp(textScale, BUTTON_TEXT_MIN_SCALE, BUTTON_TEXT_MAX_SCALE);
         return createAdaptiveButton(fullText, preferredScale, preset.buttonPreset, onPress);
     }
@@ -369,8 +341,7 @@ public final class UiFactory {
             Component helpText,
             Component buttonText,
             int buttonWidth,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Consumer<ButtonComponent> onPress) {
         return field(label, helpText, pickerButton(buttonText, buttonWidth, onPress));
     }
 
@@ -384,8 +355,7 @@ public final class UiFactory {
             Runnable onMoveUp,
             boolean canMoveDown,
             Runnable onMoveDown,
-            Runnable onRemove
-    ) {
+            Runnable onRemove) {
         FlowLayout card = subCard();
         card.child(reorderableHeader(title, canMoveUp, onMoveUp, canMoveDown, onMoveDown, onRemove));
         return card;
@@ -401,8 +371,7 @@ public final class UiFactory {
             Runnable onMoveUp,
             boolean canMoveDown,
             Runnable onMoveDown,
-            Runnable onRemove
-    ) {
+            Runnable onRemove) {
         FlowLayout card = subCard();
         card.child(reorderableCollapsibleHeader(
                 title,
@@ -414,9 +383,32 @@ public final class UiFactory {
                 onMoveUp,
                 canMoveDown,
                 onMoveDown,
-                onRemove
-        ));
+                onRemove));
         return card;
+    }
+
+    public static MenuType<?> chestMenuType(int rows) {
+        return switch (rows) {
+            case 1 -> MenuType.GENERIC_9x1;
+            case 2 -> MenuType.GENERIC_9x2;
+            case 3 -> MenuType.GENERIC_9x3;
+            case 4 -> MenuType.GENERIC_9x4;
+            case 5 -> MenuType.GENERIC_9x5;
+            default -> MenuType.GENERIC_9x6;
+        };
+    }
+
+    public static void addPackedRows(FlowLayout parent, int perRow, UIComponent... components) {
+        for (int index = 0; index < components.length; index += perRow) {
+            FlowLayout row = UiFactory.row();
+            int rowEnd = Math.min(components.length, index + perRow);
+            int rowSize = rowEnd - index;
+            int width = Math.max(1, (100 - rowSize) / Math.max(1, rowSize));
+            for (int componentIndex = index; componentIndex < rowEnd; componentIndex++) {
+                row.child(components[componentIndex].horizontalSizing(Sizing.fill(width)));
+            }
+            parent.child(row);
+        }
     }
 
     public static FlowLayout reorderableHeader(
@@ -425,21 +417,13 @@ public final class UiFactory {
             Runnable onMoveUp,
             boolean canMoveDown,
             Runnable onMoveDown,
-            Runnable onRemove
-    ) {
+            Runnable onRemove) {
         FlowLayout header = column().gap(Math.max(1, scaleProfile().tightSpacing()));
         FlowLayout titleRow = row();
         titleRow.child(title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
         header.child(titleRow);
 
-        FlowLayout actionRow = actionButtonRow(
-                onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp),
-                onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown),
-                onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove)
-        );
-        if (!actionRow.children().isEmpty()) {
-            header.child(actionRow);
-        }
+        addReorderActions(header, canMoveUp, onMoveUp, canMoveDown, onMoveDown, onRemove);
         return header;
     }
 
@@ -453,8 +437,7 @@ public final class UiFactory {
             Runnable onMoveUp,
             boolean canMoveDown,
             Runnable onMoveDown,
-            Runnable onRemove
-    ) {
+            Runnable onRemove) {
         FlowLayout header = column().gap(Math.max(1, scaleProfile().tightSpacing()));
         FlowLayout titleRow = row();
         titleRow.child(title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
@@ -462,23 +445,31 @@ public final class UiFactory {
         header.child(titleRow);
         header.child(muted(summary, summaryMaxWidth));
 
+        addReorderActions(header, canMoveUp, onMoveUp, canMoveDown, onMoveDown, onRemove);
+        return header;
+    }
+
+    private static void addReorderActions(
+            FlowLayout header,
+            boolean canMoveUp,
+            Runnable onMoveUp,
+            boolean canMoveDown,
+            Runnable onMoveDown,
+            Runnable onRemove) {
         FlowLayout actionRow = actionButtonRow(
                 onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp),
                 onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown),
-                onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove)
-        );
+                onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove));
         if (!actionRow.children().isEmpty()) {
             header.child(actionRow);
         }
-        return header;
     }
 
     public static ButtonComponent collapseToggleButton(boolean collapsed, Runnable onToggle) {
         ButtonComponent collapseToggle = button(
                 Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                 ButtonTextPreset.COMPACT,
-                button -> onToggle.run()
-        );
+                button -> onToggle.run());
         collapseToggle.horizontalSizing(Sizing.fixed(Math.max(30, scaledPixels(36))));
         return collapseToggle;
     }
@@ -510,7 +501,8 @@ public final class UiFactory {
         return shortened;
     }
 
-    private static void appendFittedText(MutableComponent output, Component component, Style parentStyle, int[] remainingWidth) {
+    private static void appendFittedText(
+            MutableComponent output, Component component, Style parentStyle, int[] remainingWidth) {
         if (component == null || remainingWidth[0] <= 0) {
             return;
         }
@@ -605,13 +597,7 @@ public final class UiFactory {
     }
 
     public static int responsiveSquareSize(
-            int availableWidth,
-            int availableHeight,
-            double widthRatio,
-            double heightRatio,
-            int min,
-            int max
-    ) {
+            int availableWidth, int availableHeight, double widthRatio, double heightRatio, int min, int max) {
         int widthBased = (int) Math.round(availableWidth * widthRatio);
         int heightBased = (int) Math.round(availableHeight * heightRatio);
         int responsive = Math.min(widthBased, heightBased);
@@ -661,8 +647,7 @@ public final class UiFactory {
                 label,
                 removeAction ? ButtonTextPreset.STANDARD : ButtonTextPreset.COMPACT,
                 removeAction ? ActionTone.NEGATIVE : ActionTone.NEUTRAL,
-                component -> onPress.run()
-        );
+                component -> onPress.run());
         if (removeAction) {
             int removeWidth = Math.max(REMOVE_ACTION_WIDTH_MIN, scaledPixels(REMOVE_ACTION_WIDTH_BASE));
             button.horizontalSizing(Sizing.fixed(removeWidth));
@@ -676,12 +661,13 @@ public final class UiFactory {
         if (tone == null || tone == ActionTone.NEUTRAL) {
             return safeText;
         }
-        int color = switch (tone) {
-            case POSITIVE -> ACTION_POSITIVE_COLOR;
-            case NEGATIVE -> ACTION_NEGATIVE_COLOR;
-            case PICKER -> ACTION_PICKER_COLOR;
-            case NEUTRAL -> throw new IllegalStateException("Neutral action tone should not be tinted");
-        };
+        int color =
+                switch (tone) {
+                    case POSITIVE -> ACTION_POSITIVE_COLOR;
+                    case NEGATIVE -> ACTION_NEGATIVE_COLOR;
+                    case PICKER -> ACTION_PICKER_COLOR;
+                    case NEUTRAL -> throw new IllegalStateException("Neutral action tone should not be tinted");
+                };
         return safeText.copy().withColor(color);
     }
 
@@ -730,7 +716,8 @@ public final class UiFactory {
         return ActionTone.NEUTRAL;
     }
 
-    private static ButtonComponent createAdaptiveButton(Component text, float preferredScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {
+    private static ButtonComponent createAdaptiveButton(
+            Component text, float preferredScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {
         Component safeText = text == null ? Component.empty() : text;
         int horizontalPadding = Math.max(8, scaledPixels(preset.horizontalPadding));
         int minWidth = Math.max(16, scaledPixels(preset.minWidth));
@@ -749,11 +736,7 @@ public final class UiFactory {
     }
 
     public static ButtonComponent fixedWidthButton(
-            Component text,
-            ButtonTextPreset preset,
-            int width,
-            Consumer<ButtonComponent> onPress
-    ) {
+            Component text, ButtonTextPreset preset, int width, Consumer<ButtonComponent> onPress) {
         ButtonComponent button = button(text, preset, onPress);
         applyFixedButtonLabel(button, text, width);
         return button;
@@ -778,19 +761,19 @@ public final class UiFactory {
         float textScale = Math.clamp(baseScaleForPreset(preset) * normalizedFactor, 0.5F, 2.0F);
         LabelComponent label = new ScaledLabelComponent(text).textScale(textScale);
         return switch (preset) {
-            case TITLE -> label
-                    .lineHeight(Math.max(6, profile.titleLineHeight()))
-                    .lineSpacing(bodyLineSpacing)
-                    .color(Color.ofRgb(0xF2F5F8))
-                    .shadow(true);
-            case CAPTION -> label
-                    .lineHeight(Math.max(6, profile.captionLineHeight()))
-                    .lineSpacing(bodyLineSpacing)
-                    .color(Color.ofRgb(0xA9B5C0));
-            default -> label
-                    .lineHeight(Math.max(6, profile.bodyLineHeight()))
-                    .lineSpacing(bodyLineSpacing)
-                    .color(Color.ofRgb(0xF2F5F8));
+            case TITLE ->
+                label.lineHeight(Math.max(6, profile.titleLineHeight()))
+                        .lineSpacing(bodyLineSpacing)
+                        .color(Color.ofRgb(0xF2F5F8))
+                        .shadow(true);
+            case CAPTION ->
+                label.lineHeight(Math.max(6, profile.captionLineHeight()))
+                        .lineSpacing(bodyLineSpacing)
+                        .color(Color.ofRgb(0xA9B5C0));
+            default ->
+                label.lineHeight(Math.max(6, profile.bodyLineHeight()))
+                        .lineSpacing(bodyLineSpacing)
+                        .color(Color.ofRgb(0xF2F5F8));
         };
     }
 
@@ -813,5 +796,4 @@ public final class UiFactory {
         }
         return text;
     }
-
 }

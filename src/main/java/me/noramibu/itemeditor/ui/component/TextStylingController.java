@@ -1,19 +1,17 @@
 package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.component.LabelComponent;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.network.chat.Component;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 public final class TextStylingController {
 
-    private TextStylingController() {
-    }
+    private TextStylingController() {}
 
     public static AtomicInteger initialColor(RichTextAreaComponent editor, int fallbackColor) {
         Integer color = editor.document().insertionStyleAt(0).color();
@@ -29,8 +27,7 @@ public final class TextStylingController {
             RichTextAreaComponent editor,
             LabelComponent validationLabel,
             Function<RichTextDocument, String> validator,
-            Consumer<RichTextDocument> onAccepted
-    ) {
+            Consumer<RichTextDocument> onAccepted) {
         editor.validator(validator);
         editor.onRejected(message -> validationLabel.text(Component.literal(message)));
         editor.onDocumentChanged().subscribe(document -> {

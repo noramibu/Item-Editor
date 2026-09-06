@@ -2,6 +2,17 @@ package me.noramibu.itemeditor.service;
 
 import com.mojang.datafixers.DataFixer;
 import com.mojang.serialization.DataResult;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
@@ -19,18 +30,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.item.ItemStack;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 public final class ItemImportService {
     private static final int HOTBAR_SLOT_COUNT = 9;
     private static final int DEFAULT_HOTBAR_DATA_VERSION = 1343;
@@ -45,23 +44,31 @@ public final class ItemImportService {
     }
 
     public CompletableFuture<ImportResult> importFile(Path path, RegistryAccess registryAccess, DataFixer fixerUpper) {
-        return CompletableFuture.supplyAsync(() -> {
-            if (path == null) {
-                return ImportResult.failure(ItemEditorText.str("import.cancelled"));
-            }
-            String extension = this.extension(path);
-            try {
-                return switch (extension) {
-                    case "json", "snbt" -> this.resultFromParse(RawItemDataUtil.parseFlexible(Files.readString(path, StandardCharsets.UTF_8), registryAccess));
-                    case "nbt" -> this.importNbt(path, registryAccess, fixerUpper);
-                    default -> ImportResult.failure(ItemEditorText.str("import.unsupported_extension", extension.isBlank() ? path.getFileName().toString() : extension));
-                };
-            } catch (IOException exception) {
-                return ImportResult.failure(ItemEditorText.str("import.read_failed", this.errorMessage(exception)));
-            } catch (RuntimeException exception) {
-                return ImportResult.failure(ItemEditorText.str("import.failed", this.errorMessage(exception)));
-            }
-        }, IMPORT_EXECUTOR);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    if (path == null) {
+                        return ImportResult.failure(ItemEditorText.str("import.cancelled"));
+                    }
+                    String extension = this.extension(path);
+                    try {
+                        return switch (extension) {
+                            case "json", "snbt" ->
+                                this.resultFromParse(RawItemDataUtil.parseFlexible(
+                                        Files.readString(path, StandardCharsets.UTF_8), registryAccess));
+                            case "nbt" -> this.importNbt(path, registryAccess, fixerUpper);
+                            default ->
+                                ImportResult.failure(ItemEditorText.str(
+                                        "import.unsupported_extension",
+                                        extension.isBlank() ? path.getFileName().toString() : extension));
+                        };
+                    } catch (IOException exception) {
+                        return ImportResult.failure(
+                                ItemEditorText.str("import.read_failed", this.errorMessage(exception)));
+                    } catch (RuntimeException exception) {
+                        return ImportResult.failure(ItemEditorText.str("import.failed", this.errorMessage(exception)));
+                    }
+                },
+                IMPORT_EXECUTOR);
     }
 
     private ImportResult importNbt(Path path, RegistryAccess registryAccess, DataFixer fixerUpper) throws IOException {
@@ -73,7 +80,8 @@ public final class ItemImportService {
                 CompoundTag tag = NbtIo.read(path);
                 return this.resultFromTag(tag, registryAccess, fixerUpper);
             } catch (IOException | RuntimeException rawFailure) {
-                return this.resultFromParse(RawItemDataUtil.parseFlexible(Files.readString(path, StandardCharsets.UTF_8), registryAccess));
+                return this.resultFromParse(
+                        RawItemDataUtil.parseFlexible(Files.readString(path, StandardCharsets.UTF_8), registryAccess));
             }
         }
     }
@@ -187,9 +195,11 @@ public final class ItemImportService {
     }
 
     static ItemStack parseItemStack(CompoundTag itemTag, RegistryAccess registryAccess) {
-        DataResult<ItemStack> optional = ItemStack.OPTIONAL_CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
+        DataResult<ItemStack> optional =
+                ItemStack.OPTIONAL_CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
         return optional.result().orElseGet(() -> {
-            DataResult<ItemStack> strict = ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
+            DataResult<ItemStack> strict =
+                    ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), itemTag);
             return strict.result().orElseGet(() -> parseLegacyItemStack(itemTag));
         });
     }
@@ -207,7 +217,8 @@ public final class ItemImportService {
         if (item == null) {
             return ItemStack.EMPTY;
         }
-        int count = itemTag.getInt("count").orElseGet(() -> itemTag.getByte("Count").map(Byte::intValue).orElse(1));
+        int count = itemTag.getInt("count")
+                .orElseGet(() -> itemTag.getByte("Count").map(Byte::intValue).orElse(1));
         return count <= 0 ? ItemStack.EMPTY : new ItemStack(item, count);
     }
 
@@ -219,7 +230,9 @@ public final class ItemImportService {
     }
 
     private String extension(Path path) {
-        String filename = path == null || path.getFileName() == null ? "" : path.getFileName().toString();
+        String filename = path == null || path.getFileName() == null
+                ? ""
+                : path.getFileName().toString();
         int dot = filename.lastIndexOf('.');
         if (dot < 0 || dot >= filename.length() - 1) {
             return "";
@@ -232,8 +245,7 @@ public final class ItemImportService {
         return message == null || message.isBlank() ? throwable.getClass().getSimpleName() : message;
     }
 
-    private record SlottedStack(int slot, int index, ItemStack stack) {
-    }
+    private record SlottedStack(int slot, int index, ItemStack stack) {}
 
     public record ImportResult(boolean success, ItemStack stack, List<ItemStack> stacks, String message) {
         public static ImportResult success(ItemStack stack, String message) {

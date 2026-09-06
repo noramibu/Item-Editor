@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -10,10 +13,6 @@ import net.minecraft.server.network.Filterable;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.WritableBookContent;
 import net.minecraft.world.item.component.WrittenBookContent;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 final class BookPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
@@ -26,15 +25,19 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
                 && Objects.equals(book.author, baselineBook.author)
                 && Objects.equals(book.generation, baselineBook.generation)
                 && book.pages.equals(baselineBook.pages)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.WRITTEN_BOOK_CONTENT);
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.WRITABLE_BOOK_CONTENT);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.WRITTEN_BOOK_CONTENT);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.WRITABLE_BOOK_CONTENT);
             return;
         }
 
         if (context.previewStack().is(Items.WRITTEN_BOOK)) {
             String resolvedTitle = this.resolveWrittenBookTitle(context);
             if (resolvedTitle.length() > WrittenBookContent.TITLE_MAX_LENGTH) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.book_title_length", WrittenBookContent.TITLE_MAX_LENGTH)));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "preview.validation.book_title_length", WrittenBookContent.TITLE_MAX_LENGTH)));
                 resolvedTitle = resolvedTitle.substring(0, WrittenBookContent.TITLE_MAX_LENGTH);
             }
 
@@ -48,30 +51,37 @@ final class BookPreviewApplier extends AbstractPreviewApplierSupport implements 
                     ItemEditorText.str("book.metadata.generation"),
                     0,
                     WrittenBookContent.MAX_GENERATION,
-                    context.messages()
-            );
+                    context.messages());
             if (generation == null) {
                 generation = 0;
             }
 
-            context.previewStack().set(DataComponents.WRITTEN_BOOK_CONTENT, new WrittenBookContent(
-                    Filterable.passThrough(resolvedTitle),
-                    context.state().book.author.isBlank() ? ItemEditorText.str("screen.title") : context.state().book.author,
-                    generation,
-                    pages,
-                    true
-            ));
+            context.previewStack()
+                    .set(
+                            DataComponents.WRITTEN_BOOK_CONTENT,
+                            new WrittenBookContent(
+                                    Filterable.passThrough(resolvedTitle),
+                                    context.state().book.author.isBlank()
+                                            ? ItemEditorText.str("screen.title")
+                                            : context.state().book.author,
+                                    generation,
+                                    pages,
+                                    true));
             this.clearToPrototype(context.previewStack(), DataComponents.WRITABLE_BOOK_CONTENT);
         } else if (context.previewStack().is(Items.WRITABLE_BOOK)) {
             if (context.state().book.pages.size() > WritableBookContent.MAX_PAGES) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.book_pages", WritableBookContent.MAX_PAGES)));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("preview.validation.book_pages", WritableBookContent.MAX_PAGES)));
                 return;
             }
 
             List<Filterable<String>> pages = new ArrayList<>();
             for (String page : context.state().book.pages) {
                 if (page.length() > WritableBookContent.PAGE_EDIT_LENGTH) {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.book_page_length", WritableBookContent.PAGE_EDIT_LENGTH)));
+                    context.messages()
+                            .add(ValidationMessage.error(ItemEditorText.str(
+                                    "preview.validation.book_page_length", WritableBookContent.PAGE_EDIT_LENGTH)));
                     continue;
                 }
                 pages.add(Filterable.passThrough(page));

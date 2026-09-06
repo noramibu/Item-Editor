@@ -1,5 +1,6 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'com.diffplug.spotless' version '8.9.0'
 	id 'maven-publish'
 }
 
@@ -12,6 +13,7 @@ base {
 
 repositories {
 	maven { url 'https://maven.wispforest.io' }
+	maven { url 'https://maven.shedaniel.me' }
 	maven { url 'https://jitpack.io' }
 	mavenCentral()
 }
@@ -29,6 +31,12 @@ configurations.configureEach {
 	}
 }
 
+spotless {
+	java {
+		palantirJavaFormat()
+	}
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -36,6 +44,7 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	implementation "io.wispforest:owo-lib:${project.owo_version}"
 	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
+	compileOnly "me.shedaniel:RoughlyEnoughItems-api:${project.rei_version}"
 }
 
 def localTests = file("local-tests.gradle")

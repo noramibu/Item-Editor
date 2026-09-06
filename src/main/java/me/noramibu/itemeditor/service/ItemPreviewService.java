@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -10,9 +12,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public final class ItemPreviewService {
     private static final List<ItemPreviewApplier> APPLIERS = List.of(
             new GeneralPreviewApplier(),
@@ -20,8 +19,7 @@ public final class ItemPreviewService {
             new AttributesPreviewApplier(),
             new EnchantmentsPreviewApplier(),
             new FlagsPreviewApplier(),
-            new BookPreviewApplier()
-    );
+            new BookPreviewApplier());
 
     private final SpecialDataPreviewService specialDataPreviewService = new SpecialDataPreviewService();
 
@@ -29,8 +27,7 @@ public final class ItemPreviewService {
             ItemStack originalStack,
             ItemEditorState state,
             ItemEditorState baselineState,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (state.rawEditorEdited) {
             RawItemDataUtil.ParseResult parsed = RawItemDataUtil.parse(state.rawEditorText, registryAccess);
             return this.buildRawPreviewFromParsed(originalStack, parsed);
@@ -41,36 +38,33 @@ public final class ItemPreviewService {
                 : originalStack.copy();
         if (originalStack.is(Items.ARROW)
                 && (hasText(state.special.potionId)
-                || hasText(state.special.potionCustomColor)
-                || hasText(state.special.potionCustomName)
-                || state.special.potionEffects.stream().anyMatch(effect -> hasText(effect.effectId)))) {
+                        || hasText(state.special.potionCustomColor)
+                        || hasText(state.special.potionCustomName)
+                        || state.special.potionEffects.stream().anyMatch(effect -> hasText(effect.effectId)))) {
             preview = preview.transmuteCopy(Items.TIPPED_ARROW, preview.getCount());
         }
-        Item commandBlockItem = switch (state.special.commandBlockItemId == null ? "" : state.special.commandBlockItemId) {
-            case "minecraft:command_block" -> Items.COMMAND_BLOCK;
-            case "minecraft:chain_command_block" -> Items.CHAIN_COMMAND_BLOCK;
-            case "minecraft:repeating_command_block" -> Items.REPEATING_COMMAND_BLOCK;
-            default -> null;
-        };
+        Item commandBlockItem =
+                switch (state.special.commandBlockItemId == null ? "" : state.special.commandBlockItemId) {
+                    case "minecraft:command_block" -> Items.COMMAND_BLOCK;
+                    case "minecraft:chain_command_block" -> Items.CHAIN_COMMAND_BLOCK;
+                    case "minecraft:repeating_command_block" -> Items.REPEATING_COMMAND_BLOCK;
+                    default -> null;
+                };
         if (commandBlockItem != null && ItemEditorCapabilities.supportsCommandBlockData(originalStack)) {
             preview = preview.transmuteCopy(commandBlockItem, preview.getCount());
         }
         List<ValidationMessage> messages = new ArrayList<>();
 
-        ItemPreviewApplyContext context = new ItemPreviewApplyContext(
-                originalStack,
-                preview,
-                state,
-                baselineState,
-                registryAccess,
-                messages
-        );
+        ItemPreviewApplyContext context =
+                new ItemPreviewApplyContext(originalStack, preview, state, baselineState, registryAccess, messages);
 
         for (ItemPreviewApplier applier : APPLIERS) {
             applier.apply(context);
         }
 
-        this.specialDataPreviewService.applySpecialData(originalStack, preview, state, baselineState, registryAccess, messages);
+        this.specialDataPreviewService.applySpecialData(
+                originalStack, preview, state, baselineState, registryAccess, messages);
+        ComponentRemovalService.apply(preview, state, baselineState);
         boolean unchangedFromOriginal = ItemStack.isSameItemSameComponents(preview, originalStack)
                 && preview.getCount() == originalStack.getCount();
         if (!unchangedFromOriginal) {
@@ -80,15 +74,13 @@ public final class ItemPreviewService {
         return new PreviewBuildResult(preview, messages);
     }
 
-    public PreviewBuildResult buildRawPreviewFromParsed(
-            ItemStack originalStack,
-            RawItemDataUtil.ParseResult parsed
-    ) {
+    public PreviewBuildResult buildRawPreviewFromParsed(ItemStack originalStack, RawItemDataUtil.ParseResult parsed) {
         List<ValidationMessage> messages = new ArrayList<>();
 
         if (!parsed.success()) {
             String message = parsed.hasPosition()
-                    ? ItemEditorText.str("dialog.apply.parse.error_position", parsed.error(), parsed.line(), parsed.column())
+                    ? ItemEditorText.str(
+                            "dialog.apply.parse.error_position", parsed.error(), parsed.line(), parsed.column())
                     : ItemEditorText.str("preview.validation.component_failed", parsed.error());
             messages.add(ValidationMessage.error(message));
             return new PreviewBuildResult(originalStack.copy(), messages);
@@ -107,6 +99,5 @@ public final class ItemPreviewService {
         return value != null && !value.isBlank();
     }
 
-    public record PreviewBuildResult(ItemStack previewStack, List<ValidationMessage> messages) {
-    }
+    public record PreviewBuildResult(ItemStack previewStack, List<ValidationMessage> messages) {}
 }

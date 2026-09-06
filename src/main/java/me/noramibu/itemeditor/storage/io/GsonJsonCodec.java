@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.storage.io;
 
 import com.google.gson.Gson;
-
 import java.io.Reader;
 import java.io.Writer;
 import java.util.Objects;

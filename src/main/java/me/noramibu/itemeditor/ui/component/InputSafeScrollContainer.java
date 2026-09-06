@@ -7,21 +7,25 @@ import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
 
-public class InputSafeScrollContainer<C extends UIComponent> extends ScrollContainer<C> implements GreedyInputUIComponent {
+public class InputSafeScrollContainer<C extends UIComponent> extends ScrollContainer<C>
+        implements GreedyInputUIComponent {
 
     private static final double CONTINUOUS_SCROLL_MULTIPLIER = 15.0d;
     private static final double SCROLL_EPSILON = 1.0e-6d;
     private boolean consumeScrollWhenHovered;
 
-    protected InputSafeScrollContainer(ScrollDirection direction, Sizing horizontalSizing, Sizing verticalSizing, C child) {
+    protected InputSafeScrollContainer(
+            ScrollDirection direction, Sizing horizontalSizing, Sizing verticalSizing, C child) {
         super(direction, horizontalSizing, verticalSizing, child);
     }
 
-    public static <C extends UIComponent> InputSafeScrollContainer<C> vertical(Sizing horizontalSizing, Sizing verticalSizing, C child) {
+    public static <C extends UIComponent> InputSafeScrollContainer<C> vertical(
+            Sizing horizontalSizing, Sizing verticalSizing, C child) {
         return new InputSafeScrollContainer<>(ScrollDirection.VERTICAL, horizontalSizing, verticalSizing, child);
     }
 
-    public static <C extends UIComponent> InputSafeScrollContainer<C> horizontal(Sizing horizontalSizing, Sizing verticalSizing, C child) {
+    public static <C extends UIComponent> InputSafeScrollContainer<C> horizontal(
+            Sizing horizontalSizing, Sizing verticalSizing, C child) {
         return new InputSafeScrollContainer<>(ScrollDirection.HORIZONTAL, horizontalSizing, verticalSizing, child);
     }
 
@@ -75,13 +79,15 @@ public class InputSafeScrollContainer<C extends UIComponent> extends ScrollConta
 
     private double currentGuiMouseX() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth() / (double) minecraft.getWindow().getScreenWidth();
+        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth()
+                / (double) minecraft.getWindow().getScreenWidth();
         return minecraft.mouseHandler.xpos() * scaleX;
     }
 
     private double currentGuiMouseY() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight() / (double) minecraft.getWindow().getScreenHeight();
+        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight()
+                / (double) minecraft.getWindow().getScreenHeight();
         return minecraft.mouseHandler.ypos() * scaleY;
     }
 }

@@ -2,7 +2,11 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
+import java.util.Comparator;
+import java.util.List;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ContainerEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -15,15 +19,17 @@ import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.DispenserBlock;
 import net.minecraft.world.level.block.HopperBlock;
 
-import java.util.Comparator;
-import java.util.List;
-
 public final class ContainerSpecialDataSection {
+
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        return SpecialDataSearch.targets(
+                context, EditorCategory.SPECIAL_DATA, "special.container.title", "container", () -> {}, Field.values());
+    }
+
     private static final int COLUMNS = 9;
     private static final int TEXT_WIDTH_RESERVE = 28;
 
-    private ContainerSpecialDataSection() {
-    }
+    private ContainerSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return ItemEditorCapabilities.supportsContainerData(stack);
@@ -32,6 +38,7 @@ public final class ContainerSpecialDataSection {
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.container.title"), Component.empty());
+        section.id("container");
 
         int editableSlots = editableSlots(context.originalStack());
         int textWidth = Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(TEXT_WIDTH_RESERVE));
@@ -59,30 +66,26 @@ public final class ContainerSpecialDataSection {
 
     private static ButtonComponent openButton(SpecialDataPanelContext context) {
         return UiFactory.button(
-                ItemEditorText.tr("special.container.open_editor"),
-                UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.screen().session().minecraft().setScreenAndShow(new ContainerEditorScreen(
-                        context.screen(),
-                        context.special(),
-                        context.originalStack()
-                ))
-        );
+                Field.OPEN_EDITOR.text(), UiFactory.ButtonTextPreset.COMPACT, ignored -> context.screen()
+                        .session()
+                        .minecraft()
+                        .setScreenAndShow(new ContainerEditorScreen(
+                                context.screen(), context.special(), context.originalStack())));
     }
 
     private static ButtonComponent resetButton(SpecialDataPanelContext context) {
         return UiFactory.button(
-                ItemEditorText.tr("common.reset"),
+                Field.RESET.text(),
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.mutateRefresh(() -> resetFromOriginal(context.special(), context.originalStack()))
-        );
+                ignored -> context.mutateRefresh(() -> resetFromOriginal(context.special(), context.originalStack())));
     }
 
     private static ButtonComponent clearButton(SpecialDataPanelContext context) {
         return UiFactory.button(
-                ItemEditorText.tr("common.clear_all").copy().withColor(0xFF8A8A),
+                Field.CLEAR_ALL.text().copy().withColor(0xFF8A8A),
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.mutateRefresh(() -> context.special().containerEntries.clear())
-        );
+                ignored -> context.mutateRefresh(
+                        () -> context.special().containerEntries.clear()));
     }
 
     private static void resetFromOriginal(ItemEditorState.SpecialData special, ItemStack originalStack) {
@@ -109,11 +112,25 @@ public final class ContainerSpecialDataSection {
     private static int editableSlots(ItemStack stack) {
         int slots = 27;
         if (stack.getItem() instanceof BlockItem blockItem
-                && (blockItem.getBlock() instanceof HopperBlock
-                || blockItem.getBlock() instanceof DispenserBlock)) {
+                && (blockItem.getBlock() instanceof HopperBlock || blockItem.getBlock() instanceof DispenserBlock)) {
             slots = 9;
         }
         return Math.clamp((int) Math.ceil(slots / (double) COLUMNS), 1, 6) * COLUMNS;
     }
 
+    private enum Field implements SpecialDataSearch.Field {
+        OPEN_EDITOR("special.container.open_editor"),
+        RESET("common.reset"),
+        CLEAR_ALL("common.clear_all");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
 }

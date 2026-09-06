@@ -1,5 +1,9 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Consumer;
 import me.noramibu.itemeditor.util.ItemComponentDiffUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -9,11 +13,6 @@ import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Consumer;
-
 public final class PostApplyVerificationService {
 
     private static final int DEFAULT_VERIFY_DELAY_TICKS = 12;
@@ -21,8 +20,7 @@ public final class PostApplyVerificationService {
     private static final List<PendingVerification> PENDING = new ArrayList<>();
     private static boolean initialized;
 
-    private PostApplyVerificationService() {
-    }
+    private PostApplyVerificationService() {}
 
     public static void initialize() {
         if (initialized) {
@@ -32,13 +30,10 @@ public final class PostApplyVerificationService {
         ClientTickEvents.END_CLIENT_TICK.register(PostApplyVerificationService::tick);
     }
 
-    public static void schedule(Minecraft minecraft, ItemStack expectedStack, int slot, Consumer<VerificationResult> callback) {
+    public static void schedule(
+            Minecraft minecraft, ItemStack expectedStack, int slot, Consumer<VerificationResult> callback) {
         if (minecraft == null || slot < 0) {
-            callback.accept(new VerificationResult(
-                    false,
-                    ItemEditorText.str("apply.verify.error"),
-                    List.of()
-            ));
+            callback.accept(new VerificationResult(false, ItemEditorText.str("apply.verify.error"), List.of()));
             return;
         }
 
@@ -78,7 +73,10 @@ public final class PostApplyVerificationService {
         RegistryAccess registryAccess = client.level != null ? client.level.registryAccess() : RegistryAccess.EMPTY;
         ItemComponentDiffUtil.Result diff = ItemComponentDiffUtil.diff(pending.expectedStack, current, registryAccess);
         if (diff.error() != null) {
-            LOGGER.warn("[Item Editor] Post-apply verification failed to compute diff for slot {}: {}", pending.slot, diff.error());
+            LOGGER.warn(
+                    "[Item Editor] Post-apply verification failed to compute diff for slot {}: {}",
+                    pending.slot,
+                    diff.error());
             return new VerificationResult(false, ItemEditorText.str("apply.verify.error"), List.of());
         }
 
@@ -90,18 +88,15 @@ public final class PostApplyVerificationService {
                         "apply.verify.warning",
                         diff.entries() == null || diff.entries().isEmpty()
                                 ? "field unknown"
-                                : "field " + diff.entries().getFirst().key()
-                ),
-                diff.entries()
-        );
+                                : "field " + diff.entries().getFirst().key()),
+                diff.entries());
     }
 
     private static void logDetailedDiff(PendingVerification pending, ItemComponentDiffUtil.Result diff) {
         LOGGER.warn(
                 "[Item Editor] Post-apply verification mismatch: slot={}, differences={}",
                 pending.slot,
-                diff.entries().size()
-        );
+                diff.entries().size());
         for (ItemComponentDiffUtil.Entry entry : diff.entries()) {
             LOGGER.warn(
                     "[Item Editor] - key='{}', type={}, expectedLength={}, serverLength={}\n   expected:\n{}\n   server:\n{}",
@@ -110,8 +105,7 @@ public final class PostApplyVerificationService {
                     safeLength(entry.originalValue()),
                     safeLength(entry.previewValue()),
                     printable(entry.originalValue()),
-                    printable(entry.previewValue())
-            );
+                    printable(entry.previewValue()));
         }
     }
 
@@ -126,8 +120,8 @@ public final class PostApplyVerificationService {
         return value;
     }
 
-    public record VerificationResult(boolean matchesExpected, String message, List<ItemComponentDiffUtil.Entry> entries) {
-    }
+    public record VerificationResult(
+            boolean matchesExpected, String message, List<ItemComponentDiffUtil.Entry> entries) {}
 
     private static final class PendingVerification {
         private final ItemStack expectedStack;

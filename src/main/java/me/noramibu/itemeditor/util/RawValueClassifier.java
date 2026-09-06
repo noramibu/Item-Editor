@@ -5,11 +5,9 @@ import java.util.regex.Pattern;
 
 final class RawValueClassifier {
 
-    private static final Pattern NUMBER_TOKEN_PATTERN =
-            Pattern.compile("^-?(?:\\d+|\\d+\\.\\d+)(?:[bBsSlLfFdD])?$");
+    private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("^-?(?:\\d+|\\d+\\.\\d+)(?:[bBsSlLfFdD])?$");
 
-    private RawValueClassifier() {
-    }
+    private RawValueClassifier() {}
 
     static RawValueMode classify(String value) {
         if (value == null || value.isBlank()) {
@@ -33,5 +31,4 @@ final class RawValueClassifier {
             }
         };
     }
-
 }

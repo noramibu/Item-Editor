@@ -4,8 +4,7 @@ import java.util.List;
 
 public final class ColorInterpolationUtil {
 
-    private ColorInterpolationUtil() {
-    }
+    private ColorInterpolationUtil() {}
 
     public static int interpolateRgb(int startColor, int endColor, float progress) {
         int red = interpolateChannel((startColor >> 16) & 0xFF, (endColor >> 16) & 0xFF, progress);

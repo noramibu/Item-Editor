@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import me.noramibu.itemeditor.util.RawTextScan;
 
 public final class RawSyntaxHighlighter {
     private static final int COLOR_TEXT = 0xFFE7ECF3;
@@ -14,20 +15,10 @@ public final class RawSyntaxHighlighter {
     private static final int COLOR_NULL = 0xFFFDA4AF;
     private static final int COLOR_OPERATOR = 0xFF9CA3AF;
     private static final int[] KEY_DEPTH_COLORS = {
-            0xFF7EC8F8,
-            0xFF67E8F9,
-            0xFF93C5FD,
-            0xFFA5B4FC,
-            0xFFC4B5FD,
-            0xFF6EE7B7
+        0xFF7EC8F8, 0xFF67E8F9, 0xFF93C5FD, 0xFFA5B4FC, 0xFFC4B5FD, 0xFF6EE7B7
     };
     private static final int[] BRACKET_DEPTH_COLORS = {
-            0xFFC4B5FD,
-            0xFF93C5FD,
-            0xFFA7F3D0,
-            0xFF67E8F9,
-            0xFFFDE68A,
-            0xFFF9A8D4
+        0xFFC4B5FD, 0xFF93C5FD, 0xFFA7F3D0, 0xFF67E8F9, 0xFFFDE68A, 0xFFF9A8D4
     };
 
     private final Map<Integer, SyntaxLineCache> cache = new HashMap<>();
@@ -52,7 +43,7 @@ public final class RawSyntaxHighlighter {
         if (safeText.length() > maxChars) {
             return null;
         }
-        int[] starts = lineStarts == null || lineStarts.length == 0 ? new int[]{0} : lineStarts;
+        int[] starts = lineStarts == null || lineStarts.length == 0 ? new int[] {0} : lineStarts;
         int[] depths = new int[starts.length];
         int depth = 0;
         int line = 0;
@@ -143,7 +134,7 @@ public final class RawSyntaxHighlighter {
             }
 
             if (value == '"' || value == '\'') {
-                int end = this.findStringEnd(line, cursor + 1, value);
+                int end = RawTextScan.quotedEnd(line, cursor + 1, value);
                 next = end < 0 ? line.length() : end + 1;
                 String token = line.substring(cursor, next);
                 boolean keyToken = this.isKeyToken(line, next);
@@ -205,13 +196,7 @@ public final class RawSyntaxHighlighter {
                 depth = Math.max(0, depth - 1);
             }
             this.addSpan(
-                    spans,
-                    lineStartOffset,
-                    cursor,
-                    cursor + 1,
-                    SyntaxKind.PLAIN,
-                    this.punctuationColor(value, depth)
-            );
+                    spans, lineStartOffset, cursor, cursor + 1, SyntaxKind.PLAIN, this.punctuationColor(value, depth));
             if (value == '{' || value == '[') {
                 depth++;
             }
@@ -221,13 +206,7 @@ public final class RawSyntaxHighlighter {
     }
 
     private void addSpan(
-            List<SyntaxSpan> spans,
-            int lineStartOffset,
-            int localStart,
-            int localEnd,
-            SyntaxKind kind,
-            int color
-    ) {
+            List<SyntaxSpan> spans, int lineStartOffset, int localStart, int localEnd, SyntaxKind kind, int color) {
         if (localEnd <= localStart) {
             return;
         }
@@ -241,25 +220,6 @@ public final class RawSyntaxHighlighter {
             }
         }
         spans.add(new SyntaxSpan(start, end, kind, color));
-    }
-
-    private int findStringEnd(String line, int start, char quote) {
-        boolean escaping = false;
-        for (int index = start; index < line.length(); index++) {
-            char value = line.charAt(index);
-            if (escaping) {
-                escaping = false;
-                continue;
-            }
-            if (value == '\\') {
-                escaping = true;
-                continue;
-            }
-            if (value == quote) {
-                return index;
-            }
-        }
-        return -1;
     }
 
     private boolean isKeyToken(String line, int tokenEndExclusive) {
@@ -482,12 +442,7 @@ public final class RawSyntaxHighlighter {
         return c == 'b' || c == 's' || c == 'l' || c == 'f' || c == 'd';
     }
 
-    private boolean isTypedArrayTypeToken(
-            String line,
-            String word,
-            int tokenStartInclusive,
-            int tokenEndExclusive
-    ) {
+    private boolean isTypedArrayTypeToken(String line, String word, int tokenStartInclusive, int tokenEndExclusive) {
         if (word.length() != 1) {
             return false;
         }
@@ -577,9 +532,7 @@ public final class RawSyntaxHighlighter {
     }
 
     private static boolean isNonHexChar(char value) {
-        return (value < '0' || value > '9')
-                && (value < 'a' || value > 'f')
-                && (value < 'A' || value > 'F');
+        return (value < '0' || value > '9') && (value < 'a' || value > 'f') && (value < 'A' || value > 'F');
     }
 
     public enum SyntaxKind {
@@ -593,9 +546,7 @@ public final class RawSyntaxHighlighter {
 
     private record SyntaxLineCache(int lineStartOffset, String line, int baseDepth, List<SyntaxSpan> spans) {
         private boolean matches(int lineStartOffset, String line, int baseDepth) {
-            return this.lineStartOffset == lineStartOffset
-                    && this.baseDepth == baseDepth
-                    && this.line.equals(line);
+            return this.lineStartOffset == lineStartOffset && this.baseDepth == baseDepth && this.line.equals(line);
         }
     }
 }

@@ -9,8 +9,7 @@ public final class BookPageLayoutUtil {
     public static final int TEXT_WIDTH = 114;
     public static final int MAX_VISIBLE_LINES = 14;
 
-    private BookPageLayoutUtil() {
-    }
+    private BookPageLayoutUtil() {}
 
     public static PageMetrics measure(RichTextDocument document, Font font, boolean collapseStructuredTokens) {
         var lines = RichTextLayoutUtil.layout(document, font, TEXT_WIDTH, collapseStructuredTokens);
@@ -19,6 +18,5 @@ public final class BookPageLayoutUtil {
         return new PageMetrics(document.plainText().length(), totalLines, overflow);
     }
 
-    public record PageMetrics(int rawLength, int totalLines, boolean overflow) {
-    }
+    public record PageMetrics(int rawLength, int totalLines, boolean overflow) {}
 }

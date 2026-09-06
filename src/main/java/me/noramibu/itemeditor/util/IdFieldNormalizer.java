@@ -1,13 +1,11 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.resources.Identifier;
-
 import java.util.Locale;
+import net.minecraft.resources.Identifier;
 
 public final class IdFieldNormalizer {
 
-    private IdFieldNormalizer() {
-    }
+    private IdFieldNormalizer() {}
 
     public static String normalize(String raw) {
         if (raw == null) {

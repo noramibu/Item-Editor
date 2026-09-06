@@ -2,33 +2,6 @@ package me.noramibu.itemeditor.storage;
 
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.Dynamic;
-import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
-import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
-import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
-import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
-import me.noramibu.itemeditor.storage.model.SavedPageEntry;
-import me.noramibu.itemeditor.storage.search.StorageSearchEngine;
-import me.noramibu.itemeditor.storage.search.StorageSearchParser;
-import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.client.Minecraft;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.datafix.fixes.References;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemLore;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -49,10 +22,37 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
+import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
+import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
+import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
+import me.noramibu.itemeditor.storage.model.SavedPageEntry;
+import me.noramibu.itemeditor.storage.search.StorageSearchEngine;
+import me.noramibu.itemeditor.storage.search.StorageSearchParser;
+import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextComponentUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.datafix.fixes.References;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class SavedItemStorageService {
 
@@ -85,6 +85,7 @@ public final class SavedItemStorageService {
     private final ReentrantReadWriteLock chunkLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock itemCacheLock = new ReentrantReadWriteLock();
     private final Object prefetchStateLock = new Object();
+    private final AtomicLong decodedCacheGeneration = new AtomicLong();
     private final ExecutorService decodeExecutor;
     private final int decodeThreadCount;
     private final ExecutorService prefetchExecutor = newSingleDaemonExecutor("itemeditor-storage-prefetch");
@@ -116,12 +117,11 @@ public final class SavedItemStorageService {
         this.backupService = new StorageItemBackupService(foundation.paths().storageBackupsDirectory());
         this.decodeThreadCount = computeDecodeThreadCount();
         this.decodeExecutor = Executors.newFixedThreadPool(
-                this.decodeThreadCount,
-                runnable -> newDaemonThread(runnable, "itemeditor-storage-decode")
-        );
+                this.decodeThreadCount, runnable -> newDaemonThread(runnable, "itemeditor-storage-decode"));
     }
 
     public Map<String, ItemStack> loadItems(List<SavedIndexItemEntry> entries, RegistryAccess registryAccess) {
+        long cacheGeneration = this.decodedCacheGeneration.get();
         Map<String, ItemStack> loaded = new HashMap<>();
         if (entries == null || entries.isEmpty()) {
             return loaded;
@@ -134,7 +134,8 @@ public final class SavedItemStorageService {
             if (entry == null || entry.id == null || entry.id.isBlank()) {
                 continue;
             }
-            boolean outdated = currentDataVersion > 0 && entry.dataVersion > 0 && entry.dataVersion < currentDataVersion;
+            boolean outdated =
+                    currentDataVersion > 0 && entry.dataVersion > 0 && entry.dataVersion < currentDataVersion;
             ItemStack cached = withReadLock(this.itemCacheLock, () -> {
                 ItemStack fromCache = this.itemCache.get(entry.id);
                 return outdated || fromCache == null ? ItemStack.EMPTY : fromCache.copy();
@@ -163,12 +164,14 @@ public final class SavedItemStorageService {
                     dataVersion,
                     itemTag,
                     key.tagHash(),
-                    key.fingerprint() + "|dv=" + dataVersion
-            ));
+                    key.fingerprint() + "|dv=" + dataVersion));
         }
 
-        Map<String, ItemStack> decoded = this.decodeRequestsParallel(decodeRequests, registryAccess);
+        Map<String, ItemStack> decoded = this.decodeRequestsParallel(decodeRequests, registryAccess, cacheGeneration);
         this.withItemCacheWrite(() -> {
+            if (cacheGeneration != this.decodedCacheGeneration.get()) {
+                return;
+            }
             for (Map.Entry<String, ItemStack> entry : decoded.entrySet()) {
                 ItemStack stack = entry.getValue();
                 if (stack.isEmpty()) {
@@ -179,6 +182,17 @@ public final class SavedItemStorageService {
             }
         });
         return loaded;
+    }
+
+    public void invalidateDecodedItemCaches() {
+        this.decodedCacheGeneration.incrementAndGet();
+        synchronized (this.prefetchStateLock) {
+            this.prefetchGeneration++;
+            this.lastPrefetchedPage = -1;
+            this.lastPrefetchAt = 0L;
+        }
+        this.withItemCacheWrite(this.itemCache::clear);
+        this.runtimeCaches.invalidateDecodedItems();
     }
 
     private void backupPagesBeforeDfu(List<SavedIndexItemEntry> entries) {
@@ -200,7 +214,8 @@ public final class SavedItemStorageService {
         }
     }
 
-    private PageResult page(SavedIndexFileModel index, int requestedPage, StorageSortMode sortMode, boolean reverseSort) {
+    private PageResult page(
+            SavedIndexFileModel index, int requestedPage, StorageSortMode sortMode, boolean reverseSort) {
         this.syncPageMetadata(index);
         if (sortMode != StorageSortMode.REGULAR) {
             List<SavedIndexItemEntry> sorted = new ArrayList<>();
@@ -237,8 +252,7 @@ public final class SavedItemStorageService {
                 pageEntry.id,
                 pageEntry.chunkId,
                 pageEntry.name,
-                pageEntry.namePlain
-        );
+                pageEntry.namePlain);
     }
 
     private PageResult search(
@@ -246,15 +260,9 @@ public final class SavedItemStorageService {
             StorageSearchQuery query,
             int requestedPage,
             StorageSortMode sortMode,
-            boolean reverseSort
-    ) {
+            boolean reverseSort) {
         List<SavedIndexItemEntry> matches = StorageSearchEngine.filterAndSort(
-                index.items,
-                query,
-                sortMode,
-                reverseSort,
-                System.currentTimeMillis()
-        );
+                index.items, query, sortMode, reverseSort, System.currentTimeMillis());
         return this.pagedResult(matches, requestedPage, true);
     }
 
@@ -281,13 +289,13 @@ public final class SavedItemStorageService {
         String targetName = name == null ? "" : name.trim();
         return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
             this.ensureIndexLoaded();
-            SavedPageEntry page = this.ensurePersistentPageByNumber(
-                    this.indexCache,
-                    this.maxStoredPage(this.indexCache) + 1
-            );
+            SavedPageEntry page =
+                    this.ensurePersistentPageByNumber(this.indexCache, this.maxStoredPage(this.indexCache) + 1);
             long now = System.currentTimeMillis();
             page.name = targetName;
-            page.namePlain = targetName.isBlank() ? "" : TextComponentUtil.parseMarkup(targetName).getString();
+            page.namePlain = targetName.isBlank()
+                    ? ""
+                    : TextComponentUtil.parseMarkup(targetName).getString();
             page.createdAt = now;
             page.updatedAt = now;
             this.syncPageMetadata(this.indexCache);
@@ -299,35 +307,32 @@ public final class SavedItemStorageService {
         }));
     }
 
-    public CompletableFuture<ItemStack> loadItemAtAsync(
-            String pageId,
-            int slotInPage,
-            RegistryAccess registryAccess
-    ) {
+    public CompletableFuture<ItemStack> loadItemAtAsync(String pageId, int slotInPage, RegistryAccess registryAccess) {
         String targetPageId = pageId == null ? "" : pageId.trim();
         if (targetPageId.isBlank() || !isValidSlot(slotInPage)) {
             return CompletableFuture.completedFuture(ItemStack.EMPTY);
         }
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
-        return CompletableFuture.supplyAsync(() -> {
-            this.ensureIndexLoaded();
-            SavedIndexItemEntry entry = this.withIndexRead(() -> {
-                SavedIndexItemEntry found = this.findEntryAtSlot(this.indexCache.items, targetPageId, slotInPage);
-                return found == null ? null : copy(found);
-            });
-            if (entry == null) {
-                return ItemStack.EMPTY;
-            }
-            return this.loadItems(List.of(entry), access).getOrDefault(entry.id, ItemStack.EMPTY).copy();
-        }, this.readExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    this.ensureIndexLoaded();
+                    SavedIndexItemEntry entry = this.withIndexRead(() -> {
+                        SavedIndexItemEntry found =
+                                this.findEntryAtSlot(this.indexCache.items, targetPageId, slotInPage);
+                        return found == null ? null : copy(found);
+                    });
+                    if (entry == null) {
+                        return ItemStack.EMPTY;
+                    }
+                    return this.loadItems(List.of(entry), access)
+                            .getOrDefault(entry.id, ItemStack.EMPTY)
+                            .copy();
+                },
+                this.readExecutor);
     }
 
     public CompletableFuture<Boolean> enqueueAddItem(
-            String pageId,
-            int slotInPage,
-            ItemStack stack,
-            RegistryAccess registryAccess
-    ) {
+            String pageId, int slotInPage, ItemStack stack, RegistryAccess registryAccess) {
         String targetPageId = pageId == null ? "" : pageId.trim();
         ItemStack targetStack = stack == null ? ItemStack.EMPTY : stack.copy();
         if (targetPageId.isBlank() || !isValidSlot(slotInPage) || targetStack.isEmpty()) {
@@ -340,11 +345,7 @@ public final class SavedItemStorageService {
             if (page == null || this.findEntryAtSlot(this.indexCache.items, targetPageId, slotInPage) != null) {
                 return false;
             }
-            this.applySlotMutations(
-                    page.order + 1,
-                    List.of(new SlotMutation(slotInPage, null, targetStack)),
-                    access
-            );
+            this.applySlotMutations(page.order + 1, List.of(new SlotMutation(slotInPage, null, targetStack)), access);
             this.flushIndexNow();
             return true;
         }));
@@ -355,10 +356,7 @@ public final class SavedItemStorageService {
      * An empty result means the page is missing; {@code -1} means it is full.
      */
     public CompletableFuture<OptionalInt> enqueueAddToFirstEmptySlot(
-            String pageId,
-            ItemStack stack,
-            RegistryAccess registryAccess
-    ) {
+            String pageId, ItemStack stack, RegistryAccess registryAccess) {
         String targetPageId = pageId == null ? "" : pageId.trim();
         ItemStack targetStack = stack == null ? ItemStack.EMPTY : stack.copy();
         if (targetPageId.isBlank() || targetStack.isEmpty()) {
@@ -375,11 +373,7 @@ public final class SavedItemStorageService {
             if (!isValidSlot(slot)) {
                 return OptionalInt.of(-1);
             }
-            this.applySlotMutations(
-                    page.order + 1,
-                    List.of(new SlotMutation(slot, null, targetStack)),
-                    access
-            );
+            this.applySlotMutations(page.order + 1, List.of(new SlotMutation(slot, null, targetStack)), access);
             this.flushIndexNow();
             return OptionalInt.of(slot);
         }));
@@ -404,9 +398,8 @@ public final class SavedItemStorageService {
                         .toList();
                 this.indexCache.items.removeIf(entry -> entry != null && page.id.equals(entry.pageId));
                 this.withItemCacheWrite(() -> removedIds.forEach(this.itemCache::remove));
-                this.withChunkWrite(() -> this.writeChunk(
-                        new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())
-                ));
+                this.withChunkWrite(
+                        () -> this.writeChunk(new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())));
             }
             this.indexCache.pages.removeIf(candidate -> candidate != null && page.id.equals(candidate.id));
             for (SavedPageEntry candidate : this.indexCache.pages) {
@@ -428,27 +421,29 @@ public final class SavedItemStorageService {
         if (targetPageId.isBlank()) {
             return CompletableFuture.completedFuture(-1);
         }
-        return CompletableFuture.supplyAsync(() -> {
-            this.ensureIndexLoaded();
-            return this.withIndexRead(() -> {
-                int pageIndex = pageIndexById(this.indexCache, targetPageId);
-                if (pageIndex < 0) {
-                    return -1;
-                }
-                SavedPageEntry page = this.indexCache.pages.get(pageIndex);
-                BitSet occupied = this.occupiedSlots(targetPageId);
-                for (Map.Entry<Integer, SlotMutation> pending
-                        : this.pendingMutationsForPage(page.order + 1).entrySet()) {
-                    if (pending.getValue().targetStack().isEmpty()) {
-                        occupied.clear(pending.getKey());
-                    } else {
-                        occupied.set(pending.getKey());
-                    }
-                }
-                int slot = occupied.nextClearBit(0);
-                return slot < StorageConstants.PAGE_SIZE ? slot : -1;
-            });
-        }, this.readExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    this.ensureIndexLoaded();
+                    return this.withIndexRead(() -> {
+                        int pageIndex = pageIndexById(this.indexCache, targetPageId);
+                        if (pageIndex < 0) {
+                            return -1;
+                        }
+                        SavedPageEntry page = this.indexCache.pages.get(pageIndex);
+                        BitSet occupied = this.occupiedSlots(targetPageId);
+                        for (Map.Entry<Integer, SlotMutation> pending :
+                                this.pendingMutationsForPage(page.order + 1).entrySet()) {
+                            if (pending.getValue().targetStack().isEmpty()) {
+                                occupied.clear(pending.getKey());
+                            } else {
+                                occupied.set(pending.getKey());
+                            }
+                        }
+                        int slot = occupied.nextClearBit(0);
+                        return slot < StorageConstants.PAGE_SIZE ? slot : -1;
+                    });
+                },
+                this.readExecutor);
     }
 
     public CompletableFuture<Optional<PageSummary>> findPageByNumberAsync(int pageNumber) {
@@ -468,23 +463,24 @@ public final class SavedItemStorageService {
 
     public CompletableFuture<List<PageSummary>> searchPagesAsync(String query) {
         String normalized = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-        return CompletableFuture.supplyAsync(() -> {
-            this.ensureIndexLoaded();
-            return this.withIndexRead(() -> {
-                List<PageSummary> matches = new ArrayList<>();
-                for (SavedPageEntry page : this.indexCache.pages) {
-                    if (page == null) {
-                        continue;
-                    }
-                    String searchable = (page.name + " " + page.namePlain)
-                            .toLowerCase(Locale.ROOT);
-                    if (normalized.isBlank() || searchable.contains(normalized)) {
-                        matches.add(this.pageSummary(page));
-                    }
-                }
-                return List.copyOf(matches);
-            });
-        }, this.readExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    this.ensureIndexLoaded();
+                    return this.withIndexRead(() -> {
+                        List<PageSummary> matches = new ArrayList<>();
+                        for (SavedPageEntry page : this.indexCache.pages) {
+                            if (page == null) {
+                                continue;
+                            }
+                            String searchable = (page.name + " " + page.namePlain).toLowerCase(Locale.ROOT);
+                            if (normalized.isBlank() || searchable.contains(normalized)) {
+                                matches.add(this.pageSummary(page));
+                            }
+                        }
+                        return List.copyOf(matches);
+                    });
+                },
+                this.readExecutor);
     }
 
     public void enqueueRenamePage(String pageId, int pageNumber, String name) {
@@ -513,7 +509,9 @@ public final class SavedItemStorageService {
                 page.createdAt = now;
             }
             page.name = targetName;
-            page.namePlain = targetName.isBlank() ? "" : TextComponentUtil.parseMarkup(targetName).getString();
+            page.namePlain = targetName.isBlank()
+                    ? ""
+                    : TextComponentUtil.parseMarkup(targetName).getString();
             page.updatedAt = now;
             this.syncPageMetadata(this.indexCache);
             this.markIndexDirty();
@@ -567,32 +565,36 @@ public final class SavedItemStorageService {
                 result.complete(-1);
                 return;
             }
-            SavedPageEntry targetPage = this.ensurePersistentPageByNumber(this.indexCache, this.maxKnownPage(this.indexCache) + 1);
+            SavedPageEntry targetPage =
+                    this.ensurePersistentPageByNumber(this.indexCache, this.maxKnownPage(this.indexCache) + 1);
             long now = System.currentTimeMillis();
             targetPage.name = sourcePage.name;
             targetPage.namePlain = sourcePage.namePlain;
             targetPage.createdAt = now;
             targetPage.updatedAt = now;
 
-            SavedChunkCodec.SavedChunkData targetChunk = new SavedChunkCodec.SavedChunkData(targetPage.chunkId, new HashMap<>());
+            SavedChunkCodec.SavedChunkData targetChunk =
+                    new SavedChunkCodec.SavedChunkData(targetPage.chunkId, new HashMap<>());
             Map<String, SavedChunkCodec.SavedChunkData> sourceChunks = new HashMap<>();
             for (SavedIndexItemEntry entry : new ArrayList<>(this.indexCache.items)) {
                 if (entry == null || !sourcePage.id.equals(entry.pageId)) {
                     continue;
                 }
-                SavedChunkCodec.SavedChunkData sourceChunk = sourceChunks.computeIfAbsent(entry.chunkId, this::readChunk);
-                SavedChunkCodec.SavedChunkEntry sourceEntry = sourceChunk.entries().get(entry.slotInChunk);
+                SavedChunkCodec.SavedChunkData sourceChunk =
+                        sourceChunks.computeIfAbsent(entry.chunkId, this::readChunk);
+                SavedChunkCodec.SavedChunkEntry sourceEntry =
+                        sourceChunk.entries().get(entry.slotInChunk);
                 if (sourceEntry == null) {
                     continue;
                 }
                 int slot = clampSlot(entry.slotInPage);
                 String id = UUID.randomUUID().toString();
-                targetChunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(
-                        id,
-                        now,
-                        now,
-                        sourceEntry.itemTag().copy()
-                ));
+                targetChunk
+                        .entries()
+                        .put(
+                                slot,
+                                new SavedChunkCodec.SavedChunkEntry(
+                                        id, now, now, sourceEntry.itemTag().copy()));
                 SavedIndexItemEntry copied = copy(entry);
                 copied.id = id;
                 copied.pageId = targetPage.id;
@@ -622,10 +624,7 @@ public final class SavedItemStorageService {
         this.enqueueWrite(() -> {
             try {
                 result.complete(this.backupPageSnapshot(
-                        pageNumber,
-                        "storage_page_manual_backup",
-                        "Manually backed up by user"
-                ));
+                        pageNumber, "storage_page_manual_backup", "Manually backed up by user"));
             } catch (RuntimeException exception) {
                 result.completeExceptionally(exception);
                 throw exception;
@@ -635,10 +634,7 @@ public final class SavedItemStorageService {
     }
 
     public CompletableFuture<StorageImportResult> enqueueImportPages(
-            List<ExternalPageImport> pages,
-            RegistryAccess registryAccess,
-            Consumer<StorageImportProgress> progress
-    ) {
+            List<ExternalPageImport> pages, RegistryAccess registryAccess, Consumer<StorageImportProgress> progress) {
         CompletableFuture<StorageImportResult> result = new CompletableFuture<>();
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         List<ExternalPageImport> imports = pages == null ? List.of() : pages;
@@ -656,20 +652,27 @@ public final class SavedItemStorageService {
                         List<ExternalItemImport> items = pageImport == null || pageImport.items() == null
                                 ? List.of()
                                 : pageImport.items().stream()
-                                        .filter(item -> item != null && !item.stack().isEmpty())
+                                        .filter(item ->
+                                                item != null && !item.stack().isEmpty())
                                         .toList();
                         if (items.isEmpty()) {
                             continue;
                         }
                         SavedPageEntry page = this.ensurePersistentPageByNumber(this.indexCache, nextPageNumber++);
-                        page.name = pageImport.name() == null ? "" : pageImport.name().trim();
-                        page.namePlain = page.name.isBlank() ? "" : TextComponentUtil.parseMarkup(page.name).getString();
+                        page.name = pageImport.name() == null
+                                ? ""
+                                : pageImport.name().trim();
+                        page.namePlain = page.name.isBlank()
+                                ? ""
+                                : TextComponentUtil.parseMarkup(page.name).getString();
                         page.createdAt = now;
                         page.updatedAt = now;
-                        SavedChunkCodec.SavedChunkData chunk = new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>());
+                        SavedChunkCodec.SavedChunkData chunk =
+                                new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>());
                         for (ExternalItemImport item : items) {
                             if (importedItems % 18 == 0) {
-                                emitImportProgress(progress, "save_items", importIndex + 1, imports.size(), importedItems);
+                                emitImportProgress(
+                                        progress, "save_items", importIndex + 1, imports.size(), importedItems);
                             }
                             int slot = clampSlot(item.slotInPage());
                             ItemStack stack = item.stack().copy();
@@ -677,9 +680,13 @@ public final class SavedItemStorageService {
                                     ? this.encodeItemTag(stack, access)
                                     : item.itemTag().copy();
                             String id = UUID.randomUUID().toString();
-                            chunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, itemTag.copy()));
-                            SavedIndexItemEntry entry = buildEntry(id, page, slot, now, now, stack, nbtByteSize(itemTag));
-                            entry.dataVersion = item.dataVersion() > 0 ? item.dataVersion() : StorageMetadataUtil.currentDataVersion();
+                            chunk.entries()
+                                    .put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, itemTag.copy()));
+                            SavedIndexItemEntry entry =
+                                    buildEntry(id, page, slot, now, now, stack, nbtByteSize(itemTag));
+                            entry.dataVersion = item.dataVersion() > 0
+                                    ? item.dataVersion()
+                                    : StorageMetadataUtil.currentDataVersion();
                             this.indexCache.items.add(entry);
                             this.onIndexEntryAdded(entry);
                             this.withItemCacheWrite(() -> this.itemCache.put(id, stack.copy()));
@@ -707,12 +714,7 @@ public final class SavedItemStorageService {
     }
 
     private static void emitImportProgress(
-            Consumer<StorageImportProgress> progress,
-            String phase,
-            int current,
-            int total,
-            int items
-    ) {
+            Consumer<StorageImportProgress> progress, String phase, int current, int total, int items) {
         if (progress != null) {
             progress.accept(new StorageImportProgress(phase, current, total, items));
         }
@@ -761,7 +763,8 @@ public final class SavedItemStorageService {
             boolean placeholder = page == null || this.isPlaceholderPage(this.indexCache, page);
             if (!placeholder) {
                 this.indexCache.items.removeIf(entry -> entry != null && page.id.equals(entry.pageId));
-                this.withChunkWrite(() -> this.writeChunk(new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())));
+                this.withChunkWrite(
+                        () -> this.writeChunk(new SavedChunkCodec.SavedChunkData(page.chunkId, new HashMap<>())));
             } else if (targetOrder >= this.maxStoredPage(this.indexCache)) {
                 result.complete(false);
                 return;
@@ -790,11 +793,7 @@ public final class SavedItemStorageService {
         return result;
     }
 
-    public void enqueueApplySlotMutations(
-            int page,
-            List<SlotMutation> mutations,
-            RegistryAccess registryAccess
-    ) {
+    public void enqueueApplySlotMutations(int page, List<SlotMutation> mutations, RegistryAccess registryAccess) {
         if (mutations == null || mutations.isEmpty()) {
             return;
         }
@@ -822,10 +821,7 @@ public final class SavedItemStorageService {
     }
 
     public CompletableFuture<StorageReplaceResult> enqueueReplaceSavedItem(
-            SavedIndexItemEntry originalEntry,
-            ItemStack stack,
-            RegistryAccess registryAccess
-    ) {
+            SavedIndexItemEntry originalEntry, ItemStack stack, RegistryAccess registryAccess) {
         CompletableFuture<StorageReplaceResult> result = new CompletableFuture<>();
         if (originalEntry == null || originalEntry.id == null || originalEntry.id.isBlank()) {
             result.complete(StorageReplaceResult.failure("Original saved entry is missing."));
@@ -844,7 +840,8 @@ public final class SavedItemStorageService {
                 StorageReplaceResult writeResult = this.replaceSavedItemStrict(original, replacement, access);
                 result.complete(writeResult);
             } catch (RuntimeException exception) {
-                result.complete(StorageReplaceResult.failure(exception.getMessage() == null ? "Storage save failed." : exception.getMessage()));
+                result.complete(StorageReplaceResult.failure(
+                        exception.getMessage() == null ? "Storage save failed." : exception.getMessage()));
             }
         });
         return result;
@@ -886,16 +883,13 @@ public final class SavedItemStorageService {
             String queryRaw,
             StorageSortMode sortMode,
             boolean reverseSort,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         int page = Math.max(1, requestedPage);
         String query = queryRaw == null ? "" : queryRaw.trim();
         StorageSortMode mode = sortMode == null ? StorageSortMode.REGULAR : sortMode;
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         return CompletableFuture.supplyAsync(
-                () -> this.loadSnapshot(page, query, mode, reverseSort, access),
-                this.readExecutor
-        );
+                () -> this.loadSnapshot(page, query, mode, reverseSort, access), this.readExecutor);
     }
 
     private static SavedIndexItemEntry buildEntry(
@@ -907,8 +901,7 @@ public final class SavedItemStorageService {
             long savedAt,
             long updatedAt,
             ItemStack stack,
-            int nbtBytes
-    ) {
+            int nbtBytes) {
         SavedIndexItemEntry entry = new SavedIndexItemEntry();
         entry.id = id;
         entry.pageId = pageId == null ? "" : pageId;
@@ -941,19 +934,8 @@ public final class SavedItemStorageService {
             long savedAt,
             long updatedAt,
             ItemStack stack,
-            int nbtBytes
-    ) {
-        return buildEntry(
-                id,
-                page.chunkId,
-                page.id,
-                page.order + 1,
-                slotInChunk,
-                savedAt,
-                updatedAt,
-                stack,
-                nbtBytes
-        );
+            int nbtBytes) {
+        return buildEntry(id, page.chunkId, page.id, page.order + 1, slotInChunk, savedAt, updatedAt, stack, nbtBytes);
     }
 
     private static SavedIndexItemEntry copy(SavedIndexItemEntry source) {
@@ -984,7 +966,8 @@ public final class SavedItemStorageService {
         return -1;
     }
 
-    private @Nullable SavedIndexItemEntry findEntryAtSlot(List<SavedIndexItemEntry> entries, String pageId, int slotInPage) {
+    private @Nullable SavedIndexItemEntry findEntryAtSlot(
+            List<SavedIndexItemEntry> entries, String pageId, int slotInPage) {
         for (SavedIndexItemEntry entry : entries) {
             if (entry == null) {
                 continue;
@@ -1034,8 +1017,7 @@ public final class SavedItemStorageService {
             String queryRaw,
             StorageSortMode sortMode,
             boolean reverseSort,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         this.ensureIndexLoaded();
         String normalizedQuery = queryRaw == null ? "" : queryRaw.trim();
         StorageSortMode mode = sortMode == null ? StorageSortMode.REGULAR : sortMode;
@@ -1048,9 +1030,12 @@ public final class SavedItemStorageService {
         PageCacheKey cacheKey = new PageCacheKey(result.currentPage(), normalizedQuery, mode);
         long signature = SavedChunkCodec.entriesSignature(result.entries());
         Map<String, ItemStack> loadedStacks = this.runtimeCaches.hotPageStacks(cacheKey, signature);
+        long cacheGeneration = this.decodedCacheGeneration.get();
         if (loadedStacks == null) {
             loadedStacks = this.loadItems(result.entries(), registryAccess);
-            this.runtimeCaches.putHotPage(cacheKey, signature, loadedStacks);
+            if (cacheGeneration == this.decodedCacheGeneration.get()) {
+                this.runtimeCaches.putHotPage(cacheKey, signature, loadedStacks);
+            }
         }
         Map<String, ItemStack> snapshotStacks = loadedStacks;
         return this.withIndexRead(() -> {
@@ -1060,11 +1045,7 @@ public final class SavedItemStorageService {
         });
     }
 
-    private void applySlotMutations(
-            int page,
-            List<SlotMutation> mutations,
-            RegistryAccess registryAccess
-    ) {
+    private void applySlotMutations(int page, List<SlotMutation> mutations, RegistryAccess registryAccess) {
         if (mutations.isEmpty()) {
             return;
         }
@@ -1099,7 +1080,8 @@ public final class SavedItemStorageService {
                 for (SlotMutation mutation : latestBySlot.values()) {
                     int slot = clampSlot(mutation.slotInPage);
                     ItemStack targetStack = mutation.targetStack;
-                    SavedIndexItemEntry existing = this.resolveMutationEntry(index.items, targetPageEntry.id, slot, mutation.entryId);
+                    SavedIndexItemEntry existing =
+                            this.resolveMutationEntry(index.items, targetPageEntry.id, slot, mutation.entryId);
 
                     if (targetStack.isEmpty()) {
                         if (existing == null) {
@@ -1127,12 +1109,18 @@ public final class SavedItemStorageService {
                     long now = System.currentTimeMillis();
                     if (existing != null) {
                         SavedChunkCodec.SavedChunkData existingChunk = this.readChunk(existing.chunkId);
-                        SavedChunkCodec.SavedChunkEntry current = existingChunk.entries().get(existing.slotInChunk);
+                        SavedChunkCodec.SavedChunkEntry current =
+                                existingChunk.entries().get(existing.slotInChunk);
                         long savedAt = current == null ? existing.savedAt : current.savedAt();
                         if (savedAt == 0L) {
                             savedAt = now;
                         }
-                        existingChunk.entries().put(existing.slotInChunk, new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
+                        existingChunk
+                                .entries()
+                                .put(
+                                        existing.slotInChunk,
+                                        new SavedChunkCodec.SavedChunkEntry(
+                                                existing.id, savedAt, now, encodedItemTag.copy()));
                         if (existing.chunkId.equals(targetChunkId)) {
                             chunk = existingChunk;
                             chunkChanged = true;
@@ -1147,8 +1135,7 @@ public final class SavedItemStorageService {
                                 savedAt,
                                 now,
                                 targetStack,
-                                encodedNbtBytes
-                        );
+                                encodedNbtBytes);
                         this.replaceEntry(index.items, refreshed);
                         this.withItemCacheWrite(() -> this.itemCache.put(existing.id, targetStack.copy()));
                         indexChanged = true;
@@ -1157,7 +1144,8 @@ public final class SavedItemStorageService {
 
                     String id = UUID.randomUUID().toString();
                     chunk.entries().put(slot, new SavedChunkCodec.SavedChunkEntry(id, now, now, encodedItemTag.copy()));
-                    SavedIndexItemEntry created = buildEntry(id, targetPageEntry, slot, now, now, targetStack, encodedNbtBytes);
+                    SavedIndexItemEntry created =
+                            buildEntry(id, targetPageEntry, slot, now, now, targetStack, encodedNbtBytes);
                     index.items.add(created);
                     this.onIndexEntryAdded(created);
                     this.withItemCacheWrite(() -> this.itemCache.put(id, targetStack.copy()));
@@ -1183,10 +1171,7 @@ public final class SavedItemStorageService {
     }
 
     private StorageReplaceResult replaceSavedItemStrict(
-            SavedIndexItemEntry originalEntry,
-            ItemStack replacement,
-            RegistryAccess registryAccess
-    ) {
+            SavedIndexItemEntry originalEntry, ItemStack replacement, RegistryAccess registryAccess) {
         return this.withIndexWrite(() -> {
             SavedIndexFileModel index = this.indexCache;
             SavedIndexItemEntry existing = this.findEntry(index.items, originalEntry.id);
@@ -1203,30 +1188,32 @@ public final class SavedItemStorageService {
                 int encodedNbtBytes = nbtByteSize(encodedItemTag);
                 long now = System.currentTimeMillis();
                 SavedChunkCodec.SavedChunkData existingChunk = this.readChunk(existing.chunkId);
-                SavedChunkCodec.SavedChunkEntry current = existingChunk.entries().get(existing.slotInChunk);
+                SavedChunkCodec.SavedChunkEntry current =
+                        existingChunk.entries().get(existing.slotInChunk);
                 long savedAt = current == null ? existing.savedAt : current.savedAt();
                 if (savedAt == 0L) {
                     savedAt = now;
                 }
-                existingChunk.entries().put(existing.slotInChunk, new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
+                existingChunk
+                        .entries()
+                        .put(
+                                existing.slotInChunk,
+                                new SavedChunkCodec.SavedChunkEntry(existing.id, savedAt, now, encodedItemTag.copy()));
                 this.writeChunk(existingChunk);
-                SavedIndexItemEntry refreshed = buildEntry(existing.id, pageEntry, existing.slotInChunk, savedAt, now, replacement, encodedNbtBytes);
+                SavedIndexItemEntry refreshed = buildEntry(
+                        existing.id, pageEntry, existing.slotInChunk, savedAt, now, replacement, encodedNbtBytes);
                 this.replaceEntry(index.items, refreshed);
                 this.withItemCacheWrite(() -> this.itemCache.put(existing.id, replacement.copy()));
                 this.markIndexDirty();
                 this.flushIndexIfDue();
                 this.runtimeCaches.invalidateHotPageCache();
             });
-                return StorageReplaceResult.ok();
+            return StorageReplaceResult.ok();
         });
     }
 
     private SavedIndexItemEntry resolveMutationEntry(
-            List<SavedIndexItemEntry> entries,
-            String pageId,
-            int slotInPage,
-            String entryId
-    ) {
+            List<SavedIndexItemEntry> entries, String pageId, int slotInPage, String entryId) {
         if (entryId != null && !entryId.isBlank()) {
             SavedIndexItemEntry byId = this.findEntry(entries, entryId);
             if (byId != null) {
@@ -1281,7 +1268,9 @@ public final class SavedItemStorageService {
                 page.name = DEFAULT_PAGE_NAME;
             }
             if (page.namePlain == null || StorageMetadataUtil.isGeneratedDefaultName(page.namePlain, page.order)) {
-                page.namePlain = page.name.isBlank() ? "" : TextComponentUtil.parseMarkup(page.name).getString();
+                page.namePlain = page.name.isBlank()
+                        ? ""
+                        : TextComponentUtil.parseMarkup(page.name).getString();
             }
         }
         index.pages.sort(Comparator.comparingInt(page -> page.order));
@@ -1298,9 +1287,7 @@ public final class SavedItemStorageService {
             }
             if (page == null) {
                 page = defaultPage(Math.max(0, entry.page - 1));
-                page.chunkId = entry.chunkId == null || entry.chunkId.isBlank()
-                        ? nextChunkId(index)
-                        : entry.chunkId;
+                page.chunkId = entry.chunkId == null || entry.chunkId.isBlank() ? nextChunkId(index) : entry.chunkId;
                 page.id = page.chunkId;
                 index.pages.add(page);
                 byId.put(page.id, page);
@@ -1510,9 +1497,8 @@ public final class SavedItemStorageService {
     }
 
     private void updatePageStatsCache() {
-        int storedPages = this.indexCache == null
-                ? Math.max(0, this.maxTrackedPage)
-                : this.maxStoredPage(this.indexCache);
+        int storedPages =
+                this.indexCache == null ? Math.max(0, this.maxTrackedPage) : this.maxStoredPage(this.indexCache);
         int occupiedPages = this.pageOccupancy.size();
         int emptyPages = Math.max(0, storedPages - occupiedPages);
         this.pageStatsCache = new PageStats(storedPages, occupiedPages, emptyPages);
@@ -1551,8 +1537,7 @@ public final class SavedItemStorageService {
                 savedAt,
                 Math.max(updatedAt, page.updatedAt),
                 virtualPage,
-                virtualPage || this.isPlaceholderPage(index, page)
-        );
+                virtualPage || this.isPlaceholderPage(index, page));
     }
 
     private boolean isPlaceholderPage(SavedIndexFileModel index, SavedPageEntry page) {
@@ -1610,7 +1595,8 @@ public final class SavedItemStorageService {
     private PendingMutationToken registerPendingMutations(int page, List<SlotMutation> mutations) {
         Map<Integer, Long> sequenceBySlot = new HashMap<>();
         synchronized (this.pendingMutationLock) {
-            Map<Integer, PendingSlotMutation> pagePending = this.pendingMutationsByPage.computeIfAbsent(page, ignored -> new HashMap<>());
+            Map<Integer, PendingSlotMutation> pagePending =
+                    this.pendingMutationsByPage.computeIfAbsent(page, ignored -> new HashMap<>());
             for (SlotMutation mutation : mutations) {
                 long sequence = ++this.pendingMutationSequence;
                 int slot = clampSlot(mutation.slotInPage);
@@ -1622,7 +1608,9 @@ public final class SavedItemStorageService {
     }
 
     private void clearPendingMutations(PendingMutationToken token) {
-        if (token == null || token.slotSequences() == null || token.slotSequences().isEmpty()) {
+        if (token == null
+                || token.slotSequences() == null
+                || token.slotSequences().isEmpty()) {
             return;
         }
         synchronized (this.pendingMutationLock) {
@@ -1657,11 +1645,7 @@ public final class SavedItemStorageService {
     }
 
     private PageResult applyPendingOverlay(
-            PageResult base,
-            String queryRaw,
-            StorageSortMode sortMode,
-            Map<String, ItemStack> loadedStacks
-    ) {
+            PageResult base, String queryRaw, StorageSortMode sortMode, Map<String, ItemStack> loadedStacks) {
         if (base == null || sortMode != StorageSortMode.REGULAR || (queryRaw != null && !queryRaw.isBlank())) {
             return base;
         }
@@ -1699,8 +1683,7 @@ public final class SavedItemStorageService {
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
                     stack,
-                    existing == null ? 0 : existing.nbtBytes
-            );
+                    existing == null ? 0 : existing.nbtBytes);
             bySlot.put(slot, overlay);
             loadedStacks.put(id, stack);
         }
@@ -1716,11 +1699,11 @@ public final class SavedItemStorageService {
                 base.pageId(),
                 base.pageChunkId(),
                 base.pageName(),
-                base.pageNamePlain()
-        );
+                base.pageNamePlain());
     }
 
-    private void scheduleNeighborPrefetch(int currentPage, String queryRaw, StorageSortMode sortMode, RegistryAccess registryAccess) {
+    private void scheduleNeighborPrefetch(
+            int currentPage, String queryRaw, StorageSortMode sortMode, RegistryAccess registryAccess) {
         if (sortMode != StorageSortMode.REGULAR || (queryRaw != null && !queryRaw.isBlank())) {
             return;
         }
@@ -1742,7 +1725,8 @@ public final class SavedItemStorageService {
         this.prefetchExecutor.execute(() -> this.prefetchPage(generation, next, access));
     }
 
-    public void prewarmOnOpen(int currentPage, String queryRaw, StorageSortMode sortMode, RegistryAccess registryAccess) {
+    public void prewarmOnOpen(
+            int currentPage, String queryRaw, StorageSortMode sortMode, RegistryAccess registryAccess) {
         if (sortMode != StorageSortMode.REGULAR || (queryRaw != null && !queryRaw.isBlank())) {
             return;
         }
@@ -1764,7 +1748,8 @@ public final class SavedItemStorageService {
             }
         }
         this.ensureIndexLoaded();
-        PageResult result = this.withIndexWrite(() -> this.page(this.indexCache, Math.max(1, page), StorageSortMode.REGULAR, false));
+        PageResult result = this.withIndexWrite(
+                () -> this.page(this.indexCache, Math.max(1, page), StorageSortMode.REGULAR, false));
         synchronized (this.prefetchStateLock) {
             if (generation != this.prefetchGeneration) {
                 return;
@@ -1779,7 +1764,8 @@ public final class SavedItemStorageService {
         return "pending-" + page + "-" + slotInPage;
     }
 
-    private Map<String, ItemStack> decodeRequestsParallel(List<DecodeRequest> requests, RegistryAccess registryAccess) {
+    private Map<String, ItemStack> decodeRequestsParallel(
+            List<DecodeRequest> requests, RegistryAccess registryAccess, long cacheGeneration) {
         Map<String, ItemStack> decoded = new HashMap<>();
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         Map<SavedChunkCodec.DecodeKey, DecodeRequest> uniqueRequests = new HashMap<>();
@@ -1787,11 +1773,11 @@ public final class SavedItemStorageService {
         int currentDataVersion = StorageMetadataUtil.currentDataVersion();
 
         for (DecodeRequest request : requests) {
-            boolean outdated = currentDataVersion > 0 && request.dataVersion() > 0 && request.dataVersion() < currentDataVersion;
+            boolean outdated =
+                    currentDataVersion > 0 && request.dataVersion() > 0 && request.dataVersion() < currentDataVersion;
             SavedChunkCodec.DecodeKey key = new SavedChunkCodec.DecodeKey(
                     request.tagHash(),
-                    outdated ? request.tagFingerprint() + "|entry=" + request.id() : request.tagFingerprint()
-            );
+                    outdated ? request.tagFingerprint() + "|entry=" + request.id() : request.tagFingerprint());
             ItemStack memoized = outdated ? null : this.runtimeCaches.memoizedDecodedStack(key);
             if (memoized != null && !memoized.isEmpty()) {
                 decoded.put(request.id(), memoized);
@@ -1818,13 +1804,13 @@ public final class SavedItemStorageService {
                 SavedChunkCodec.DecodeKey key = entry.getKey();
                 DecodeRequest request = entry.getValue();
                 futures.add(CompletableFuture.supplyAsync(
-                        () -> new DecodedByKey(key, this.decodeItemTag(request, access)),
-                        this.decodeExecutor
-                ));
+                        () -> new DecodedByKey(key, this.decodeItemTag(request, access)), this.decodeExecutor));
             }
             for (CompletableFuture<DecodedByKey> future : futures) {
                 DecodedByKey decodedByKey = future.join();
-                if (decodedByKey != null && decodedByKey.item() != null && !decodedByKey.item().stack().isEmpty()) {
+                if (decodedByKey != null
+                        && decodedByKey.item() != null
+                        && !decodedByKey.item().stack().isEmpty()) {
                     decodedUnique.put(decodedByKey.key(), decodedByKey.item());
                 }
             }
@@ -1834,7 +1820,9 @@ public final class SavedItemStorageService {
             SavedChunkCodec.DecodeKey key = entry.getKey();
             DecodedItem item = entry.getValue();
             ItemStack stack = item.stack();
-            this.runtimeCaches.storeMemoizedDecodedStack(key, stack);
+            if (cacheGeneration == this.decodedCacheGeneration.get()) {
+                this.runtimeCaches.storeMemoizedDecodedStack(key, stack);
+            }
             List<DecodeRequest> groupedRequests = requestsByKey.get(key);
             if (groupedRequests == null) {
                 continue;
@@ -1850,19 +1838,25 @@ public final class SavedItemStorageService {
     }
 
     private static int computeAdaptiveDecodeMemoCacheSize() {
-        int byMemory = MAX_MEMORY_MB >= 4096L ? 384 : MAX_MEMORY_MB >= 2048L ? 256 : MAX_MEMORY_MB >= 1024L ? 128 : MIN_DECODE_MEMO_CACHE_SIZE;
+        int byMemory = MAX_MEMORY_MB >= 4096L
+                ? 384
+                : MAX_MEMORY_MB >= 2048L ? 256 : MAX_MEMORY_MB >= 1024L ? 128 : MIN_DECODE_MEMO_CACHE_SIZE;
         int byCpu = MIN_DECODE_MEMO_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 16);
         return Math.clamp(Math.max(byMemory, byCpu), MIN_DECODE_MEMO_CACHE_SIZE, MAX_DECODE_MEMO_CACHE_SIZE);
     }
 
     private static int computeAdaptiveItemCacheSize() {
-        int byMemory = MAX_MEMORY_MB >= 4096L ? 768 : MAX_MEMORY_MB >= 2048L ? 512 : MAX_MEMORY_MB >= 1024L ? 256 : MIN_ITEM_CACHE_SIZE;
+        int byMemory = MAX_MEMORY_MB >= 4096L
+                ? 768
+                : MAX_MEMORY_MB >= 2048L ? 512 : MAX_MEMORY_MB >= 1024L ? 256 : MIN_ITEM_CACHE_SIZE;
         int byCpu = MIN_ITEM_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 32);
         return Math.clamp(Math.max(byMemory, byCpu), MIN_ITEM_CACHE_SIZE, MAX_ITEM_CACHE_SIZE);
     }
 
     private static int computeAdaptiveChunkCacheSize() {
-        int byMemory = MAX_MEMORY_MB >= 4096L ? 96 : MAX_MEMORY_MB >= 2048L ? 64 : MAX_MEMORY_MB >= 1024L ? 32 : MIN_CHUNK_CACHE_SIZE;
+        int byMemory = MAX_MEMORY_MB >= 4096L
+                ? 96
+                : MAX_MEMORY_MB >= 2048L ? 64 : MAX_MEMORY_MB >= 1024L ? 32 : MIN_CHUNK_CACHE_SIZE;
         int byCpu = MIN_CHUNK_CACHE_SIZE + ((Math.min(AVAILABLE_CPUS, 8) - 1) * 4);
         return Math.clamp(Math.max(byMemory, byCpu), MIN_CHUNK_CACHE_SIZE, MAX_CHUNK_CACHE_SIZE);
     }
@@ -1948,10 +1942,8 @@ public final class SavedItemStorageService {
     private void writeChunk(SavedChunkCodec.SavedChunkData chunk) {
         CompoundTag root = SavedChunkCodec.toTag(chunk);
         long now = System.currentTimeMillis();
-        boolean shouldFsync = this.withChunkWrite(() ->
-                this.unsyncedChunkWrites >= (MAX_UNSYNCED_CHUNK_WRITES - 1)
-                        || (now - this.lastChunkFsyncAt) >= CHUNK_FSYNC_INTERVAL_MS
-        );
+        boolean shouldFsync = this.withChunkWrite(() -> this.unsyncedChunkWrites >= (MAX_UNSYNCED_CHUNK_WRITES - 1)
+                || (now - this.lastChunkFsyncAt) >= CHUNK_FSYNC_INTERVAL_MS);
         AtomicFileUtil.writeNbt(this.foundation.paths().chunkFile(chunk.chunkId()), root, shouldFsync);
         this.withChunkWrite(() -> {
             if (shouldFsync) {
@@ -1965,12 +1957,14 @@ public final class SavedItemStorageService {
     }
 
     private CompoundTag encodeItemTag(ItemStack stack, RegistryAccess registryAccess) {
-        DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
+        DataResult<Tag> encoded =
+                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
         Tag tag = encoded.result().orElse(null);
         if (tag instanceof CompoundTag compound) {
             return compound;
         }
-        throw new IllegalStateException(encoded.error().map(DataResult.Error::message).orElse("Failed to encode item stack"));
+        throw new IllegalStateException(
+                encoded.error().map(DataResult.Error::message).orElse("Failed to encode item stack"));
     }
 
     private DecodedItem decodeItemTag(DecodeRequest request, RegistryAccess registryAccess) {
@@ -1995,15 +1989,16 @@ public final class SavedItemStorageService {
                         itemTag,
                         sourceDataVersion,
                         currentDataVersion,
-                        "Automatically backed up prior to running DFU"
-                );
+                        "Automatically backed up prior to running DFU");
                 try {
-                    Tag fixed = Minecraft.getInstance().getFixerUpper().update(
-                            References.ITEM_STACK,
-                            new Dynamic<>(NbtOps.INSTANCE, itemTag.copy()),
-                            sourceDataVersion,
-                            currentDataVersion
-                    ).getValue();
+                    Tag fixed = Minecraft.getInstance()
+                            .getFixerUpper()
+                            .update(
+                                    References.ITEM_STACK,
+                                    new Dynamic<>(NbtOps.INSTANCE, itemTag.copy()),
+                                    sourceDataVersion,
+                                    currentDataVersion)
+                            .getValue();
                     if (fixed instanceof CompoundTag fixedCompound) {
                         decodeTag = fixedCompound;
                     } else {
@@ -2013,8 +2008,7 @@ public final class SavedItemStorageService {
                                         + Math.max(1, request.page())
                                         + ", slot "
                                         + Math.max(1, request.slotInPage() + 1),
-                                ChatFormatting.RED
-                        );
+                                ChatFormatting.RED);
                         LOGGER.warn(
                                 "[Item Editor] Stored item DFU returned invalid data [page={}] [slot={}] [item={}] [fromDv={}] [toDv={}]{}",
                                 Math.max(1, request.page()),
@@ -2022,8 +2016,7 @@ public final class SavedItemStorageService {
                                 itemId(itemTag),
                                 sourceDataVersion,
                                 currentDataVersion,
-                                backupLogSuffix(preUpdateBackup)
-                        );
+                                backupLogSuffix(preUpdateBackup));
                         return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
                     }
                 } catch (RuntimeException exception) {
@@ -2033,8 +2026,7 @@ public final class SavedItemStorageService {
                                     + Math.max(1, request.page())
                                     + ", slot "
                                     + Math.max(1, request.slotInPage() + 1),
-                            ChatFormatting.RED
-                    );
+                            ChatFormatting.RED);
                     LOGGER.warn(
                             "[Item Editor] Stored item DFU failed [page={}] [slot={}] [item={}] [fromDv={}] [toDv={}] [reason={}]{}",
                             Math.max(1, request.page()),
@@ -2043,15 +2035,12 @@ public final class SavedItemStorageService {
                             sourceDataVersion,
                             currentDataVersion,
                             errorMessage(exception),
-                            backupLogSuffix(preUpdateBackup)
-                    );
+                            backupLogSuffix(preUpdateBackup));
                     return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
                 }
             }
-            DataResult<ItemStack> decoded = ItemStack.CODEC.parse(
-                    registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                    decodeTag
-            );
+            DataResult<ItemStack> decoded =
+                    ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), decodeTag);
             ItemStack stack = decoded.result().map(ItemStack::copy).orElse(ItemStack.EMPTY);
             if (stack.isEmpty()) {
                 String reason = decoded.error().map(DataResult.Error::message).orElse("decode failed");
@@ -2063,25 +2052,23 @@ public final class SavedItemStorageService {
                                 itemTag,
                                 sourceDataVersion,
                                 currentDataVersion,
-                                reason
-                        );
+                                reason);
                 this.removeFailedStorageItem(request);
                 this.notifyStorageDfu(
                         "Removed saved item after decode failed: page "
                                 + Math.max(1, request.page())
                                 + ", slot "
                                 + Math.max(1, request.slotInPage() + 1),
-                        ChatFormatting.RED
-                );
-                decoded.error().ifPresent(error -> LOGGER.warn(
-                        "[Item Editor] Stored item decode failed [page={}] [slot={}] [item={}] [dv={}] [reason={}]{}",
-                        Math.max(1, request.page()),
-                        Math.max(1, request.slotInPage() + 1),
-                        itemId(itemTag),
-                        sourceDataVersion,
-                        error.message(),
-                        backupLogSuffix(backup)
-                ));
+                        ChatFormatting.RED);
+                decoded.error()
+                        .ifPresent(error -> LOGGER.warn(
+                                "[Item Editor] Stored item decode failed [page={}] [slot={}] [item={}] [dv={}] [reason={}]{}",
+                                Math.max(1, request.page()),
+                                Math.max(1, request.slotInPage() + 1),
+                                itemId(itemTag),
+                                sourceDataVersion,
+                                error.message(),
+                                backupLogSuffix(backup)));
                 return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
             }
             if (!outdated) {
@@ -2094,8 +2081,7 @@ public final class SavedItemStorageService {
                                 + ", slot "
                                 + Math.max(1, request.slotInPage() + 1)
                                 + backupChatSuffix(preUpdateBackup),
-                        ChatFormatting.YELLOW
-                );
+                        ChatFormatting.YELLOW);
                 releaseDfuUpdateKey = false;
                 return new DecodedItem(stack, this.encodeItemTag(stack, registryAccess), currentDataVersion);
             } catch (RuntimeException exception) {
@@ -2105,8 +2091,7 @@ public final class SavedItemStorageService {
                                 + Math.max(1, request.page())
                                 + ", slot "
                                 + Math.max(1, request.slotInPage() + 1),
-                        ChatFormatting.RED
-                );
+                        ChatFormatting.RED);
                 LOGGER.warn(
                         "[Item Editor] Updated stored item re-encode failed [page={}] [slot={}] [item={}] [fromDv={}] [reason={}]{}",
                         Math.max(1, request.page()),
@@ -2114,8 +2099,7 @@ public final class SavedItemStorageService {
                         itemId(itemTag),
                         sourceDataVersion,
                         errorMessage(exception),
-                        ""
-                );
+                        "");
                 return new DecodedItem(ItemStack.EMPTY, null, sourceDataVersion);
             }
         } finally {
@@ -2144,15 +2128,14 @@ public final class SavedItemStorageService {
                 if (chunkEntry == null || !Objects.equals(chunkEntry.id(), entry.id)) {
                     return;
                 }
-                chunk.entries().put(
-                        entry.slotInChunk,
-                        new SavedChunkCodec.SavedChunkEntry(
-                                chunkEntry.id(),
-                                chunkEntry.savedAt(),
-                                chunkEntry.updatedAt(),
-                                upgradedItemTag.copy()
-                        )
-                );
+                chunk.entries()
+                        .put(
+                                entry.slotInChunk,
+                                new SavedChunkCodec.SavedChunkEntry(
+                                        chunkEntry.id(),
+                                        chunkEntry.savedAt(),
+                                        chunkEntry.updatedAt(),
+                                        upgradedItemTag.copy()));
                 entry.dataVersion = dataVersion;
                 entry.nbtBytes = nbtByteSize(upgradedItemTag);
                 this.writeChunk(chunk);
@@ -2197,7 +2180,8 @@ public final class SavedItemStorageService {
         }
         minecraft.execute(() -> {
             if (minecraft.player != null) {
-                minecraft.player.sendSystemMessage(Component.literal(ItemEditorText.prefixedMessage(message)).withStyle(color));
+                minecraft.player.sendSystemMessage(Component.literal(ItemEditorText.prefixedMessage(message))
+                        .withStyle(color));
             }
         });
     }
@@ -2206,11 +2190,7 @@ public final class SavedItemStorageService {
         if (request == null) {
             return "";
         }
-        return request.id()
-                + "|"
-                + sourceDataVersion
-                + "->"
-                + targetDataVersion;
+        return request.id() + "|" + sourceDataVersion + "->" + targetDataVersion;
     }
 
     private String backupStorageItem(
@@ -2219,29 +2199,31 @@ public final class SavedItemStorageService {
             CompoundTag itemTag,
             int sourceDataVersion,
             int targetDataVersion,
-            String message
-    ) {
+            String message) {
         if (request == null || itemTag == null) {
             return "";
         }
-        Path backup = this.backupService.backup(new StorageItemBackupService.BackupEvent(
-                "item",
-                reason,
-                "storage",
-                Math.max(1, request.page()),
-                Math.max(1, request.slotInPage() + 1),
-                request.chunkId(),
-                request.slotInChunk(),
-                request.id(),
-                sourceDataVersion,
-                targetDataVersion,
-                request.tagFingerprint(),
-                "",
-                -1,
-                -1,
-                message
-        ), itemTag);
-        return backup == null || backup.getFileName() == null ? "" : backup.getFileName().toString();
+        Path backup = this.backupService.backup(
+                new StorageItemBackupService.BackupEvent(
+                        "item",
+                        reason,
+                        "storage",
+                        Math.max(1, request.page()),
+                        Math.max(1, request.slotInPage() + 1),
+                        request.chunkId(),
+                        request.slotInChunk(),
+                        request.id(),
+                        sourceDataVersion,
+                        targetDataVersion,
+                        request.tagFingerprint(),
+                        "",
+                        -1,
+                        -1,
+                        message),
+                itemTag);
+        return backup == null || backup.getFileName() == null
+                ? ""
+                : backup.getFileName().toString();
     }
 
     private static String backupLogSuffix(String backupFile) {
@@ -2257,23 +2239,24 @@ public final class SavedItemStorageService {
             this.ensureIndexLoaded();
             SavedPageEntry page = this.pageByNumberOrVirtual(this.indexCache, pageNumber);
             CompoundTag pageTag = this.pageBackupTag(this.indexCache, page, note);
-            return this.backupService.backup(new StorageItemBackupService.BackupEvent(
-                    "pages",
-                    reason,
-                    "storage_page",
-                    page.order + 1,
-                    -1,
-                    page.chunkId,
-                    -1,
-                    page.id,
-                    this.pageSourceDataVersion(page),
-                    StorageMetadataUtil.currentDataVersion(),
-                    "",
-                    "",
-                    -1,
-                    -1,
-                    note
-            ), pageTag);
+            return this.backupService.backup(
+                    new StorageItemBackupService.BackupEvent(
+                            "pages",
+                            reason,
+                            "storage_page",
+                            page.order + 1,
+                            -1,
+                            page.chunkId,
+                            -1,
+                            page.id,
+                            this.pageSourceDataVersion(page),
+                            StorageMetadataUtil.currentDataVersion(),
+                            "",
+                            "",
+                            -1,
+                            -1,
+                            note),
+                    pageTag);
         });
     }
 
@@ -2363,27 +2346,24 @@ public final class SavedItemStorageService {
     }
 
     private CompletableFuture<Optional<PageSummary>> findPageAsync(Predicate<SavedPageEntry> predicate) {
-        return CompletableFuture.supplyAsync(() -> {
-            this.ensureIndexLoaded();
-            return this.withIndexRead(() -> {
-                for (SavedPageEntry page : this.indexCache.pages) {
-                    if (page != null && predicate.test(page)) {
-                        return Optional.of(this.pageSummary(page));
-                    }
-                }
-                return Optional.empty();
-            });
-        }, this.readExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    this.ensureIndexLoaded();
+                    return this.withIndexRead(() -> {
+                        for (SavedPageEntry page : this.indexCache.pages) {
+                            if (page != null && predicate.test(page)) {
+                                return Optional.of(this.pageSummary(page));
+                            }
+                        }
+                        return Optional.empty();
+                    });
+                },
+                this.readExecutor);
     }
 
     private PageSummary pageSummary(SavedPageEntry page) {
         return new PageSummary(
-                page.id,
-                page.order + 1,
-                page.name,
-                page.namePlain,
-                this.pageOccupancy.getOrDefault(page.order + 1, 0)
-        );
+                page.id, page.order + 1, page.name, page.namePlain, this.pageOccupancy.getOrDefault(page.order + 1, 0));
     }
 
     public record PageResult(
@@ -2395,12 +2375,9 @@ public final class SavedItemStorageService {
             String pageId,
             String pageChunkId,
             String pageName,
-            String pageNamePlain
-    ) {
-    }
+            String pageNamePlain) {}
 
-    public record PageStats(int storedPages, int occupiedPages, int emptyPages) {
-    }
+    public record PageStats(int storedPages, int occupiedPages, int emptyPages) {}
 
     public record PageInfo(
             String id,
@@ -2413,50 +2390,30 @@ public final class SavedItemStorageService {
             long savedAt,
             long updatedAt,
             boolean virtualPage,
-            boolean placeholderPage
-    ) {
-    }
+            boolean placeholderPage) {}
 
-    public record PageSummary(String id, int pageNumber, String name, String namePlain, int itemCount) {
-    }
+    public record PageSummary(String id, int pageNumber, String name, String namePlain, int itemCount) {}
 
-    public record PageSnapshot(PageResult result, Map<String, ItemStack> loadedStacks, PageStats stats) {
-    }
+    public record PageSnapshot(PageResult result, Map<String, ItemStack> loadedStacks, PageStats stats) {}
 
-    public record SlotMutation(
-            int slotInPage,
-            @Nullable String entryId,
-            ItemStack targetStack
-    ) {
+    public record SlotMutation(int slotInPage, @Nullable String entryId, ItemStack targetStack) {
         public SlotMutation {
             targetStack = Objects.requireNonNullElse(targetStack, ItemStack.EMPTY);
         }
     }
 
-    public record ExternalPageImport(String name, List<ExternalItemImport> items) {
-    }
+    public record ExternalPageImport(String name, List<ExternalItemImport> items) {}
 
     public record ExternalItemImport(
-            int slotInPage,
-            ItemStack stack,
-            @Nullable CompoundTag itemTag,
-            int dataVersion
-    ) {
+            int slotInPage, ItemStack stack, @Nullable CompoundTag itemTag, int dataVersion) {
         public ExternalItemImport {
             stack = Objects.requireNonNullElse(stack, ItemStack.EMPTY);
         }
     }
 
-    public record StorageImportResult(int pages, int items) {
-    }
+    public record StorageImportResult(int pages, int items) {}
 
-    public record StorageImportProgress(
-            String phase,
-            int current,
-            int total,
-            int items
-    ) {
-    }
+    public record StorageImportProgress(String phase, int current, int total, int items) {}
 
     public record StorageReplaceResult(boolean success, String message) {
         public static StorageReplaceResult ok() {
@@ -2464,7 +2421,8 @@ public final class SavedItemStorageService {
         }
 
         public static StorageReplaceResult failure(String message) {
-            return new StorageReplaceResult(false, message == null || message.isBlank() ? "Storage save failed." : message);
+            return new StorageReplaceResult(
+                    false, message == null || message.isBlank() ? "Storage save failed." : message);
         }
     }
 
@@ -2477,28 +2435,17 @@ public final class SavedItemStorageService {
             int dataVersion,
             CompoundTag itemTag,
             int tagHash,
-            String tagFingerprint
-    ) {
-    }
+            String tagFingerprint) {}
 
-    private record DecodedItem(
-            ItemStack stack,
-            @Nullable CompoundTag upgradedItemTag,
-            int dataVersion
-    ) {
-    }
+    private record DecodedItem(ItemStack stack, @Nullable CompoundTag upgradedItemTag, int dataVersion) {}
 
-    private record DecodedByKey(SavedChunkCodec.DecodeKey key, DecodedItem item) {
-    }
+    private record DecodedByKey(SavedChunkCodec.DecodeKey key, DecodedItem item) {}
 
-    private record PageCacheKey(int page, String query, StorageSortMode sortMode) {
-    }
+    private record PageCacheKey(int page, String query, StorageSortMode sortMode) {}
 
-    private record PendingSlotMutation(long sequence, SlotMutation mutation) {
-    }
+    private record PendingSlotMutation(long sequence, SlotMutation mutation) {}
 
-    private record PendingMutationToken(int page, Map<Integer, Long> slotSequences) {
-    }
+    private record PendingMutationToken(int page, Map<Integer, Long> slotSequences) {}
 
     private static <K, V> Map<K, V> lruCache(int maxSize) {
         int safeMax = Math.max(1, maxSize);

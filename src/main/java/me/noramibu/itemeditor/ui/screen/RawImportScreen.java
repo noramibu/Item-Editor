@@ -54,20 +54,34 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
 
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("raw_import.title")).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(this.returnScreen)));
+        header.child(UiFactory.button(
+                ItemEditorText.tr("common.cancel"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.minecraft.setScreenAndShow(this.returnScreen)));
         shell.child(header);
 
         this.editor = new RawTextAreaComponent(Sizing.fill(100), Sizing.expand(100), "");
         shell.child(this.editor);
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
+        this.statusLabel =
+                UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
         shell.child(this.statusLabel);
 
         FlowLayout actions = UiFactory.row();
-        actions.child(UiFactory.button(ItemEditorText.tr("common.save_apply"), UiFactory.ButtonTextPreset.STANDARD, button -> this.importText()));
-        actions.child(UiFactory.button(ItemEditorText.tr("dialog.apply.raw.format"), UiFactory.ButtonTextPreset.STANDARD, button -> this.formatText()));
-        actions.child(UiFactory.button(ItemEditorText.tr("dialog.apply.raw.minify"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minifyText()));
-        actions.child(UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreenAndShow(this.returnScreen)));
+        actions.child(UiFactory.button(
+                ItemEditorText.tr("common.save"), UiFactory.ButtonTextPreset.STANDARD, button -> this.importText()));
+        actions.child(UiFactory.button(
+                ItemEditorText.tr("dialog.apply.raw.format"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.formatText()));
+        actions.child(UiFactory.button(
+                ItemEditorText.tr("dialog.apply.raw.minify"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.editor.text(RawItemDataUtil.minify(this.editor.getValue()))));
+        actions.child(UiFactory.button(
+                ItemEditorText.tr("common.cancel"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.minecraft.setScreenAndShow(this.returnScreen)));
         shell.child(actions);
 
         UiFactory.centerInRoot(root, shell, 8);
@@ -83,7 +97,8 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void importText() {
-        RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
+        RawItemDataUtil.ParseResult parsed =
+                this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
             this.setStatus(ItemEditorText.tr("import.parse_failed", parsed.error()), UiColors.DANGER);
             this.editor.setErrorLocation(parsed.line(), parsed.column(), 1);
@@ -97,17 +112,14 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void formatText() {
-        RawItemDataUtil.ParseResult parsed = this.importService.parseText(this.editor.getValue(), this.registryAccess());
+        RawItemDataUtil.ParseResult parsed =
+                this.importService.parseText(this.editor.getValue(), this.registryAccess());
         if (!parsed.success()) {
             this.setStatus(ItemEditorText.tr("import.parse_failed", parsed.error()), UiColors.DANGER);
             return;
         }
         this.editor.text(RawItemDataUtil.serialize(parsed.stack(), this.registryAccess()));
         this.setStatus(ItemEditorText.tr("raw_editor.status.valid"), UiColors.SUCCESS);
-    }
-
-    private void minifyText() {
-        this.editor.text(RawItemDataUtil.minify(this.editor.getValue()));
     }
 
     private void setStatus(Component message, int color) {

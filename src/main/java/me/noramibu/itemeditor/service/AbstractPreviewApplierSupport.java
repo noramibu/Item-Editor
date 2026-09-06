@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -11,9 +13,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 
-import java.util.ArrayList;
-import java.util.List;
-
 abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
 
     protected final void putOptionalIntTag(
@@ -23,8 +22,7 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
             String fieldName,
             int min,
             int max,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         String normalized = raw.trim();
         if (normalized.isBlank()) {
             tag.remove(key);
@@ -38,29 +36,18 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
     }
 
     protected final Holder<MobEffect> resolvePotionEffectOrReport(
-            Registry<MobEffect> effectRegistry,
-            String effectId,
-            List<ValidationMessage> messages
-    ) {
+            Registry<MobEffect> effectRegistry, String effectId, List<ValidationMessage> messages) {
         Holder<MobEffect> effect = RegistryUtil.resolveHolder(effectRegistry, effectId);
         if (effect == null) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.potion.effect_id"),
-                    effectId
-            )));
+                    "validation.registry_missing", ItemEditorText.str("special.potion.effect_id"), effectId)));
         }
         return effect;
     }
 
     protected final Integer parsePotionDuration(String rawDuration, List<ValidationMessage> messages) {
         Integer duration = ValidationUtil.parseInt(
-                rawDuration,
-                ItemEditorText.str("special.potion.duration"),
-                -1,
-                Integer.MAX_VALUE,
-                messages
-        );
+                rawDuration, ItemEditorText.str("special.potion.duration"), -1, Integer.MAX_VALUE, messages);
         if (duration == null) {
             return null;
         }
@@ -73,15 +60,13 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
                 ItemEditorText.str("special.potion.amplifier"),
                 0,
                 MobEffectInstance.MAX_AMPLIFIER,
-                messages
-        );
+                messages);
     }
 
     protected final List<MobEffectInstance> parsePotionEffectInstances(
             List<ItemEditorState.PotionEffectDraft> drafts,
             Registry<MobEffect> effectRegistry,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         List<MobEffectInstance> effects = new ArrayList<>();
         for (ItemEditorState.PotionEffectDraft draft : drafts) {
             if (draft.effectId == null || draft.effectId.isBlank()) {
@@ -105,8 +90,7 @@ abstract class AbstractPreviewApplierSupport extends PreviewServiceSupport {
                     amplifier,
                     draft.ambient,
                     parseOptionalTrueBoolean(draft.visible),
-                    parseOptionalTrueBoolean(draft.showIcon)
-            ));
+                    parseOptionalTrueBoolean(draft.showIcon)));
         }
         return effects;
     }

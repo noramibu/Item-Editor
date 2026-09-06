@@ -1,13 +1,11 @@
 package me.noramibu.itemeditor.ui.panel;
 
-import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 
 public final class PanelBindings {
 
-    private PanelBindings() {
-    }
+    private PanelBindings() {}
 
     public static void mutate(ItemEditorScreen screen, Runnable mutation) {
         screen.session().state().rawEditorEdited = false;

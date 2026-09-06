@@ -1,6 +1,12 @@
 package me.noramibu.itemeditor.util;
 
 import com.mojang.serialization.DataResult;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeSet;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
@@ -8,17 +14,9 @@ import net.minecraft.nbt.SnbtPrinterTagVisitor;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeSet;
-
 public final class ItemComponentDiffUtil {
 
-    private ItemComponentDiffUtil() {
-    }
+    private ItemComponentDiffUtil() {}
 
     public static Result diff(ItemStack original, ItemStack preview, RegistryAccess registryAccess) {
         Snapshot originalSnapshot = snapshot(original, registryAccess);
@@ -34,12 +32,7 @@ public final class ItemComponentDiffUtil {
         List<Entry> entries = new ArrayList<>();
 
         if (!Objects.equals(originalSnapshot.itemId(), previewSnapshot.itemId())) {
-            entries.add(new Entry(
-                    EntryType.CHANGED,
-                    "id",
-                    originalSnapshot.itemId(),
-                    previewSnapshot.itemId()
-            ));
+            entries.add(new Entry(EntryType.CHANGED, "id", originalSnapshot.itemId(), previewSnapshot.itemId()));
         }
 
         if (originalSnapshot.count() != previewSnapshot.count()) {
@@ -47,8 +40,7 @@ public final class ItemComponentDiffUtil {
                     EntryType.CHANGED,
                     "count",
                     Integer.toString(originalSnapshot.count()),
-                    Integer.toString(previewSnapshot.count())
-            ));
+                    Integer.toString(previewSnapshot.count())));
         }
 
         TreeSet<String> keys = new TreeSet<>();
@@ -75,14 +67,13 @@ public final class ItemComponentDiffUtil {
     }
 
     private static Snapshot snapshot(ItemStack stack, RegistryAccess registryAccess) {
-        DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                stack
-        );
+        DataResult<Tag> encoded =
+                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
 
         Tag root = encoded.result().orElse(null);
         if (!(root instanceof CompoundTag compound)) {
-            String error = encoded.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"));
+            String error =
+                    encoded.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"));
             return new Snapshot("", 0, Map.of(), ItemEditorText.str("raw.serialize_failed", error));
         }
 
@@ -107,12 +98,9 @@ public final class ItemComponentDiffUtil {
         CHANGED
     }
 
-    public record Entry(EntryType type, String key, String originalValue, String previewValue) {
-    }
+    public record Entry(EntryType type, String key, String originalValue, String previewValue) {}
 
-    public record Result(List<Entry> entries, String error) {
-    }
+    public record Result(List<Entry> entries, String error) {}
 
-    private record Snapshot(String itemId, int count, Map<String, String> components, String error) {
-    }
+    private record Snapshot(String itemId, int count, Map<String, String> components, String error) {}
 }

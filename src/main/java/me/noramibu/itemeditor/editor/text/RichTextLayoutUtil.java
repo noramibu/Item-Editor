@@ -1,15 +1,14 @@
 package me.noramibu.itemeditor.editor.text;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 public final class RichTextLayoutUtil {
     private static final String TOKEN_PREFIX = "[ie:";
@@ -21,15 +20,10 @@ public final class RichTextLayoutUtil {
     private static final float OBJECT_LAYOUT_MIN_WIDTH = 8f;
     private static final float EVENT_TOKEN_WRAP_WIDTH = 0f;
 
-    private RichTextLayoutUtil() {
-    }
+    private RichTextLayoutUtil() {}
 
     public static List<LineLayout> layout(
-            RichTextDocument document,
-            Font font,
-            int maxWidth,
-            boolean collapseStructuredTokens
-    ) {
+            RichTextDocument document, Font font, int maxWidth, boolean collapseStructuredTokens) {
         Objects.requireNonNull(document, "document");
         Objects.requireNonNull(font, "font");
 
@@ -41,8 +35,7 @@ public final class RichTextLayoutUtil {
                     safeWidth,
                     (text, index) -> styledCodePointWidth(document, font, text, index),
                     document::sliceToComponent,
-                    false
-            );
+                    false);
         }
 
         return layoutStructuredSourceInternal(
@@ -52,8 +45,7 @@ public final class RichTextLayoutUtil {
                 (fullText, tokenStart, tokenLength) -> objectTokenWidth(fullText, tokenStart, tokenLength, font),
                 true,
                 true,
-                document::sliceToComponent
-        );
+                document::sliceToComponent);
     }
 
     public static List<LineLayout> layoutDocumentSource(
@@ -61,8 +53,7 @@ public final class RichTextLayoutUtil {
             Font font,
             int maxWidth,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         Objects.requireNonNull(document, "document");
         Objects.requireNonNull(font, "font");
         if (!renderStructuredEvents && !renderStructuredObjects) {
@@ -71,8 +62,7 @@ public final class RichTextLayoutUtil {
                     Math.max(1, maxWidth),
                     (text, index) -> styledCodePointWidth(document, font, text, index),
                     document::sliceToComponent,
-                    true
-            );
+                    true);
         }
         return layoutSourceInternal(
                 document.plainText(),
@@ -82,13 +72,7 @@ public final class RichTextLayoutUtil {
                 renderStructuredEvents,
                 renderStructuredObjects,
                 (start, end) -> renderedDocumentComponentForRange(
-                        document,
-                        start,
-                        end,
-                        renderStructuredEvents,
-                        renderStructuredObjects
-                )
-        );
+                        document, start, end, renderStructuredEvents, renderStructuredObjects));
     }
 
     public static LogicalMetrics logicalMetricsForEventPayload(String sourceText) {
@@ -227,8 +211,7 @@ public final class RichTextLayoutUtil {
             int selectionStart,
             int selectionEnd,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         if (line == null || selectionEnd <= line.start() || selectionStart >= line.end()) {
             return List.of();
         }
@@ -253,8 +236,7 @@ public final class RichTextLayoutUtil {
             LineLayout line,
             int cursor,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         if (line == null) {
             return 0f;
         }
@@ -280,8 +262,7 @@ public final class RichTextLayoutUtil {
             LineLayout line,
             double x,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         if (line == null) {
             return 0;
         }
@@ -322,13 +303,11 @@ public final class RichTextLayoutUtil {
             LineLayout line,
             int cursor,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         if (line == null) {
             return new SourceRange(0, 0);
         }
-        List<VisualUnit> units = visualUnits(sourceText, line, renderStructuredEvents, renderStructuredObjects)
-                .stream()
+        List<VisualUnit> units = visualUnits(sourceText, line, renderStructuredEvents, renderStructuredObjects).stream()
                 .filter(unit -> !unit.hidden())
                 .toList();
         if (units.isEmpty()) {
@@ -363,7 +342,9 @@ public final class RichTextLayoutUtil {
         int startIndex = selectedUnitIndex;
         while (startIndex > 0) {
             VisualUnit previous = units.get(startIndex - 1);
-            if (previous.atomic() || previous.end() != units.get(startIndex).start() || isWordBoundaryCodePoint(codePointAtUnit(sourceText, previous))) {
+            if (previous.atomic()
+                    || previous.end() != units.get(startIndex).start()
+                    || isWordBoundaryCodePoint(codePointAtUnit(sourceText, previous))) {
                 break;
             }
             startIndex--;
@@ -372,13 +353,16 @@ public final class RichTextLayoutUtil {
         int endIndex = selectedUnitIndex;
         while (endIndex + 1 < units.size()) {
             VisualUnit next = units.get(endIndex + 1);
-            if (next.atomic() || units.get(endIndex).end() != next.start() || isWordBoundaryCodePoint(codePointAtUnit(sourceText, next))) {
+            if (next.atomic()
+                    || units.get(endIndex).end() != next.start()
+                    || isWordBoundaryCodePoint(codePointAtUnit(sourceText, next))) {
                 break;
             }
             endIndex++;
         }
 
-        return new SourceRange(units.get(startIndex).start(), units.get(endIndex).end());
+        return new SourceRange(
+                units.get(startIndex).start(), units.get(endIndex).end());
     }
 
     private static List<LineLayout> layoutSourceInternal(
@@ -388,8 +372,7 @@ public final class RichTextLayoutUtil {
             ObjectTokenWidthResolver objectTokenWidthResolver,
             boolean renderStructuredEvents,
             boolean renderStructuredObjects,
-            LineComponentFactory componentFactory
-    ) {
+            LineComponentFactory componentFactory) {
         int safeWidth = Math.max(1, maxWidth);
         return layoutStructuredSourceInternal(
                 sourceText,
@@ -398,8 +381,7 @@ public final class RichTextLayoutUtil {
                 objectTokenWidthResolver,
                 renderStructuredEvents,
                 renderStructuredObjects,
-                componentFactory
-        );
+                componentFactory);
     }
 
     private static List<LineLayout> layoutRawSourceInternal(
@@ -407,16 +389,14 @@ public final class RichTextLayoutUtil {
             int wrapWidth,
             CodePointWidthMeasurer codePointWidthMeasurer,
             LineComponentFactory componentFactory,
-            boolean structuredTokenWrapCost
-    ) {
+            boolean structuredTokenWrapCost) {
         return layoutLogicalLines(
                 sourceText,
                 wrapWidth,
                 componentFactory,
                 (text, start, end) -> structuredTokenWrapCost
                         ? buildRawUnitsWithStructuredTokenWrapCost(text, start, end, codePointWidthMeasurer)
-                        : buildRawUnits(text, start, end, codePointWidthMeasurer)
-        );
+                        : buildRawUnits(text, start, end, codePointWidthMeasurer));
     }
 
     private static List<LineLayout> layoutStructuredSourceInternal(
@@ -426,8 +406,7 @@ public final class RichTextLayoutUtil {
             ObjectTokenWidthResolver objectTokenWidthResolver,
             boolean renderStructuredEvents,
             boolean renderStructuredObjects,
-            LineComponentFactory componentFactory
-    ) {
+            LineComponentFactory componentFactory) {
         return layoutLogicalLines(
                 sourceText,
                 wrapWidth,
@@ -439,17 +418,11 @@ public final class RichTextLayoutUtil {
                         codePointWidthMeasurer,
                         objectTokenWidthResolver,
                         renderStructuredEvents,
-                        renderStructuredObjects
-                )
-        );
+                        renderStructuredObjects));
     }
 
     private static List<LineLayout> layoutLogicalLines(
-            String sourceText,
-            int wrapWidth,
-            LineComponentFactory componentFactory,
-            LineUnitBuilder unitBuilder
-    ) {
+            String sourceText, int wrapWidth, LineComponentFactory componentFactory, LineUnitBuilder unitBuilder) {
         String text = sourceText == null ? "" : sourceText;
         if (text.isEmpty()) {
             return List.of(emptyLine(0, 1));
@@ -483,15 +456,12 @@ public final class RichTextLayoutUtil {
     }
 
     private static LineLayout emptyLine(int position, int logicalLineNumber) {
-        return new LineLayout(position, position, Component.empty(), new int[]{position}, new float[]{0f}, logicalLineNumber);
+        return new LineLayout(
+                position, position, Component.empty(), new int[] {position}, new float[] {0f}, logicalLineNumber);
     }
 
     private static List<Unit> buildRawUnits(
-            String sourceText,
-            int start,
-            int end,
-            CodePointWidthMeasurer codePointWidthMeasurer
-    ) {
+            String sourceText, int start, int end, CodePointWidthMeasurer codePointWidthMeasurer) {
         List<Unit> units = new ArrayList<>();
         addRawUnits(sourceText, start, end, codePointWidthMeasurer, units, 1f, true);
         return units;
@@ -504,32 +474,22 @@ public final class RichTextLayoutUtil {
             CodePointWidthMeasurer codePointWidthMeasurer,
             List<Unit> units,
             float layoutScale,
-            boolean allowWrapBreaks
-    ) {
+            boolean allowWrapBreaks) {
         for (int index = start; index < end; ) {
             index = addMeasuredUnit(sourceText, index, codePointWidthMeasurer, units, layoutScale, allowWrapBreaks);
         }
     }
 
     private static List<Unit> buildRawUnitsWithStructuredTokenWrapCost(
-            String sourceText,
-            int start,
-            int end,
-            CodePointWidthMeasurer codePointWidthMeasurer
-    ) {
+            String sourceText, int start, int end, CodePointWidthMeasurer codePointWidthMeasurer) {
         return buildUnitsWithStructuredTokenHandler(
-                sourceText,
-                start,
-                end,
-                codePointWidthMeasurer,
-                (text, tokenStart, tokenEnd, measurer, units) -> {
+                sourceText, start, end, codePointWidthMeasurer, (text, tokenStart, tokenEnd, measurer, units) -> {
                     if (!isEventTokenTokenBody(text, tokenStart, tokenEnd)) {
                         return tokenStart;
                     }
                     addRawUnits(text, tokenStart, tokenEnd, measurer, units, EVENT_TOKEN_WRAP_WIDTH, false);
                     return tokenEnd;
-                }
-        );
+                });
     }
 
     private static List<Unit> buildUnitsWithStructuredTokenHandler(
@@ -537,8 +497,7 @@ public final class RichTextLayoutUtil {
             int start,
             int end,
             CodePointWidthMeasurer codePointWidthMeasurer,
-            StructuredTokenUnitHandler tokenHandler
-    ) {
+            StructuredTokenUnitHandler tokenHandler) {
         List<Unit> units = new ArrayList<>();
         for (int index = start; index < end; ) {
             SourceRange tokenRange = structuredTokenRange(sourceText, index, end);
@@ -562,20 +521,15 @@ public final class RichTextLayoutUtil {
             CodePointWidthMeasurer codePointWidthMeasurer,
             ObjectTokenWidthResolver objectTokenWidthResolver,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         return buildUnitsWithStructuredTokenHandler(
-                sourceText,
-                start,
-                end,
-                codePointWidthMeasurer,
-                (text, tokenStart, tokenEnd, measurer, units) -> {
+                sourceText, start, end, codePointWidthMeasurer, (text, tokenStart, tokenEnd, measurer, units) -> {
                     int tokenLength = tokenEnd - tokenStart;
                     boolean objectToken = TextComponentUtil.objectTokenLengthAt(text, tokenStart) > 0;
                     boolean eventToken = isEventTokenTokenBody(text, tokenStart, tokenEnd);
 
-                    boolean rendered = (objectToken && renderStructuredObjects)
-                            || (eventToken && renderStructuredEvents);
+                    boolean rendered =
+                            (objectToken && renderStructuredObjects) || (eventToken && renderStructuredEvents);
                     boolean hiddenEvent = eventToken && renderStructuredEvents;
 
                     if (!rendered) {
@@ -587,15 +541,13 @@ public final class RichTextLayoutUtil {
                     if (objectToken) {
                         width = Math.max(
                                 OBJECT_LAYOUT_MIN_WIDTH,
-                                Math.max(1f, objectTokenWidthResolver.width(text, tokenStart, tokenLength))
-                        );
+                                Math.max(1f, objectTokenWidthResolver.width(text, tokenStart, tokenLength)));
                     } else {
                         width = 0f;
                     }
                     units.add(new Unit(tokenStart, tokenEnd, width, width, !hiddenEvent));
                     return tokenEnd;
-                }
-        );
+                });
     }
 
     private static int addMeasuredUnit(
@@ -604,8 +556,7 @@ public final class RichTextLayoutUtil {
             CodePointWidthMeasurer codePointWidthMeasurer,
             List<Unit> units,
             float layoutScale,
-            boolean allowWrapBreaks
-    ) {
+            boolean allowWrapBreaks) {
         int codePoint = sourceText.codePointAt(index);
         int next = visualClusterEnd(sourceText, index);
         float width = 0f;
@@ -647,8 +598,7 @@ public final class RichTextLayoutUtil {
             int wrapWidth,
             LineComponentFactory componentFactory,
             List<LineLayout> out,
-            int logicalLineNumber
-    ) {
+            int logicalLineNumber) {
         if (units.isEmpty()) {
             return;
         }
@@ -686,8 +636,7 @@ public final class RichTextLayoutUtil {
             int unitStart,
             int unitEndExclusive,
             LineComponentFactory componentFactory,
-            int logicalLineNumber
-    ) {
+            int logicalLineNumber) {
         Unit first = units.get(unitStart);
         Unit last = units.get(unitEndExclusive - 1);
         int start = first.start();
@@ -708,13 +657,7 @@ public final class RichTextLayoutUtil {
         }
 
         return new LineLayout(
-                start,
-                end,
-                componentFactory.component(start, end),
-                positions,
-                boundaries,
-                logicalLineNumber
-        );
+                start, end, componentFactory.component(start, end), positions, boundaries, logicalLineNumber);
     }
 
     private static boolean isEventTokenTokenBody(String sourceText, int tokenStart, int tokenEndExclusive) {
@@ -729,12 +672,7 @@ public final class RichTextLayoutUtil {
     }
 
     private static Component renderedComponentForRange(
-            String sourceText,
-            int start,
-            int end,
-            boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            String sourceText, int start, int end, boolean renderStructuredEvents, boolean renderStructuredObjects) {
         String text = sourceText == null ? "" : sourceText;
         int safeStart = Math.clamp(start, 0, text.length());
         int safeEnd = Math.clamp(end, safeStart, text.length());
@@ -746,10 +684,7 @@ public final class RichTextLayoutUtil {
         }
         String prefix = legacyFormattingPrefixBefore(text, safeStart);
         return TextComponentUtil.parseMarkup(
-                prefix + text.substring(safeStart, safeEnd),
-                renderStructuredEvents,
-                renderStructuredObjects
-        );
+                prefix + text.substring(safeStart, safeEnd), renderStructuredEvents, renderStructuredObjects);
     }
 
     public static Component renderedDocumentComponentForRange(
@@ -757,24 +692,21 @@ public final class RichTextLayoutUtil {
             int start,
             int end,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         String sourceText = document.plainText();
         MutableComponent root = Component.empty();
-        int offset = 0;
-        for (RichTextDocument.Segment segment : document.segments()) {
+        int firstSegment = document.segmentIndexAt(start);
+        int offset = document.segmentStart(firstSegment);
+        List<RichTextDocument.Segment> segments = document.segments();
+        for (int index = firstSegment; index < segments.size(); index++) {
+            RichTextDocument.Segment segment = segments.get(index);
             int segmentStart = offset;
             int segmentEnd = offset + segment.text().length();
             int overlapStart = Math.max(start, segmentStart);
             int overlapEnd = Math.min(end, segmentEnd);
             if (overlapStart < overlapEnd) {
                 Component parsed = renderedComponentForRange(
-                        sourceText,
-                        overlapStart,
-                        overlapEnd,
-                        renderStructuredEvents,
-                        renderStructuredObjects
-                );
+                        sourceText, overlapStart, overlapEnd, renderStructuredEvents, renderStructuredObjects);
                 root.append(copyWithBaseStyle(parsed, segment.style().toStyle()));
             }
             offset = segmentEnd;
@@ -897,7 +829,7 @@ public final class RichTextLayoutUtil {
         if (codePoint == '\n') {
             return 0f;
         }
-        return font.width(Character.toString(codePoint));
+        return font.getSplitter().stringWidth(Character.toString(codePoint));
     }
 
     private static float styledCodePointWidth(RichTextDocument document, Font font, String sourceText, int index) {
@@ -908,11 +840,13 @@ public final class RichTextLayoutUtil {
         if (codePoint == '\n') {
             return 0f;
         }
-        RichTextStyle style = document.insertionStyleAt(index);
+        RichTextStyle style =
+                document.segments().get(document.segmentIndexAt(index)).style();
         if (RichTextStyle.EMPTY.equals(style)) {
             return rawCodePointWidth(font, codePoint);
         }
-        return font.width(Component.literal(Character.toString(codePoint)).withStyle(style.toStyle()));
+        return font.getSplitter()
+                .stringWidth(Component.literal(Character.toString(codePoint)).withStyle(style.toStyle()));
     }
 
     private static float objectTokenWidth(String fullText, int tokenStart, int tokenLength, Font font) {
@@ -927,11 +861,7 @@ public final class RichTextLayoutUtil {
     }
 
     private static List<VisualUnit> visualUnits(
-            String sourceText,
-            LineLayout line,
-            boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            String sourceText, LineLayout line, boolean renderStructuredEvents, boolean renderStructuredObjects) {
         if (line == null || line.end() <= line.start()) {
             return List.of();
         }
@@ -951,25 +881,13 @@ public final class RichTextLayoutUtil {
                 boolean eventToken = isEventTokenTokenBody(text, cursor, tokenEnd);
                 if (eventToken && renderStructuredEvents) {
                     units.add(new VisualUnit(
-                            cursor,
-                            tokenEnd,
-                            line.xForPosition(cursor),
-                            line.xForPosition(tokenEnd),
-                            true,
-                            false
-                    ));
+                            cursor, tokenEnd, line.xForPosition(cursor), line.xForPosition(tokenEnd), true, false));
                     cursor = tokenEnd;
                     continue;
                 }
                 if (objectToken && renderStructuredObjects) {
                     units.add(new VisualUnit(
-                            cursor,
-                            tokenEnd,
-                            line.xForPosition(cursor),
-                            line.xForPosition(tokenEnd),
-                            false,
-                            true
-                    ));
+                            cursor, tokenEnd, line.xForPosition(cursor), line.xForPosition(tokenEnd), false, true));
                     cursor = tokenEnd;
                     continue;
                 }
@@ -983,8 +901,7 @@ public final class RichTextLayoutUtil {
                     line.xForPosition(cursor),
                     line.xForPosition(next),
                     false,
-                    next > cursor + codePointLength
-            ));
+                    next > cursor + codePointLength));
             cursor = next;
         }
         return List.copyOf(units);
@@ -1065,22 +982,18 @@ public final class RichTextLayoutUtil {
         return end;
     }
 
-    private record Unit(int start, int end, float layoutWidth, float visualWidth, boolean breakAfter) {
-    }
+    private record Unit(int start, int end, float layoutWidth, float visualWidth, boolean breakAfter) {}
 
-    private record EventState(String openToken) {
-    }
+    private record EventState(String openToken) {}
 
-    private record VisualUnit(int start, int end, float startX, float endX, boolean hidden, boolean atomic) {
-    }
+    private record VisualUnit(int start, int end, float startX, float endX, boolean hidden, boolean atomic) {}
 
-    public record VisualSpan(float startX, float endX) {
-    }
+    public record VisualSpan(float startX, float endX) {}
 
-    public record SourceRange(int start, int end) {
-    }
+    public record SourceRange(int start, int end) {}
 
-    public record LineLayout(int start, int end, Component component, int[] positions, float[] boundaries, int logicalLineNumber) {
+    public record LineLayout(
+            int start, int end, Component component, int[] positions, float[] boundaries, int logicalLineNumber) {
 
         public LineLayout(int start, int end, Component component, int[] positions, float[] boundaries) {
             this(start, end, component, positions, boundaries, 1);
@@ -1101,11 +1014,9 @@ public final class RichTextLayoutUtil {
         }
     }
 
-    public record LogicalMetrics(int charCount, int lineCount) {
-    }
+    public record LogicalMetrics(int charCount, int lineCount) {}
 
-    public record EventOverlayRange(int start, int end, String openToken) {
-    }
+    public record EventOverlayRange(int start, int end, String openToken) {}
 
     @FunctionalInterface
     private interface CodePointWidthMeasurer {
@@ -1134,7 +1045,6 @@ public final class RichTextLayoutUtil {
                 int tokenStart,
                 int tokenEnd,
                 CodePointWidthMeasurer codePointWidthMeasurer,
-                List<Unit> units
-        );
+                List<Unit> units);
     }
 }

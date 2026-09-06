@@ -1,8 +1,7 @@
 package me.noramibu.itemeditor.storage;
 
-import net.minecraft.client.Minecraft;
-
 import java.nio.file.Path;
+import net.minecraft.client.Minecraft;
 
 public record StoragePaths(Path root) {
 

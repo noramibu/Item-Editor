@@ -1,6 +1,8 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -12,14 +14,11 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.List;
 
 public final class ImportedItemsScreen extends ContainerScreen {
     private static final int COLUMNS = 9;
@@ -40,12 +39,7 @@ public final class ImportedItemsScreen extends ContainerScreen {
     }
 
     private ImportedItemsScreen(Minecraft minecraft, Screen returnScreen, ImportedItemsData data) {
-        this(
-                minecraft,
-                returnScreen,
-                data.items(),
-                data.rows()
-        );
+        this(minecraft, returnScreen, data.items(), data.rows());
     }
 
     private ImportedItemsScreen(Minecraft minecraft, Screen returnScreen, List<ItemStack> importedItems, int rows) {
@@ -58,9 +52,11 @@ public final class ImportedItemsScreen extends ContainerScreen {
             List<ItemStack> importedItems,
             int rows,
             SimpleContainer container,
-            Inventory inventory
-    ) {
-        super(new ChestMenu(menuType(rows), 0, inventory, container, rows), inventory, ItemEditorText.tr("imported_items.title"));
+            Inventory inventory) {
+        super(
+                new ChestMenu(UiFactory.chestMenuType(rows), 0, inventory, container, rows),
+                inventory,
+                ItemEditorText.tr("imported_items.title"));
         this.minecraft = minecraft;
         this.returnScreen = returnScreen;
         this.importedItems = importedItems;
@@ -95,8 +91,7 @@ public final class ImportedItemsScreen extends ContainerScreen {
                 ItemEditorText.tr("imported_items.page", this.page + 1, this.maxPage() + 1, this.importedItems.size()),
                 this.leftPos + 8,
                 this.topPos + 6,
-                0xD5DEE8
-        );
+                0xD5DEE8);
     }
 
     @Override
@@ -136,7 +131,11 @@ public final class ImportedItemsScreen extends ContainerScreen {
     private void fillPage() {
         for (int slot = 0; slot < this.pageSize; slot++) {
             int itemIndex = this.page * this.pageSize + slot;
-            this.container.setItem(slot, itemIndex < this.importedItems.size() ? this.importedItems.get(itemIndex).copy() : ItemStack.EMPTY);
+            this.container.setItem(
+                    slot,
+                    itemIndex < this.importedItems.size()
+                            ? this.importedItems.get(itemIndex).copy()
+                            : ItemStack.EMPTY);
         }
         this.container.setChanged();
         this.menu.broadcastChanges();
@@ -162,17 +161,6 @@ public final class ImportedItemsScreen extends ContainerScreen {
         return Math.max(0, (int) Math.ceil(this.importedItems.size() / (double) this.pageSize) - 1);
     }
 
-    private static MenuType<?> menuType(int rows) {
-        return switch (rows) {
-            case 1 -> MenuType.GENERIC_9x1;
-            case 2 -> MenuType.GENERIC_9x2;
-            case 3 -> MenuType.GENERIC_9x3;
-            case 4 -> MenuType.GENERIC_9x4;
-            case 5 -> MenuType.GENERIC_9x5;
-            default -> MenuType.GENERIC_9x6;
-        };
-    }
-
     private static Inventory requireInventory() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
@@ -181,6 +169,5 @@ public final class ImportedItemsScreen extends ContainerScreen {
         return minecraft.player.getInventory();
     }
 
-    private record ImportedItemsData(List<ItemStack> items, int rows) {
-    }
+    private record ImportedItemsData(List<ItemStack> items, int rows) {}
 }

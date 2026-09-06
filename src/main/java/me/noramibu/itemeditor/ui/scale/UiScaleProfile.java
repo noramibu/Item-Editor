@@ -15,6 +15,4 @@ public record UiScaleProfile(
         int fieldTextWidth,
         int bodyTextWidth,
         int scrollbarThickness,
-        int scrollStep
-) {
-}
+        int scrollStep) {}

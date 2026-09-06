@@ -1,18 +1,17 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 public final class ClientInventorySyncService {
 
-    private ClientInventorySyncService() {
-    }
+    private ClientInventorySyncService() {}
 
     public static Map<Integer, ItemStack> snapshot(Minecraft minecraft) {
         Map<Integer, ItemStack> snapshot = new HashMap<>();
@@ -60,6 +59,34 @@ public final class ClientInventorySyncService {
         return false;
     }
 
+    public static boolean dropStack(Minecraft minecraft, ItemStack stack) {
+        if (minecraft == null || minecraft.player == null || stack == null || stack.isEmpty()) {
+            return false;
+        }
+        ItemStack copy = stack.copy();
+        var singleplayerServer = minecraft.getSingleplayerServer();
+        if (singleplayerServer != null) {
+            UUID playerId = minecraft.player.getUUID();
+            singleplayerServer.execute(() -> {
+                ServerPlayer serverPlayer = singleplayerServer.getPlayerList().getPlayer(playerId);
+                if (serverPlayer != null) {
+                    serverPlayer.drop(copy, false, true);
+                }
+            });
+            return true;
+        }
+        var connection = minecraft.getConnection();
+        if (minecraft.gameMode == null
+                || connection == null
+                || !minecraft.player.hasInfiniteMaterials()
+                || !connection.isFeatureEnabled(copy.getItem().requiredFeatures())) {
+            return false;
+        }
+        connection.send(new ServerboundSetCreativeModeSlotPacket(-1, copy));
+        minecraft.player.getDropSpamThrottler().increment();
+        return true;
+    }
+
     public static boolean syncSlot(Minecraft minecraft, int slot, ItemStack stack) {
         if (minecraft == null || minecraft.player == null || slot < 0 || slot >= Inventory.INVENTORY_SIZE) {
             return false;
@@ -81,9 +108,7 @@ public final class ClientInventorySyncService {
         }
         if (minecraft.gameMode != null && minecraft.player.hasInfiniteMaterials()) {
             minecraft.gameMode.handleCreativeModeItemAdd(
-                    copy,
-                    slot < Inventory.getSelectionSize() ? Inventory.INVENTORY_SIZE + slot : slot
-            );
+                    copy, slot < Inventory.getSelectionSize() ? Inventory.INVENTORY_SIZE + slot : slot);
             return true;
         }
         return false;

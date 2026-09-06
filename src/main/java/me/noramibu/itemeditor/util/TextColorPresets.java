@@ -1,11 +1,10 @@
 package me.noramibu.itemeditor.util;
 
+import java.util.ArrayList;
+import java.util.List;
 import me.noramibu.itemeditor.storage.ColorPresetService;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public final class TextColorPresets {
 
@@ -25,11 +24,9 @@ public final class TextColorPresets {
             new Preset("builtin:red", "&c", 0xFF5555),
             new Preset("builtin:purple", "&d", 0xFF55FF),
             new Preset("builtin:yellow", "&e", 0xFFFF55),
-            new Preset("builtin:white", "&f", 0xFFFFFF)
-    );
+            new Preset("builtin:white", "&f", 0xFFFFFF));
 
-    private TextColorPresets() {
-    }
+    private TextColorPresets() {}
 
     public static List<CustomColorPreset> customColorPresets() {
         return ColorPresetService.instance().customColorPresets();
@@ -109,10 +106,11 @@ public final class TextColorPresets {
 
         int codePointCount = text.codePointCount(0, text.length());
         int colorIndex = 0;
-        for (int index = 0; index < text.length();) {
+        for (int index = 0; index < text.length(); ) {
             int codePoint = text.codePointAt(index);
             float progress = codePointCount == 1 ? 0f : (float) colorIndex / (codePointCount - 1);
-            root.append(Component.literal(Character.toString(codePoint)).withColor(ColorInterpolationUtil.interpolateRgb(gradientColors, progress)));
+            root.append(Component.literal(Character.toString(codePoint))
+                    .withColor(ColorInterpolationUtil.interpolateRgb(gradientColors, progress)));
             colorIndex++;
             index += Character.charCount(codePoint);
         }
@@ -133,9 +131,7 @@ public final class TextColorPresets {
 
     public static String gradientSummary(List<Integer> colors) {
         List<Integer> normalized = normalizeGradientStops(colors);
-        StringBuilder builder = new StringBuilder()
-                .append(normalized.size())
-                .append(" colors: ");
+        StringBuilder builder = new StringBuilder().append(normalized.size()).append(" colors: ");
         for (int index = 0; index < normalized.size(); index++) {
             if (index > 0) {
                 builder.append(" -> ");
@@ -174,11 +170,9 @@ public final class TextColorPresets {
         return "Shadow " + gradientSummary(normalized);
     }
 
-    public record Preset(String id, String label, int rgb) {
-    }
+    public record Preset(String id, String label, int rgb) {}
 
-    public record CustomColorPreset(String id, String name, int rgb) {
-    }
+    public record CustomColorPreset(String id, String name, int rgb) {}
 
     public record CustomGradientPreset(String id, String name, List<Integer> colors) {
         public CustomGradientPreset {

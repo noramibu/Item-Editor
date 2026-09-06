@@ -2,12 +2,6 @@ package me.noramibu.itemeditor.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
-import net.minecraft.nbt.CompoundTag;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,6 +13,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
+import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
+import net.minecraft.nbt.CompoundTag;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class StorageItemBackupService {
 
@@ -50,14 +49,15 @@ public final class StorageItemBackupService {
             LOGGER.warn(
                     "[Item Editor] Failed to write item backup [reason={}] [error={}]",
                     event.reason(),
-                    exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()
-            );
+                    exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage());
             return null;
         }
     }
 
     private Path backupDirectory(String category) throws IOException {
-        Path directory = this.root.resolve(safeFilePart(category)).resolve(LocalDate.now().format(DIRECTORY_DATE_FORMAT));
+        Path directory = this.root
+                .resolve(safeFilePart(category))
+                .resolve(LocalDate.now().format(DIRECTORY_DATE_FORMAT));
         Files.createDirectories(directory);
         return directory;
     }
@@ -72,11 +72,11 @@ public final class StorageItemBackupService {
                 numberPart(event.page()),
                 numberPart(event.slot()),
                 numberPart(event.sourceDataVersion()),
-                safeFilePart(event.reason())
-        );
+                safeFilePart(event.reason()));
     }
 
-    private void appendManifest(Path manifest, BackupEvent event, CompoundTag itemTag, Path backupFile) throws IOException {
+    private void appendManifest(Path manifest, BackupEvent event, CompoundTag itemTag, Path backupFile)
+            throws IOException {
         JsonObject object = new JsonObject();
         object.addProperty("timestamp", EVENT_FORMAT.format(LocalDateTime.now().atZone(ZoneId.systemDefault())));
         addString(object, "reason", event.reason());
@@ -101,8 +101,7 @@ public final class StorageItemBackupService {
                 GSON.toJson(object) + System.lineSeparator(),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-        );
+                StandardOpenOption.APPEND);
     }
 
     private static void addString(JsonObject object, String key, String value) {
@@ -151,7 +150,5 @@ public final class StorageItemBackupService {
             String sourceFile,
             int sourceRow,
             int sourceSlot,
-            String note
-    ) {
-    }
+            String note) {}
 }

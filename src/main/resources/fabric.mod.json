@@ -20,6 +20,9 @@
   "entrypoints": {
     "client": [
       "me.noramibu.itemeditor.ItemEditorClient"
+    ],
+    "rei_client": [
+      "me.noramibu.itemeditor.compat.rei.ItemEditorReiClientPlugin"
     ]
   },
   "depends": {

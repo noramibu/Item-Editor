@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -8,18 +11,17 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 final class StewSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameList(context.state().special.stewEffects, context.baselineState().special.stewEffects,
+        if (this.sameList(
+                context.state().special.stewEffects,
+                context.baselineState().special.stewEffects,
                 (left, right) -> Objects.equals(left.effectId, right.effectId)
                         && Objects.equals(left.duration, right.duration))) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.SUSPICIOUS_STEW_EFFECTS);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.SUSPICIOUS_STEW_EFFECTS);
             return;
         }
 
@@ -29,11 +31,8 @@ final class StewSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         for (ItemEditorState.SuspiciousStewEffectDraft draft : context.special().stewEffects) {
             if (draft.effectId.isBlank()) continue;
 
-            Holder<MobEffect> effect = this.resolvePotionEffectOrReport(
-                    effectRegistry,
-                    draft.effectId,
-                    context.messages()
-            );
+            Holder<MobEffect> effect =
+                    this.resolvePotionEffectOrReport(effectRegistry, draft.effectId, context.messages());
             if (effect == null) continue;
 
             Integer duration = this.parsePotionDuration(draft.duration, context.messages());

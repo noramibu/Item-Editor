@@ -12,8 +12,12 @@ import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
+import java.util.ArrayList;
+import java.util.List;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.InputSafeScrollContainer;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RotatableItemPreviewComponent;
@@ -22,20 +26,49 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.DyeColor;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BannerItem;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public final class BannerSpecialDataSection {
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        String title = isShieldContext(context) ? "special.banner.shield_title" : "special.banner.title";
+        var result = new ArrayList<>(SpecialDataSearch.targets(
+                context, EditorCategory.SPECIAL_DATA, title, "banner", () -> {}, Field.ADD_LAYER, Field.BASE_COLOR));
+        if (!context.special().bannerLayers.isEmpty()) {
+            result.addAll(SpecialDataSearch.targets(
+                    context,
+                    EditorCategory.SPECIAL_DATA,
+                    title,
+                    "banner",
+                    () -> {},
+                    Field.EXPAND_ALL,
+                    Field.COLLAPSE_ALL));
+        }
+        for (int index = 0; index < context.special().bannerLayers.size(); index++) {
+            var draft = context.special().bannerLayers.get(index);
+            var fields = new ArrayList<SpecialDataSearch.Field>(List.of(LayerField.values()));
+            if (index == 0) fields.remove(LayerField.UP);
+            if (index + 1 == context.special().bannerLayers.size()) fields.remove(LayerField.DOWN);
+            result.addAll(SpecialDataSearch.targets(
+                    context,
+                    EditorCategory.SPECIAL_DATA,
+                    List.of(ItemEditorText.str(title), ItemEditorText.str("special.banner.layer", index + 1)),
+                    SpecialDataSearch.scope("banner-layer", draft),
+                    () -> draft.uiCollapsed = false,
+                    fields.toArray(SpecialDataSearch.Field[]::new)));
+        }
+        return result;
+    }
+
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
 
     private static final int PATTERN_BUTTON_WIDTH = 280;
@@ -55,8 +88,7 @@ public final class BannerSpecialDataSection {
     private static final int NARROW_LAYOUT_WIDTH_THRESHOLD = 980;
     private static final int LAYER_COLOR_CHIP_SIZE = 10;
 
-    private BannerSpecialDataSection() {
-    }
+    private BannerSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return stack.has(DataComponents.BANNER_PATTERNS)
@@ -70,8 +102,8 @@ public final class BannerSpecialDataSection {
         boolean compactLayout = isCompactLayout(context);
         FlowLayout section = UiFactory.section(
                 ItemEditorText.tr(isShieldContext(context) ? "special.banner.shield_title" : "special.banner.title"),
-                Component.empty()
-        );
+                Component.empty());
+        section.id("banner");
         List<String> availablePatterns = availablePatternIds(context, special);
 
         section.child(buildFinalPreviewCard(context, special));
@@ -79,7 +111,7 @@ public final class BannerSpecialDataSection {
         section.child(buildBaseColorEditor(context, special));
 
         ButtonComponent addLayer = boundedActionButton(
-                ItemEditorText.tr("special.banner.add_layer"),
+                Field.ADD_LAYER.text(),
                 () -> context.mutateRefresh(() -> {
                     if (isShieldContext(context) && special.bannerBaseColor.isBlank()) {
                         special.bannerBaseColor = DyeColor.WHITE.name();
@@ -87,19 +119,16 @@ public final class BannerSpecialDataSection {
                     ItemEditorState.BannerLayerDraft draft = new ItemEditorState.BannerLayerDraft();
                     draft.color = DyeColor.WHITE.name();
                     special.bannerLayers.add(draft);
-                })
-        );
+                }));
         if (special.bannerLayers.isEmpty()) {
             section.child(addLayer);
         } else {
             ButtonComponent expandAll = boundedActionButton(
-                    ItemEditorText.tr("common.expand_all"),
-                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, false))
-            );
+                    Field.EXPAND_ALL.text(),
+                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, false)));
             ButtonComponent collapseAll = boundedActionButton(
-                    ItemEditorText.tr("common.collapse_all"),
-                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, true))
-            );
+                    Field.COLLAPSE_ALL.text(),
+                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, true)));
             if (compactLayout) {
                 section.child(addLayer);
                 section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
@@ -114,7 +143,8 @@ public final class BannerSpecialDataSection {
         return section;
     }
 
-    private static FlowLayout buildFinalPreviewCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildFinalPreviewCard(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
 
@@ -122,7 +152,8 @@ public final class BannerSpecialDataSection {
         boolean narrowLayout = isNarrowLayout(context);
         int previewSize = previewSize(context, narrowLayout);
         FlowLayout previewRow = narrowLayout ? UiFactory.column() : UiFactory.row();
-        RotatableItemPreviewComponent preview = new RotatableItemPreviewComponent(UiFactory.fixed(previewSize), finalPreview.copy());
+        RotatableItemPreviewComponent preview =
+                new RotatableItemPreviewComponent(UiFactory.fixed(previewSize), finalPreview.copy());
         preview.allowMouseRotation(true);
         preview.showOverlay(true);
         if (!narrowLayout) {
@@ -132,18 +163,20 @@ public final class BannerSpecialDataSection {
 
         previewRow.child(UiFactory.muted(
                 ItemEditorText.tr("special.banner.preview.layers", special.bannerLayers.size()),
-                previewHintWidth(narrowLayout)
-        ));
+                previewHintWidth(narrowLayout)));
         card.child(previewRow);
         return card;
     }
 
-    private static FlowLayout buildLayerPreviewStrip(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildLayerPreviewStrip(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
-        card.child(UiFactory.title(ItemEditorText.tr("special.banner.layer_strip")).shadow(false));
+        card.child(
+                UiFactory.title(ItemEditorText.tr("special.banner.layer_strip")).shadow(false));
         List<ItemStack> stages = buildLayerStageStacks(context, special);
         if (stages.size() <= 1) {
-            card.child(UiFactory.muted(ItemEditorText.tr("special.banner.layer_strip.empty"), LAYER_STRIP_EMPTY_HINT_WIDTH));
+            card.child(UiFactory.muted(
+                    ItemEditorText.tr("special.banner.layer_strip.empty"), LAYER_STRIP_EMPTY_HINT_WIDTH));
             return card;
         }
 
@@ -156,10 +189,7 @@ public final class BannerSpecialDataSection {
             strip.child(buildStageThumbnail(special, stage, index, narrowLayout));
         }
         ScrollContainer<FlowLayout> stripScroll = InputSafeScrollContainer.horizontal(
-                Sizing.fill(100),
-                UiFactory.fixed(layerStripHeight(narrowLayout)),
-                strip
-        );
+                Sizing.fill(100), UiFactory.fixed(layerStripHeight(narrowLayout)), strip);
         stripScroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         stripScroll.scrollbarThiccness(UiFactory.scaledScrollbarThickness(LAYER_STRIP_SCROLLBAR_THICKNESS));
         stripScroll.scrollStep(UiFactory.scaledScrollStep(LAYER_STRIP_SCROLL_STEP));
@@ -168,11 +198,7 @@ public final class BannerSpecialDataSection {
     }
 
     private static FlowLayout buildStageThumbnail(
-            ItemEditorState.SpecialData special,
-            ItemStack stage,
-            int index,
-            boolean narrowLayout
-    ) {
+            ItemEditorState.SpecialData special, ItemStack stage, int index, boolean narrowLayout) {
         FlowLayout thumb = UiFactory.subCard();
         thumb.gap(2);
         thumb.horizontalSizing(UiFactory.fixed(layerPreviewWidth(narrowLayout)));
@@ -181,9 +207,12 @@ public final class BannerSpecialDataSection {
         if (index == 0) {
             header.child(UiFactory.muted(ItemEditorText.tr("special.banner.stage_base"), LAYER_STAGE_LABEL_WIDTH));
         } else {
-            header.child(UiFactory.muted(ItemEditorText.tr("special.banner.layer_index", index), LAYER_STAGE_LABEL_WIDTH));
+            header.child(
+                    UiFactory.muted(ItemEditorText.tr("special.banner.layer_index", index), LAYER_STAGE_LABEL_WIDTH));
         }
-        BoxComponent colorChip = UIComponents.box(UiFactory.fixed(LAYER_COLOR_CHIP_SIZE), UiFactory.fixed(LAYER_COLOR_CHIP_SIZE)).fill(true);
+        BoxComponent colorChip = UIComponents.box(
+                        UiFactory.fixed(LAYER_COLOR_CHIP_SIZE), UiFactory.fixed(LAYER_COLOR_CHIP_SIZE))
+                .fill(true);
         DyeColor parsedColor = index == 0
                 ? DyeColorSelectorSection.parse(special.bannerBaseColor)
                 : DyeColorSelectorSection.parse(special.bannerLayers.get(index - 1).color);
@@ -201,8 +230,8 @@ public final class BannerSpecialDataSection {
         if (index == 0) {
             thumb.tooltip(List.of(
                     ItemEditorText.tr("special.banner.stage_base"),
-                    DyeColorSelectorSection.buttonLabel(special.bannerBaseColor, ItemEditorText.tr("special.banner.select_base_color"))
-            ));
+                    DyeColorSelectorSection.buttonLabel(
+                            special.bannerBaseColor, ItemEditorText.tr("special.banner.select_base_color"))));
             return thumb;
         }
 
@@ -213,12 +242,12 @@ public final class BannerSpecialDataSection {
         thumb.tooltip(List.of(
                 ItemEditorText.tr("special.banner.layer", index),
                 Component.literal(patternLabel),
-                DyeColorSelectorSection.buttonLabel(layer.color, ItemEditorText.tr("special.banner.select_color"))
-        ));
+                DyeColorSelectorSection.buttonLabel(layer.color, ItemEditorText.tr("special.banner.select_color"))));
         return thumb;
     }
 
-    private static ItemStack buildFinalPreviewStack(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static ItemStack buildFinalPreviewStack(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         List<ItemStack> stages = buildLayerStageStacks(context, special);
         if (stages.isEmpty()) {
             return context.screen().session().previewStack().copy();
@@ -226,7 +255,8 @@ public final class BannerSpecialDataSection {
         return stages.getLast();
     }
 
-    private static List<ItemStack> buildLayerStageStacks(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static List<ItemStack> buildLayerStageStacks(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         List<ItemStack> stages = new ArrayList<>();
         ItemStack base = createBasePreviewStack(context, special);
         stages.add(base.copy());
@@ -257,7 +287,8 @@ public final class BannerSpecialDataSection {
         return stages;
     }
 
-    private static ItemStack createBasePreviewStack(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static ItemStack createBasePreviewStack(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         DyeColor baseColor = DyeColorSelectorSection.parse(special.bannerBaseColor);
         ItemStack original = context.originalStack();
         if (original.is(Items.SHIELD) && baseColor == null && !special.bannerLayers.isEmpty()) {
@@ -270,7 +301,9 @@ public final class BannerSpecialDataSection {
         } else if (original.getItem() instanceof BannerItem) {
             baseItem = baseColor == null ? original.getItem() : bannerItemForColor(baseColor);
         } else if (context.screen().session().previewStack().getItem() instanceof BannerItem) {
-            baseItem = baseColor == null ? context.screen().session().previewStack().getItem() : bannerItemForColor(baseColor);
+            baseItem = baseColor == null
+                    ? context.screen().session().previewStack().getItem()
+                    : bannerItemForColor(baseColor);
         } else {
             baseItem = baseColor == null ? WHITE_BANNER : bannerItemForColor(baseColor);
         }
@@ -286,13 +319,7 @@ public final class BannerSpecialDataSection {
 
     private static int previewSize(SpecialDataPanelContext context, boolean narrowLayout) {
         int responsive = UiFactory.responsiveSquareSize(
-                context.panelWidthHint(),
-                context.screen().editorContentHeightHint(),
-                0.17,
-                0.30,
-                78,
-                220
-        );
+                context.panelWidthHint(), context.screen().editorContentHeightHint(), 0.17, 0.30, 78, 220);
         if (narrowLayout) {
             return Math.min(responsive, PREVIEW_SIZE_NARROW_MAX);
         }
@@ -319,41 +346,25 @@ public final class BannerSpecialDataSection {
         return context.panelWidthHint() <= NARROW_LAYOUT_WIDTH_THRESHOLD;
     }
 
-    private static Item bannerItemForColor(DyeColor color) {
-        return switch (color) {
-            case WHITE -> WHITE_BANNER;
-            case ORANGE -> ORANGE_BANNER;
-            case MAGENTA -> MAGENTA_BANNER;
-            case LIGHT_BLUE -> LIGHT_BLUE_BANNER;
-            case YELLOW -> YELLOW_BANNER;
-            case LIME -> LIME_BANNER;
-            case PINK -> PINK_BANNER;
-            case GRAY -> GRAY_BANNER;
-            case LIGHT_GRAY -> LIGHT_GRAY_BANNER;
-            case CYAN -> CYAN_BANNER;
-            case PURPLE -> PURPLE_BANNER;
-            case BLUE -> BLUE_BANNER;
-            case BROWN -> BROWN_BANNER;
-            case GREEN -> GREEN_BANNER;
-            case RED -> RED_BANNER;
-            case BLACK -> BLACK_BANNER;
-        };
+    static Item bannerItemForColor(DyeColor color) {
+        return BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(color.getSerializedName() + "_banner"));
     }
 
     private static boolean isShieldContext(SpecialDataPanelContext context) {
-        return context.originalStack().is(Items.SHIELD) || context.screen().session().previewStack().is(Items.SHIELD);
+        return context.originalStack().is(Items.SHIELD)
+                || context.screen().session().previewStack().is(Items.SHIELD);
     }
 
-    private static FlowLayout buildBaseColorEditor(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildBaseColorEditor(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
 
         card.child(DyeColorSelectorSection.buildPaletteOnly(
                 context,
-                ItemEditorText.tr("special.banner.base_color"),
+                Field.BASE_COLOR.text(),
                 Component.empty(),
                 special.bannerBaseColor,
-                color -> special.bannerBaseColor = color.name()
-        ));
+                color -> special.bannerBaseColor = color.name()));
 
         return card;
     }
@@ -362,11 +373,11 @@ public final class BannerSpecialDataSection {
             SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
             List<String> availablePatterns,
-            int index
-    ) {
+            int index) {
         boolean compactLayout = isCompactLayout(context);
         ItemEditorState.BannerLayerDraft draft = special.bannerLayers.get(index);
         FlowLayout card = UiFactory.subCard();
+        card.id(SpecialDataSearch.scope("banner-layer", draft));
         card.child(buildLayerHeader(context, special, draft, index));
         if (draft.uiCollapsed) {
             return card;
@@ -374,23 +385,17 @@ public final class BannerSpecialDataSection {
 
         card.child(PickerFieldFactory.searchableField(
                 context,
-                ItemEditorText.tr("special.banner.pattern"),
+                LayerField.PATTERN.text(),
                 Component.empty(),
                 patternButtonLabel(draft.patternId),
                 compactLayout ? -1 : PATTERN_BUTTON_WIDTH,
-                ItemEditorText.str("special.banner.pattern"),
+                LayerField.PATTERN.text().getString(),
                 ItemEditorText.str("special.banner.pattern_search_hint"),
                 patternValues(availablePatterns, draft.patternId),
                 BannerSpecialDataSection::patternOptionLabel,
-                patternId -> context.mutateRefresh(() -> draft.patternId = patternId)
-        ));
+                patternId -> context.mutateRefresh(() -> draft.patternId = patternId)));
         card.child(DyeColorSelectorSection.buildPaletteOnly(
-                context,
-                ItemEditorText.tr("special.banner.color"),
-                Component.empty(),
-                draft.color,
-                color -> draft.color = color.name()
-        ));
+                context, LayerField.COLOR.text(), Component.empty(), draft.color, color -> draft.color = color.name()));
         return card;
     }
 
@@ -398,8 +403,7 @@ public final class BannerSpecialDataSection {
             SpecialDataPanelContext context,
             ItemEditorState.SpecialData special,
             ItemEditorState.BannerLayerDraft draft,
-            int index
-    ) {
+            int index) {
         FlowLayout header = UiFactory.column();
         header.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
 
@@ -408,30 +412,28 @@ public final class BannerSpecialDataSection {
                 .shadow(false)
                 .horizontalSizing(Sizing.expand(100)));
         titleRow.child(UiFactory.collapseToggleButton(
-                draft.uiCollapsed,
-                () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)
-        ));
+                draft.uiCollapsed, () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)));
         header.child(titleRow);
 
         List<ButtonComponent> actions = new ArrayList<>();
         if (index > 0) {
-            actions.add(boundedActionButton(ItemEditorText.tr("common.up"), () ->
-                    context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index - 1))
-            ));
+            actions.add(boundedActionButton(
+                    LayerField.UP.text(),
+                    () -> context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index - 1))));
         }
         if (index < special.bannerLayers.size() - 1) {
-            actions.add(boundedActionButton(ItemEditorText.tr("common.down"), () ->
-                    context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index + 1))
-            ));
+            actions.add(boundedActionButton(
+                    LayerField.DOWN.text(),
+                    () -> context.mutateRefresh(() -> context.swapEntries(special.bannerLayers, index, index + 1))));
         }
 
-        actions.add(boundedActionButton(ItemEditorText.tr("special.banner.duplicate"), () ->
-                context.mutateRefresh(() -> special.bannerLayers.add(index + 1, copyLayer(special.bannerLayers.get(index))))
-        ));
+        actions.add(boundedActionButton(
+                LayerField.DUPLICATE.text(),
+                () -> context.mutateRefresh(
+                        () -> special.bannerLayers.add(index + 1, copyLayer(special.bannerLayers.get(index))))));
 
-        actions.add(boundedActionButton(ItemEditorText.tr("common.remove"), () ->
-                context.mutateRefresh(() -> special.bannerLayers.remove(index))
-        ));
+        actions.add(boundedActionButton(
+                LayerField.REMOVE.text(), () -> context.mutateRefresh(() -> special.bannerLayers.remove(index))));
         header.child(UiFactory.actionButtonRow(false, actions.toArray(ButtonComponent[]::new)));
 
         return header;
@@ -453,7 +455,8 @@ public final class BannerSpecialDataSection {
         special.bannerLayers.forEach(layer -> layer.uiCollapsed = collapsed);
     }
 
-    private static List<String> availablePatternIds(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static List<String> availablePatternIds(
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         List<String> ids = new ArrayList<>(context.optionalRegistryIds(Registries.BANNER_PATTERN));
         for (ItemEditorState.BannerLayerDraft layer : special.bannerLayers) {
             if (!layer.patternId.isBlank() && !ids.contains(layer.patternId)) {
@@ -489,8 +492,45 @@ public final class BannerSpecialDataSection {
     }
 
     private static ButtonComponent boundedActionButton(Component fullText, Runnable action) {
-        ButtonComponent button = UiFactory.button(fullText, UiFactory.ButtonTextPreset.COMPACT, component -> action.run());
+        ButtonComponent button =
+                UiFactory.button(fullText, UiFactory.ButtonTextPreset.COMPACT, component -> action.run());
         button.horizontalSizing(Sizing.fill(100));
         return button;
+    }
+
+    private enum Field implements SpecialDataSearch.Field {
+        ADD_LAYER("special.banner.add_layer"),
+        BASE_COLOR("special.banner.base_color"),
+        EXPAND_ALL("common.expand_all"),
+        COLLAPSE_ALL("common.collapse_all");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum LayerField implements SpecialDataSearch.Field {
+        PATTERN("special.banner.pattern"),
+        COLOR("special.banner.color"),
+        UP("common.up"),
+        DOWN("common.down"),
+        DUPLICATE("common.duplicate"),
+        REMOVE("common.remove");
+
+        private final String key;
+
+        LayerField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
     }
 }

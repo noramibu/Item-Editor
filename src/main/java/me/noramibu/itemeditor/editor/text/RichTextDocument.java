@@ -1,5 +1,11 @@
 package me.noramibu.itemeditor.editor.text;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.UnaryOperator;
 import me.noramibu.itemeditor.util.ColorInterpolationUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.network.chat.Component;
@@ -7,18 +13,15 @@ import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.contents.ObjectContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.chat.contents.objects.ObjectInfo;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.UnaryOperator;
 
 public final class RichTextDocument {
 
     private static final String OBJECT_LAYOUT_PLACEHOLDER = "■";
     private final List<Segment> segments = new ArrayList<>();
+    private String cachedText;
+    private int[] segmentOffsets;
 
     public static RichTextDocument empty() {
         return new RichTextDocument();
@@ -91,19 +94,31 @@ public final class RichTextDocument {
     }
 
     public String plainText() {
+        if (this.cachedText != null) return this.cachedText;
         StringBuilder builder = new StringBuilder();
+        this.segmentOffsets = new int[this.segments.size() + 1];
+        int index = 0;
         for (Segment segment : this.segments) {
+            this.segmentOffsets[index++] = builder.length();
             builder.append(segment.text());
         }
-        return builder.toString();
+        this.segmentOffsets[index] = builder.length();
+        return this.cachedText = builder.toString();
     }
 
     public int length() {
-        int length = 0;
-        for (Segment segment : this.segments) {
-            length += segment.text().length();
-        }
-        return length;
+        return this.plainText().length();
+    }
+
+    public int segmentIndexAt(int position) {
+        this.plainText();
+        int index = Arrays.binarySearch(this.segmentOffsets, Math.clamp(position, 0, this.cachedText.length()));
+        return index >= 0 ? index : -index - 2;
+    }
+
+    public int segmentStart(int index) {
+        this.plainText();
+        return this.segmentOffsets[index];
     }
 
     public boolean isEmpty() {
@@ -144,13 +159,15 @@ public final class RichTextDocument {
             if (index == end) {
                 if (segmentIndex + 1 < this.segments.size()) {
                     Segment next = this.segments.get(segmentIndex + 1);
-                    boolean nextStartsWithNewline = !next.text().isEmpty() && next.text().charAt(0) == '\n';
+                    boolean nextStartsWithNewline =
+                            !next.text().isEmpty() && next.text().charAt(0) == '\n';
                     if (nextStartsWithNewline) {
                         return segment.style();
                     }
 
                     RichTextStyle nextStyle = next.style();
-                    if (nextStyle.equals(RichTextStyle.EMPTY) && !segment.style().equals(RichTextStyle.EMPTY)) {
+                    if (nextStyle.equals(RichTextStyle.EMPTY)
+                            && !segment.style().equals(RichTextStyle.EMPTY)) {
                         return segment.style();
                     }
                     return nextStyle;
@@ -214,10 +231,12 @@ public final class RichTextDocument {
     }
 
     public void applyShadowGradient(int start, int end, List<Integer> colors) {
-        this.applyPerCharacterGradient(start, end, colors, (style, color) -> style.withShadowColor((color & 0xFFFFFF) | 0xFF000000));
+        this.applyPerCharacterGradient(
+                start, end, colors, (style, color) -> style.withShadowColor((color & 0xFFFFFF) | 0xFF000000));
     }
 
-    private void applyPerCharacterGradient(int start, int end, List<Integer> colors, GradientStyleApplier styleApplier) {
+    private void applyPerCharacterGradient(
+            int start, int end, List<Integer> colors, GradientStyleApplier styleApplier) {
         List<Integer> gradientColors = this.normalizedGradientColors(colors);
         IntRange range = this.clampRange(start, end);
         if (range.start() == range.end()) {
@@ -235,7 +254,7 @@ public final class RichTextDocument {
         int colorIndex = 0;
         for (Segment segment : selectedSegments) {
             String text = segment.text();
-            for (int index = 0; index < text.length();) {
+            for (int index = 0; index < text.length(); ) {
                 int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
                 if (tokenLength > 0) {
                     updated.add(new Segment(text.substring(index, index + tokenLength), segment.style()));
@@ -254,8 +273,8 @@ public final class RichTextDocument {
                 float progress = gradientSteps == 1 ? 0f : (float) colorIndex / (gradientSteps - 1);
                 updated.add(new Segment(
                         Character.toString(codePoint),
-                        styleApplier.apply(segment.style(), ColorInterpolationUtil.interpolateRgb(gradientColors, progress))
-                ));
+                        styleApplier.apply(
+                                segment.style(), ColorInterpolationUtil.interpolateRgb(gradientColors, progress))));
                 colorIndex++;
                 index += Character.charCount(codePoint);
             }
@@ -320,7 +339,8 @@ public final class RichTextDocument {
     public Component toComponent() {
         MutableComponent root = Component.empty();
         for (Segment segment : this.segments) {
-            root.append(Component.literal(segment.text()).withStyle(segment.style().toStyle()));
+            root.append(
+                    Component.literal(segment.text()).withStyle(segment.style().toStyle()));
         }
         return root;
     }
@@ -328,7 +348,8 @@ public final class RichTextDocument {
     public Component sliceToComponent(int start, int end) {
         MutableComponent root = Component.empty();
         for (Segment segment : this.sliceSegments(start, end)) {
-            root.append(Component.literal(segment.text()).withStyle(segment.style().toStyle()));
+            root.append(
+                    Component.literal(segment.text()).withStyle(segment.style().toStyle()));
         }
         return root;
     }
@@ -355,7 +376,8 @@ public final class RichTextDocument {
                 }
 
                 if (index > lastBreak) {
-                    current.append(Component.literal(text.substring(lastBreak, index)).withStyle(segment.style().toStyle()));
+                    current.append(Component.literal(text.substring(lastBreak, index))
+                            .withStyle(segment.style().toStyle()));
                 }
                 lines.add(current);
                 current = Component.empty();
@@ -363,7 +385,8 @@ public final class RichTextDocument {
             }
 
             if (lastBreak < text.length()) {
-                current.append(Component.literal(text.substring(lastBreak)).withStyle(segment.style().toStyle()));
+                current.append(Component.literal(text.substring(lastBreak))
+                        .withStyle(segment.style().toStyle()));
             }
         }
 
@@ -401,6 +424,8 @@ public final class RichTextDocument {
     }
 
     private void normalize() {
+        this.cachedText = null;
+        this.segmentOffsets = null;
         if (this.segments.isEmpty()) {
             return;
         }
@@ -430,7 +455,7 @@ public final class RichTextDocument {
         int count = 0;
         for (Segment segment : segments) {
             String text = segment.text();
-            for (int index = 0; index < text.length();) {
+            for (int index = 0; index < text.length(); ) {
                 int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
                 if (tokenLength > 0) {
                     index += tokenLength;
@@ -453,14 +478,15 @@ public final class RichTextDocument {
         return new IntRange(clampedStart, clampedEnd);
     }
 
-    private static void collectSegments(Component component, Style parentStyle, List<Segment> out, ObjectContentMode mode) {
+    private static void collectSegments(
+            Component component, Style parentStyle, List<Segment> out, ObjectContentMode mode) {
         ComponentContents contents = component.getContents();
         Style effectiveStyle = component.getStyle().applyTo(parentStyle);
         String text = textFromContents(contents, mode, effectiveStyle);
         if (!text.isEmpty()) {
             Style segmentStyle = effectiveStyle;
             if (mode == ObjectContentMode.TOKEN_TEXT && contents instanceof ObjectContents) {
-                segmentStyle = objectTokenStyle(effectiveStyle);
+                segmentStyle = RichTextStyle.objectTokenStyle(effectiveStyle);
             }
             out.add(new Segment(text, RichTextStyle.fromStyle(segmentStyle)));
         }
@@ -475,8 +501,12 @@ public final class RichTextDocument {
                 return OBJECT_LAYOUT_PLACEHOLDER;
             }
             ObjectInfo object = objectContents.contents();
-            Component objectComponent = Component.object(object).withStyle(style -> style.withColor(effectiveStyle.getColor()));
+            Component objectComponent =
+                    Component.object(object).withStyle(style -> style.withColor(effectiveStyle.getColor()));
             return TextComponentUtil.toMarkup(objectComponent);
+        }
+        if (mode == ObjectContentMode.TOKEN_TEXT && contents instanceof TranslatableContents) {
+            return TextComponentUtil.toMarkup(MutableComponent.create(contents));
         }
         StringBuilder plain = new StringBuilder();
         contents.visit((String chunk) -> {
@@ -486,44 +516,9 @@ public final class RichTextDocument {
         return plain.toString();
     }
 
-    private static Style objectTokenStyle(Style style) {
-        Style tokenStyle = Style.EMPTY;
-        if (style.getShadowColor() != null) {
-            tokenStyle = tokenStyle.withShadowColor(style.getShadowColor());
-        }
-        if (style.getClickEvent() != null) {
-            tokenStyle = tokenStyle.withClickEvent(style.getClickEvent());
-        }
-        if (style.getHoverEvent() != null) {
-            tokenStyle = tokenStyle.withHoverEvent(style.getHoverEvent());
-        }
-        return copyTrueDecorations(style, tokenStyle);
-    }
+    public record Segment(String text, RichTextStyle style) {}
 
-    private static Style copyTrueDecorations(Style source, Style target) {
-        if (source.isBold()) {
-            target = target.withBold(true);
-        }
-        if (source.isItalic()) {
-            target = target.withItalic(true);
-        }
-        if (source.isUnderlined()) {
-            target = target.withUnderlined(true);
-        }
-        if (source.isStrikethrough()) {
-            target = target.withStrikethrough(true);
-        }
-        if (source.isObfuscated()) {
-            target = target.withObfuscated(true);
-        }
-        return target;
-    }
-
-    public record Segment(String text, RichTextStyle style) {
-    }
-
-    private record IntRange(int start, int end) {
-    }
+    private record IntRange(int start, int end) {}
 
     private enum ObjectContentMode {
         TOKEN_TEXT,

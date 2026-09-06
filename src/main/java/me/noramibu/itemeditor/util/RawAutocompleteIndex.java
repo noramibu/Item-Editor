@@ -23,8 +23,7 @@ public final class RawAutocompleteIndex {
             int[] lastKeyRefAt,
             List<String> keyTable,
             List<String> seenKeys,
-            Map<String, List<String>> seenKeysByContainer
-    ) {
+            Map<String, List<String>> seenKeysByContainer) {
         this.text = text;
         this.insideStringAt = insideStringAt;
         this.lastKeyRefAt = lastKeyRefAt;
@@ -89,8 +88,7 @@ public final class RawAutocompleteIndex {
                         keyTable,
                         seen,
                         seenByContainer,
-                        lastKeyRef
-                );
+                        lastKeyRef);
                 pendingStringRef = 0;
                 pendingIdentifierRef = 0;
             }
@@ -111,8 +109,7 @@ public final class RawAutocompleteIndex {
                     inString = true;
                     token.setLength(0);
                 }
-                case ':' -> {
-                }
+                case ':' -> {}
                 case '{' -> stack.add(new Frame(true, resolveParentKeyRef(stack)));
                 case '[' -> stack.add(new Frame(false, resolveParentKeyRef(stack)));
                 case '}', ']' -> {
@@ -140,13 +137,7 @@ public final class RawAutocompleteIndex {
         }
 
         return new RawAutocompleteIndex(
-                text,
-                insideStringAt,
-                lastKeyRefAt,
-                keyTable,
-                List.copyOf(seen),
-                Map.copyOf(finalizedSeenByContainer)
-        );
+                text, insideStringAt, lastKeyRefAt, keyTable, List.copyOf(seen), Map.copyOf(finalizedSeenByContainer));
     }
 
     public static RawAutocompleteIndex update(
@@ -155,8 +146,7 @@ public final class RawAutocompleteIndex {
             int editStart,
             int editEnd,
             String replacement,
-            boolean structural
-    ) {
+            boolean structural) {
         String text = updatedText == null ? "" : updatedText;
         if (previous == null || structural) {
             return create(text);
@@ -172,31 +162,13 @@ public final class RawAutocompleteIndex {
         int insertedLength = safeReplacement.length();
         int newLength = text.length();
 
-        boolean[] insideStringAt = spliceBooleanArray(
-                previous.insideStringAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
-        int[] lastKeyRefAt = spliceIntArray(
-                previous.lastKeyRefAt,
-                oldLength,
-                newLength,
-                safeStart,
-                safeEnd,
-                insertedLength
-        );
+        boolean[] insideStringAt =
+                spliceBooleanArray(previous.insideStringAt, oldLength, newLength, safeStart, safeEnd, insertedLength);
+        int[] lastKeyRefAt =
+                spliceIntArray(previous.lastKeyRefAt, oldLength, newLength, safeStart, safeEnd, insertedLength);
 
         return new RawAutocompleteIndex(
-                text,
-                insideStringAt,
-                lastKeyRefAt,
-                previous.keyTable,
-                previous.seenKeys,
-                previous.seenKeysByContainer
-        );
+                text, insideStringAt, lastKeyRefAt, previous.keyTable, previous.seenKeys, previous.seenKeysByContainer);
     }
 
     public boolean matches(String candidate) {
@@ -273,8 +245,7 @@ public final class RawAutocompleteIndex {
             List<String> keyTable,
             Set<String> seen,
             Map<String, Set<String>> seenByContainer,
-            int currentLastKeyRef
-    ) {
+            int currentLastKeyRef) {
         if (pendingRef == 0 || token != ':') {
             return currentLastKeyRef;
         }
@@ -284,7 +255,10 @@ public final class RawAutocompleteIndex {
         }
         String keyName = resolveKey(keyTable, pendingRef);
         seen.add(keyName);
-        addSeenKey(seenByContainer, normalizeContainerKey(resolveKey(keyTable, frame == null ? 0 : frame.parentKeyRef)), keyName);
+        addSeenKey(
+                seenByContainer,
+                normalizeContainerKey(resolveKey(keyTable, frame == null ? 0 : frame.parentKeyRef)),
+                keyName);
         return pendingRef;
     }
 
@@ -296,33 +270,19 @@ public final class RawAutocompleteIndex {
             List<String> keyTable,
             Set<String> seen,
             Map<String, Set<String>> seenByContainer,
-            int currentLastKeyRef
-    ) {
-        int lastKeyRef = consumePendingRef(
-                firstPendingRef,
-                token,
-                stack,
-                keyTable,
-                seen,
-                seenByContainer,
-                currentLastKeyRef
-        );
-        return consumePendingRef(
-                secondPendingRef,
-                token,
-                stack,
-                keyTable,
-                seen,
-                seenByContainer,
-                lastKeyRef
-        );
+            int currentLastKeyRef) {
+        int lastKeyRef =
+                consumePendingRef(firstPendingRef, token, stack, keyTable, seen, seenByContainer, currentLastKeyRef);
+        return consumePendingRef(secondPendingRef, token, stack, keyTable, seen, seenByContainer, lastKeyRef);
     }
 
     private static void addSeenKey(Map<String, Set<String>> seenByContainer, String containerKey, String keyName) {
         if (keyName == null || keyName.isBlank()) {
             return;
         }
-        seenByContainer.computeIfAbsent(containerKey, ignored -> new LinkedHashSet<>()).add(keyName);
+        seenByContainer
+                .computeIfAbsent(containerKey, ignored -> new LinkedHashSet<>())
+                .add(keyName);
     }
 
     private static String normalizeContainerKey(String containerKey) {
@@ -333,19 +293,11 @@ public final class RawAutocompleteIndex {
     }
 
     private static boolean isUnquotedKeyChar(char value) {
-        return Character.isLetterOrDigit(value)
-                || value == '_'
-                || value == '-'
-                || value == '.';
+        return Character.isLetterOrDigit(value) || value == '_' || value == '-' || value == '.';
     }
 
     private static boolean canFastSplice(
-            String previousText,
-            String updatedText,
-            int editStart,
-            int editEnd,
-            String replacement
-    ) {
+            String previousText, String updatedText, int editStart, int editEnd, String replacement) {
         if (previousText == null) {
             return false;
         }
@@ -369,13 +321,7 @@ public final class RawAutocompleteIndex {
     }
 
     private static boolean[] spliceBooleanArray(
-            boolean[] source,
-            int oldLength,
-            int newLength,
-            int editStart,
-            int editEnd,
-            int insertedLength
-    ) {
+            boolean[] source, int oldLength, int newLength, int editStart, int editEnd, int insertedLength) {
         boolean[] target = new boolean[newLength + 1];
         int safeStart = Math.clamp(editStart, 0, oldLength);
         int safeEnd = Math.clamp(editEnd, safeStart, oldLength);
@@ -393,13 +339,7 @@ public final class RawAutocompleteIndex {
     }
 
     private static int[] spliceIntArray(
-            int[] source,
-            int oldLength,
-            int newLength,
-            int editStart,
-            int editEnd,
-            int insertedLength
-    ) {
+            int[] source, int oldLength, int newLength, int editStart, int editEnd, int insertedLength) {
         int[] target = new int[newLength + 1];
         int safeStart = Math.clamp(editStart, 0, oldLength);
         int safeEnd = Math.clamp(editEnd, safeStart, oldLength);
@@ -421,9 +361,7 @@ public final class RawAutocompleteIndex {
             boolean inRootObject,
             boolean inComponentsObject,
             String containerKey,
-            String containerPath
-    ) {
-    }
+            String containerPath) {}
 
     private static final class Frame {
         private final boolean object;

@@ -1,13 +1,12 @@
 package me.noramibu.itemeditor.ui.component.raw;
 
+import java.util.List;
+import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.util.RawAutocompleteAsyncService;
 import me.noramibu.itemeditor.util.RawAutocompleteUtil;
 import net.minecraft.core.RegistryAccess;
-
-import java.util.List;
-import java.util.function.Supplier;
 
 public final class RawAutocompleteController {
     private static final int VERY_LARGE_TEXT_THRESHOLD = 350000;
@@ -35,8 +34,7 @@ public final class RawAutocompleteController {
             Supplier<RegistryAccess> registryAccess,
             Supplier<String> fallbackItemId,
             Supplier<List<String>> lootTableIds,
-            Runnable saveOptions
-    ) {
+            Runnable saveOptions) {
         this.state = state;
         this.editor = editor;
         this.registryAccess = registryAccess;
@@ -59,12 +57,10 @@ public final class RawAutocompleteController {
     }
 
     public void onChanged(RawTextAreaComponent.ChangeDelta delta) {
-        this.pendingDelta = delta == null ? null : new RawAutocompleteAsyncService.EditDelta(
-                delta.start(),
-                delta.end(),
-                delta.replacement(),
-                delta.structural()
-        );
+        this.pendingDelta = delta == null
+                ? null
+                : new RawAutocompleteAsyncService.EditDelta(
+                        delta.start(), delta.end(), delta.replacement(), delta.structural());
         this.resetAutoState();
         this.request();
     }
@@ -89,8 +85,7 @@ public final class RawAutocompleteController {
                 this.selectedSuggestion,
                 this.registryAccess.get(),
                 this.fallbackItemId.get(),
-                this.lootTableIds.get()
-        );
+                this.lootTableIds.get());
     }
 
     public boolean force() {
@@ -115,7 +110,8 @@ public final class RawAutocompleteController {
         if (this.result.suggestions().isEmpty()) {
             return false;
         }
-        this.selectedSuggestion = Math.floorMod(this.selectedSuggestion + delta, this.result.suggestions().size());
+        this.selectedSuggestion = Math.floorMod(
+                this.selectedSuggestion + delta, this.result.suggestions().size());
         this.refreshPresentation();
         return true;
     }
@@ -149,15 +145,15 @@ public final class RawAutocompleteController {
                     }
                     this.result = autocompleteResult;
                     if (!autocompleteResult.suggestions().isEmpty()
-                            && this.selectedSuggestion >= autocompleteResult.suggestions().size()) {
+                            && this.selectedSuggestion
+                                    >= autocompleteResult.suggestions().size()) {
                         this.selectedSuggestion = 0;
                     }
                     if (autocompleteResult.suggestions().isEmpty()) {
                         this.forced = false;
                     }
                     this.refreshPresentation();
-                }
-        );
+                });
     }
 
     private boolean shouldThrottle(int textLength) {
@@ -175,13 +171,8 @@ public final class RawAutocompleteController {
     private void refreshPresentation() {
         boolean suppressed = this.state.rawEditorAutocompleteDisabled
                 || (!this.forced && this.suppressedCaret == this.editor.caretIndex());
-        this.selectedSuggestion = RawAutocompleteUi.refresh(
-                this.editor,
-                this.result,
-                this.selectedSuggestion,
-                this.forced,
-                suppressed
-        );
+        this.selectedSuggestion =
+                RawAutocompleteUi.refresh(this.editor, this.result, this.selectedSuggestion, this.forced, suppressed);
     }
 
     private void resetAutoState() {

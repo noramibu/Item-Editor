@@ -4,8 +4,7 @@ import java.util.ArrayList;
 
 public final class SavedIndexEntryUtil {
 
-    private SavedIndexEntryUtil() {
-    }
+    private SavedIndexEntryUtil() {}
 
     public static SavedIndexItemEntry copy(SavedIndexItemEntry source) {
         SavedIndexItemEntry copy = new SavedIndexItemEntry();

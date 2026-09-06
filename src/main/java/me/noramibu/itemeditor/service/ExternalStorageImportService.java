@@ -7,9 +7,27 @@ import com.mojang.datafixers.DataFixer;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.Dynamic;
 import com.mojang.serialization.JsonOps;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
-import me.noramibu.itemeditor.storage.StorageItemBackupService;
 import me.noramibu.itemeditor.storage.StorageConstants;
+import me.noramibu.itemeditor.storage.StorageItemBackupService;
 import me.noramibu.itemeditor.storage.StorageMetadataUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.Minecraft;
@@ -31,25 +49,6 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 public final class ExternalStorageImportService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExternalStorageImportService.class);
@@ -64,10 +63,13 @@ public final class ExternalStorageImportService {
 
     public CompletableFuture<ScanResult> scan(Minecraft minecraft) {
         Path gameDirectory = minecraft.gameDirectory.toPath();
-        return CompletableFuture.supplyAsync(() -> new ScanResult(
-                matchingFiles(nbtEditorClientChestPath(gameDirectory), NBT_EDITOR_PAGE).size(),
-                matchingFiles(gameDirectory.resolve("hotbars"), LIBRARIAN_PAGE).size()
-        ), IMPORT_EXECUTOR);
+        return CompletableFuture.supplyAsync(
+                () -> new ScanResult(
+                        matchingFiles(nbtEditorClientChestPath(gameDirectory), NBT_EDITOR_PAGE)
+                                .size(),
+                        matchingFiles(gameDirectory.resolve("hotbars"), LIBRARIAN_PAGE)
+                                .size()),
+                IMPORT_EXECUTOR);
     }
 
     public CompletableFuture<ImportReadResult> readImports(
@@ -75,47 +77,41 @@ public final class ExternalStorageImportService {
             RegistryAccess registryAccess,
             boolean nbtEditor,
             boolean librarian,
-            Consumer<ProgressUpdate> progress
-    ) {
+            Consumer<ProgressUpdate> progress) {
         Path gameDirectory = minecraft.gameDirectory.toPath();
         DataFixer fixer = minecraft.getFixerUpper();
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
-        return CompletableFuture.supplyAsync(() -> {
-            List<SavedItemStorageService.ExternalPageImport> pages = new ArrayList<>();
-            List<String> warnings = new ArrayList<>();
-            StorageItemBackupService backupService = new StorageItemBackupService(
-                    gameDirectory.resolve("itemeditor").resolve("backups").resolve("storage")
-            );
-            LOGGER.info(
-                    "[Item Editor] External storage import started [nbtEditor={}] [librarian={}] [gameDir={}]",
-                    nbtEditor,
-                    librarian,
-                    gameDirectory
-            );
-            if (nbtEditor) {
-                pages.addAll(this.readNbtEditorPages(
-                        nbtEditorClientChestPath(gameDirectory),
-                        access,
-                        fixer,
-                        backupService,
-                        warnings,
-                        progress
-                ));
-            }
-            if (librarian) {
-                pages.addAll(this.readLibrarianPages(
-                        gameDirectory.resolve("hotbars"),
-                        access,
-                        fixer,
-                        backupService,
-                        warnings,
-                        progress
-                ));
-            }
-            emitProgress(progress, "read_done", "", pages.size(), pages.size(), 0);
-            logImportResult(pages, warnings);
-            return new ImportReadResult(pages, warnings);
-        }, IMPORT_EXECUTOR);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    List<SavedItemStorageService.ExternalPageImport> pages = new ArrayList<>();
+                    List<String> warnings = new ArrayList<>();
+                    StorageItemBackupService backupService = new StorageItemBackupService(gameDirectory
+                            .resolve("itemeditor")
+                            .resolve("backups")
+                            .resolve("storage"));
+                    LOGGER.info(
+                            "[Item Editor] External storage import started [nbtEditor={}] [librarian={}] [gameDir={}]",
+                            nbtEditor,
+                            librarian,
+                            gameDirectory);
+                    if (nbtEditor) {
+                        pages.addAll(this.readNbtEditorPages(
+                                nbtEditorClientChestPath(gameDirectory),
+                                access,
+                                fixer,
+                                backupService,
+                                warnings,
+                                progress));
+                    }
+                    if (librarian) {
+                        pages.addAll(this.readLibrarianPages(
+                                gameDirectory.resolve("hotbars"), access, fixer, backupService, warnings, progress));
+                    }
+                    emitProgress(progress, "read_done", "", pages.size(), pages.size(), 0);
+                    logImportResult(pages, warnings);
+                    return new ImportReadResult(pages, warnings);
+                },
+                IMPORT_EXECUTOR);
     }
 
     private List<SavedItemStorageService.ExternalPageImport> readNbtEditorPages(
@@ -124,8 +120,7 @@ public final class ExternalStorageImportService {
             DataFixer fixer,
             StorageItemBackupService backupService,
             List<String> warnings,
-            Consumer<ProgressUpdate> progress
-    ) {
+            Consumer<ProgressUpdate> progress) {
         List<NumberedPath> files = matchingFiles(directory, NBT_EDITOR_PAGE);
         if (files.isEmpty()) {
             return List.of();
@@ -156,22 +151,15 @@ public final class ExternalStorageImportService {
                             fixer,
                             backupService,
                             warnings,
-                            ImportWarningContext.nbtEditor(file, index + 1)
-                    );
+                            ImportWarningContext.nbtEditor(file, index + 1));
                     if (imported != null && !imported.stack().isEmpty()) {
                         importedItems.add(new SavedItemStorageService.ExternalItemImport(
-                                index,
-                                imported.stack(),
-                                imported.itemTag(),
-                                imported.dataVersion()
-                        ));
+                                index, imported.stack(), imported.itemTag(), imported.dataVersion()));
                     }
                 }
                 if (!importedItems.isEmpty()) {
                     pages.add(new SavedItemStorageService.ExternalPageImport(
-                            importedName(namesByPage.get(file.number()), "NBT Editor"),
-                            importedItems
-                    ));
+                            importedName(namesByPage.get(file.number()), "NBT Editor"), importedItems));
                 }
             } catch (IOException | RuntimeException exception) {
                 warnings.add(ImportWarningContext.nbtEditor(file, -1)
@@ -188,8 +176,7 @@ public final class ExternalStorageImportService {
             DataFixer fixer,
             StorageItemBackupService backupService,
             List<String> warnings,
-            Consumer<ProgressUpdate> progress
-    ) {
+            Consumer<ProgressUpdate> progress) {
         List<NumberedPath> files = matchingFiles(directory, LIBRARIAN_PAGE);
         if (files.isEmpty()) {
             return List.of();
@@ -202,14 +189,8 @@ public final class ExternalStorageImportService {
                 CompoundTag root = readNbt(file.path());
                 int sourceDataVersion = NbtUtils.getDataVersion(root, DEFAULT_HOTBAR_DATA_VERSION);
                 ImportWarningContext context = ImportWarningContext.librarian(file, -1);
-                CompoundTag hotbarRoot = updateHotbarRoot(
-                        root,
-                        sourceDataVersion,
-                        fixer,
-                        backupService,
-                        warnings,
-                        context
-                );
+                CompoundTag hotbarRoot =
+                        updateHotbarRoot(root, sourceDataVersion, fixer, backupService, warnings, context);
                 int itemDataVersion = StorageMetadataUtil.currentDataVersion();
                 Map<Integer, List<SavedItemStorageService.ExternalItemImport>> itemsByPart = new HashMap<>();
                 int baseSlot = 0;
@@ -232,8 +213,7 @@ public final class ExternalStorageImportService {
                                 rowBackup,
                                 ImportWarningContext.librarian(file, row),
                                 sourceDataVersion,
-                                "failed to decode Librarian hotbar row"
-                        );
+                                "failed to decode Librarian hotbar row");
                         warnings.add(ImportWarningContext.librarian(file, row)
                                 .withStage("decode_row")
                                 .withError("failed to decode row" + backup));
@@ -242,12 +222,13 @@ public final class ExternalStorageImportService {
                     for (ItemStack stack : loadedStacks) {
                         if (!stack.isEmpty()) {
                             int part = baseSlot / StorageConstants.PAGE_SIZE;
-                            itemsByPart.computeIfAbsent(part, ignored -> new ArrayList<>()).add(new SavedItemStorageService.ExternalItemImport(
-                                    baseSlot % StorageConstants.PAGE_SIZE,
-                                    stack.copy(),
-                                    null,
-                                    itemDataVersion
-                            ));
+                            itemsByPart
+                                    .computeIfAbsent(part, ignored -> new ArrayList<>())
+                                    .add(new SavedItemStorageService.ExternalItemImport(
+                                            baseSlot % StorageConstants.PAGE_SIZE,
+                                            stack.copy(),
+                                            null,
+                                            itemDataVersion));
                         }
                         baseSlot++;
                     }
@@ -264,8 +245,7 @@ public final class ExternalStorageImportService {
                         }
                         pages.add(new SavedItemStorageService.ExternalPageImport(
                                 split ? importedLibrarianPartName(name, part + 1) : importedName(name, "Librarian"),
-                                importedItems
-                        ));
+                                importedItems));
                     }
                 }
             } catch (IOException | RuntimeException exception) {
@@ -290,9 +270,9 @@ public final class ExternalStorageImportService {
             DataFixer fixer,
             StorageItemBackupService backupService,
             List<String> warnings,
-            ImportWarningContext context
-    ) {
-        boolean dynamic = originalTag.getByte("dynamic").map(value -> value != 0).orElse(false);
+            ImportWarningContext context) {
+        boolean dynamic =
+                originalTag.getByte("dynamic").map(value -> value != 0).orElse(false);
         if (dynamic) {
             originalTag.remove("dynamic");
         }
@@ -312,11 +292,11 @@ public final class ExternalStorageImportService {
             dfuStatus = "dfu=attempted";
             try {
                 Tag fixed = fixer.update(
-                        References.ITEM_STACK,
-                        new Dynamic<>(NbtOps.INSTANCE, originalTag.copy()),
-                        sourceDataVersion,
-                        StorageMetadataUtil.currentDataVersion()
-                ).getValue();
+                                References.ITEM_STACK,
+                                new Dynamic<>(NbtOps.INSTANCE, originalTag.copy()),
+                                sourceDataVersion,
+                                StorageMetadataUtil.currentDataVersion())
+                        .getValue();
                 if (fixed instanceof CompoundTag fixedCompound) {
                     decodeTag = fixedCompound;
                     storedDataVersion = StorageMetadataUtil.currentDataVersion();
@@ -330,8 +310,7 @@ public final class ExternalStorageImportService {
                         originalTag,
                         context,
                         sourceDataVersion,
-                        errorMessage(exception)
-                );
+                        errorMessage(exception));
                 warnings.add(itemWarningContext(context, originalTag, sourceDataVersion, "dfu_item")
                         + " error=\""
                         + errorMessage(exception)
@@ -348,8 +327,7 @@ public final class ExternalStorageImportService {
                         originalTag,
                         context,
                         sourceDataVersion,
-                        "skipped because the item could not be decoded; " + dfuStatus
-                );
+                        "skipped because the item could not be decoded; " + dfuStatus);
             }
             warnings.add(itemWarningContext(context, originalTag, sourceDataVersion, "decode_item")
                     + " error=\"skipped because the item could not be decoded"
@@ -368,8 +346,7 @@ public final class ExternalStorageImportService {
             DataFixer fixer,
             StorageItemBackupService backupService,
             List<String> warnings,
-            ImportWarningContext context
-    ) {
+            ImportWarningContext context) {
         if (fixer == null || dataVersion <= 0 || dataVersion >= StorageMetadataUtil.currentDataVersion()) {
             return root;
         }
@@ -377,13 +354,7 @@ public final class ExternalStorageImportService {
             return DataFixTypes.HOTBAR.updateToCurrentVersion(fixer, root.copy(), dataVersion);
         } catch (RuntimeException exception) {
             String backup = backupExternalItem(
-                    backupService,
-                    "external_import_warning",
-                    root,
-                    context,
-                    dataVersion,
-                    errorMessage(exception)
-            );
+                    backupService, "external_import_warning", root, context, dataVersion, errorMessage(exception));
             warnings.add(context.withStage("dfu_hotbar")
                     + " dataVersion="
                     + dataVersion
@@ -396,16 +367,8 @@ public final class ExternalStorageImportService {
     }
 
     private static String itemWarningContext(
-            ImportWarningContext context,
-            CompoundTag itemTag,
-            int dataVersion,
-            String stage
-    ) {
-        return context.withStage(stage)
-                + " item="
-                + itemId(itemTag)
-                + " dv="
-                + dataVersion;
+            ImportWarningContext context, CompoundTag itemTag, int dataVersion, String stage) {
+        return context.withStage(stage) + " item=" + itemId(itemTag) + " dv=" + dataVersion;
     }
 
     private static String backupExternalItem(
@@ -414,28 +377,28 @@ public final class ExternalStorageImportService {
             CompoundTag itemTag,
             ImportWarningContext context,
             int sourceDataVersion,
-            String message
-    ) {
+            String message) {
         if (backupService == null || itemTag == null) {
             return "";
         }
-        Path backup = backupService.backup(new StorageItemBackupService.BackupEvent(
-                "import",
-                reason,
-                context == null ? "" : context.source(),
-                context == null ? -1 : context.page(),
-                context == null ? -1 : context.slot(),
-                "",
-                -1,
-                "",
-                sourceDataVersion,
-                StorageMetadataUtil.currentDataVersion(),
-                Integer.toHexString(itemTag.hashCode()) + "|dv=" + sourceDataVersion,
-                context == null ? "" : context.file(),
-                context == null ? -1 : context.row(),
-                context == null ? -1 : context.slot(),
-                message
-        ), itemTag);
+        Path backup = backupService.backup(
+                new StorageItemBackupService.BackupEvent(
+                        "import",
+                        reason,
+                        context == null ? "" : context.source(),
+                        context == null ? -1 : context.page(),
+                        context == null ? -1 : context.slot(),
+                        "",
+                        -1,
+                        "",
+                        sourceDataVersion,
+                        StorageMetadataUtil.currentDataVersion(),
+                        Integer.toHexString(itemTag.hashCode()) + "|dv=" + sourceDataVersion,
+                        context == null ? "" : context.file(),
+                        context == null ? -1 : context.row(),
+                        context == null ? -1 : context.slot(),
+                        message),
+                itemTag);
         return backup == null || backup.getFileName() == null ? "" : "; backup=" + backup.getFileName();
     }
 
@@ -446,27 +409,30 @@ public final class ExternalStorageImportService {
         return itemTag.getString("id").filter(id -> !id.isBlank()).orElse("<unknown>");
     }
 
-    private static void logImportResult(
-            List<SavedItemStorageService.ExternalPageImport> pages,
-            List<String> warnings
-    ) {
+    private static void logImportResult(List<SavedItemStorageService.ExternalPageImport> pages, List<String> warnings) {
         int pageCount = pages == null ? 0 : pages.size();
         int itemCount = pages == null
                 ? 0
-                : pages.stream().mapToInt(page -> page.items() == null ? 0 : page.items().size()).sum();
+                : pages.stream()
+                        .mapToInt(
+                                page -> page.items() == null ? 0 : page.items().size())
+                        .sum();
         int warningCount = warnings == null ? 0 : warnings.size();
         LOGGER.info(
                 "[Item Editor] External storage import decoded [pages={}] [items={}] [warnings={}]",
                 pageCount,
                 itemCount,
-                warningCount
-        );
+                warningCount);
         if (warningCount == 0) {
             return;
         }
         LOGGER.warn("[Item Editor] External storage import warning details follow [count={}]", warnings.size());
         for (int index = 0; index < warnings.size(); index++) {
-            LOGGER.warn("[Item Editor] External storage import warning [{}/{}] {}", index + 1, warnings.size(), warnings.get(index));
+            LOGGER.warn(
+                    "[Item Editor] External storage import warning [{}/{}] {}",
+                    index + 1,
+                    warnings.size(),
+                    warnings.get(index));
         }
     }
 
@@ -494,7 +460,8 @@ public final class ExternalStorageImportService {
             }
             JsonObject object = root.getAsJsonObject();
             for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
-                if (entry.getValue().isJsonPrimitive() && entry.getValue().getAsJsonPrimitive().isNumber()) {
+                if (entry.getValue().isJsonPrimitive()
+                        && entry.getValue().getAsJsonPrimitive().isNumber()) {
                     names.put(entry.getValue().getAsInt(), entry.getKey());
                 }
             }
@@ -516,7 +483,8 @@ public final class ExternalStorageImportService {
             return "";
         }
         try {
-            DataResult<Component> parsed = ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(rawJson));
+            DataResult<Component> parsed =
+                    ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(rawJson));
             return parsed.result().map(TextComponentUtil::toMarkup).orElse(rawJson);
         } catch (RuntimeException ignored) {
             return rawJson;
@@ -546,8 +514,7 @@ public final class ExternalStorageImportService {
             return List.of();
         }
         try (var stream = Files.list(directory)) {
-            return stream
-                    .filter(Files::isRegularFile)
+            return stream.filter(Files::isRegularFile)
                     .map(path -> numberedPath(path, pattern))
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparingInt(NumberedPath::number))
@@ -558,7 +525,8 @@ public final class ExternalStorageImportService {
     }
 
     private static NumberedPath numberedPath(Path path, Pattern pattern) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase(Locale.ROOT);
+        String name =
+                path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase(Locale.ROOT);
         Matcher matcher = pattern.matcher(name);
         if (!matcher.matches()) {
             return null;
@@ -582,74 +550,29 @@ public final class ExternalStorageImportService {
     }
 
     private static void emitProgress(
-            Consumer<ProgressUpdate> progress,
-            String phase,
-            String source,
-            int current,
-            int total,
-            int items
-    ) {
+            Consumer<ProgressUpdate> progress, String phase, String source, int current, int total, int items) {
         if (progress != null) {
             progress.accept(new ProgressUpdate(phase, source, current, total, items));
         }
     }
 
-    public record ScanResult(
-            int nbtEditorPages,
-            int librarianPages
-    ) {
-    }
+    public record ScanResult(int nbtEditorPages, int librarianPages) {}
 
-    public record ImportReadResult(
-            List<SavedItemStorageService.ExternalPageImport> pages,
-            List<String> warnings
-    ) {
-    }
+    public record ImportReadResult(List<SavedItemStorageService.ExternalPageImport> pages, List<String> warnings) {}
 
-    public record ProgressUpdate(
-            String phase,
-            String source,
-            int current,
-            int total,
-            int items
-    ) {
-    }
+    public record ProgressUpdate(String phase, String source, int current, int total, int items) {}
 
-    private record ImportedItem(
-            ItemStack stack,
-            CompoundTag itemTag,
-            int dataVersion
-    ) {
-    }
+    private record ImportedItem(ItemStack stack, CompoundTag itemTag, int dataVersion) {}
 
-    private record ImportWarningContext(
-            String source,
-            int page,
-            int slot,
-            int row,
-            String file,
-            String stage
-    ) {
+    private record ImportWarningContext(String source, int page, int slot, int row, String file, String stage) {
         private static ImportWarningContext nbtEditor(NumberedPath file, int slot) {
             return new ImportWarningContext(
-                    "NBT Editor",
-                    file == null ? -1 : file.number(),
-                    slot,
-                    -1,
-                    fileName(file),
-                    ""
-            );
+                    "NBT Editor", file == null ? -1 : file.number(), slot, -1, fileName(file), "");
         }
 
         private static ImportWarningContext librarian(NumberedPath file, int row) {
             return new ImportWarningContext(
-                    "Librarian",
-                    file == null ? -1 : file.number(),
-                    -1,
-                    row,
-                    fileName(file),
-                    ""
-            );
+                    "Librarian", file == null ? -1 : file.number(), -1, row, fileName(file), "");
         }
 
         private ImportWarningContext withStage(String stage) {
@@ -690,9 +613,5 @@ public final class ExternalStorageImportService {
         }
     }
 
-    private record NumberedPath(
-            int number,
-            Path path
-    ) {
-    }
+    private record NumberedPath(int number, Path path) {}
 }

@@ -3,9 +3,12 @@ package me.noramibu.itemeditor.service;
 import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
 
 import com.mojang.serialization.DataResult;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
@@ -20,9 +23,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.component.TypedEntityData;
-
-import java.util.List;
-import java.util.Objects;
 
 final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -43,20 +43,16 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         }
 
         CompoundTag entityTag = EntitySpawnDataUtil.applyEntity(
-                context.special().spawnEggEntity,
-                context,
-                ItemEditorText.str("special.spawn_egg.entity")
-        );
+                context.special().spawnEggEntity, context, ItemEditorText.str("special.spawn_egg.entity"));
         if (entityTag == null) {
             return;
         }
 
         EntityType<?> entityType = this.resolveEntityType(context, context.special().spawnEggEntity.entityId);
         if (entityType == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.spawn_egg.entity")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed", ItemEditorText.str("special.spawn_egg.entity"))));
             return;
         }
 
@@ -98,18 +94,19 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private boolean applyVillagerDataAndTrades(
-            CompoundTag entityTag,
-            EntityType<?> entityType,
-            SpecialDataApplyContext context
-    ) {
-        if (!isVillagerEntity(entityType)) {
+            CompoundTag entityTag, EntityType<?> entityType, SpecialDataApplyContext context) {
+        if (!ItemEditorCapabilities.supportsVillagerTrades(entityType)) {
             entityTag.remove("VillagerData");
             entityTag.remove("Offers");
             return true;
         }
 
-        if (!this.applyVillagerData(entityTag, context)) {
-            return false;
+        if (ItemEditorCapabilities.supportsVillagerData(entityType)) {
+            if (!this.applyVillagerData(entityTag, context)) {
+                return false;
+            }
+        } else {
+            entityTag.remove("VillagerData");
         }
         if (!this.applyVillagerTrades(entityTag, context)) {
             return false;
@@ -118,10 +115,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private boolean ensureVillagerTradeCompatibility(
-            CompoundTag entityTag,
-            EntityType<?> entityType,
-            SpecialDataApplyContext context
-    ) {
+            CompoundTag entityTag, EntityType<?> entityType, SpecialDataApplyContext context) {
         ItemEditorState.SpecialData special = context.special();
         if (entityType != VILLAGER || special.spawnEggVillagerTrades.isEmpty()) {
             return true;
@@ -130,10 +124,10 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         CompoundTag villagerDataTag = entityTag.getCompoundOrEmpty("VillagerData");
         String professionId = villagerDataTag.getStringOr("profession", "");
         if (professionId.isBlank()) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.spawn_egg.villager.profession")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.spawn_egg.villager.profession"))));
             return false;
         }
         Identifier profession = this.parseVillagerProfession(professionId, context);
@@ -167,11 +161,11 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         if (!typeId.isBlank()) {
             Identifier villagerType = IdFieldNormalizer.parse(typeId);
             if (villagerType == null || !BuiltInRegistries.VILLAGER_TYPE.containsKey(villagerType)) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.spawn_egg.villager.type"),
-                        typeId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.spawn_egg.villager.type"),
+                                typeId)));
                 return false;
             }
             villagerDataTag.putString("type", villagerType.toString());
@@ -187,12 +181,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
         if (!rawLevel.isBlank()) {
             Integer level = ValidationUtil.parseInt(
-                    rawLevel,
-                    ItemEditorText.str("special.spawn_egg.villager.level"),
-                    1,
-                    5,
-                    context.messages()
-            );
+                    rawLevel, ItemEditorText.str("special.spawn_egg.villager.level"), 1, 5, context.messages());
             if (level == null) {
                 return false;
             }
@@ -212,11 +201,11 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         if (profession != null && BuiltInRegistries.VILLAGER_PROFESSION.containsKey(profession)) {
             return profession;
         }
-        context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                "validation.registry_missing",
-                ItemEditorText.str("special.spawn_egg.villager.profession"),
-                professionId
-        )));
+        context.messages()
+                .add(ValidationMessage.error(ItemEditorText.str(
+                        "validation.registry_missing",
+                        ItemEditorText.str("special.spawn_egg.villager.profession"),
+                        professionId)));
         return null;
     }
 
@@ -233,11 +222,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             CompoundTag recipeTag = new CompoundTag();
 
             CompoundTag buyTag = this.buildTradeStackTag(
-                    draft.buy,
-                    ItemEditorText.str("special.spawn_egg.villager.trade.buy"),
-                    index,
-                    context
-            );
+                    draft.buy, ItemEditorText.str("special.spawn_egg.villager.trade.buy"), index, context);
             if (buyTag == null) {
                 return false;
             }
@@ -245,11 +230,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
             if (!draft.buyB.itemId.isBlank()) {
                 CompoundTag buyBTag = this.buildTradeStackTag(
-                        draft.buyB,
-                        ItemEditorText.str("special.spawn_egg.villager.trade.buy_b"),
-                        index,
-                        context
-                );
+                        draft.buyB, ItemEditorText.str("special.spawn_egg.villager.trade.buy_b"), index, context);
                 if (buyBTag == null) {
                     return false;
                 }
@@ -257,11 +238,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
             }
 
             CompoundTag sellTag = this.buildTradeStackTag(
-                    draft.sell,
-                    ItemEditorText.str("special.spawn_egg.villager.trade.sell"),
-                    index,
-                    context
-            );
+                    draft.sell, ItemEditorText.str("special.spawn_egg.villager.trade.sell"), index, context);
             if (sellTag == null) {
                 return false;
             }
@@ -272,41 +249,31 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
                     ItemEditorText.str("special.spawn_egg.villager.trade.max_uses"),
                     1,
                     16,
-                    context.messages()
-            );
+                    context.messages());
             Integer uses = parseOptionalIntOrDefault(
-                    draft.uses,
-                    ItemEditorText.str("special.spawn_egg.villager.trade.uses"),
-                    0,
-                    0,
-                    context.messages()
-            );
+                    draft.uses, ItemEditorText.str("special.spawn_egg.villager.trade.uses"), 0, 0, context.messages());
             Integer villagerXp = parseOptionalIntOrDefault(
                     draft.villagerXp,
                     ItemEditorText.str("special.spawn_egg.villager.trade.xp"),
                     0,
                     1,
-                    context.messages()
-            );
+                    context.messages());
             Integer demand = parseOptionalIntOrDefault(
                     draft.demand,
                     ItemEditorText.str("special.spawn_egg.villager.trade.demand"),
                     Integer.MIN_VALUE,
                     0,
-                    context.messages()
-            );
+                    context.messages());
             Integer specialPrice = parseOptionalIntOrDefault(
                     draft.specialPrice,
                     ItemEditorText.str("special.spawn_egg.villager.trade.special_price"),
                     Integer.MIN_VALUE,
                     0,
-                    context.messages()
-            );
+                    context.messages());
             Float priceMultiplier = parseOptionalFloatOrDefault(
                     draft.priceMultiplier,
                     ItemEditorText.str("special.spawn_egg.villager.trade.price_multiplier"),
-                    context.messages()
-            );
+                    context.messages());
 
             if (maxUses == null
                     || uses == null
@@ -335,11 +302,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private CompoundTag buildTradeStackTag(
-            ItemEditorState.TradeStackDraft stackDraft,
-            String label,
-            int tradeIndex,
-            SpecialDataApplyContext context
-    ) {
+            ItemEditorState.TradeStackDraft stackDraft, String label, int tradeIndex, SpecialDataApplyContext context) {
         CompoundTag templateTag = this.templateTradeStackTag(stackDraft, context);
         if (templateTag != null) {
             return templateTag;
@@ -347,41 +310,33 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
         String itemId = normalizeId(stackDraft.itemId);
         if (itemId.isBlank()) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.spawn_egg.villager.trade")
-                            + " " + (tradeIndex + 1) + " - " + label
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.spawn_egg.villager.trade") + " " + (tradeIndex + 1) + " - "
+                                    + label)));
             return null;
         }
 
         Identifier identifier = IdFieldNormalizer.parse(itemId);
         if (identifier == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.spawn_egg.villager.trade")
-                            + " " + (tradeIndex + 1) + " - " + label
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.spawn_egg.villager.trade") + " " + (tradeIndex + 1) + " - "
+                                    + label)));
             return null;
         }
 
         Item item = BuiltInRegistries.ITEM.getOptional(identifier).orElse(null);
         if (item == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    label,
-                    itemId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str("validation.registry_missing", label, itemId)));
             return null;
         }
 
         Integer count = ValidationUtil.parseInt(
-                stackDraft.count,
-                label + " " + ItemEditorText.str("special.spawn_egg.villager.trade.count_suffix"),
-                1,
-                127,
-                context.messages()
-        );
+                stackDraft.count, label + " " + ItemEditorText.str("common.count"), 1, 127, context.messages());
         if (count == null) {
             return null;
         }
@@ -393,9 +348,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private CompoundTag templateTradeStackTag(
-            ItemEditorState.TradeStackDraft stackDraft,
-            SpecialDataApplyContext context
-    ) {
+            ItemEditorState.TradeStackDraft stackDraft, SpecialDataApplyContext context) {
         ItemStack template = stackDraft.templateStack;
         if (template == null || template.isEmpty()) {
             return null;
@@ -403,10 +356,8 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
         int count = ValidationUtil.parseIntOrDefault(stackDraft.count, template.getCount());
         ItemStack copy = template.copyWithCount(Math.clamp(count, 1, 127));
-        DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(
-                context.registryAccess().createSerializationContext(NbtOps.INSTANCE),
-                copy
-        );
+        DataResult<Tag> encoded =
+                ItemStack.CODEC.encodeStart(context.registryAccess().createSerializationContext(NbtOps.INSTANCE), copy);
         return encoded.result()
                 .filter(CompoundTag.class::isInstance)
                 .map(CompoundTag.class::cast)
@@ -414,12 +365,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private static Integer parseOptionalIntOrDefault(
-            String raw,
-            String field,
-            int min,
-            int fallback,
-            List<ValidationMessage> messages
-    ) {
+            String raw, String field, int min, int fallback, List<ValidationMessage> messages) {
         String normalized = raw == null ? "" : raw.trim();
         if (normalized.isBlank()) {
             return fallback;
@@ -427,11 +373,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         return ValidationUtil.parseInt(normalized, field, min, Integer.MAX_VALUE, messages);
     }
 
-    private static Float parseOptionalFloatOrDefault(
-            String raw,
-            String field,
-            List<ValidationMessage> messages
-    ) {
+    private static Float parseOptionalFloatOrDefault(String raw, String field, List<ValidationMessage> messages) {
         String normalized = raw == null ? "" : raw.trim();
         if (normalized.isBlank()) {
             return 0.05F;
@@ -441,10 +383,6 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
 
     private static String normalizeId(String raw) {
         return raw == null ? "" : IdFieldNormalizer.normalize(raw);
-    }
-
-    private static boolean isVillagerEntity(EntityType<?> entityType) {
-        return entityType == VILLAGER || entityType == WANDERING_TRADER;
     }
 
     private boolean sameSpawnEggData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {
@@ -464,9 +402,7 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
     }
 
     private boolean sameVillagerTrades(
-            List<ItemEditorState.VillagerTradeDraft> current,
-            List<ItemEditorState.VillagerTradeDraft> baseline
-    ) {
+            List<ItemEditorState.VillagerTradeDraft> current, List<ItemEditorState.VillagerTradeDraft> baseline) {
         if (current.size() != baseline.size()) {
             return false;
         }
@@ -489,7 +425,8 @@ final class SpawnEggSpecialDataApplier extends AbstractPreviewApplierSupport imp
         return true;
     }
 
-    private static boolean tradeStackDiffers(ItemEditorState.TradeStackDraft left, ItemEditorState.TradeStackDraft right) {
+    private static boolean tradeStackDiffers(
+            ItemEditorState.TradeStackDraft left, ItemEditorState.TradeStackDraft right) {
         return !Objects.equals(left.itemId, right.itemId)
                 || !Objects.equals(left.count, right.count)
                 || !ItemStack.isSameItemSameComponents(left.templateStack, right.templateStack)
