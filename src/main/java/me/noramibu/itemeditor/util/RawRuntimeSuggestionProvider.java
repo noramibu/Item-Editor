@@ -1,5 +1,12 @@
 package me.noramibu.itemeditor.util;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
@@ -8,42 +15,30 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Item;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 
 public final class RawRuntimeSuggestionProvider {
     private static final List<String> ALL_ITEMS_PROFILE = List.of("all_items");
     private static final String[] POTION_PATHS = {
-            "potion",
-            "splash_potion",
-            "lingering_potion",
-            "tipped_arrow",
-            "suspicious_stew"
+        "potion", "splash_potion", "lingering_potion", "tipped_arrow", "suspicious_stew"
     };
     private static final String[] BLOCK_ENTITY_PATHS = {
-            "chest",
-            "trapped_chest",
-            "barrel",
-            "hopper",
-            "furnace",
-            "blast_furnace",
-            "smoker",
-            "brewing_stand",
-            "jukebox",
-            "beehive",
-            "bee_nest",
-            "decorated_pot",
-            "brushable_block"
+        "chest",
+        "trapped_chest",
+        "barrel",
+        "hopper",
+        "furnace",
+        "blast_furnace",
+        "smoker",
+        "brewing_stand",
+        "jukebox",
+        "beehive",
+        "bee_nest",
+        "decorated_pot",
+        "brushable_block"
     };
 
     private static final TagKey<Item> TAG_SWORDS = itemTag("swords");
@@ -79,18 +74,12 @@ public final class RawRuntimeSuggestionProvider {
     private int registryAccessIdentity = -1;
 
     public <T> List<String> registryIds(
-            RegistryAccess registryAccess,
-            ResourceKey<Registry<T>> registryKey,
-            Registry<T> builtinFallback
-    ) {
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey, Registry<T> builtinFallback) {
         return this.ids(registryAccess, registryKey, builtinFallback);
     }
 
     public <T> List<String> registryTagIds(
-            RegistryAccess registryAccess,
-            ResourceKey<Registry<T>> registryKey,
-            Registry<T> builtinFallback
-    ) {
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey, Registry<T> builtinFallback) {
         return this.tagIds(registryAccess, registryKey, builtinFallback);
     }
 
@@ -115,10 +104,7 @@ public final class RawRuntimeSuggestionProvider {
     }
 
     private <T> List<String> ids(
-            RegistryAccess registryAccess,
-            ResourceKey<Registry<T>> registryKey,
-            Registry<T> builtinFallback
-    ) {
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey, Registry<T> builtinFallback) {
         synchronized (this.lock) {
             this.ensureRegistryIdentity(registryAccess);
 
@@ -159,10 +145,7 @@ public final class RawRuntimeSuggestionProvider {
     }
 
     private <T> List<String> tagIds(
-            RegistryAccess registryAccess,
-            ResourceKey<Registry<T>> registryKey,
-            Registry<T> builtinFallback
-    ) {
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey, Registry<T> builtinFallback) {
         synchronized (this.lock) {
             this.ensureRegistryIdentity(registryAccess);
 
@@ -367,7 +350,8 @@ public final class RawRuntimeSuggestionProvider {
         return TagKey.create(Registries.ITEM, id);
     }
 
-    private static <T> List<String> fromRegistryAccess(RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey) {
+    private static <T> List<String> fromRegistryAccess(
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey) {
         try {
             return registryAccess.lookupOrThrow(registryKey).keySet().stream()
                     .map(Identifier::toString)
@@ -388,11 +372,11 @@ public final class RawRuntimeSuggestionProvider {
     }
 
     private static <T> List<String> fromRegistryAccessTags(
-            RegistryAccess registryAccess,
-            ResourceKey<Registry<T>> registryKey
-    ) {
+            RegistryAccess registryAccess, ResourceKey<Registry<T>> registryKey) {
         try {
-            return registryAccess.lookupOrThrow(registryKey).getTags()
+            return registryAccess
+                    .lookupOrThrow(registryKey)
+                    .getTags()
                     .map(named -> "#" + named.key().location())
                     .sorted()
                     .toList();

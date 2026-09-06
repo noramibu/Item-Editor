@@ -1,7 +1,6 @@
 package me.noramibu.itemeditor.ui.util;
 
 import io.wispforest.owo.ui.container.ScrollContainer;
-
 import java.lang.reflect.Field;
 
 public final class ScrollStateUtil {
@@ -11,8 +10,7 @@ public final class ScrollStateUtil {
     private static final Field LAST_SCROLL_POSITION_FIELD = findField("lastScrollPosition");
     private static final Field MAX_SCROLL_FIELD = findField("maxScroll");
 
-    private ScrollStateUtil() {
-    }
+    private ScrollStateUtil() {}
 
     public static double offset(ScrollContainer<?> scroll) {
         if (scroll == null || SCROLL_OFFSET_FIELD == null) return 0;

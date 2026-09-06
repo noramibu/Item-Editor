@@ -1,5 +1,10 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -13,17 +18,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (this.sameList(context.special().containerEntries, context.baselineSpecial().containerEntries,
+        if (this.sameList(
+                context.special().containerEntries,
+                context.baselineSpecial().containerEntries,
                 (left, right) -> Objects.equals(left.slot, right.slot)
                         && Objects.equals(left.itemId, right.itemId)
                         && Objects.equals(left.count, right.count)
@@ -45,29 +46,30 @@ final class ContainerSpecialDataApplier extends AbstractPreviewApplierSupport im
                 continue;
             }
 
-            Integer slot = ValidationUtil.parseInt(draft.slot, ItemEditorText.str("special.container.slot_index"), 0, 255, context.messages());
+            Integer slot = ValidationUtil.parseInt(
+                    draft.slot, ItemEditorText.str("special.container.slot_index"), 0, 255, context.messages());
             if (slot == null) {
                 continue;
             }
 
             Identifier itemId = IdFieldNormalizer.parse(draft.itemId);
             if (itemId == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.container_item_id")));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str("preview.validation.container_item_id")));
                 continue;
             }
 
             Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
             if (item == null || item == Items.AIR) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.container.item"),
-                        itemId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing", ItemEditorText.str("special.container.item"), itemId)));
                 continue;
             }
 
             int maxStackSize = this.maxStackSize(draft, item);
-            Integer count = ValidationUtil.parseInt(draft.count, ItemEditorText.str("special.container.count"), 1, maxStackSize, context.messages());
+            Integer count = ValidationUtil.parseInt(
+                    draft.count, ItemEditorText.str("common.count"), 1, maxStackSize, context.messages());
             if (count == null) {
                 continue;
             }

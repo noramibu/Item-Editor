@@ -1,7 +1,12 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
+import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerEntryDraftUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -15,7 +20,6 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -26,11 +30,6 @@ import net.minecraft.world.level.block.HopperBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
 
 public final class ContainerEditorScreen extends ContainerScreen {
     private static final int COLUMNS = 9;
@@ -50,27 +49,18 @@ public final class ContainerEditorScreen extends ContainerScreen {
     private Button nextPageButton;
 
     public ContainerEditorScreen(
-            ItemEditorScreen returnScreen,
-            ItemEditorState.SpecialData special,
-            ItemStack originalStack
-    ) {
+            ItemEditorScreen returnScreen, ItemEditorState.SpecialData special, ItemStack originalStack) {
         this(returnScreen, special, screenData(special, originalStack));
     }
 
-    private ContainerEditorScreen(
-            ItemEditorScreen returnScreen,
-            ItemEditorState.SpecialData special,
-            ScreenData data
-    ) {
+    private ContainerEditorScreen(ItemEditorScreen returnScreen, ItemEditorState.SpecialData special, ScreenData data) {
         this(returnScreen, special, data, EditorMode.CONTAINER, requireInventory());
     }
 
-    public static ContainerEditorScreen bundle(
-            ItemEditorScreen returnScreen,
-            ItemEditorState.SpecialData special
-    ) {
+    public static ContainerEditorScreen bundle(ItemEditorScreen returnScreen, ItemEditorState.SpecialData special) {
         int page = Math.max(0, special.bundleEditorPage);
-        return new ContainerEditorScreen(returnScreen, special, bundleScreenData(special, page), EditorMode.BUNDLE, requireInventory());
+        return new ContainerEditorScreen(
+                returnScreen, special, bundleScreenData(special, page), EditorMode.BUNDLE, requireInventory());
     }
 
     private ContainerEditorScreen(
@@ -78,13 +68,11 @@ public final class ContainerEditorScreen extends ContainerScreen {
             ItemEditorState.SpecialData special,
             ScreenData data,
             EditorMode mode,
-            Inventory inventory
-    ) {
+            Inventory inventory) {
         super(
-                new ChestMenu(menuType(data.rows()), 0, inventory, data.container(), data.rows()),
+                new ChestMenu(UiFactory.chestMenuType(data.rows()), 0, inventory, data.container(), data.rows()),
                 inventory,
-                data.title()
-        );
+                data.title());
         this.returnScreen = returnScreen;
         this.special = special;
         this.container = data.container();
@@ -121,18 +109,25 @@ public final class ContainerEditorScreen extends ContainerScreen {
         int firstY = this.topPos + (this.imageHeight - BUTTON_HEIGHT * 2 - BUTTON_GAP) / 2;
         int secondY = firstY + BUTTON_HEIGHT + BUTTON_GAP;
 
-        this.previousPageButton = Button.builder(compact ? Component.literal("<") : ItemEditorText.tr("common.prev"), ignored -> this.switchBundlePage(-1))
+        this.previousPageButton = Button.builder(
+                        compact ? Component.literal("<") : ItemEditorText.tr("common.prev"),
+                        ignored -> this.switchBundlePage(-1))
                 .bounds(leftX, firstY, buttonWidth, BUTTON_HEIGHT)
                 .build();
-        this.nextPageButton = Button.builder(compact ? Component.literal(">") : ItemEditorText.tr("common.next"), ignored -> this.switchBundlePage(1))
+        this.nextPageButton = Button.builder(
+                        compact ? Component.literal(">") : ItemEditorText.tr("common.next"),
+                        ignored -> this.switchBundlePage(1))
                 .bounds(rightX, firstY, buttonWidth, BUTTON_HEIGHT)
                 .build();
         this.addRenderableWidget(this.previousPageButton);
         this.addRenderableWidget(this.nextPageButton);
-        this.addRenderableWidget(Button.builder(compact ? Component.literal("X") : ItemEditorText.tr("common.cancel"), ignored -> this.cancel())
+        this.addRenderableWidget(Button.builder(
+                        compact ? Component.literal("X") : ItemEditorText.tr("common.cancel"), ignored -> this.cancel())
                 .bounds(leftX, secondY, buttonWidth, BUTTON_HEIGHT)
                 .build());
-        this.addRenderableWidget(Button.builder(compact ? Component.literal("OK") : ItemEditorText.tr("special.container.done"), ignored -> this.done())
+        this.addRenderableWidget(Button.builder(
+                        compact ? Component.literal("OK") : ItemEditorText.tr("special.container.done"),
+                        ignored -> this.done())
                 .bounds(rightX, secondY, buttonWidth, BUTTON_HEIGHT)
                 .build());
         this.updateBundlePageButtons();
@@ -147,8 +142,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
                 this.inventoryLabelX,
                 this.inventoryLabelY,
                 -12566464,
-                false
-        );
+                false);
         if (this.mode == EditorMode.BUNDLE) {
             context.drawString(
                     this.font,
@@ -156,8 +150,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
                     this.titleLabelX + this.font.width(this.title) + 8,
                     this.titleLabelY,
                     -12566464,
-                    false
-            );
+                    false);
         }
     }
 
@@ -269,8 +262,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
             this.previousPageButton.active = this.bundlePage > 0;
         }
         if (this.nextPageButton != null) {
-            this.nextPageButton.active = this.bundlePage < this.maxBundlePage()
-                    || this.currentBundlePageIsFull();
+            this.nextPageButton.active = this.bundlePage < this.maxBundlePage() || this.currentBundlePageIsFull();
         }
     }
 
@@ -313,8 +305,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
         int start = this.bundlePage * ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE;
         int end = Math.min(this.special.bundleEntries.size(), start + this.editableSlots);
         List<ItemEditorState.ContainerEntryDraft> updated = new ArrayList<>(
-                this.special.bundleEntries.subList(0, Math.min(start, this.special.bundleEntries.size()))
-        );
+                this.special.bundleEntries.subList(0, Math.min(start, this.special.bundleEntries.size())));
         for (int slot = 0; slot < this.editableSlots; slot++) {
             ItemStack stack = this.container.getItem(slot);
             if (!stack.isEmpty()) {
@@ -331,7 +322,8 @@ public final class ContainerEditorScreen extends ContainerScreen {
             this.special.selectedBundleIndex = -1;
             this.bundlePage = 0;
         } else {
-            this.special.selectedBundleIndex = Math.clamp(this.special.selectedBundleIndex, 0, this.special.bundleEntries.size() - 1);
+            this.special.selectedBundleIndex =
+                    Math.clamp(this.special.selectedBundleIndex, 0, this.special.bundleEntries.size() - 1);
             this.bundlePage = Math.clamp(this.bundlePage, 0, this.maxBundlePage());
         }
         this.special.bundleEditorPage = this.bundlePage;
@@ -341,19 +333,14 @@ public final class ContainerEditorScreen extends ContainerScreen {
         if (type == ClickType.QUICK_CRAFT) {
             return slotId == -999 || isMenuSlot(slotId);
         }
-        return isMenuSlot(slotId)
-                && type != ClickType.SWAP
-                && type != ClickType.THROW;
+        return isMenuSlot(slotId) && type != ClickType.SWAP && type != ClickType.THROW;
     }
 
     private boolean isMenuSlot(int slotId) {
         return slotId >= 0 && slotId < this.menu.slots.size();
     }
 
-    private static ScreenData screenData(
-            ItemEditorState.SpecialData special,
-            ItemStack originalStack
-    ) {
+    private static ScreenData screenData(ItemEditorState.SpecialData special, ItemStack originalStack) {
         int rows = rowsFor(originalStack);
         SimpleContainer container = new SimpleContainer(rows * COLUMNS);
         for (ItemEditorState.ContainerEntryDraft draft : special.containerEntries) {
@@ -368,10 +355,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
     private static ScreenData bundleScreenData(ItemEditorState.SpecialData special, int page) {
         SimpleContainer container = new SimpleContainer(ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE);
         int safePage = Math.clamp(
-                page,
-                0,
-                Math.max(0, special.bundleEntries.size() / ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE)
-        );
+                page, 0, Math.max(0, special.bundleEntries.size() / ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE));
         int start = safePage * ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE;
         int end = Math.min(special.bundleEntries.size(), start + ContainerEntryDraftUtil.BUNDLE_PAGE_SIZE);
         for (int index = start; index < end; index++) {
@@ -382,10 +366,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
 
     private static ItemStack stackForDraft(ItemEditorState.ContainerEntryDraft draft) {
         if (draft.templateStack != null && !draft.templateStack.isEmpty()) {
-            int count = Math.max(1, ValidationUtil.parseIntOrDefault(
-                    draft.count,
-                    draft.templateStack.getCount()
-            ));
+            int count = Math.max(1, ValidationUtil.parseIntOrDefault(draft.count, draft.templateStack.getCount()));
             return draft.templateStack.copyWithCount(count);
         }
         Item item = ContainerEntryDraftUtil.resolveItem(draft.itemId);
@@ -414,17 +395,6 @@ public final class ContainerEditorScreen extends ContainerScreen {
         return 27;
     }
 
-    private static MenuType<?> menuType(int rows) {
-        return switch (rows) {
-            case 1 -> MenuType.GENERIC_9x1;
-            case 2 -> MenuType.GENERIC_9x2;
-            case 3 -> MenuType.GENERIC_9x3;
-            case 4 -> MenuType.GENERIC_9x4;
-            case 5 -> MenuType.GENERIC_9x5;
-            default -> MenuType.GENERIC_9x6;
-        };
-    }
-
     private static void syncBundleSlots(List<ItemEditorState.ContainerEntryDraft> entries) {
         for (int index = 0; index < entries.size(); index++) {
             entries.get(index).slot = Integer.toString(index);
@@ -444,6 +414,5 @@ public final class ContainerEditorScreen extends ContainerScreen {
         BUNDLE
     }
 
-    private record ScreenData(SimpleContainer container, int rows, Component title, int bundlePage) {
-    }
+    private record ScreenData(SimpleContainer container, int rows, Component title, int bundlePage) {}
 }

@@ -1,6 +1,13 @@
 package me.noramibu.itemeditor.util;
 
 import com.mojang.serialization.DynamicOps;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentMap;
@@ -16,14 +23,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 
 final class RawAutocompleteCatalog {
 
@@ -52,8 +51,7 @@ final class RawAutocompleteCatalog {
             Map.entry("maps", List.of("minecraft:map_id", "minecraft:map_decorations")),
             Map.entry("music_discs", List.of("minecraft:jukebox_playable")),
             Map.entry("goat_horns", List.of("minecraft:instrument")),
-            Map.entry("heads", List.of("minecraft:profile"))
-    );
+            Map.entry("heads", List.of("minecraft:profile")));
 
     private final RawRuntimeSuggestionProvider runtime = new RawRuntimeSuggestionProvider();
     private final RawCodecShapeIndex codecShapes = new RawCodecShapeIndex();
@@ -67,15 +65,10 @@ final class RawAutocompleteCatalog {
         return this.runtime.registryIds(
                 effectiveRegistryAccess(registryAccess),
                 Registries.DATA_COMPONENT_TYPE,
-                BuiltInRegistries.DATA_COMPONENT_TYPE
-        );
+                BuiltInRegistries.DATA_COMPONENT_TYPE);
     }
 
-    List<String> componentsForContext(
-            String itemId,
-            List<String> profiles,
-            RegistryAccess registryAccess
-    ) {
+    List<String> componentsForContext(String itemId, List<String> profiles, RegistryAccess registryAccess) {
         LinkedHashSet<String> result = new LinkedHashSet<>();
         result.addAll(defaultComponentIds(itemId, registryAccess));
         result.addAll(profileRelevantComponentIds(profiles));
@@ -83,12 +76,7 @@ final class RawAutocompleteCatalog {
     }
 
     List<String> objectKeyHints(
-            String key,
-            String path,
-            String itemId,
-            List<String> profiles,
-            RegistryAccess registryAccess
-    ) {
+            String key, String path, String itemId, List<String> profiles, RegistryAccess registryAccess) {
         String normalizedKey = normalizeLookupKey(key);
         if (normalizedKey.isBlank()) {
             return List.of();
@@ -110,24 +98,17 @@ final class RawAutocompleteCatalog {
     }
 
     List<String> componentFieldHints(
-            String componentId,
-            String itemId,
-            List<String> profiles,
-            RegistryAccess registryAccess
-    ) {
+            String componentId, String itemId, List<String> profiles, RegistryAccess registryAccess) {
         String normalizedComponentId = normalizeComponentId(componentId);
         if (normalizedComponentId.isBlank()) {
             return List.of();
         }
 
         LinkedHashSet<String> result = new LinkedHashSet<>();
-        result.addAll(defaultComponentData(itemId, registryAccess)
-                .fields()
-                .getOrDefault(normalizedComponentId, List.of()));
+        result.addAll(
+                defaultComponentData(itemId, registryAccess).fields().getOrDefault(normalizedComponentId, List.of()));
         result.addAll(this.codecShapes.fieldsFor(
-                normalizedComponentId,
-                componentType(normalizedComponentId, registryAccess)
-        ));
+                normalizedComponentId, componentType(normalizedComponentId, registryAccess)));
         result.addAll(profileFieldHints(normalizedComponentId, profiles));
         return List.copyOf(result);
     }
@@ -137,9 +118,7 @@ final class RawAutocompleteCatalog {
         if (normalizedComponentId.isBlank()) {
             return "";
         }
-        return defaultComponentData(itemId, registryAccess)
-                .values()
-                .getOrDefault(normalizedComponentId, "");
+        return defaultComponentData(itemId, registryAccess).values().getOrDefault(normalizedComponentId, "");
     }
 
     private List<String> defaultComponentIds(String itemId, RegistryAccess registryAccess) {
@@ -170,11 +149,11 @@ final class RawAutocompleteCatalog {
             stack = null;
         }
         if (stack == null) {
-            return new DefaultComponentData(componentIdsFrom(DataComponents.COMMON_ITEM_COMPONENTS), Map.of(), Map.of());
+            return new DefaultComponentData(
+                    componentIdsFrom(DataComponents.COMMON_ITEM_COMPONENTS), Map.of(), Map.of());
         }
 
-        DynamicOps<Tag> ops = effectiveRegistryAccess(registryAccess)
-                .createSerializationContext(NbtOps.INSTANCE);
+        DynamicOps<Tag> ops = effectiveRegistryAccess(registryAccess).createSerializationContext(NbtOps.INSTANCE);
         List<String> ids = componentIdsFrom(stack.getComponents());
         Map<String, List<String>> fields = new LinkedHashMap<>();
         Map<String, String> values = new LinkedHashMap<>();
@@ -183,7 +162,8 @@ final class RawAutocompleteCatalog {
             if (componentId == null) {
                 continue;
             }
-            component.encodeValue(ops)
+            component
+                    .encodeValue(ops)
                     .result()
                     .ifPresent(tag -> addDefaultComponentData(componentId.toString(), tag, fields, values));
         }
@@ -194,11 +174,7 @@ final class RawAutocompleteCatalog {
     }
 
     private static void addDefaultComponentData(
-            String componentId,
-            Tag tag,
-            Map<String, List<String>> fields,
-            Map<String, String> values
-    ) {
+            String componentId, Tag tag, Map<String, List<String>> fields, Map<String, String> values) {
         List<String> keys = keysFromEncodedValue(tag);
         if (!keys.isEmpty()) {
             fields.put(componentId, keys);
@@ -237,8 +213,7 @@ final class RawAutocompleteCatalog {
                 result.addAll(List.of("name", "id", "properties"));
             } else if ("spawn_eggs".equals(profile) && "minecraft:entity_data".equals(componentId)) {
                 result.addAll(OBJECT_KEY_HINTS.getOrDefault("entity", List.of()));
-            } else if ("block_entity_items".equals(profile)
-                    && "minecraft:block_entity_data".equals(componentId)) {
+            } else if ("block_entity_items".equals(profile) && "minecraft:block_entity_data".equals(componentId)) {
                 result.addAll(OBJECT_KEY_HINTS.getOrDefault("block_entity_data", List.of()));
             }
         }
@@ -256,8 +231,8 @@ final class RawAutocompleteCatalog {
         }
 
         try {
-            Registry<DataComponentType<?>> registry = effectiveRegistryAccess(registryAccess)
-                    .lookupOrThrow(Registries.DATA_COMPONENT_TYPE);
+            Registry<DataComponentType<?>> registry =
+                    effectiveRegistryAccess(registryAccess).lookupOrThrow(Registries.DATA_COMPONENT_TYPE);
             var holder = registry.get(id).orElse(null);
             if (holder != null) {
                 return holder.value();
@@ -274,8 +249,7 @@ final class RawAutocompleteCatalog {
         }
 
         try {
-            Registry<Item> registry = effectiveRegistryAccess(registryAccess)
-                    .lookupOrThrow(Registries.ITEM);
+            Registry<Item> registry = effectiveRegistryAccess(registryAccess).lookupOrThrow(Registries.ITEM);
             var holder = registry.get(id).orElse(null);
             if (holder != null) {
                 return holder.value();
@@ -341,54 +315,53 @@ final class RawAutocompleteCatalog {
     }
 
     private record DefaultComponentData(
-            List<String> ids,
-            Map<String, List<String>> fields,
-            Map<String, String> values
-    ) {
+            List<String> ids, Map<String, List<String>> fields, Map<String, String> values) {
         private static final DefaultComponentData EMPTY = new DefaultComponentData(List.of(), Map.of(), Map.of());
     }
 
     private static Map<String, List<String>> createObjectKeyHints() {
         Map<String, List<String>> values = new LinkedHashMap<>();
-        values.put("entity", List.of(
-                "id",
-                "CustomName",
-                "CustomNameVisible",
-                "Glowing",
-                "NoAI",
-                "NoGravity",
-                "Silent",
-                "Invulnerable",
-                "Health",
-                "Motion",
-                "Rotation",
-                "Pos",
-                "Tags",
-                "Passengers",
-                "TileEntityData"
-        ));
-        values.put("block_entity_data", List.of(
-                "id",
-                "Items",
-                "LootTable",
-                "LootTableSeed",
-                "SpawnData",
-                "SpawnPotentials",
-                "Delay",
-                "MinSpawnDelay",
-                "MaxSpawnDelay",
-                "SpawnCount",
-                "MaxNearbyEntities",
-                "RequiredPlayerRange",
-                "SpawnRange",
-                "conditionMet",
-                "auto",
-                "powered",
-                "Command",
-                "SuccessCount",
-                "TrackOutput",
-                "UpdateLastExecution"
-        ));
+        values.put(
+                "entity",
+                List.of(
+                        "id",
+                        "CustomName",
+                        "CustomNameVisible",
+                        "Glowing",
+                        "NoAI",
+                        "NoGravity",
+                        "Silent",
+                        "Invulnerable",
+                        "Health",
+                        "Motion",
+                        "Rotation",
+                        "Pos",
+                        "Tags",
+                        "Passengers",
+                        "TileEntityData"));
+        values.put(
+                "block_entity_data",
+                List.of(
+                        "id",
+                        "Items",
+                        "LootTable",
+                        "LootTableSeed",
+                        "SpawnData",
+                        "SpawnPotentials",
+                        "Delay",
+                        "MinSpawnDelay",
+                        "MaxSpawnDelay",
+                        "SpawnCount",
+                        "MaxNearbyEntities",
+                        "RequiredPlayerRange",
+                        "SpawnRange",
+                        "conditionMet",
+                        "auto",
+                        "powered",
+                        "Command",
+                        "SuccessCount",
+                        "TrackOutput",
+                        "UpdateLastExecution"));
         values.put("spawndata", List.of("entity", "equipment"));
         values.put("spawnpotentials", List.of("data", "weight"));
         values.put("minecraft:custom_data", List.of("BlockEntityTag"));
@@ -397,14 +370,7 @@ final class RawAutocompleteCatalog {
         values.put("sky_light_limit", List.of("min_inclusive", "max_inclusive"));
         values.put("map_decoration", List.of("type", "x", "z", "rotation"));
         values.put("on_consume_effects", List.of("type", "effects", "probability", "diameter", "sound"));
-        values.put("effects", List.of(
-                "id",
-                "amplifier",
-                "duration",
-                "ambient",
-                "show_particles",
-                "show_icon"
-        ));
+        values.put("effects", List.of("id", "amplifier", "duration", "ambient", "show_particles", "show_icon"));
         values.put("properties", List.of("name", "value", "signature"));
         values.put("rules", List.of("blocks", "speed", "correct_for_drops"));
         values.put("target", List.of("dimension", "pos"));
@@ -417,47 +383,37 @@ final class RawAutocompleteCatalog {
         values.put("enchantments", List.of("id", "lvl"));
         values.put("storedenchantments", List.of("id", "lvl"));
         values.put("stored_enchantments", List.of("id", "lvl"));
-        values.put("custompotioneffects", List.of(
-                "Id",
-                "Amplifier",
-                "Duration",
-                "Ambient",
-                "ShowParticles",
-                "ShowIcon"
-        ));
-        values.put("custom_potion_effects", List.of(
-                "id",
-                "amplifier",
-                "duration",
-                "ambient",
-                "show_particles",
-                "show_icon"
-        ));
+        values.put(
+                "custompotioneffects", List.of("Id", "Amplifier", "Duration", "Ambient", "ShowParticles", "ShowIcon"));
+        values.put(
+                "custom_potion_effects",
+                List.of("id", "amplifier", "duration", "ambient", "show_particles", "show_icon"));
         values.put("fireworks", List.of("Flight", "Explosions"));
         values.put("explosions", List.of("shape", "colors", "fade_colors", "has_trail", "has_twinkle"));
         values.put("container_entry", List.of("slot", "item"));
         values.put("item", TOP_LEVEL_KEYS);
         values.put("items", TOP_LEVEL_KEYS);
-        values.put("text", List.of(
+        values.put(
                 "text",
-                "color",
-                "translate",
-                "with",
-                "extra",
-                "score",
-                "selector",
-                "keybind",
-                "nbt",
-                "bold",
-                "italic",
-                "underlined",
-                "strikethrough",
-                "obfuscated",
-                "font",
-                "insertion",
-                "hover_event",
-                "click_event"
-        ));
+                List.of(
+                        "text",
+                        "color",
+                        "translate",
+                        "with",
+                        "extra",
+                        "score",
+                        "selector",
+                        "keybind",
+                        "nbt",
+                        "bold",
+                        "italic",
+                        "underlined",
+                        "strikethrough",
+                        "obfuscated",
+                        "font",
+                        "insertion",
+                        "hover_event",
+                        "click_event"));
         values.put("hover_event", List.of("action", "value", "id", "count", "components", "name", "uuid"));
         values.put("click_event", List.of("action", "url", "path", "command", "page", "value"));
         return Map.copyOf(values);

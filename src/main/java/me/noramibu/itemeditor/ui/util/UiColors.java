@@ -8,6 +8,5 @@ public final class UiColors {
     public static final int INFO = 0x7EC8F8;
     public static final int PICKER = 0x7FCBFF;
 
-    private UiColors() {
-    }
+    private UiColors() {}
 }

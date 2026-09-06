@@ -4,8 +4,7 @@ import net.minecraft.SharedConstants;
 
 public final class StorageMetadataUtil {
 
-    private StorageMetadataUtil() {
-    }
+    private StorageMetadataUtil() {}
 
     public static boolean isGeneratedDefaultName(String name, int index) {
         return name == null || name.isBlank() || ("Page " + (Math.max(0, index) + 1)).equals(name);

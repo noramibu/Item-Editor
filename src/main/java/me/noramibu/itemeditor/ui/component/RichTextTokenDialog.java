@@ -8,12 +8,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextComponentUtil;
-import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +17,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextComponentUtil;
+import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 public final class RichTextTokenDialog {
 
@@ -60,8 +59,7 @@ public final class RichTextTokenDialog {
     private static final int OBJECT_HEX_ROW_LEFT_RESERVE = 96;
     private static final int VALUE_FIELD_WIDTH_MAX = 360;
 
-    private RichTextTokenDialog() {
-    }
+    private RichTextTokenDialog() {}
 
     public static FlowLayout createHead(String title, Consumer<String> onApply, Runnable onCancel) {
         List<ModeSpec> modes = List.of(
@@ -69,68 +67,66 @@ public final class RichTextTokenDialog {
                         ItemEditorText.tr("dialog.rich_text.head.mode.username"),
                         List.of(new FieldSpec(ItemEditorText.tr("dialog.rich_text.head.field.username"), "Notch")),
                         values -> {
-                            String username = firstRequiredTrimmed(values);
+                            String username = trimmedValue(values, 0);
                             if (username == null) {
                                 return null;
                             }
                             return "[ie:head:" + TextComponentUtil.escapeStructuredTokenValue(username) + ":true]";
-                        }
-                ),
+                        }),
                 new ModeSpec(
                         ItemEditorText.tr("dialog.rich_text.head.mode.texture"),
                         List.of(new FieldSpec(ItemEditorText.tr("dialog.rich_text.head.field.texture"), "")),
                         values -> {
-                            String texture = firstRequiredTrimmed(values);
+                            String texture = trimmedValue(values, 0);
                             if (texture == null) {
                                 return null;
                             }
-                            return "[ie:head_texture:" + TextComponentUtil.escapeStructuredTokenValue(texture) + "::true]";
-                        }
-                )
-        );
-        return create(
-                title,
-                ItemEditorText.tr("dialog.rich_text.head.body"),
-                modes,
-                true,
-                onApply,
-                onCancel
-        );
+                            return "[ie:head_texture:" + TextComponentUtil.escapeStructuredTokenValue(texture)
+                                    + "::true]";
+                        }));
+        return create(title, ItemEditorText.tr("dialog.rich_text.head.body"), modes, true, onApply, onCancel);
     }
 
     public static FlowLayout createSprite(String title, Consumer<String> onApply, Runnable onCancel) {
-        List<ModeSpec> modes = List.of(
-                new ModeSpec(
-                        ItemEditorText.tr("dialog.rich_text.sprite.mode"),
-                        List.of(
-                                new FieldSpec(ItemEditorText.tr("dialog.rich_text.sprite.field.atlas"), "minecraft:blocks"),
-                                new FieldSpec(ItemEditorText.tr("dialog.rich_text.sprite.field.sprite"), "minecraft:block/stone")
-                        ),
-                        values -> {
-                            String atlas = firstRequiredTrimmed(values);
-                            String sprite = secondRequiredTrimmed(values);
-                            if (atlas == null || sprite == null) {
-                                return null;
-                            }
-                            if (Identifier.tryParse(atlas) == null || Identifier.tryParse(sprite) == null) {
-                                return null;
-                            }
-                            return "[ie:sprite:"
-                                    + TextComponentUtil.escapeStructuredTokenValue(atlas)
-                                    + "|"
-                                    + TextComponentUtil.escapeStructuredTokenValue(sprite)
-                                    + "]";
-                        }
-                )
-        );
-        return create(
-                title,
-                ItemEditorText.tr("dialog.rich_text.sprite.body"),
-                modes,
-                true,
-                onApply,
-                onCancel
-        );
+        List<ModeSpec> modes = List.of(new ModeSpec(
+                ItemEditorText.tr("dialog.rich_text.sprite.mode"),
+                List.of(
+                        new FieldSpec(ItemEditorText.tr("dialog.rich_text.sprite.field.atlas"), "minecraft:blocks"),
+                        new FieldSpec(
+                                ItemEditorText.tr("dialog.rich_text.sprite.field.sprite"), "minecraft:block/stone")),
+                values -> {
+                    String atlas = trimmedValue(values, 0);
+                    String sprite = trimmedValue(values, 1);
+                    if (atlas == null || sprite == null) {
+                        return null;
+                    }
+                    if (Identifier.tryParse(atlas) == null || Identifier.tryParse(sprite) == null) {
+                        return null;
+                    }
+                    return "[ie:sprite:"
+                            + TextComponentUtil.escapeStructuredTokenValue(atlas)
+                            + "|"
+                            + TextComponentUtil.escapeStructuredTokenValue(sprite)
+                            + "]";
+                }));
+        return create(title, ItemEditorText.tr("dialog.rich_text.sprite.body"), modes, true, onApply, onCancel);
+    }
+
+    public static FlowLayout createTranslation(
+            String title, String initialText, Consumer<String> onApply, Runnable onCancel) {
+        TextComponentUtil.TranslationTokenData existing = TextComponentUtil.translationTokenData(initialText);
+        String initialKey = existing == null ? "" : existing.key();
+        String initialFallback = existing == null ? initialText : existing.fallback();
+        List<ModeSpec> modes = List.of(new ModeSpec(
+                Component.empty(),
+                List.of(
+                        new FieldSpec(ItemEditorText.tr("dialog.rich_text.translation.field.key"), initialKey),
+                        new FieldSpec(
+                                ItemEditorText.tr("dialog.rich_text.translation.field.fallback"),
+                                initialFallback == null ? "" : initialFallback)),
+                values -> TextComponentUtil.replaceTranslationToken(
+                        initialText, trimmedValue(values, 0), rawValue(values, 1))));
+        return create(title, ItemEditorText.tr("dialog.rich_text.translation.body"), modes, false, onApply, onCancel);
     }
 
     public static FlowLayout createEvent(
@@ -139,101 +135,117 @@ public final class RichTextTokenDialog {
             boolean includeSuggestCommand,
             String initialText,
             Consumer<String> onApply,
-            Runnable onCancel
-    ) {
-        String defaultText = requiredRaw(initialText) == null ? TOKEN_PLACEHOLDER : initialText;
+            Runnable onCancel) {
+        String defaultText = rawValue(initialText) == null ? TOKEN_PLACEHOLDER : initialText;
         List<ModeSpec> modes = new ArrayList<>();
-        modes.add(clickMode("dialog.rich_text.click.mode.run_command", "dialog.rich_text.click.field.command", "/say hi", defaultText, value ->
-                "[ie:click:run_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
+        modes.add(clickMode(
+                "dialog.rich_text.click.mode.run_command",
+                "dialog.rich_text.click.field.command",
+                "/say hi",
+                defaultText,
+                value -> "[ie:click:run_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
         if (includeSuggestCommand) {
-            modes.add(clickMode("dialog.rich_text.click.mode.suggest_command", "dialog.rich_text.click.field.command", "/help", defaultText, value ->
-                    "[ie:click:suggest_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
+            modes.add(clickMode(
+                    "dialog.rich_text.click.mode.suggest_command",
+                    "dialog.rich_text.click.field.command",
+                    "/help",
+                    defaultText,
+                    value -> "[ie:click:suggest_command:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
         }
-        modes.add(clickMode("dialog.rich_text.click.mode.open_url", "dialog.rich_text.click.field.url", "https://minecraft.wiki", defaultText, value -> {
-            try {
-                URI uri = URI.create(value);
-                if (uri.getScheme() == null) {
-                    return null;
-                }
-            } catch (RuntimeException exception) {
-                return null;
-            }
-            return "[ie:click:open_url:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]";
-        }));
-        modes.add(clickMode("dialog.rich_text.click.mode.copy_to_clipboard", "dialog.rich_text.click.field.value", TOKEN_PLACEHOLDER, defaultText, value ->
-                "[ie:click:copy_to_clipboard:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
-        modes.add(clickMode("dialog.rich_text.click.mode.change_page", "dialog.rich_text.click.field.page", "1", defaultText, value -> {
-            try {
-                int page = Integer.parseInt(value.trim());
-                if (page <= 0) {
-                    return null;
-                }
-                return "[ie:click:change_page:" + page + "]";
-            } catch (RuntimeException exception) {
-                return null;
-            }
-        }));
+        modes.add(clickMode(
+                "dialog.rich_text.click.mode.open_url",
+                "dialog.rich_text.click.field.url",
+                "https://minecraft.wiki",
+                defaultText,
+                value -> {
+                    try {
+                        URI uri = URI.create(value);
+                        if (uri.getScheme() == null) {
+                            return null;
+                        }
+                    } catch (RuntimeException exception) {
+                        return null;
+                    }
+                    return "[ie:click:open_url:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]";
+                }));
+        modes.add(clickMode(
+                "dialog.rich_text.click.mode.copy_to_clipboard",
+                "dialog.rich_text.click.field.value",
+                TOKEN_PLACEHOLDER,
+                defaultText,
+                value -> "[ie:click:copy_to_clipboard:" + TextComponentUtil.escapeStructuredTokenValue(value) + "]"));
+        modes.add(clickMode(
+                "dialog.rich_text.click.mode.change_page",
+                "dialog.rich_text.click.field.page",
+                "1",
+                defaultText,
+                value -> {
+                    try {
+                        int page = Integer.parseInt(value.trim());
+                        if (page <= 0) {
+                            return null;
+                        }
+                        return "[ie:click:change_page:" + page + "]";
+                    } catch (RuntimeException exception) {
+                        return null;
+                    }
+                }));
         modes.add(new ModeSpec(
                 ItemEditorText.tr("dialog.rich_text.click.mode.custom"),
                 List.of(
                         new FieldSpec(ItemEditorText.tr("dialog.rich_text.click.field.id"), "namespace:id"),
                         new FieldSpec(ItemEditorText.tr("dialog.rich_text.click.field.payload"), "payload string"),
-                        eventTextField(defaultText)
-                ),
+                        eventTextField(defaultText)),
                 values -> {
-                    String id = firstRequiredTrimmed(values);
+                    String id = trimmedValue(values, 0);
                     if (id == null || Identifier.tryParse(id) == null) {
                         return null;
                     }
-                    String payload = secondOptionalRaw(values);
-                    StringBuilder token = new StringBuilder("[ie:click:custom:")
-                            .append(escapeEventField(id));
+                    String payload = rawValue(values, 1);
+                    StringBuilder token = new StringBuilder("[ie:click:custom:").append(escapeEventField(id));
                     if (payload != null) {
                         token.append('|').append(escapeEventField(payload));
                     }
-                    String eventText = thirdRequiredRaw(values);
+                    String eventText = rawValue(values, 2);
                     if (eventText == null) {
                         return null;
                     }
                     return wrapEventToken(token.append(']').toString(), eventText, CLICK_CLOSE_TEMPLATE);
-                }
-        ));
+                }));
         if (includeHoverModes) {
             modes.add(new ModeSpec(
                     ItemEditorText.tr("dialog.rich_text.hover.mode.show_text"),
                     List.of(
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.text"), TOKEN_PLACEHOLDER),
-                            eventTextField(defaultText)
-                    ),
+                            eventTextField(defaultText)),
                     values -> {
-                        String text = firstRequiredRaw(values);
+                        String text = rawValue(values, 0);
                         if (text == null) {
                             return null;
                         }
-                        String eventText = secondRequiredRaw(values);
+                        String eventText = rawValue(values, 1);
                         if (eventText == null) {
                             return null;
                         }
                         return wrapEventToken(
                                 "[ie:hover:show_text:" + TextComponentUtil.escapeStructuredTokenValue(text) + "]",
                                 eventText,
-                                HOVER_CLOSE_TEMPLATE
-                        );
-                    }
-            ));
+                                HOVER_CLOSE_TEMPLATE);
+                    }));
             modes.add(new ModeSpec(
                     ItemEditorText.tr("dialog.rich_text.hover.mode.show_item"),
                     List.of(
-                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.item"), "minecraft:golden_chestplate"),
+                            new FieldSpec(
+                                    ItemEditorText.tr("dialog.rich_text.hover.field.item"),
+                                    "minecraft:golden_chestplate"),
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.count"), "1"),
-                            eventTextField(defaultText)
-                    ),
+                            eventTextField(defaultText)),
                     values -> {
-                        String itemId = firstRequiredTrimmed(values);
+                        String itemId = trimmedValue(values, 0);
                         if (itemId == null || Identifier.tryParse(itemId) == null) {
                             return null;
                         }
-                        String countValue = secondOptionalTrimmed(values);
+                        String countValue = trimmedValue(values, 1);
                         Integer count = null;
                         if (countValue != null) {
                             try {
@@ -246,32 +258,32 @@ public final class RichTextTokenDialog {
                                 return null;
                             }
                         }
-                        StringBuilder token = new StringBuilder("[ie:hover:show_item:")
-                                .append(escapeEventField(itemId));
+                        StringBuilder token =
+                                new StringBuilder("[ie:hover:show_item:").append(escapeEventField(itemId));
                         if (count != null && count != 1) {
                             token.append('|').append(count);
                         }
-                        String eventText = thirdRequiredRaw(values);
+                        String eventText = rawValue(values, 2);
                         if (eventText == null) {
                             return null;
                         }
                         return wrapEventToken(token.append(']').toString(), eventText, HOVER_CLOSE_TEMPLATE);
-                    }
-            ));
+                    }));
             modes.add(new ModeSpec(
                     ItemEditorText.tr("dialog.rich_text.hover.mode.show_entity"),
                     List.of(
-                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.entity"), "minecraft:player"),
-                            new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.uuid"), "00000000-0000-0000-0000-000000000000"),
+                            new FieldSpec(ItemEditorText.tr("common.entity_id"), "minecraft:player"),
+                            new FieldSpec(
+                                    ItemEditorText.tr("dialog.rich_text.hover.field.uuid"),
+                                    "00000000-0000-0000-0000-000000000000"),
                             new FieldSpec(ItemEditorText.tr("dialog.rich_text.hover.field.name"), TOKEN_PLACEHOLDER),
-                            eventTextField(defaultText)
-                    ),
+                            eventTextField(defaultText)),
                     values -> {
-                        String entityId = firstRequiredTrimmed(values);
+                        String entityId = trimmedValue(values, 0);
                         if (entityId == null || Identifier.tryParse(entityId) == null) {
                             return null;
                         }
-                        String uuidValue = secondRequiredTrimmed(values);
+                        String uuidValue = trimmedValue(values, 1);
                         if (uuidValue == null) {
                             return null;
                         }
@@ -280,7 +292,7 @@ public final class RichTextTokenDialog {
                         } catch (RuntimeException exception) {
                             return null;
                         }
-                        String name = thirdOptionalRaw(values);
+                        String name = rawValue(values, 2);
                         StringBuilder token = new StringBuilder("[ie:hover:show_entity:")
                                 .append(escapeEventField(entityId))
                                 .append('|')
@@ -288,22 +300,14 @@ public final class RichTextTokenDialog {
                         if (name != null) {
                             token.append('|').append(escapeEventField(name));
                         }
-                        String eventText = fourthRequiredRaw(values);
+                        String eventText = rawValue(values, 3);
                         if (eventText == null) {
                             return null;
                         }
                         return wrapEventToken(token.append(']').toString(), eventText, HOVER_CLOSE_TEMPLATE);
-                    }
-            ));
+                    }));
         }
-        return create(
-                title,
-                ItemEditorText.tr("dialog.rich_text.event.body"),
-                modes,
-                false,
-                onApply,
-                onCancel
-        );
+        return create(title, ItemEditorText.tr("dialog.rich_text.event.body"), modes, false, onApply, onCancel);
     }
 
     private static ModeSpec clickMode(
@@ -311,26 +315,21 @@ public final class RichTextTokenDialog {
             String fieldKey,
             String initialValue,
             String initialText,
-            Function<String, String> tokenBuilder
-    ) {
+            Function<String, String> tokenBuilder) {
         return new ModeSpec(
                 ItemEditorText.tr(labelKey),
-                List.of(
-                        new FieldSpec(ItemEditorText.tr(fieldKey), initialValue),
-                        eventTextField(initialText)
-                ),
+                List.of(new FieldSpec(ItemEditorText.tr(fieldKey), initialValue), eventTextField(initialText)),
                 values -> {
-                    String value = firstRequiredRaw(values);
+                    String value = rawValue(values, 0);
                     if (value == null) {
                         return null;
                     }
-                    String eventText = secondRequiredRaw(values);
+                    String eventText = rawValue(values, 1);
                     if (eventText == null) {
                         return null;
                     }
                     return wrapEventToken(tokenBuilder.apply(value), eventText, CLICK_CLOSE_TEMPLATE);
-                }
-        );
+                });
     }
 
     private static FlowLayout create(
@@ -339,24 +338,18 @@ public final class RichTextTokenDialog {
             List<ModeSpec> modes,
             boolean includeObjectColorPicker,
             Consumer<String> onApply,
-            Runnable onCancel
-    ) {
+            Runnable onCancel) {
         FlowLayout overlay = DialogUiUtil.overlay();
         int preferredWidth = includeObjectColorPicker ? DIALOG_WIDTH_WITH_OBJECT_PICKER : DIALOG_WIDTH;
         int dialogWidth = DialogUiUtil.dialogWidth(preferredWidth);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
         int buttonReserve = DialogUiUtil.buttonRowReserve(
-                compactButtons,
-                COMPACT_BUTTON_ROWS,
-                BUTTON_RESERVE_COMPACT_EXTRA,
-                BUTTON_RESERVE_NORMAL_EXTRA
-        );
+                compactButtons, COMPACT_BUTTON_ROWS, BUTTON_RESERVE_COMPACT_EXTRA, BUTTON_RESERVE_NORMAL_EXTRA);
         DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
                 CONTENT_PREFERRED_HEIGHT,
                 UiFactory.scaledPixels(HEADER_RESERVE) + buttonReserve,
                 CONTENT_MIN_HEIGHT,
-                DIALOG_MIN_HEIGHT
-        );
+                DIALOG_MIN_HEIGHT);
 
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         dialog.child(UiFactory.title(title));
@@ -383,7 +376,8 @@ public final class RichTextTokenDialog {
         if (includeObjectColorPicker) {
             FlowLayout colorCard = UiFactory.subCard();
             colorCard.horizontalSizing(Sizing.fill(100));
-            colorCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.object_color.title")).shadow(false));
+            colorCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.object_color.title"))
+                    .shadow(false));
 
             AtomicBoolean syncingColor = new AtomicBoolean(false);
             ColorPickerComponent picker = new ColorPickerComponent()
@@ -391,21 +385,21 @@ public final class RichTextTokenDialog {
                     .showAlpha(false)
                     .selectorWidth(OBJECT_PICKER_SELECTOR_WIDTH)
                     .selectorPadding(OBJECT_PICKER_SELECTOR_PADDING);
-            int objectPickerSize = UiFactory.scaledPixels(compactButtons ? OBJECT_PICKER_HEIGHT_COMPACT : OBJECT_PICKER_HEIGHT_NORMAL);
+            int objectPickerSize =
+                    UiFactory.scaledPixels(compactButtons ? OBJECT_PICKER_HEIGHT_COMPACT : OBJECT_PICKER_HEIGHT_NORMAL);
             int objectPickerWidth = Math.clamp(
                     textWidth,
                     objectPickerSize,
-                    Math.max(objectPickerSize, UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX))
-            );
+                    Math.max(objectPickerSize, UiFactory.scaledPixels(OBJECT_PICKER_WIDTH_MAX)));
             picker.sizing(Sizing.fixed(objectPickerWidth), Sizing.fixed(objectPickerSize));
             ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(objectColor.get(), OBJECT_SWATCH_SIZE);
-            TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(objectColor.get()), ignored -> errorLabel.text(Component.empty()));
+            TextBoxComponent hexInput = UiFactory.textBox(
+                    ValidationUtil.toHex(objectColor.get()), ignored -> errorLabel.text(Component.empty()));
             hexInput.setMaxLength(7);
             int hexInputWidth = Math.clamp(
                     textWidth - UiFactory.scaledPixels(OBJECT_HEX_ROW_LEFT_RESERVE),
                     UiFactory.scaledPixels(OBJECT_HEX_INPUT_MIN_WIDTH),
-                    UiFactory.scaledPixels(OBJECT_HEX_INPUT_MAX_WIDTH)
-            );
+                    UiFactory.scaledPixels(OBJECT_HEX_INPUT_MAX_WIDTH));
             hexInput.horizontalSizing(UiFactory.fixed(hexInputWidth));
 
             Runnable syncColorUi = ColorPickerUiUtil.createSyncRunnable(
@@ -415,8 +409,7 @@ public final class RichTextTokenDialog {
                     swatch.swatch(),
                     swatch.label(),
                     hexInput,
-                    () -> errorLabel.text(Component.empty())
-            );
+                    () -> errorLabel.text(Component.empty()));
 
             picker.onChanged().subscribe(color -> {
                 if (syncingColor.get()) {
@@ -456,7 +449,8 @@ public final class RichTextTokenDialog {
             ModeSpec mode = modes.get(selectedMode.get());
             int valueFieldWidth = valueFieldWidth(textWidth);
             for (FieldSpec field : mode.fields()) {
-                TextBoxComponent input = UiFactory.textBox(field.initialValue(), ignored -> errorLabel.text(Component.empty()));
+                TextBoxComponent input =
+                        UiFactory.textBox(field.initialValue(), ignored -> errorLabel.text(Component.empty()));
                 input.setMaxLength(UNBOUNDED_TEXT_LIMIT);
                 FlowLayout fieldLayout = UiFactory.field(field.label(), Component.empty(), input);
                 fieldLayout.horizontalSizing(UiFactory.fixed(valueFieldWidth));
@@ -468,7 +462,8 @@ public final class RichTextTokenDialog {
         if (modes.size() > 1) {
             FlowLayout modeCard = UiFactory.subCard();
             modeCard.horizontalSizing(Sizing.fill(100));
-            modeCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.mode_title")).shadow(false));
+            modeCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.mode_title"))
+                    .shadow(false));
 
             FlowLayout modeList = UiFactory.column();
             modeList.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
@@ -477,11 +472,12 @@ public final class RichTextTokenDialog {
             for (int index = 0; index < modes.size(); index++) {
                 int modeIndex = index;
                 ModeSpec mode = modes.get(modeIndex);
-                ButtonComponent button = UiFactory.button(mode.label(), UiFactory.ButtonTextPreset.STANDARD, ignored -> {
-                    selectedMode.set(modeIndex);
-                    refreshModeButtons.run();
-                    rebuildFields.run();
-                });
+                ButtonComponent button =
+                        UiFactory.button(mode.label(), UiFactory.ButtonTextPreset.STANDARD, ignored -> {
+                            selectedMode.set(modeIndex);
+                            refreshModeButtons.run();
+                            rebuildFields.run();
+                        });
                 button.horizontalSizing(Sizing.fill(100));
                 modeButtons.add(button);
                 modeList.child(button);
@@ -493,7 +489,8 @@ public final class RichTextTokenDialog {
 
         FlowLayout valuesCard = UiFactory.subCard();
         valuesCard.horizontalSizing(Sizing.fill(100));
-        valuesCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.values_title")).shadow(false));
+        valuesCard.child(UiFactory.title(ItemEditorText.tr("dialog.rich_text.values_title"))
+                .shadow(false));
         valuesCard.child(fieldsList);
         content.child(valuesCard);
         content.child(errorLabel);
@@ -525,75 +522,15 @@ public final class RichTextTokenDialog {
                         token = appendObjectColor(token, objectColor.get());
                     }
                     onApply.accept(token);
-                })
-        );
+                }));
         dialog.child(footer);
 
         overlay.child(dialog);
         return overlay;
     }
 
-    private static String firstRequiredTrimmed(List<String> values) {
-        return requiredTrimmed(firstValue(values));
-    }
-
-    private static String secondRequiredTrimmed(List<String> values) {
-        return requiredTrimmed(secondValue(values));
-    }
-
-    private static String firstRequiredRaw(List<String> values) {
-        return requiredRaw(firstValue(values));
-    }
-
-    private static String secondRequiredRaw(List<String> values) {
-        return requiredRaw(secondValue(values));
-    }
-
-    private static String thirdRequiredRaw(List<String> values) {
-        return requiredRaw(thirdValue(values));
-    }
-
-    private static String fourthRequiredRaw(List<String> values) {
-        return requiredRaw(fourthValue(values));
-    }
-
-    private static String secondOptionalTrimmed(List<String> values) {
-        return optionalTrimmed(secondValue(values));
-    }
-
-    private static String secondOptionalRaw(List<String> values) {
-        return optionalRaw(secondValue(values));
-    }
-
-    private static String thirdOptionalRaw(List<String> values) {
-        return optionalRaw(thirdValue(values));
-    }
-
-    private static String firstValue(List<String> values) {
-        return values.isEmpty() ? null : values.getFirst();
-    }
-
-    private static String secondValue(List<String> values) {
-        return values.size() < 2 ? null : values.get(1);
-    }
-
-    private static String thirdValue(List<String> values) {
-        return values.size() < 3 ? null : values.get(2);
-    }
-
-    private static String fourthValue(List<String> values) {
-        return values.size() < 4 ? null : values.get(3);
-    }
-
-    private static String requiredTrimmed(String value) {
-        return optionalTrimmed(value);
-    }
-
-    private static String requiredRaw(String value) {
-        return value == null || value.trim().isEmpty() ? null : value;
-    }
-
-    private static String optionalTrimmed(String value) {
+    private static String trimmedValue(List<String> values, int index) {
+        String value = values.get(index);
         if (value == null) {
             return null;
         }
@@ -601,8 +538,12 @@ public final class RichTextTokenDialog {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static String optionalRaw(String value) {
+    private static String rawValue(String value) {
         return value == null || value.trim().isEmpty() ? null : value;
+    }
+
+    private static String rawValue(List<String> values, int index) {
+        return rawValue(values.get(index));
     }
 
     private static String appendObjectColor(String token, int rgb) {
@@ -624,11 +565,16 @@ public final class RichTextTokenDialog {
     }
 
     private static FieldSpec eventTextField(String initialText) {
-        return new FieldSpec(ItemEditorText.tr("dialog.rich_text.event.field.text"), requiredRaw(initialText) == null ? TOKEN_PLACEHOLDER : initialText);
+        return new FieldSpec(
+                ItemEditorText.tr("dialog.rich_text.event.field.text"),
+                rawValue(initialText) == null ? TOKEN_PLACEHOLDER : initialText);
     }
 
     private static String wrapEventToken(String openToken, String eventText, String closeToken) {
-        if (openToken == null || openToken.isBlank() || eventText == null || eventText.trim().isEmpty()) {
+        if (openToken == null
+                || openToken.isBlank()
+                || eventText == null
+                || eventText.trim().isEmpty()) {
             return null;
         }
         return openToken + eventText + closeToken;
@@ -638,13 +584,7 @@ public final class RichTextTokenDialog {
         return TextComponentUtil.escapeStructuredTokenValue(value).replace("|", "\\|");
     }
 
-    private record FieldSpec(Component label, String initialValue) {
-    }
+    private record FieldSpec(Component label, String initialValue) {}
 
-    private record ModeSpec(
-            Component label,
-            List<FieldSpec> fields,
-            Function<List<String>, String> tokenBuilder
-    ) {
-    }
+    private record ModeSpec(Component label, List<FieldSpec> fields, Function<List<String>, String> tokenBuilder) {}
 }

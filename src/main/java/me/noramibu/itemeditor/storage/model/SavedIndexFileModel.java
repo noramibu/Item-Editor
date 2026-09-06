@@ -1,9 +1,8 @@
 package me.noramibu.itemeditor.storage.model;
 
-import me.noramibu.itemeditor.storage.StorageConstants;
-
 import java.util.ArrayList;
 import java.util.List;
+import me.noramibu.itemeditor.storage.StorageConstants;
 
 public final class SavedIndexFileModel {
 

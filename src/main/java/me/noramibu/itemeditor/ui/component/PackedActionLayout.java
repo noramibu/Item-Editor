@@ -5,10 +5,9 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Size;
 import io.wispforest.owo.ui.core.Sizing;
-import net.minecraft.client.Minecraft;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 
 final class PackedActionLayout extends FlowLayout {
     private static final int LABEL_PADDING = 8;
@@ -18,17 +17,11 @@ final class PackedActionLayout extends FlowLayout {
     private final boolean forceSingleRow;
     private final boolean fillRows;
 
-    PackedActionLayout(
-            List<ButtonComponent> buttons,
-            int gap,
-            boolean forceSingleRow,
-            boolean fillRows
-    ) {
+    PackedActionLayout(List<ButtonComponent> buttons, int gap, boolean forceSingleRow, boolean fillRows) {
         super(Sizing.fill(100), Sizing.content(), FlowLayout.Algorithm.LTR_TEXT);
         this.buttons = List.copyOf(buttons);
-        this.preferredWidths = buttons.stream()
-                .map(PackedActionLayout::preferredWidth)
-                .toList();
+        this.preferredWidths =
+                buttons.stream().map(PackedActionLayout::preferredWidth).toList();
         this.forceSingleRow = forceSingleRow;
         this.fillRows = fillRows;
         this.gap(gap);
@@ -86,7 +79,7 @@ final class PackedActionLayout extends FlowLayout {
         List<Integer> row = new ArrayList<>();
         int usedWidth = 0;
         for (int index = 0; index < preferredWidths.size(); index++) {
-            int width = Math.min(Math.max(1, availableWidth), Math.max(1, preferredWidths.get(index)));
+            int width = Math.clamp(preferredWidths.get(index), 1, Math.max(1, availableWidth));
             int requiredWidth = row.isEmpty() ? width : gap + width;
             if (!row.isEmpty() && usedWidth + requiredWidth > availableWidth) {
                 rows.add(row);

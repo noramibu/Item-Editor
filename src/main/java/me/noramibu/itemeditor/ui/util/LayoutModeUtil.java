@@ -6,8 +6,7 @@ public final class LayoutModeUtil {
     public static final String SYMBOL_SECTION_COLLAPSED = "+";
     public static final String SYMBOL_SECTION_EXPANDED = "-";
 
-    private LayoutModeUtil() {
-    }
+    private LayoutModeUtil() {}
 
     public static boolean isCompactWidth(int contentWidth, int widthThreshold) {
         return Math.max(1, contentWidth) < widthThreshold;

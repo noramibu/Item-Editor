@@ -5,19 +5,13 @@ import net.minecraft.core.Holder;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.item.Instrument;
 
-public record InstrumentDetails(
-        String description,
-        String soundEventId,
-        String useDuration,
-        String range
-) {
+public record InstrumentDetails(String description, String soundEventId, String useDuration, String range) {
     public static InstrumentDetails fromInstrument(Instrument instrument) {
         return new InstrumentDetails(
                 TextComponentUtil.toMarkup(instrument.description()),
                 soundEventId(instrument.soundEvent()),
                 ValidationUtil.trimTrailingZeros(instrument.useDuration()),
-                ValidationUtil.trimTrailingZeros(instrument.range())
-        );
+                ValidationUtil.trimTrailingZeros(instrument.range()));
     }
 
     public static InstrumentDetails fromSpecial(ItemEditorState.SpecialData special) {
@@ -25,8 +19,7 @@ public record InstrumentDetails(
                 special.instrumentDescription,
                 special.instrumentSoundEventId,
                 special.instrumentUseDuration,
-                special.instrumentRange
-        );
+                special.instrumentRange);
     }
 
     public void applyTo(ItemEditorState.SpecialData special) {
@@ -44,7 +37,8 @@ public record InstrumentDetails(
     }
 
     private static String soundEventId(Holder<SoundEvent> soundEvent) {
-        return soundEvent.unwrapKey()
+        return soundEvent
+                .unwrapKey()
                 .map(key -> key.identifier().toString())
                 .orElseGet(() -> soundEvent.value().location().toString());
     }

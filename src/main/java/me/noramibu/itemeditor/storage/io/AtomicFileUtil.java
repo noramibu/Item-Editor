@@ -1,10 +1,5 @@
 package me.noramibu.itemeditor.storage.io;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtIo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -19,13 +14,16 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.function.Supplier;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class AtomicFileUtil {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AtomicFileUtil.class);
 
-    private AtomicFileUtil() {
-    }
+    private AtomicFileUtil() {}
 
     public static void ensureDirectories(Path... directories) throws IOException {
         for (Path directory : directories) {
@@ -76,12 +74,14 @@ public final class AtomicFileUtil {
         if (!Files.exists(file)) {
             return fallbackSupplier.get();
         }
-        try (BufferedInputStream stream = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ))) {
+        try (BufferedInputStream stream =
+                new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ))) {
             return NbtIo.read(new DataInputStream(stream));
         } catch (Exception primaryFailure) {
             Path backup = backupPath(file);
             if (Files.exists(backup)) {
-                try (BufferedInputStream stream = new BufferedInputStream(Files.newInputStream(backup, StandardOpenOption.READ))) {
+                try (BufferedInputStream stream =
+                        new BufferedInputStream(Files.newInputStream(backup, StandardOpenOption.READ))) {
                     CompoundTag recovered = NbtIo.read(new DataInputStream(stream));
                     writeNbt(file, recovered);
                     LOGGER.warn("[Item Editor] Recovered NBT '{}' from backup '{}'", file, backup);
@@ -117,8 +117,7 @@ public final class AtomicFileUtil {
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE
-        )) {
+                StandardOpenOption.WRITE)) {
             action.write(writer);
         }
 
@@ -132,11 +131,7 @@ public final class AtomicFileUtil {
         Path temp = tempPath(target);
 
         try (BufferedOutputStream stream = new BufferedOutputStream(Files.newOutputStream(
-                temp,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE
-        ))) {
+                temp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))) {
             NbtIo.write(value, new DataOutputStream(stream));
             stream.flush();
         }

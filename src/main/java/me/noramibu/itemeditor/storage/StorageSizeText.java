@@ -1,15 +1,13 @@
 package me.noramibu.itemeditor.storage;
 
-import me.noramibu.itemeditor.util.ItemEditorText;
-
 import java.util.Locale;
+import me.noramibu.itemeditor.util.ItemEditorText;
 
 public final class StorageSizeText {
     private static final int UNIT_STEP = 1024;
     private static final String[] UNIT_NAMES = {"bytes", "KB", "MB", "GB", "TB"};
 
-    private StorageSizeText() {
-    }
+    private StorageSizeText() {}
 
     public static String sizeLine(int bytes) {
         bytes = Math.max(0, bytes);

@@ -1,8 +1,19 @@
 package me.noramibu.itemeditor.util;
 
+import com.google.gson.JsonParser;
+import com.mojang.serialization.JsonOps;
+import java.net.URI;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -15,11 +26,13 @@ import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.contents.ObjectContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.chat.contents.objects.AtlasSprite;
 import net.minecraft.network.chat.contents.objects.PlayerSprite;
 import net.minecraft.resources.Identifier;
@@ -27,15 +40,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ResolvableProfile;
-
-import java.net.URI;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
 
 public final class TextComponentUtil {
 
@@ -49,9 +53,9 @@ public final class TextComponentUtil {
     private static final String TOKEN_HEAD_TEXTURE_OPEN = "[ie:head_texture:";
     private static final String TOKEN_HEAD_OPEN = "[ie:head:";
     private static final String TOKEN_SPRITE_OPEN = "[ie:sprite:";
+    private static final String TOKEN_TRANSLATE_OPEN = "[ie:translate:";
 
-    private TextComponentUtil() {
-    }
+    private TextComponentUtil() {}
 
     public static Component parseMarkup(String input) {
         return parseMarkupInternal(input, true, true);
@@ -74,16 +78,7 @@ public final class TextComponentUtil {
 
         for (int index = 0; index < input.length(); index++) {
             int tokenEnd = tryConsumeToken(
-                    input,
-                    index,
-                    root,
-                    buffer,
-                    style,
-                    clickStack,
-                    hoverStack,
-                    parseEventTokens,
-                    parseObjectTokens
-            );
+                    input, index, root, buffer, style, clickStack, hoverStack, parseEventTokens, parseObjectTokens);
             if (tokenEnd >= 0) {
                 index = tokenEnd;
                 continue;
@@ -140,17 +135,20 @@ public final class TextComponentUtil {
         return collapseEmptyRoot(root);
     }
 
-    public static Component applyLineStyle(Component component, ItemEditorState.TextStyleDraft styleDraft, List<ValidationMessage> messages) {
+    public static Component applyLineStyle(
+            Component component, ItemEditorState.TextStyleDraft styleDraft, List<ValidationMessage> messages) {
         Style style = component.getStyle();
 
         if (!styleDraft.colorHex.isBlank()) {
-            Integer color = ValidationUtil.parseColor(styleDraft.colorHex, ItemEditorText.str("display.lore.color_title"), messages);
+            Integer color = ValidationUtil.parseColor(
+                    styleDraft.colorHex, ItemEditorText.str("display.lore.color_title"), messages);
             if (color != null) {
                 style = style.withColor(color);
             }
         }
         if (!styleDraft.shadowColorHex.isBlank()) {
-            Integer color = ValidationUtil.parseColor(styleDraft.shadowColorHex, ItemEditorText.str("text.shadow_color"), messages);
+            Integer color = ValidationUtil.parseColor(
+                    styleDraft.shadowColorHex, ItemEditorText.str("text.shadow_color"), messages);
             if (color != null) {
                 style = style.withShadowColor(color | 0xFF000000);
             }
@@ -164,7 +162,8 @@ public final class TextComponentUtil {
         return component.copy().withStyle(style);
     }
 
-    public static Component parseStyledLine(String rawText, ItemEditorState.TextStyleDraft styleDraft, List<ValidationMessage> messages) {
+    public static Component parseStyledLine(
+            String rawText, ItemEditorState.TextStyleDraft styleDraft, List<ValidationMessage> messages) {
         Component component = parseMarkup(rawText);
         if (containsStructuredToken(rawText) || containsFormattingCode(rawText)) {
             return component;
@@ -276,27 +275,17 @@ public final class TextComponentUtil {
     }
 
     public static int objectTokenLengthAt(String input, int index) {
-        if (missingTokenPrefixAt(input, index)) {
-            return -1;
-        }
-        int tokenEnd = findTokenEnd(input, index + TOKEN_PREFIX.length());
-        if (tokenEnd < index) {
-            return -1;
-        }
-        String token = input.substring(index + TOKEN_PREFIX.length(), tokenEnd);
-        return isObjectToken(token) ? tokenEnd - index + 1 : -1;
+        int length = structuredTokenLengthAt(input, index);
+        if (length < 0) return -1;
+        String token = input.substring(index + TOKEN_PREFIX.length(), index + length - 1);
+        return isObjectToken(token) ? length : -1;
     }
 
     public static int renderableTokenLengthAt(String input, int index) {
-        if (missingTokenPrefixAt(input, index)) {
-            return -1;
-        }
-        int tokenEnd = findTokenEnd(input, index + TOKEN_PREFIX.length());
-        if (tokenEnd < index) {
-            return -1;
-        }
-        String token = input.substring(index + TOKEN_PREFIX.length(), tokenEnd);
-        return isRenderableToken(token) ? tokenEnd - index + 1 : -1;
+        int length = structuredTokenLengthAt(input, index);
+        if (length < 0) return -1;
+        String token = input.substring(index + TOKEN_PREFIX.length(), index + length - 1);
+        return isRenderableToken(token) ? length : -1;
     }
 
     public static int formattingCodeLengthAt(String input, int index) {
@@ -312,10 +301,14 @@ public final class TextComponentUtil {
         if (code == '$' && index + 9 < input.length() && isShadowHexColor(input.substring(index + 2, index + 10))) {
             return 10;
         }
-        if (code == '#' && index + 7 < input.length() && ValidationUtil.isHexColor(input.substring(index + 2, index + 8))) {
+        if (code == '#'
+                && index + 7 < input.length()
+                && ValidationUtil.isHexColor(input.substring(index + 2, index + 8))) {
             return 8;
         }
-        if ((code == 'x' || code == 'X') && index + 13 < input.length() && parseLegacyHex(input, index, prefix) != null) {
+        if ((code == 'x' || code == 'X')
+                && index + 13 < input.length()
+                && parseLegacyHex(input, index, prefix) != null) {
             return 14;
         }
         return ChatFormatting.getByCode(code) != null || code == prefix ? 2 : -1;
@@ -325,21 +318,8 @@ public final class TextComponentUtil {
         if (formatting == ChatFormatting.RESET) {
             return Style.EMPTY;
         }
-        if (formatting.isColor()) {
-            Style updated = Style.EMPTY;
-            if (style.getShadowColor() != null) {
-                updated = updated.withShadowColor(style.getShadowColor());
-            }
-            if (style.getClickEvent() != null) {
-                updated = updated.withClickEvent(style.getClickEvent());
-            }
-            if (style.getHoverEvent() != null) {
-                updated = updated.withHoverEvent(style.getHoverEvent());
-            }
-            if (style.getInsertion() != null) {
-                updated = updated.withInsertion(style.getInsertion());
-            }
-            return updated.withColor(TextColor.fromLegacyFormat(formatting));
+        if (isLegacyColor(formatting)) {
+            return styleMetadata(style).withColor(TextColor.fromLegacyFormat(formatting));
         }
         return style.applyFormat(formatting);
     }
@@ -350,6 +330,35 @@ public final class TextComponentUtil {
 
     public static String escapeStructuredTokenValue(String value) {
         return escapeTokenValue(value);
+    }
+
+    public static String replaceTranslationToken(String source, String key, String fallback) {
+        TranslationTokenData existing = translationTokenData(source);
+        String normalizedKey = Objects.requireNonNullElse(key, "").trim();
+        if (normalizedKey.isEmpty()) {
+            return "";
+        }
+        Object[] args = existing == null
+                ? TranslatableContents.NO_ARGS
+                : existing.contents().getArgs();
+        return translationToken(new TranslatableContents(
+                normalizedKey, fallback == null || fallback.isBlank() ? null : fallback, args));
+    }
+
+    public static TranslationTokenData translationTokenData(String source) {
+        if (source == null || !source.startsWith(TOKEN_TRANSLATE_OPEN)) {
+            return null;
+        }
+        int tokenLength = structuredTokenLengthAt(source, 0);
+        if (tokenLength != source.length()) {
+            return null;
+        }
+        ObjectToken token = parseTranslationToken(
+                source.substring(TOKEN_TRANSLATE_OPEN.length(), source.length() - TOKEN_SUFFIX.length()));
+        if (token == null || !(token.component().getContents() instanceof TranslatableContents contents)) {
+            return null;
+        }
+        return new TranslationTokenData(contents.getKey(), contents.getFallback(), contents);
     }
 
     private static String thisLineWithLeadingWhite(String line, char prefix) {
@@ -372,11 +381,8 @@ public final class TextComponentUtil {
         return line.substring(0, firstContentIndex) + prefix + "r" + line.substring(firstContentIndex);
     }
 
-    private static Style compactStyle(Style style) {
+    private static Style styleMetadata(Style style) {
         Style compact = Style.EMPTY;
-        if (style.getColor() != null) {
-            compact = compact.withColor(style.getColor());
-        }
         if (style.getShadowColor() != null) {
             compact = compact.withShadowColor(style.getShadowColor());
         }
@@ -388,6 +394,14 @@ public final class TextComponentUtil {
         }
         if (style.getInsertion() != null) {
             compact = compact.withInsertion(style.getInsertion());
+        }
+        return compact;
+    }
+
+    private static Style compactStyle(Style style) {
+        Style compact = styleMetadata(style);
+        if (style.getColor() != null) {
+            compact = compact.withColor(style.getColor());
         }
         if (style.isBold()) {
             compact = compact.withBold(true);
@@ -426,9 +440,7 @@ public final class TextComponentUtil {
             return false;
         }
         String token = input.substring(index + TOKEN_PREFIX.length(), tokenEnd);
-        return token.startsWith("head:")
-                || token.startsWith("head_texture:")
-                || token.startsWith("sprite:");
+        return token.startsWith("head:") || token.startsWith("head_texture:") || token.startsWith("sprite:");
     }
 
     private static boolean startsWithLegacyStyleCode(String input, int index) {
@@ -484,7 +496,11 @@ public final class TextComponentUtil {
                 appendStyle(out, styleNoEvents, prefix, legacyPaletteOnly, previousNoEvents);
                 previous = style;
             }
-            appendEscapedChunkText(out, chunk.text(), prefix, activeClick, activeHover, legacyPaletteOnly);
+            if (structuredTokenLengthAt(chunk.text(), 0) == chunk.text().length()) {
+                out.append(chunk.text());
+            } else {
+                appendEscapedChunkText(out, chunk.text(), prefix, activeClick, activeHover, legacyPaletteOnly);
+            }
 
             if (chunkIndex + 1 < chunks.size()) {
                 StyledChunk nextChunk = chunks.get(chunkIndex + 1);
@@ -506,11 +522,7 @@ public final class TextComponentUtil {
     }
 
     private static boolean shouldPreserveEventChunkBoundary(
-            Style current,
-            Style next,
-            char prefix,
-            boolean legacyPaletteOnly
-    ) {
+            Style current, Style next, char prefix, boolean legacyPaletteOnly) {
         if (current == null || next == null) {
             return false;
         }
@@ -565,8 +577,7 @@ public final class TextComponentUtil {
             ArrayDeque<ClickEvent> clickStack,
             ArrayDeque<HoverEvent> hoverStack,
             boolean parseEventTokens,
-            boolean parseObjectTokens
-    ) {
+            boolean parseObjectTokens) {
         if (!input.startsWith(TOKEN_PREFIX, index)) {
             return -1;
         }
@@ -616,7 +627,7 @@ public final class TextComponentUtil {
                 if (object.color() != null) {
                     objectRenderStyle = objectRenderStyle.withColor(TextColor.fromRgb(object.color()));
                 }
-                root.append(object.component().copy().withStyle(objectStyle(objectRenderStyle)));
+                root.append(object.component().copy().withStyle(RichTextStyle.objectStyle(objectRenderStyle)));
                 return tokenEnd;
             }
         }
@@ -624,6 +635,9 @@ public final class TextComponentUtil {
     }
 
     private static ObjectToken parseObjectToken(String token) {
+        if (token.startsWith("translate:")) {
+            return parseTranslationToken(token.substring("translate:".length()));
+        }
         if (token.startsWith("head:")) {
             return parseHeadToken(token.substring("head:".length()));
         }
@@ -669,7 +683,7 @@ public final class TextComponentUtil {
                 continue;
             }
             String token = input.substring(index + TOKEN_PREFIX.length(), tokenEnd);
-            if (isObjectToken(token)) {
+            if (token.startsWith("head:") || token.startsWith("head_texture:") || token.startsWith("sprite:")) {
                 return true;
             }
             index = tokenEnd;
@@ -687,11 +701,13 @@ public final class TextComponentUtil {
     }
 
     private static boolean isContentsEmpty(ComponentContents contents) {
-        return contents.visit(chunk -> chunk.isEmpty() ? Optional.empty() : Optional.of(Boolean.TRUE)).isEmpty();
+        return contents.visit(chunk -> chunk.isEmpty() ? Optional.empty() : Optional.of(Boolean.TRUE))
+                .isEmpty();
     }
 
     private static boolean isObjectToken(String token) {
-        return token.startsWith("head:")
+        return token.startsWith("translate:")
+                || token.startsWith("head:")
                 || token.startsWith("head_texture:")
                 || token.startsWith("sprite:");
     }
@@ -783,11 +799,10 @@ public final class TextComponentUtil {
         String[] parts = split.payload().split(":", 2);
         String playerName = parts.length > 0 ? unescapeTokenValue(parts[0]).trim() : "";
         if (playerName.isBlank()) return null;
-        boolean hat = parts.length > 1 && "true".equalsIgnoreCase(unescapeTokenValue(parts[1]).trim());
+        boolean hat = parts.length > 1
+                && "true".equalsIgnoreCase(unescapeTokenValue(parts[1]).trim());
         return new ObjectToken(
-                Component.object(new PlayerSprite(ResolvableProfile.createUnresolved(playerName), hat)),
-                split.color()
-        );
+                Component.object(new PlayerSprite(ResolvableProfile.createUnresolved(playerName), hat)), split.color());
     }
 
     private static ObjectToken parseHeadTextureToken(String payload) {
@@ -798,14 +813,17 @@ public final class TextComponentUtil {
         }
 
         String body = split.payload().substring(0, hatSeparator);
-        String hatRaw = unescapeTokenValue(split.payload().substring(hatSeparator + 1).trim());
+        String hatRaw =
+                unescapeTokenValue(split.payload().substring(hatSeparator + 1).trim());
         int textureSeparator = body.indexOf(':');
         if (textureSeparator < 0) {
             return null;
         }
 
-        String textureValue = unescapeTokenValue(body.substring(0, textureSeparator).trim());
-        String textureSignature = unescapeTokenValue(body.substring(textureSeparator + 1).trim());
+        String textureValue =
+                unescapeTokenValue(body.substring(0, textureSeparator).trim());
+        String textureSignature =
+                unescapeTokenValue(body.substring(textureSeparator + 1).trim());
         if (textureValue.isBlank()) {
             return null;
         }
@@ -813,8 +831,7 @@ public final class TextComponentUtil {
         boolean hat = "true".equalsIgnoreCase(hatRaw);
         return new ObjectToken(
                 Component.object(new PlayerSprite(profileFromTextures(textureValue, textureSignature), hat)),
-                split.color()
-        );
+                split.color());
     }
 
     private static ObjectToken parseSpriteToken(String payload) {
@@ -829,13 +846,29 @@ public final class TextComponentUtil {
             return null;
         }
 
-        Identifier atlas = Identifier.tryParse(unescapeTokenValue(raw.substring(0, pipeSeparator)).trim());
-        Identifier sprite = Identifier.tryParse(unescapeTokenValue(raw.substring(pipeSeparator + 1)).trim());
+        Identifier atlas = Identifier.tryParse(
+                unescapeTokenValue(raw.substring(0, pipeSeparator)).trim());
+        Identifier sprite = Identifier.tryParse(
+                unescapeTokenValue(raw.substring(pipeSeparator + 1)).trim());
         if (atlas == null || sprite == null) return null;
-        return new ObjectToken(
-                Component.object(new AtlasSprite(atlas, sprite)),
-                split.color()
-        );
+        return new ObjectToken(Component.object(new AtlasSprite(atlas, sprite)), split.color());
+    }
+
+    private static ObjectToken parseTranslationToken(String payload) {
+        Component component = parseEncodedTranslation(unescapeTokenValue(payload));
+        return component == null ? null : new ObjectToken(component, null);
+    }
+
+    private static Component parseEncodedTranslation(String value) {
+        try {
+            Component component = ComponentSerialization.CODEC
+                    .parse(JsonOps.INSTANCE, JsonParser.parseString(value))
+                    .result()
+                    .orElse(null);
+            return component != null && component.getContents() instanceof TranslatableContents ? component : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String openClickToken(ClickEvent clickEvent) {
@@ -844,15 +877,14 @@ public final class TextComponentUtil {
         }
         return switch (clickEvent) {
             case ClickEvent.OpenUrl(var uri) ->
-                    TOKEN_CLICK_OPEN + "open_url:" + escapeTokenValue(uri.toString()) + TOKEN_SUFFIX;
+                TOKEN_CLICK_OPEN + "open_url:" + escapeTokenValue(uri.toString()) + TOKEN_SUFFIX;
             case ClickEvent.RunCommand(var command) ->
-                    TOKEN_CLICK_OPEN + "run_command:" + escapeTokenValue(command) + TOKEN_SUFFIX;
+                TOKEN_CLICK_OPEN + "run_command:" + escapeTokenValue(command) + TOKEN_SUFFIX;
             case ClickEvent.SuggestCommand(var command) ->
-                    TOKEN_CLICK_OPEN + "suggest_command:" + escapeTokenValue(command) + TOKEN_SUFFIX;
+                TOKEN_CLICK_OPEN + "suggest_command:" + escapeTokenValue(command) + TOKEN_SUFFIX;
             case ClickEvent.CopyToClipboard(var value) ->
-                    TOKEN_CLICK_OPEN + "copy_to_clipboard:" + escapeTokenValue(value) + TOKEN_SUFFIX;
-            case ClickEvent.ChangePage(var page) ->
-                    TOKEN_CLICK_OPEN + "change_page:" + page + TOKEN_SUFFIX;
+                TOKEN_CLICK_OPEN + "copy_to_clipboard:" + escapeTokenValue(value) + TOKEN_SUFFIX;
+            case ClickEvent.ChangePage(var page) -> TOKEN_CLICK_OPEN + "change_page:" + page + TOKEN_SUFFIX;
             case ClickEvent.Custom(var id, var payload) -> {
                 StringBuilder customPayload = new StringBuilder(escapeEventField(id.toString()));
                 payload.map(TextComponentUtil::serializeTagPayload)
@@ -887,7 +919,8 @@ public final class TextComponentUtil {
                         .append(escapeEventField(entityId.toString()))
                         .append('|')
                         .append(escapeEventField(entityInfo.uuid.toString()));
-                entityInfo.name
+                entityInfo
+                        .name
                         .map(component -> toFormattedString(component, prefix, legacyPaletteOnly))
                         .filter(text -> !text.isBlank())
                         .ifPresent(text -> encoded.append('|').append(escapeEventField(text)));
@@ -954,7 +987,8 @@ public final class TextComponentUtil {
         if (entityId == null) {
             return null;
         }
-        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
+        EntityType<?> entityType =
+                BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
         if (entityType == null) {
             return null;
         }
@@ -1005,9 +1039,7 @@ public final class TextComponentUtil {
         List<String> fields = new ArrayList<>(maxParts);
         int fieldStart = 0;
         for (int index = 0; index < value.length(); index++) {
-            if (value.charAt(index) != '|'
-                    || isEscapedSeparator(value, index)
-                    || fields.size() + 1 >= maxParts) {
+            if (value.charAt(index) != '|' || isEscapedSeparator(value, index) || fields.size() + 1 >= maxParts) {
                 continue;
             }
             fields.add(value.substring(fieldStart, index));
@@ -1053,34 +1085,39 @@ public final class TextComponentUtil {
                     return Objects.requireNonNullElse(fallback, "");
                 });
                 if (!name.isBlank()) {
-                    yield TOKEN_HEAD_OPEN
-                            + escapeTokenValue(name)
-                            + ":"
-                            + hat
-                            + colorSuffix
-                            + TOKEN_SUFFIX;
+                    yield TOKEN_HEAD_OPEN + escapeTokenValue(name) + ":" + hat + colorSuffix + TOKEN_SUFFIX;
                 }
-                yield "";
+                yield Component.object(objectContents.contents()).getString();
             }
-            case AtlasSprite(var atlas, var sprite) -> TOKEN_SPRITE_OPEN
-                    + escapeTokenValue(atlas.toString())
-                    + "|"
-                    + escapeTokenValue(sprite.toString())
-                    + colorSuffix
-                    + TOKEN_SUFFIX;
-            default -> "";
+            case AtlasSprite(var atlas, var sprite) ->
+                TOKEN_SPRITE_OPEN
+                        + escapeTokenValue(atlas.toString())
+                        + "|"
+                        + escapeTokenValue(sprite.toString())
+                        + colorSuffix
+                        + TOKEN_SUFFIX;
+            default -> Component.object(objectContents.contents()).getString();
         };
+    }
+
+    private static String translationToken(TranslatableContents contents) {
+        return ComponentSerialization.CODEC
+                .encodeStart(JsonOps.INSTANCE, MutableComponent.create(contents))
+                .result()
+                .map(Object::toString)
+                .map(TextComponentUtil::escapeTokenValue)
+                .map(value -> TOKEN_TRANSLATE_OPEN + value + TOKEN_SUFFIX)
+                .orElse("");
     }
 
     private static ProfileTextures extractProfileTextures(ResolvableProfile profile) {
         if (profile == null) {
             return null;
         }
-        return profile.partialProfile().properties().get("textures").stream().findFirst()
+        return profile.partialProfile().properties().get("textures").stream()
+                .findFirst()
                 .map(property -> new ProfileTextures(
-                        Objects.toString(property.value(), ""),
-                        Objects.toString(property.signature(), "")
-                ))
+                        Objects.toString(property.value(), ""), Objects.toString(property.signature(), "")))
                 .filter(textures -> !textures.value().isBlank())
                 .orElse(null);
     }
@@ -1097,7 +1134,10 @@ public final class TextComponentUtil {
         propertyTags.add(texture);
         profileTag.put("properties", propertyTags);
 
-        return ResolvableProfile.CODEC.parse(NbtOps.INSTANCE, profileTag).result().orElseThrow();
+        return ResolvableProfile.CODEC
+                .parse(NbtOps.INSTANCE, profileTag)
+                .result()
+                .orElseThrow();
     }
 
     private static List<StyledChunk> flatten(Component component) {
@@ -1112,8 +1152,10 @@ public final class TextComponentUtil {
         if (contents instanceof ObjectContents objectContents) {
             String token = objectToken(objectContents, effective.getColor());
             if (!token.isEmpty()) {
-                out.add(new StyledChunk(token, objectTokenStyle(effective)));
+                out.add(new StyledChunk(token, RichTextStyle.objectTokenStyle(effective)));
             }
+        } else if (contents instanceof TranslatableContents translatableContents) {
+            out.add(new StyledChunk(translationToken(translatableContents), effective));
         } else {
             String text = textFromContents(contents);
             if (!text.isEmpty()) {
@@ -1166,7 +1208,8 @@ public final class TextComponentUtil {
         return style.withClickEvent(null).withHoverEvent(null);
     }
 
-    private static Style styleWithEvents(Style style, ArrayDeque<ClickEvent> clickStack, ArrayDeque<HoverEvent> hoverStack) {
+    private static Style styleWithEvents(
+            Style style, ArrayDeque<ClickEvent> clickStack, ArrayDeque<HoverEvent> hoverStack) {
         ClickEvent clickEvent = clickStack.peekLast();
         HoverEvent hoverEvent = hoverStack.peekLast();
         if (clickEvent != null) style = style.withClickEvent(clickEvent);
@@ -1179,69 +1222,19 @@ public final class TextComponentUtil {
             StringBuilder buffer,
             Style style,
             ArrayDeque<ClickEvent> clickStack,
-            ArrayDeque<HoverEvent> hoverStack
-    ) {
+            ArrayDeque<HoverEvent> hoverStack) {
         flush(root, buffer, styleWithEvents(style, clickStack, hoverStack));
     }
 
-    private static Style objectStyle(Style style) {
-        Style objectStyle = Style.EMPTY;
-        if (style.getColor() != null) {
-            objectStyle = objectStyle.withColor(style.getColor());
-        }
-        if (style.getShadowColor() != null) {
-            objectStyle = objectStyle.withShadowColor(style.getShadowColor());
-        }
-        if (style.getClickEvent() != null) {
-            objectStyle = objectStyle.withClickEvent(style.getClickEvent());
-        }
-        if (style.getHoverEvent() != null) {
-            objectStyle = objectStyle.withHoverEvent(style.getHoverEvent());
-        }
-        return copyTrueDecorations(style, objectStyle);
-    }
-
-    private static Style objectTokenStyle(Style style) {
-        Style tokenStyle = Style.EMPTY;
-        if (style.getShadowColor() != null) {
-            tokenStyle = tokenStyle.withShadowColor(style.getShadowColor());
-        }
-        if (style.getClickEvent() != null) {
-            tokenStyle = tokenStyle.withClickEvent(style.getClickEvent());
-        }
-        if (style.getHoverEvent() != null) {
-            tokenStyle = tokenStyle.withHoverEvent(style.getHoverEvent());
-        }
-        return copyTrueDecorations(style, tokenStyle);
-    }
-
-    private static Style copyTrueDecorations(Style source, Style target) {
-        if (source.isBold()) {
-            target = target.withBold(true);
-        }
-        if (source.isItalic()) {
-            target = target.withItalic(true);
-        }
-        if (source.isUnderlined()) {
-            target = target.withUnderlined(true);
-        }
-        if (source.isStrikethrough()) {
-            target = target.withStrikethrough(true);
-        }
-        if (source.isObfuscated()) {
-            target = target.withObfuscated(true);
-        }
-        return target;
-    }
-
-    private static void appendStyle(StringBuilder builder, Style style, char prefix, boolean legacyPaletteOnly, Style previousStyle) {
+    private static void appendStyle(
+            StringBuilder builder, Style style, char prefix, boolean legacyPaletteOnly, Style previousStyle) {
         if (requiresStyleReset(previousStyle, style)) {
             builder.append(prefix).append('r');
         }
         if (style.getColor() != null) {
             ChatFormatting formatting = findLegacyColor(style.getColor(), legacyPaletteOnly);
             if (formatting != null) {
-                builder.append(prefix).append(formatting.getChar());
+                builder.append(prefix).append(legacyCode(formatting));
             } else if (!legacyPaletteOnly) {
                 appendLegacyHex(builder, style.getColor().getValue(), prefix);
             }
@@ -1293,10 +1286,11 @@ public final class TextComponentUtil {
         ChatFormatting best = null;
         double bestDistance = Double.MAX_VALUE;
         for (ChatFormatting formatting : ChatFormatting.values()) {
-            if (!formatting.isColor() || formatting.getColor() == null) continue;
-            if (formatting.getColor() == color.getValue()) return formatting;
+            Integer formattingColor = legacyColorValue(formatting);
+            if (formattingColor == null) continue;
+            if (formattingColor == color.getValue()) return formatting;
             if (approximate) {
-                double distance = ColorInterpolationUtil.colorDistanceSquared(formatting.getColor(), color.getValue());
+                double distance = ColorInterpolationUtil.colorDistanceSquared(formattingColor, color.getValue());
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     best = formatting;
@@ -1304,6 +1298,20 @@ public final class TextComponentUtil {
             }
         }
         return approximate ? best : null;
+    }
+
+    private static boolean isLegacyColor(ChatFormatting formatting) {
+        return TextColor.fromLegacyFormat(formatting) != null;
+    }
+
+    private static Integer legacyColorValue(ChatFormatting formatting) {
+        TextColor color = TextColor.fromLegacyFormat(formatting);
+        return color == null ? null : color.getValue();
+    }
+
+    private static char legacyCode(ChatFormatting formatting) {
+        String code = formatting.toString();
+        return code.length() > 1 ? code.charAt(1) : 'r';
     }
 
     private static void appendLegacyHex(StringBuilder builder, int color, char prefix) {
@@ -1322,8 +1330,7 @@ public final class TextComponentUtil {
             char prefix,
             ClickEvent activeClick,
             HoverEvent activeHover,
-            boolean legacyPaletteOnly
-    ) {
+            boolean legacyPaletteOnly) {
         if (text.isEmpty()) {
             return;
         }
@@ -1354,12 +1361,7 @@ public final class TextComponentUtil {
     }
 
     private static void appendOpenEvents(
-            StringBuilder out,
-            ClickEvent activeClick,
-            HoverEvent activeHover,
-            char prefix,
-            boolean legacyPaletteOnly
-    ) {
+            StringBuilder out, ClickEvent activeClick, HoverEvent activeHover, char prefix, boolean legacyPaletteOnly) {
         if (activeClick != null) {
             String openClick = openClickToken(activeClick);
             if (!openClick.isBlank()) {
@@ -1409,8 +1411,7 @@ public final class TextComponentUtil {
         return out.toString();
     }
 
-    private record StyledChunk(String text, Style style) {
-    }
+    private record StyledChunk(String text, Style style) {}
 
     private static VisibleStyle visibleStyle(Style style) {
         return new VisibleStyle(
@@ -1422,8 +1423,7 @@ public final class TextComponentUtil {
                 style.isStrikethrough(),
                 style.isObfuscated(),
                 serializableClickEvent(style.getClickEvent()),
-                serializableHoverEvent(style.getHoverEvent(), '&', false)
-        );
+                serializableHoverEvent(style.getHoverEvent(), '&', false));
     }
 
     private record VisibleStyle(
@@ -1435,16 +1435,13 @@ public final class TextComponentUtil {
             boolean strikethrough,
             boolean obfuscated,
             ClickEvent clickEvent,
-            HoverEvent hoverEvent
-    ) {
-    }
+            HoverEvent hoverEvent) {}
 
-    private record ProfileTextures(String value, String signature) {
-    }
+    private record ProfileTextures(String value, String signature) {}
 
-    private record ObjectColorSplit(String payload, Integer color) {
-    }
+    private record ObjectColorSplit(String payload, Integer color) {}
 
-    private record ObjectToken(Component component, Integer color) {
-    }
+    private record ObjectToken(Component component, Integer color) {}
+
+    public record TranslationTokenData(String key, String fallback, TranslatableContents contents) {}
 }

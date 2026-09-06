@@ -1,7 +1,10 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
+import java.util.Set;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
@@ -10,11 +13,7 @@ import net.minecraft.nbt.FloatTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
-
-import java.util.Objects;
-import java.util.Set;
 
 final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -23,7 +22,8 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (!this.supportsArmorStandData(context)) {
+        if (!ItemEditorCapabilities.supportsArmorStandData(
+                context.previewStack(), context.originalStack().get(DataComponents.ENTITY_DATA))) {
             return;
         }
 
@@ -59,31 +59,25 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 ItemEditorText.str("special.armor_stand.disabled_slots"),
                 0,
                 Integer.MAX_VALUE,
-                context.messages()
-        );
+                context.messages());
         String scaleAttributeId = scaleAttributeId();
         if (!EntitySpawnDataUtil.applyAttributes(
-                entityTag,
-                context.special().armorStandAttributes,
-                Set.of(scaleAttributeId),
-                context,
-                ItemEditorText.str("special.armor_stand.title")
-        ) || !EntitySpawnDataUtil.applyHealth(
-                entityTag,
-                context.special().armorStandHealth,
-                EntityType.getKey(EntityType.ARMOR_STAND).toString(),
-                0.0F,
-                context,
-                ItemEditorText.str("special.spawn_egg.health")
-        )) {
+                        entityTag,
+                        context.special().armorStandAttributes,
+                        Set.of(scaleAttributeId),
+                        context,
+                        ItemEditorText.str("special.armor_stand.title"))
+                || !EntitySpawnDataUtil.applyHealth(
+                        entityTag,
+                        context.special().armorStandHealth,
+                        EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                        0.0F,
+                        context,
+                        ItemEditorText.str("special.entity.health"))) {
             return;
         }
         if (!EntitySpawnDataUtil.applyEquipment(
-                entityTag,
-                context.special().armorStandEquipment,
-                context,
-                ItemEditorText.str("common.equipment")
-        )) {
+                entityTag, context.special().armorStandEquipment, context, ItemEditorText.str("common.equipment"))) {
             return;
         }
 
@@ -97,23 +91,30 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(EntityType.ARMOR_STAND, entityTag));
     }
 
-    private boolean supportsArmorStandData(SpecialDataApplyContext context) {
-        TypedEntityData<EntityType<?>> previewData = context.previewStack().get(DataComponents.ENTITY_DATA);
-        TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        return context.previewStack().is(Items.ARMOR_STAND)
-                || previewData != null && previewData.type() == EntityType.ARMOR_STAND
-                || originalData != null && originalData.type() == EntityType.ARMOR_STAND;
-    }
-
     private void applyPose(CompoundTag entityTag, SpecialDataApplyContext context) {
-        PoseValue head = this.parsePosePart(context, "special.armor_stand.part.head", context.special().armorStandPose.head, 0.0F, 0.0F);
-        PoseValue body = this.parsePosePart(context, "special.armor_stand.part.body", context.special().armorStandPose.body, 0.0F, 0.0F);
-        PoseValue leftArm = this.parsePosePart(context, "special.armor_stand.part.left_arm", context.special().armorStandPose.leftArm, -10.0F, -10.0F);
-        PoseValue rightArm = this.parsePosePart(context, "special.armor_stand.part.right_arm", context.special().armorStandPose.rightArm, -15.0F, 10.0F);
-        PoseValue leftLeg = this.parsePosePart(context, "special.armor_stand.part.left_leg", context.special().armorStandPose.leftLeg, -1.0F, -1.0F);
-        PoseValue rightLeg = this.parsePosePart(context, "special.armor_stand.part.right_leg", context.special().armorStandPose.rightLeg, 1.0F, 1.0F);
+        PoseValue head = this.parsePosePart(
+                context, "special.armor_stand.part.head", context.special().armorStandPose.head, 0.0F, 0.0F);
+        PoseValue body = this.parsePosePart(
+                context, "special.armor_stand.part.body", context.special().armorStandPose.body, 0.0F, 0.0F);
+        PoseValue leftArm = this.parsePosePart(
+                context, "special.armor_stand.part.left_arm", context.special().armorStandPose.leftArm, -10.0F, -10.0F);
+        PoseValue rightArm = this.parsePosePart(
+                context,
+                "special.armor_stand.part.right_arm",
+                context.special().armorStandPose.rightArm,
+                -15.0F,
+                10.0F);
+        PoseValue leftLeg = this.parsePosePart(
+                context, "special.armor_stand.part.left_leg", context.special().armorStandPose.leftLeg, -1.0F, -1.0F);
+        PoseValue rightLeg = this.parsePosePart(
+                context, "special.armor_stand.part.right_leg", context.special().armorStandPose.rightLeg, 1.0F, 1.0F);
 
-        if (head == null || body == null || leftArm == null || rightArm == null || leftLeg == null || rightLeg == null) {
+        if (head == null
+                || body == null
+                || leftArm == null
+                || rightArm == null
+                || leftLeg == null
+                || rightLeg == null) {
             return;
         }
 
@@ -144,21 +145,18 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
             return;
         }
 
-        Float parsed = ValidationUtil.parseFloat(
-                raw,
-                ItemEditorText.str("special.armor_stand.scale"),
-                context.messages()
-        );
+        Float parsed =
+                ValidationUtil.parseFloat(raw, ItemEditorText.str("special.armor_stand.scale"), context.messages());
         if (parsed == null) {
             return;
         }
         if (parsed < MIN_SCALE || parsed > MAX_SCALE) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.range",
-                    ItemEditorText.str("special.armor_stand.scale"),
-                    MIN_SCALE,
-                    MAX_SCALE
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.range",
+                            ItemEditorText.str("special.armor_stand.scale"),
+                            MIN_SCALE,
+                            MAX_SCALE)));
             return;
         }
         this.setScaleAttribute(entityTag, parsed);
@@ -210,8 +208,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
             String fieldPrefix,
             ItemEditorState.RotationDraft draft,
             float defaultX,
-            float defaultZ
-    ) {
+            float defaultZ) {
         Float x = this.parseAxis(context, fieldPrefix + ".x", draft.x, defaultX);
         Float y = this.parseAxis(context, fieldPrefix + ".y", draft.y, 0.0F);
         Float z = this.parseAxis(context, fieldPrefix + ".z", draft.z, defaultZ);
@@ -221,12 +218,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
         return new PoseValue(x, y, z);
     }
 
-    private Float parseAxis(
-            SpecialDataApplyContext context,
-            String fieldKey,
-            String raw,
-            float fallback
-    ) {
+    private Float parseAxis(SpecialDataApplyContext context, String fieldKey, String raw, float fallback) {
         String normalized = raw == null ? "" : raw.trim();
         if (normalized.isBlank()) {
             return fallback;
@@ -247,10 +239,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 && Objects.equals(current.armorStandDisabledSlots, baseline.armorStandDisabledSlots)
                 && Objects.equals(current.armorStandScale, baseline.armorStandScale)
                 && Objects.equals(current.armorStandHealth, baseline.armorStandHealth)
-                && EntitySpawnDataUtil.sameAttributes(
-                        current.armorStandAttributes,
-                        baseline.armorStandAttributes
-                )
+                && EntitySpawnDataUtil.sameAttributes(current.armorStandAttributes, baseline.armorStandAttributes)
                 && EntitySpawnDataUtil.sameEquipment(current.armorStandEquipment, baseline.armorStandEquipment)
                 && this.sameRotation(current.armorStandPose.head, baseline.armorStandPose.head)
                 && this.sameRotation(current.armorStandPose.body, baseline.armorStandPose.body)
@@ -290,9 +279,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
     }
 
     private boolean isDefaultRotation(ItemEditorState.RotationDraft rotation, String defaultX, String defaultZ) {
-        return equalsFloat(rotation.x, defaultX)
-                && equalsFloat(rotation.y, "0")
-                && equalsFloat(rotation.z, defaultZ);
+        return equalsFloat(rotation.x, defaultX) && equalsFloat(rotation.y, "0") && equalsFloat(rotation.z, defaultZ);
     }
 
     private static String scaleAttributeId() {

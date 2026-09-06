@@ -6,13 +6,16 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import net.minecraft.network.chat.Component;
-
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import me.noramibu.itemeditor.service.PlayerUuidResolver;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class SearchablePickerDialog {
 
@@ -38,7 +41,16 @@ public final class SearchablePickerDialog {
     private static final int FOOTER_BUTTON_DIVISOR = 4;
     private static final String EMPTY_TEXT = "";
 
-    private SearchablePickerDialog() {
+    private SearchablePickerDialog() {}
+
+    public static FlowLayout create(
+            String title,
+            String body,
+            List<String> values,
+            Function<String, String> labelMapper,
+            Consumer<String> onSelect,
+            Runnable onCancel) {
+        return create(title, body, values, labelMapper, onSelect, onCancel, null);
     }
 
     public static FlowLayout create(
@@ -47,25 +59,23 @@ public final class SearchablePickerDialog {
             List<String> values,
             Function<String, String> labelMapper,
             Consumer<String> onSelect,
-            Runnable onCancel
-    ) {
-        FlowLayout overlay = DialogUiUtil.overlay();
+            Runnable onCancel,
+            Map<String, String> players) {
+        var revision = new AtomicInteger();
+        FlowLayout overlay = DialogUiUtil.overlay(revision::incrementAndGet);
         int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
         boolean hasBody = !body.isBlank();
         int bodyTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN);
         int lineTextWidth = DialogUiUtil.dialogTextWidth(dialogWidth, LINE_TEXT_MARGIN);
         int controlHeight = UiFactory.scaleProfile().controlHeight();
-        int footerReserve = DialogUiUtil.buttonRowReserve(compactButtons, FOOTER_ROWS, BUTTON_RESERVE_EXTRA, BUTTON_RESERVE_EXTRA);
+        int footerReserve =
+                DialogUiUtil.buttonRowReserve(compactButtons, FOOTER_ROWS, BUTTON_RESERVE_EXTRA, BUTTON_RESERVE_EXTRA);
         int headerReserve = UiFactory.scaledPixels(hasBody ? HEADER_RESERVE_WITH_BODY : HEADER_RESERVE_EMPTY_BODY)
                 + controlHeight
                 + footerReserve;
-        DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
-                RESULTS_HEIGHT,
-                headerReserve,
-                RESULTS_MIN_HEIGHT,
-                DIALOG_MIN_HEIGHT
-        );
+        DialogUiUtil.ScrollDialogSizing sizing =
+                DialogUiUtil.scrollDialogSizing(RESULTS_HEIGHT, headerReserve, RESULTS_MIN_HEIGHT, DIALOG_MIN_HEIGHT);
 
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         dialog.child(UiFactory.title(title));
@@ -74,34 +84,24 @@ public final class SearchablePickerDialog {
         }
 
         TextBoxComponent search = UiFactory.textBox(EMPTY_TEXT, value -> {});
-        dialog.child(UiFactory.field(
-                ItemEditorText.tr("dialog.searchable_picker.search"),
-                Component.empty(),
-                search
-        ));
+        dialog.child(UiFactory.field(ItemEditorText.tr("dialog.searchable_picker.search"), Component.empty(), search));
 
         LabelComponent resultsCount = UiFactory.muted("", bodyTextWidth);
         dialog.child(resultsCount);
 
         int preferredLabelWidth = Math.max(
                 LABEL_WIDTH_MIN,
-                lineTextWidth - LABEL_WIDTH_RESERVE - UiFactory.scrollContentInset(LABEL_SCROLLBAR_INSET_BASE)
-        );
+                lineTextWidth - LABEL_WIDTH_RESERVE - UiFactory.scrollContentInset(LABEL_SCROLLBAR_INSET_BASE));
         int maxLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, lineTextWidth));
         FlowLayout results = UiFactory.column();
         results.gap(RESULTS_GAP);
         results.padding(Insets.bottom(controlHeight + UiFactory.scaledPixels(RESULTS_GAP)));
 
         InputSafeScrollContainer<FlowLayout> modalScroll = InputSafeScrollContainer.vertical(
-                Sizing.fill(100),
-                UiFactory.fixed(sizing.contentHeight()),
-                results
-        ).consumeScrollWhenHovered(true);
+                        Sizing.fill(100), UiFactory.fixed(sizing.contentHeight()), results)
+                .consumeScrollWhenHovered(true);
 
-        ScrollContainer<FlowLayout> verticalScroll = DialogUiUtil.vanillaScroll(
-                modalScroll,
-                RESULTS_SCROLL_STEP
-        );
+        ScrollContainer<FlowLayout> verticalScroll = DialogUiUtil.vanillaScroll(modalScroll, RESULTS_SCROLL_STEP);
 
         FlowLayout resultCard = UiFactory.subCard();
         resultCard.child(verticalScroll);
@@ -123,11 +123,11 @@ public final class SearchablePickerDialog {
 
                 matches++;
                 Component fullLabel = Component.literal(label);
-                var button = UiFactory.button(fullLabel, UiFactory.ButtonTextPreset.STANDARD, component -> onSelect.accept(value));
+                var button = UiFactory.button(
+                        fullLabel, UiFactory.ButtonTextPreset.STANDARD, component -> onSelect.accept(value));
                 button.horizontalSizing(Sizing.fill(100));
-                button.tooltip(label.equals(rawValue)
-                        ? List.of(fullLabel)
-                        : List.of(fullLabel, Component.literal(rawValue)));
+                button.tooltip(
+                        label.equals(rawValue) ? List.of(fullLabel) : List.of(fullLabel, Component.literal(rawValue)));
                 results.child(button);
             }
 
@@ -137,18 +137,57 @@ public final class SearchablePickerDialog {
             }
         };
 
-        search.onChanged().subscribe(value -> refresh.run());
+        search.onChanged().subscribe(value -> {
+            revision.incrementAndGet();
+            refresh.run();
+        });
         refresh.run();
 
-        FlowLayout buttonRow = DialogUiUtil.footerRowByDivisor(
-                dialogWidth,
-                compactButtons,
-                FOOTER_BUTTON_MIN_WIDTH,
-                FOOTER_BUTTON_MAX_WIDTH,
-                FOOTER_BUTTON_DIVISOR,
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run())
-        );
-        dialog.child(buttonRow);
+        if (players != null) {
+            var resolve = UiFactory.button(
+                    ItemEditorText.tr("dialog.player_resolver.resolve"),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    button -> {
+                        int request = revision.incrementAndGet();
+                        button.active(false);
+                        resultsCount.text(ItemEditorText.tr("dialog.player_resolver.loading"));
+                        PlayerUuidResolver.resolve(search.getValue())
+                                .thenAccept(result -> Minecraft.getInstance().execute(() -> {
+                                    button.active(true);
+                                    if (revision.get() != request) return;
+                                    if (result.uuid() == null) {
+                                        resultsCount.text(
+                                                ItemEditorText.tr("dialog.player_resolver." + result.error()));
+                                        return;
+                                    }
+                                    String uuid = result.uuid().toString();
+                                    players.put(uuid, result.name());
+                                    results.clearChildren();
+                                    results.child(UiFactory.button(
+                                                    Component.literal(result.name() + " | " + uuid),
+                                                    UiFactory.ButtonTextPreset.STANDARD,
+                                                    selected -> onSelect.accept(uuid))
+                                            .horizontalSizing(Sizing.fill(100)));
+                                    resultsCount.text(ItemEditorText.tr("dialog.player_resolver.found"));
+                                }));
+                    });
+            resolve.tooltip(ItemEditorText.tr("dialog.player_resolver.hint"));
+            dialog.child(UiFactory.actionButtonRow(
+                    false,
+                    UiFactory.button(
+                            ItemEditorText.tr("common.cancel"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> onCancel.run()),
+                    resolve));
+        } else {
+            dialog.child(DialogUiUtil.footerRowByDivisor(
+                    dialogWidth,
+                    compactButtons,
+                    FOOTER_BUTTON_MIN_WIDTH,
+                    FOOTER_BUTTON_MAX_WIDTH,
+                    FOOTER_BUTTON_DIVISOR,
+                    new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run())));
+        }
 
         overlay.child(dialog);
         return overlay;

@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.editor;
 
+import java.util.List;
 import me.noramibu.itemeditor.ui.panel.AttributeEditorPanel;
 import me.noramibu.itemeditor.ui.panel.BookEditorPanel;
 import me.noramibu.itemeditor.ui.panel.CombatEditorPanel;
@@ -12,8 +13,6 @@ import me.noramibu.itemeditor.ui.panel.RawEditorPanel;
 import me.noramibu.itemeditor.ui.panel.SpecialDataEditorPanel;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 
-import java.util.List;
-
 public final class EditorModuleRegistry {
 
     private static final List<EditorModule> MODULES = List.of(
@@ -24,15 +23,23 @@ public final class EditorModuleRegistry {
             new EditorModule(EditorCategory.ENCHANTMENTS, session -> true, EnchantmentEditorPanel::new),
             new EditorModule(EditorCategory.COMBAT, session -> true, CombatEditorPanel::new),
             new EditorModule(EditorCategory.FLAGS, session -> true, FlagsEditorPanel::new),
-            new EditorModule(EditorCategory.BOOK, session -> ItemEditorCapabilities.supportsBook(session.originalStack()), BookEditorPanel::new),
+            new EditorModule(
+                    EditorCategory.BOOK,
+                    session -> ItemEditorCapabilities.supportsBook(session.originalStack()),
+                    BookEditorPanel::new),
             new EditorModule(EditorCategory.RAW_EDITOR, session -> true, RawEditorPanel::new),
-            new EditorModule(EditorCategory.SPECIAL_DATA, session -> ItemEditorCapabilities.supportsSpecialData(session.originalStack()), SpecialDataEditorPanel::new)
-    );
+            new EditorModule(
+                    EditorCategory.SPECIAL_DATA,
+                    session -> ItemEditorCapabilities.supportsSpecialData(session.originalStack()),
+                    SpecialDataEditorPanel::new));
 
-    private EditorModuleRegistry() {
-    }
+    private EditorModuleRegistry() {}
 
-    public static List<EditorModule> modules() {
-        return MODULES;
+    public static List<EditorModule> modules(EditorCategory onlyCategory) {
+        return onlyCategory == null
+                ? MODULES
+                : MODULES.stream()
+                        .filter(module -> module.category() == onlyCategory)
+                        .toList();
     }
 }

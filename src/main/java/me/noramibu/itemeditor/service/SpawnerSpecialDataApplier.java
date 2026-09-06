@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -10,9 +12,6 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-
-import java.util.List;
-import java.util.Objects;
 
 final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -30,7 +29,8 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         if (this.sameSpawnerData(context.special(), context.baselineSpecial())) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
             return;
         }
 
@@ -40,7 +40,8 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
         }
 
         CompoundTag blockTag = new CompoundTag();
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        TypedEntityData<BlockEntityType<?>> originalData =
+                context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
         if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
             blockTag = originalData.copyTagWithoutId();
         }
@@ -54,8 +55,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.delay"),
                 MIN_DELAY_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "MinSpawnDelay",
@@ -63,8 +63,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.min_spawn_delay"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "MaxSpawnDelay",
@@ -72,8 +71,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.max_spawn_delay"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "SpawnCount",
@@ -81,8 +79,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.spawn_count"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "MaxNearbyEntities",
@@ -90,8 +87,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.max_nearby_entities"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "RequiredPlayerRange",
@@ -99,8 +95,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.required_player_range"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
         this.putOptionalIntTag(
                 blockTag,
                 "SpawnRange",
@@ -108,8 +103,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 ItemEditorText.str("special.spawner.spawn_range"),
                 MIN_SPAWNER_VALUE,
                 MAX_SPAWNER_VALUE,
-                context.messages()
-        );
+                context.messages());
 
         if (blockTag.isEmpty()) {
             this.clearToPrototype(context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
@@ -120,10 +114,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
     private void applyPrimaryEntity(CompoundTag blockTag, SpecialDataApplyContext context) {
         CompoundTag spawnDataTag = this.applySpawnData(
-                context.special().spawnerSpawnData,
-                context,
-                ItemEditorText.str("special.spawner.spawn_entity")
-        );
+                context.special().spawnerSpawnData, context, ItemEditorText.str("special.spawner.spawn_entity"));
         if (spawnDataTag == null) {
             blockTag.remove("SpawnData");
             return;
@@ -140,11 +131,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
 
         ListTag potentialsTag = new ListTag();
         for (ItemEditorState.SpawnerPotentialDraft draft : special.spawnerPotentials) {
-            CompoundTag dataTag = this.applySpawnData(
-                    draft.spawnData,
-                    context,
-                    ItemEditorText.str("special.spawner.entity_id")
-            );
+            CompoundTag dataTag = this.applySpawnData(draft.spawnData, context, ItemEditorText.str("common.entity_id"));
             if (dataTag == null) {
                 continue;
             }
@@ -154,8 +141,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                     ItemEditorText.str("special.spawner.potential_weight"),
                     1,
                     MAX_SPAWNER_VALUE,
-                    context.messages()
-            );
+                    context.messages());
             if (weight == null) {
                 continue;
             }
@@ -174,10 +160,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
     }
 
     private CompoundTag applySpawnData(
-            ItemEditorState.SpawnerSpawnDataDraft draft,
-            SpecialDataApplyContext context,
-            String fieldLabel
-    ) {
+            ItemEditorState.SpawnerSpawnDataDraft draft, SpecialDataApplyContext context, String fieldLabel) {
         CompoundTag entityTag = EntitySpawnDataUtil.applyEntity(draft.entity, context, fieldLabel);
         if (entityTag == null) {
             return null;
@@ -194,10 +177,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
     }
 
     private void applyCustomSpawnRules(
-            ItemEditorState.SpawnerSpawnDataDraft draft,
-            CompoundTag spawnDataTag,
-            List<ValidationMessage> messages
-    ) {
+            ItemEditorState.SpawnerSpawnDataDraft draft, CompoundTag spawnDataTag, List<ValidationMessage> messages) {
         CompoundTag rulesTag = spawnDataTag.getCompoundOrEmpty("custom_spawn_rules");
         boolean hasBlock = this.putLightLimit(
                 rulesTag,
@@ -205,16 +185,14 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 draft.blockLightMin,
                 draft.blockLightMax,
                 ItemEditorText.str("special.spawner.block_light_limit"),
-                messages
-        );
+                messages);
         boolean hasSky = this.putLightLimit(
                 rulesTag,
                 "sky_light_limit",
                 draft.skyLightMin,
                 draft.skyLightMax,
                 ItemEditorText.str("special.spawner.sky_light_limit"),
-                messages
-        );
+                messages);
         if (hasBlock || hasSky) {
             spawnDataTag.put("custom_spawn_rules", rulesTag);
             return;
@@ -228,8 +206,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             String rawMin,
             String rawMax,
             String label,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         String minText = rawMin == null ? "" : rawMin.trim();
         String maxText = rawMax == null ? "" : rawMax.trim();
         if (minText.isBlank() && maxText.isBlank()) {
@@ -245,12 +222,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
             return false;
         }
         if (max < min) {
-            messages.add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.range",
-                    label,
-                    min,
-                    MAX_LIGHT_VALUE
-            )));
+            messages.add(ValidationMessage.error(ItemEditorText.str("validation.range", label, min, MAX_LIGHT_VALUE)));
             return false;
         }
         if (Objects.equals(min, max)) {
@@ -266,21 +238,8 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
     }
 
     private BlockEntityType<?> resolveSpawnerType(SpecialDataApplyContext context) {
-        if (context.previewStack().is(Items.SPAWNER)) {
-            return BlockEntityType.MOB_SPAWNER;
-        }
-
-        TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && previewData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
-        }
-
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.MOB_SPAWNER) {
-            return BlockEntityType.MOB_SPAWNER;
-        }
-
-        return null;
+        return context.resolveBlockEntityType(
+                BlockEntityType.MOB_SPAWNER, context.previewStack().is(Items.SPAWNER));
     }
 
     private boolean sameSpawnerData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {
@@ -293,9 +252,11 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
                 && Objects.equals(current.spawnerRequiredPlayerRange, baseline.spawnerRequiredPlayerRange)
                 && Objects.equals(current.spawnerSpawnRange, baseline.spawnerSpawnRange)
                 && current.spawnerUsePotentials == baseline.spawnerUsePotentials
-                && this.sameList(current.spawnerPotentials, baseline.spawnerPotentials, (left, right) ->
-                sameSpawnData(left.spawnData, right.spawnData) && Objects.equals(left.weight, right.weight)
-        );
+                && this.sameList(
+                        current.spawnerPotentials,
+                        baseline.spawnerPotentials,
+                        (left, right) -> sameSpawnData(left.spawnData, right.spawnData)
+                                && Objects.equals(left.weight, right.weight));
     }
 
     private boolean isSpawnerDataDefault(ItemEditorState.SpecialData special) {
@@ -312,9 +273,7 @@ final class SpawnerSpecialDataApplier extends AbstractPreviewApplierSupport impl
     }
 
     private static boolean sameSpawnData(
-            ItemEditorState.SpawnerSpawnDataDraft current,
-            ItemEditorState.SpawnerSpawnDataDraft baseline
-    ) {
+            ItemEditorState.SpawnerSpawnDataDraft current, ItemEditorState.SpawnerSpawnDataDraft baseline) {
         return EntitySpawnDataUtil.sameEntity(current.entity, baseline.entity)
                 && Objects.equals(current.blockLightMin, baseline.blockLightMin)
                 && Objects.equals(current.blockLightMax, baseline.blockLightMax)

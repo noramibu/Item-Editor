@@ -46,5 +46,4 @@ public final class RotatableItemPreviewComponent extends ItemComponent {
         this.allowMouseRotation = allowMouseRotation;
         return this;
     }
-
 }

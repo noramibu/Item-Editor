@@ -2,11 +2,21 @@ package me.noramibu.itemeditor.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import me.noramibu.itemeditor.storage.io.AtomicFileUtil;
 import me.noramibu.itemeditor.storage.io.GsonJsonCodec;
 import me.noramibu.itemeditor.storage.model.ColorsFileModel;
 import me.noramibu.itemeditor.storage.model.PreferencesFileModel;
 import me.noramibu.itemeditor.storage.model.RawEditorFileModel;
+import me.noramibu.itemeditor.storage.model.RawEditorOptions;
 import me.noramibu.itemeditor.storage.model.SavedIndexFileModel;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 import me.noramibu.itemeditor.storage.model.SavedPageEntry;
@@ -17,23 +27,12 @@ import net.minecraft.nbt.StringTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
 public final class StorageDataFoundation {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StorageDataFoundation.class);
     private static final String DEFAULT_PAGE_NAME = "";
-    private static final Gson GSON = new GsonBuilder()
-            .setPrettyPrinting()
-            .disableHtmlEscaping()
-            .create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     private final StoragePaths paths;
     private final GsonJsonCodec<ColorsFileModel> colorsCodec;
@@ -58,8 +57,7 @@ public final class StorageDataFoundation {
                     this.paths.dataDirectory(),
                     this.paths.savedDirectory(),
                     this.paths.savedDataDirectory(),
-                    this.paths.storageBackupsDirectory()
-            );
+                    this.paths.storageBackupsDirectory());
         } catch (IOException exception) {
             LOGGER.error("[Item Editor] Failed to create item editor storage directories", exception);
             return;
@@ -81,61 +79,36 @@ public final class StorageDataFoundation {
     }
 
     public ColorsFileModel loadColors() {
-        ColorsFileModel file = AtomicFileUtil.readJson(
-                this.paths.colorsFile(),
-                this.colorsCodec,
-                ColorsFileModel::new
-        );
+        ColorsFileModel file = AtomicFileUtil.readJson(this.paths.colorsFile(), this.colorsCodec, ColorsFileModel::new);
         return sanitizeColors(file);
     }
 
     public void saveColors(ColorsFileModel model) {
-        AtomicFileUtil.writeJson(
-                this.paths.colorsFile(),
-                this.colorsCodec,
-                sanitizeColors(model)
-        );
+        AtomicFileUtil.writeJson(this.paths.colorsFile(), this.colorsCodec, sanitizeColors(model));
     }
 
     public PreferencesFileModel loadPreferences() {
-        PreferencesFileModel file = AtomicFileUtil.readJson(
-                this.paths.preferencesFile(),
-                this.preferencesCodec,
-                PreferencesFileModel::new
-        );
-        return file == null ? new PreferencesFileModel() : file;
+        PreferencesFileModel file =
+                AtomicFileUtil.readJson(this.paths.preferencesFile(), this.preferencesCodec, PreferencesFileModel::new);
+        return sanitizePreferences(file);
     }
 
     public void savePreferences(PreferencesFileModel model) {
-        AtomicFileUtil.writeJson(
-                this.paths.preferencesFile(),
-                this.preferencesCodec,
-                model == null ? new PreferencesFileModel() : model
-        );
+        AtomicFileUtil.writeJson(this.paths.preferencesFile(), this.preferencesCodec, sanitizePreferences(model));
     }
 
     public RawEditorFileModel loadRawEditor() {
         RawEditorFileModel file = AtomicFileUtil.readJson(
-                this.paths.rawEditorOptionsFile(),
-                this.rawEditorCodec,
-                RawEditorFileModel::new
-        );
+                this.paths.rawEditorOptionsFile(), this.rawEditorCodec, RawEditorFileModel::new);
         return sanitizeRawEditor(file);
     }
 
     public void saveRawEditor(RawEditorFileModel model) {
-        AtomicFileUtil.writeJson(
-                this.paths.rawEditorOptionsFile(),
-                this.rawEditorCodec,
-                sanitizeRawEditor(model)
-        );
+        AtomicFileUtil.writeJson(this.paths.rawEditorOptionsFile(), this.rawEditorCodec, sanitizeRawEditor(model));
     }
 
     public SavedIndexFileModel loadSavedIndex() {
-        CompoundTag root = AtomicFileUtil.readNbt(
-                this.paths.savedIndexFile(),
-                CompoundTag::new
-        );
+        CompoundTag root = AtomicFileUtil.readNbt(this.paths.savedIndexFile(), CompoundTag::new);
         return sanitizeSavedIndex(savedIndexFromTag(root));
     }
 
@@ -237,7 +210,8 @@ public final class StorageDataFoundation {
         entry.slotInPage = entryTag.getIntOr("slotInPage", entry.slotInChunk);
         entry.savedAt = entryTag.getLongOr("savedAt", 0L);
         entry.updatedAt = entryTag.getLongOr("updatedAt", 0L);
-        entry.minecraftVersion = entryTag.getStringOr("minecraftVersion", StorageMetadataUtil.currentMinecraftVersion());
+        entry.minecraftVersion =
+                entryTag.getStringOr("minecraftVersion", StorageMetadataUtil.currentMinecraftVersion());
         entry.dataVersion = entryTag.getIntOr("dataVersion", StorageMetadataUtil.currentDataVersion());
         entry.itemRegistryKey = entryTag.getStringOr("itemRegistryKey", "");
         entry.stackCount = entryTag.getIntOr("stackCount", 1);
@@ -258,8 +232,7 @@ public final class StorageDataFoundation {
                 "minecraftVersion",
                 entry.minecraftVersion == null || entry.minecraftVersion.isBlank()
                         ? StorageMetadataUtil.currentMinecraftVersion()
-                        : entry.minecraftVersion
-        );
+                        : entry.minecraftVersion);
         entryTag.putInt("dataVersion", normalizedDataVersion(entry.dataVersion));
         entryTag.putString("itemRegistryKey", entry.itemRegistryKey == null ? "" : entry.itemRegistryKey);
         entryTag.putInt("stackCount", Math.max(1, entry.stackCount));
@@ -305,8 +278,14 @@ public final class StorageDataFoundation {
         RawEditorFileModel model = source == null ? new RawEditorFileModel() : source;
         model.schemaVersion = StorageConstants.RAW_EDITOR_SCHEMA_VERSION;
         if (model.options == null) {
-            model.options = new me.noramibu.itemeditor.storage.model.RawEditorOptions();
+            model.options = new RawEditorOptions();
         }
+        return model;
+    }
+
+    private static PreferencesFileModel sanitizePreferences(PreferencesFileModel source) {
+        PreferencesFileModel model = source == null ? new PreferencesFileModel() : source;
+        model.storageMode = "MANAGE".equals(model.storageMode) ? "MANAGE" : "COPY_IMPORT";
         return model;
     }
 
@@ -365,9 +344,7 @@ public final class StorageDataFoundation {
             int pageIndex = Math.max(0, entry.page - 1);
             if (!pagesByOrder.containsKey(pageIndex)) {
                 SavedPageEntry page = defaultPage(pageIndex);
-                page.chunkId = entry.chunkId == null || entry.chunkId.isBlank()
-                        ? nextChunkId(chunkIds)
-                        : entry.chunkId;
+                page.chunkId = entry.chunkId == null || entry.chunkId.isBlank() ? nextChunkId(chunkIds) : entry.chunkId;
                 page.id = page.chunkId;
                 while (chunkIds.contains(page.chunkId) || ids.contains(page.id)) {
                     page.chunkId = nextChunkId(chunkIds);
@@ -379,7 +356,7 @@ public final class StorageDataFoundation {
                 ids.add(page.id);
             }
         }
-        normalized.sort(java.util.Comparator.comparingInt(page -> page.order));
+        normalized.sort(Comparator.comparingInt(page -> page.order));
         model.pages = normalized;
     }
 

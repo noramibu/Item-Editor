@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.api;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageServices;
 import net.fabricmc.api.EnvType;
@@ -8,16 +11,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-
 /** Client-side access to Item Editor's saved-item storage. */
 @Environment(EnvType.CLIENT)
 public final class ItemEditorStorageApi {
 
-    private ItemEditorStorageApi() {
-    }
+    private ItemEditorStorageApi() {}
 
     /** Returns all persistent pages in their current order. */
     public static CompletableFuture<List<StoragePage>> listPages() {
@@ -44,15 +42,14 @@ public final class ItemEditorStorageApi {
         if (stack == null || stack.isEmpty()) {
             return CompletableFuture.completedFuture(new StoreResult(Status.INVALID_ITEM, -1));
         }
-        return storage().enqueueAddToFirstEmptySlot(pageId, stack, registryAccess())
+        return storage()
+                .enqueueAddToFirstEmptySlot(pageId, stack, registryAccess())
                 .thenApply(result -> {
                     if (result.isEmpty()) {
                         return new StoreResult(Status.PAGE_NOT_FOUND, -1);
                     }
                     int slot = result.getAsInt();
-                    return slot < 0
-                            ? new StoreResult(Status.PAGE_FULL, -1)
-                            : new StoreResult(Status.SAVED, slot);
+                    return slot < 0 ? new StoreResult(Status.PAGE_FULL, -1) : new StoreResult(Status.SAVED, slot);
                 });
     }
 
@@ -68,20 +65,19 @@ public final class ItemEditorStorageApi {
 
     /** Finds one persistent page by its exact one-based page number. */
     public static CompletableFuture<Optional<StoragePage>> findPageByNumber(int pageNumber) {
-        return storage().findPageByNumberAsync(pageNumber)
-                .thenApply(page -> page.map(ItemEditorStorageApi::summary));
+        return storage().findPageByNumberAsync(pageNumber).thenApply(page -> page.map(ItemEditorStorageApi::summary));
     }
 
     /** Finds one persistent page by its exact stable ID. */
     public static CompletableFuture<Optional<StoragePage>> findPageById(String pageId) {
-        return storage().findPageByIdAsync(pageId)
-                .thenApply(page -> page.map(ItemEditorStorageApi::summary));
+        return storage().findPageByIdAsync(pageId).thenApply(page -> page.map(ItemEditorStorageApi::summary));
     }
 
     /** Finds persistent pages by case-insensitive page name. */
     public static CompletableFuture<List<StoragePage>> searchPages(String query) {
-        return storage().searchPagesAsync(query)
-                .thenApply(pages -> pages.stream().map(ItemEditorStorageApi::summary).toList());
+        return storage().searchPagesAsync(query).thenApply(pages -> pages.stream()
+                .map(ItemEditorStorageApi::summary)
+                .toList());
     }
 
     private static SavedItemStorageService storage() {
@@ -94,32 +90,18 @@ public final class ItemEditorStorageApi {
     }
 
     private static StoragePage page(SavedItemStorageService.PageInfo page) {
-        return new StoragePage(
-                page.id(),
-                page.pageNumber(),
-                page.name(),
-                page.namePlain(),
-                page.itemCount()
-        );
+        return new StoragePage(page.id(), page.pageNumber(), page.name(), page.namePlain(), page.itemCount());
     }
 
     private static StoragePage summary(SavedItemStorageService.PageSummary page) {
-        return new StoragePage(
-                page.id(),
-                page.pageNumber(),
-                page.name(),
-                page.namePlain(),
-                page.itemCount()
-        );
+        return new StoragePage(page.id(), page.pageNumber(), page.name(), page.namePlain(), page.itemCount());
     }
 
     /** Immutable page metadata returned by storage operations. */
-    public record StoragePage(String id, int number, String name, String plainName, int itemCount) {
-    }
+    public record StoragePage(String id, int number, String name, String plainName, int itemCount) {}
 
     /** Result of an atomic first-empty-slot store operation. */
-    public record StoreResult(Status status, int slot) {
-    }
+    public record StoreResult(Status status, int slot) {}
 
     public enum Status {
         SAVED,

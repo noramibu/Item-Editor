@@ -1,11 +1,5 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.core.Registry;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
-
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -16,12 +10,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import me.noramibu.itemeditor.editor.ItemEditorState;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 
 final class RawAutocompleteHints {
     private static final RawRuntimeSuggestionProvider RUNTIME = new RawRuntimeSuggestionProvider();
     private static final RawAutocompleteCatalog CATALOG = new RawAutocompleteCatalog();
-    private static final ThreadLocal<List<String>> EXTERNAL_LOOT_TABLE_IDS =
-            ThreadLocal.withInitial(List::of);
+    private static final ThreadLocal<List<String>> EXTERNAL_LOOT_TABLE_IDS = ThreadLocal.withInitial(List::of);
     private static final int RUNTIME_PROBE_MAX_TEXT_LENGTH = 20000;
     private static final int REGISTRY_BINDING_PROBE_MAX_TEXT_LENGTH = 18000;
     private static final int REGISTRY_BINDING_SAMPLE_LIMIT = 4;
@@ -51,24 +50,15 @@ final class RawAutocompleteHints {
                 }
             };
 
-    private static final List<String> INTEGER_NUMBER_VALUES = List.of(
-            "0", "1", "2", "5", "10", "20", "64", "128", "200"
-    );
-    private static final List<String> FLOAT_NUMBER_VALUES = List.of(
-            "0.0f", "0.1f", "0.5f", "1.0f", "2.0f", "4.0f", "10.0f", "0.0d", "1.0d", "Infinityf"
-    );
-    private static final List<String> NUMBER_VALUES = List.of(
-            "0", "1", "0b", "1b", "0s", "1s", "0L", "1L", "0.0f", "1.0f", "0.0d", "1.0d", "Infinityf", "NaNd"
-    );
+    private static final List<String> INTEGER_NUMBER_VALUES =
+            List.of("0", "1", "2", "5", "10", "20", "64", "128", "200");
+    private static final List<String> FLOAT_NUMBER_VALUES =
+            List.of("0.0f", "0.1f", "0.5f", "1.0f", "2.0f", "4.0f", "10.0f", "0.0d", "1.0d", "Infinityf");
+    private static final List<String> NUMBER_VALUES =
+            List.of("0", "1", "0b", "1b", "0s", "1s", "0L", "1L", "0.0f", "1.0f", "0.0d", "1.0d", "Infinityf", "NaNd");
     private static final List<String> BOOLEAN_VALUES = List.of("true", "false");
     private static final List<RegistryHint> VALUE_REGISTRY_HINTS = List.of(RegistryHint.values());
-    private static final List<String> CONSUME_EFFECT_TYPES = List.of(
-            "minecraft:apply_effects",
-            "minecraft:remove_effects",
-            "minecraft:clear_all_effects",
-            "minecraft:teleport_randomly",
-            "minecraft:play_sound"
-    );
+    private static final List<String> CONSUME_EFFECT_TYPES = ItemEditorState.ConsumableEffectDraft.ALL_TYPES;
     private static final List<String> CONSUMABLE_ANIMATIONS = List.of(
             "none",
             "eat",
@@ -81,31 +71,34 @@ final class RawAutocompleteHints {
             "toot_horn",
             "brush",
             "bundle",
-            "trident"
-    );
-    private static final List<String> EQUIPMENT_SLOTS = List.of(
-            "mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle"
-    );
+            "trident");
+    private static final List<String> EQUIPMENT_SLOTS =
+            List.of("mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle");
     private static final List<String> LEGACY_ATTRIBUTE_OPERATIONS = List.of("0", "1", "2");
-    private static final List<String> MODERN_ATTRIBUTE_OPERATIONS = List.of(
-            "add_value", "add_multiplied_base", "add_multiplied_total"
-    );
+    private static final List<String> MODERN_ATTRIBUTE_OPERATIONS =
+            List.of("add_value", "add_multiplied_base", "add_multiplied_total");
     private static final List<String> TEXT_COLORS = List.of(
-            "black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray",
-            "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "magenta"
-    );
-    private static final List<String> COLOR_EXAMPLES = List.of(
-            "#ffffff", "#8219F3", "#ff0000", "#00ff00", "#0000ff"
-    );
+            "black",
+            "dark_blue",
+            "dark_green",
+            "dark_aqua",
+            "dark_red",
+            "dark_purple",
+            "gold",
+            "gray",
+            "dark_gray",
+            "blue",
+            "green",
+            "aqua",
+            "red",
+            "light_purple",
+            "yellow",
+            "white",
+            "magenta");
+    private static final List<String> COLOR_EXAMPLES = List.of("#ffffff", "#8219F3", "#ff0000", "#00ff00", "#0000ff");
     private static final List<String> HOVER_EVENT_ACTIONS = List.of("show_text", "show_item", "show_entity");
-    private static final List<String> CLICK_EVENT_ACTIONS = List.of(
-            "open_url",
-            "open_file",
-            "run_command",
-            "suggest_command",
-            "change_page",
-            "copy_to_clipboard"
-    );
+    private static final List<String> CLICK_EVENT_ACTIONS =
+            List.of("open_url", "open_file", "run_command", "suggest_command", "change_page", "copy_to_clipboard");
 
     private static final Set<String> BOOLEAN_EXACT_KEYS = Set.of(
             "ambient",
@@ -129,8 +122,7 @@ final class RawAutocompleteHints {
             "trackoutput",
             "tracked",
             "updatelastexecution",
-            "unbreakable"
-    );
+            "unbreakable");
     private static final Set<String> NUMERIC_EXACT_KEYS = Set.of(
             "amplifier",
             "base",
@@ -152,8 +144,7 @@ final class RawAutocompleteHints {
             "spawncount",
             "spawnrange",
             "successcount",
-            "weight"
-    );
+            "weight");
     private static final Set<String> STRING_EXACT_KEYS = Set.of(
             "animation",
             "attributename",
@@ -171,11 +162,18 @@ final class RawAutocompleteHints {
             "text",
             "title",
             "translate",
-            "type"
-    );
+            "type");
     private static final Set<String> COMPOSITE_KEY_PARTS = Set.of(
-            "component", "data", "effects", "motion", "passengers", "position", "potentials", "rotation", "rules", "tag"
-    );
+            "component",
+            "data",
+            "effects",
+            "motion",
+            "passengers",
+            "position",
+            "potentials",
+            "rotation",
+            "rules",
+            "tag");
     private static final Set<String> COMPOSITE_EXACT_KEYS = Set.of(
             "click_event",
             "customname",
@@ -187,17 +185,19 @@ final class RawAutocompleteHints {
             "spawndata",
             "spawnpotentials",
             "tooltip_display",
-            "with"
-    );
+            "with");
 
     private static final Map<String, String> VALUE_EXAMPLES = Map.ofEntries(
-            Map.entry("minecraft:attribute_modifiers",
+            Map.entry(
+                    "minecraft:attribute_modifiers",
                     "[{type: \"minecraft:attack_damage\", amount: 1.0d, operation: \"add_value\", id: \"minecraft:modifier\"}]"),
             Map.entry("minecraft:banner_patterns", "[{pattern: \"minecraft:base\", color: \"white\"}]"),
             Map.entry("minecraft:charged_projectiles", "[{id: \"minecraft:arrow\", count: 1}]"),
-            Map.entry("minecraft:consumable", "{consume_seconds: 1.6f, animation: \"eat\", "
-                    + "sound: \"minecraft:entity.generic.eat\", has_consume_particles: true, "
-                    + "on_consume_effects: []}"),
+            Map.entry(
+                    "minecraft:consumable",
+                    "{consume_seconds: 1.6f, animation: \"eat\", "
+                            + "sound: \"minecraft:entity.generic.eat\", has_consume_particles: true, "
+                            + "on_consume_effects: []}"),
             Map.entry("minecraft:custom_data", "{}"),
             Map.entry("minecraft:damage_type", "\"minecraft:in_fire\""),
             Map.entry("minecraft:dyed_color", "{rgb: 16777215}"),
@@ -209,7 +209,9 @@ final class RawAutocompleteHints {
             Map.entry("minecraft:instrument", "\"minecraft:ponder_goat_horn\""),
             Map.entry("minecraft:intangible_projectile", "{}"),
             Map.entry("minecraft:jukebox_playable", "\"minecraft:chirp\""),
-            Map.entry("minecraft:lodestone_tracker", "{tracked: true, target: {dimension: \"minecraft:overworld\", pos: [0, 64, 0]}}"),
+            Map.entry(
+                    "minecraft:lodestone_tracker",
+                    "{tracked: true, target: {dimension: \"minecraft:overworld\", pos: [0, 64, 0]}}"),
             Map.entry("minecraft:lore", "[\n  {\n    text: \"\"\n  }\n]"),
             Map.entry("minecraft:map_decorations", "{decorations: []}"),
             Map.entry("minecraft:potion_contents", "{}"),
@@ -218,13 +220,11 @@ final class RawAutocompleteHints {
             Map.entry("minecraft:bundle_contents", "[{id: \"minecraft:stone\", count: 1}]"),
             Map.entry("minecraft:use_cooldown", "{seconds: 1.0f}"),
             Map.entry("minecraft:use_effects", "{can_sprint: true, speed_multiplier: 1.0f, interact_vibrations: true}"),
-            Map.entry("minecraft:use_remainder", "{id: \"minecraft:stick\", count: 1}")
-    );
+            Map.entry("minecraft:use_remainder", "{id: \"minecraft:stick\", count: 1}"));
     private static final Map<String, String> VALUE_SNIPPETS = Map.of(
             "click_event", "{action: \"open_url\", url: \"https://example.com\"}",
             "hover_event", "{action: \"show_text\", value: {text: \"\"}}",
-            "score", "{name: \"\", objective: \"\"}"
-    );
+            "score", "{name: \"\", objective: \"\"}");
 
     private static final List<PathRule> PATH_RULES = List.of(
             PathRule.booleanRule("components", "minecraft:use_effects", "can_sprint"),
@@ -259,28 +259,72 @@ final class RawAutocompleteHints {
             PathRule.stringValues(EQUIPMENT_SLOTS, "components", "minecraft:attribute_modifiers", "slot"),
             PathRule.stringValues(EQUIPMENT_SLOTS, "components", "minecraft:attribute_modifiers", "modifiers", "slot"),
             PathRule.stringValues(LEGACY_ATTRIBUTE_OPERATIONS, "attributemodifiers", "operation"),
-            PathRule.stringValues(MODERN_ATTRIBUTE_OPERATIONS, "components", "minecraft:attribute_modifiers", "operation"),
+            PathRule.stringValues(
+                    MODERN_ATTRIBUTE_OPERATIONS, "components", "minecraft:attribute_modifiers", "operation"),
             PathRule.stringValues(mergeUnique(TEXT_COLORS, COLOR_EXAMPLES), "display", "color"),
             PathRule.stringValues(List.of("{\"text\":\"Item Name\",\"color\":\"#ffffff\"}"), "display", "name"),
             PathRule.stringValues(List.of("{\"text\":\"Lore line\"}"), "display", "lore"),
             PathRule.stringValues(CONSUMABLE_ANIMATIONS, "components", "minecraft:consumable", "animation"),
             PathRule.stringValues(CONSUME_EFFECT_TYPES, "on_consume_effects", "type"),
-            PathRule.stringRegistry(RawSlotType.VALUE_ID_ATTRIBUTE, RegistryHint.ATTRIBUTE, "attributemodifiers", "attributename"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_ID_ATTRIBUTE, RegistryHint.ATTRIBUTE, "attributemodifiers", "attributename"),
             PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.DIMENSION, "dimension"),
             PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.VILLAGER_PROFESSION, "profession"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.DIMENSION, "components", "minecraft:lodestone_tracker", "target", "dimension"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.INSTRUMENT, "components", "minecraft:instrument"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.PAINTING_VARIANT, "components", "minecraft:painting", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.CAT_VARIANT, "components", "minecraft:cat", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.CHICKEN_VARIANT, "components", "minecraft:chicken", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.COW_VARIANT, "components", "minecraft:cow", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.FROG_VARIANT, "components", "minecraft:frog", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.PIG_VARIANT, "components", "minecraft:pig", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.VILLAGER_VARIANT, "components", "minecraft:villager", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.WOLF_VARIANT, "components", "minecraft:wolf", "variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.WOLF_SOUND_VARIANT, "components", "minecraft:wolf", "sound_variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.ZOMBIE_NAUTILUS_VARIANT, "components", "minecraft:zombie", "nautilus_variant"),
-            PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.LOOT_TABLE, "components", "minecraft:container_loot", "loot_table"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.DIMENSION,
+                    "components",
+                    "minecraft:lodestone_tracker",
+                    "target",
+                    "dimension"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.INSTRUMENT, "components", "minecraft:instrument"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.PAINTING_VARIANT,
+                    "components",
+                    "minecraft:painting",
+                    "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.CAT_VARIANT, "components", "minecraft:cat", "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.CHICKEN_VARIANT,
+                    "components",
+                    "minecraft:chicken",
+                    "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.COW_VARIANT, "components", "minecraft:cow", "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.FROG_VARIANT, "components", "minecraft:frog", "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.PIG_VARIANT, "components", "minecraft:pig", "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.VILLAGER_VARIANT,
+                    "components",
+                    "minecraft:villager",
+                    "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING, RegistryHint.WOLF_VARIANT, "components", "minecraft:wolf", "variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.WOLF_SOUND_VARIANT,
+                    "components",
+                    "minecraft:wolf",
+                    "sound_variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.ZOMBIE_NAUTILUS_VARIANT,
+                    "components",
+                    "minecraft:zombie",
+                    "nautilus_variant"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_STRING,
+                    RegistryHint.LOOT_TABLE,
+                    "components",
+                    "minecraft:container_loot",
+                    "loot_table"),
             PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.LOOT_TABLE, "loot_table"),
             PathRule.stringRegistry(RawSlotType.VALUE_STRING, RegistryHint.LOOT_TABLE, "loottable"),
             new PathRule(
@@ -288,16 +332,27 @@ final class RawAutocompleteHints {
                     RawSlotType.VALUE_STRING,
                     List.of(),
                     null,
-                    List.of(new String[]{"components", "minecraft:attribute_modifiers", "modifiers", "id"}),
-                    ""
-            ),
-            PathRule.stringRegistry(RawSlotType.VALUE_ID_SOUND, RegistryHint.SOUND, "components", "minecraft:instrument", "sound_event", "sound_id"),
+                    List.of(new String[] {"components", "minecraft:attribute_modifiers", "modifiers", "id"}),
+                    ""),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_ID_SOUND,
+                    RegistryHint.SOUND,
+                    "components",
+                    "minecraft:instrument",
+                    "sound_event",
+                    "sound_id"),
             PathRule.stringRegistry(RawSlotType.VALUE_ID_SOUND, RegistryHint.SOUND, "on_consume_effects", "sound"),
             PathRule.stringRegistry(RawSlotType.VALUE_ID_EFFECT, RegistryHint.EFFECT, "custom_potion_effects", "id"),
             PathRule.stringRegistry(RawSlotType.VALUE_ID_EFFECT, RegistryHint.EFFECT, "effects", "id"),
             PathRule.stringRegistry(RawSlotType.VALUE_ID_ENCHANTMENT, RegistryHint.ENCHANTMENT, "enchantments", "id"),
-            PathRule.stringRegistry(RawSlotType.VALUE_ID_BANNER_PATTERN, RegistryHint.BANNER_PATTERN, "patterns", "pattern"),
-            PathRule.stringRegistry(RawSlotType.VALUE_ID_BANNER_PATTERN, RegistryHint.BANNER_PATTERN, "components", "minecraft:banner_patterns", "pattern"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_ID_BANNER_PATTERN, RegistryHint.BANNER_PATTERN, "patterns", "pattern"),
+            PathRule.stringRegistry(
+                    RawSlotType.VALUE_ID_BANNER_PATTERN,
+                    RegistryHint.BANNER_PATTERN,
+                    "components",
+                    "minecraft:banner_patterns",
+                    "pattern"),
             PathRule.effectRegistryContains(),
             PathRule.stringRule("attributemodifiers", "name"),
             PathRule.stringRule("click_event", "action"),
@@ -318,23 +373,27 @@ final class RawAutocompleteHints {
             PathRule.stringRule("hover_event", "action"),
             PathRule.stringRule("hover_event", "id"),
             PathRule.stringRule("hover_event", "uuid"),
-            PathRule.stringRule("on_consume_effects", "type")
-    );
+            PathRule.stringRule("on_consume_effects", "type"));
     private static final List<DirectRegistryRule> DIRECT_REGISTRY_RULES = List.of(
-            DirectRegistryRule.exactOrPathSuffix(RegistryHint.DIMENSION, "dimension", "dimension"),
-            DirectRegistryRule.exactOrContains(RegistryHint.VILLAGER_PROFESSION, "profession", "villager_profession"),
+            new DirectRegistryRule(RegistryHint.DIMENSION, "dimension", "", "", "", "dimension"),
+            new DirectRegistryRule(RegistryHint.VILLAGER_PROFESSION, "profession", "villager_profession", "", "", ""),
             DirectRegistryRule.contains(RegistryHint.CAT_VARIANT, "cat_variant", "minecraft:cat/variant"),
             DirectRegistryRule.contains(RegistryHint.CHICKEN_VARIANT, "chicken_variant", "minecraft:chicken/variant"),
             DirectRegistryRule.contains(RegistryHint.COW_VARIANT, "cow_variant", "minecraft:cow/variant"),
             DirectRegistryRule.contains(RegistryHint.FROG_VARIANT, "frog_variant", "minecraft:frog/variant"),
             DirectRegistryRule.contains(RegistryHint.PIG_VARIANT, "pig_variant", "minecraft:pig/variant"),
-            DirectRegistryRule.contains(RegistryHint.VILLAGER_VARIANT, "villager_variant", "minecraft:villager/variant"),
-            DirectRegistryRule.contains(RegistryHint.WOLF_SOUND_VARIANT, "wolf_sound_variant", "minecraft:wolf/sound_variant"),
+            DirectRegistryRule.contains(
+                    RegistryHint.VILLAGER_VARIANT, "villager_variant", "minecraft:villager/variant"),
+            DirectRegistryRule.contains(
+                    RegistryHint.WOLF_SOUND_VARIANT, "wolf_sound_variant", "minecraft:wolf/sound_variant"),
             DirectRegistryRule.contains(RegistryHint.WOLF_VARIANT, "wolf_variant", "minecraft:wolf/variant"),
-            DirectRegistryRule.contains(RegistryHint.ZOMBIE_NAUTILUS_VARIANT, "zombie_nautilus_variant", "minecraft:zombie/nautilus_variant"),
-            DirectRegistryRule.contains(RegistryHint.PAINTING_VARIANT, "painting_variant", "minecraft:painting/variant"),
-            DirectRegistryRule.exactOrSuffix(RegistryHint.INSTRUMENT, "minecraft:instrument", "instrument_id")
-    );
+            DirectRegistryRule.contains(
+                    RegistryHint.ZOMBIE_NAUTILUS_VARIANT,
+                    "zombie_nautilus_variant",
+                    "minecraft:zombie/nautilus_variant"),
+            DirectRegistryRule.contains(
+                    RegistryHint.PAINTING_VARIANT, "painting_variant", "minecraft:painting/variant"),
+            new DirectRegistryRule(RegistryHint.INSTRUMENT, "minecraft:instrument", "", "instrument_id", "", ""));
     private static final List<RegistryKeywordRule> REGISTRY_KEYWORD_RULES = List.of(
             RegistryKeywordRule.of(RegistryHint.BANNER_PATTERN, "banner", "pattern"),
             RegistryKeywordRule.of(RegistryHint.DAMAGE_TYPE, "damage_type"),
@@ -351,32 +410,21 @@ final class RawAutocompleteHints {
             RegistryKeywordRule.of(RegistryHint.ENCHANTMENT, "enchant"),
             RegistryKeywordRule.of(RegistryHint.ENTITY, "entity"),
             RegistryKeywordRule.of(RegistryHint.POTION, "potion"),
-            RegistryKeywordRule.of(RegistryHint.SOUND, "sound")
-    );
+            RegistryKeywordRule.of(RegistryHint.SOUND, "sound"));
 
-    private RawAutocompleteHints() {
-    }
+    private RawAutocompleteHints() {}
 
     static List<String> componentsForContext(String itemId, List<String> profiles, RegistryAccess registryAccess) {
         return CATALOG.componentsForContext(itemId, profiles, registryAccess);
     }
 
     static List<String> objectKeyHints(
-            String key,
-            String path,
-            String itemId,
-            List<String> profiles,
-            RegistryAccess registryAccess
-    ) {
+            String key, String path, String itemId, List<String> profiles, RegistryAccess registryAccess) {
         return CATALOG.objectKeyHints(key, path, itemId, profiles, registryAccess);
     }
 
     static List<String> componentFieldHints(
-            String componentId,
-            String itemId,
-            List<String> profiles,
-            RegistryAccess registryAccess
-    ) {
+            String componentId, String itemId, List<String> profiles, RegistryAccess registryAccess) {
         return CATALOG.componentFieldHints(componentId, itemId, profiles, registryAccess);
     }
 
@@ -403,11 +451,7 @@ final class RawAutocompleteHints {
         return Objects.requireNonNullElse(VALUE_EXAMPLES.getOrDefault(normalized, VALUE_SNIPPETS.get(normalized)), "");
     }
 
-    static String valueSnippet(
-            String key,
-            String itemId,
-            RegistryAccess registryAccess
-    ) {
+    static String valueSnippet(String key, String itemId, RegistryAccess registryAccess) {
         String defaultComponentValue = CATALOG.defaultComponentValue(key, itemId, registryAccess);
         return defaultComponentValue.isBlank() ? valueSnippet(key) : defaultComponentValue;
     }
@@ -416,9 +460,16 @@ final class RawAutocompleteHints {
         String normalized = normalize(key);
         String snippet = valueSnippet(normalized);
         return switch (normalized) {
-            case "components", "minecraft:creative_slot_lock", "minecraft:glider",
-                    "minecraft:intangible_projectile", "minecraft:unbreakable" -> "{}";
-            case "count", "minecraft:damage", "minecraft:max_damage", "minecraft:max_stack_size", "minecraft:repair_cost" -> "1";
+            case "components",
+                    "minecraft:creative_slot_lock",
+                    "minecraft:glider",
+                    "minecraft:intangible_projectile",
+                    "minecraft:unbreakable" -> "{}";
+            case "count",
+                    "minecraft:damage",
+                    "minecraft:max_damage",
+                    "minecraft:max_stack_size",
+                    "minecraft:repair_cost" -> "1";
             case "id" -> "\"minecraft:stone\"";
             case "minecraft:custom_name", "minecraft:item_name" -> "{text: \"\"}";
             case "minecraft:lore" -> valueSnippet(normalized);
@@ -461,11 +512,7 @@ final class RawAutocompleteHints {
         return "";
     }
 
-    static String keySnippetValue(
-            String key,
-            String itemId,
-            RegistryAccess registryAccess
-    ) {
+    static String keySnippetValue(String key, String itemId, RegistryAccess registryAccess) {
         String snippet = keySnippetValue(key);
         if (!snippet.isBlank()) {
             return snippet;
@@ -479,11 +526,7 @@ final class RawAutocompleteHints {
         return mergeUnique(specific, List.of("{}", "[]", "\"\"", "1", "false"));
     }
 
-    static List<String> keyValidationPlaceholders(
-            String key,
-            String itemId,
-            RegistryAccess registryAccess
-    ) {
+    static List<String> keyValidationPlaceholders(String key, String itemId, RegistryAccess registryAccess) {
         String defaultComponentValue = CATALOG.defaultComponentValue(key, itemId, registryAccess);
         return defaultComponentValue.isBlank()
                 ? keyValidationPlaceholders(key)
@@ -500,16 +543,10 @@ final class RawAutocompleteHints {
 
     static List<String> numberSuggestionsForCurrentKey(String currentKey, String containerPath) {
         String key = normalize(currentKey);
-        return isLikelyIntegerNumberKey(key, buildFullPath(containerPath, key))
-                ? INTEGER_NUMBER_VALUES
-                : NUMBER_VALUES;
+        return isLikelyIntegerNumberKey(key, buildFullPath(containerPath, key)) ? INTEGER_NUMBER_VALUES : NUMBER_VALUES;
     }
 
-    static List<String> filterNumericHintsForCurrentKey(
-            List<String> values,
-            String currentKey,
-            String containerPath
-    ) {
+    static List<String> filterNumericHintsForCurrentKey(List<String> values, String currentKey, String containerPath) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }
@@ -551,8 +588,7 @@ final class RawAutocompleteHints {
             boolean insideQuote,
             List<String> activeProfiles,
             String itemId,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         String key = normalize(currentKey);
         String container = normalize(containerKey);
         String path = buildFullPath(containerPath, key);
@@ -582,14 +618,8 @@ final class RawAutocompleteHints {
             return RawSlotType.VALUE_STRING;
         }
 
-        RawSlotType catalogType = catalogSlotTypeForPath(
-                currentKey,
-                containerPath,
-                path,
-                activeProfiles,
-                itemId,
-                registryAccess
-        );
+        RawSlotType catalogType =
+                catalogSlotTypeForPath(currentKey, containerPath, path, activeProfiles, itemId, registryAccess);
         if (catalogType != RawSlotType.VALUE_UNKNOWN) {
             return catalogType;
         }
@@ -633,8 +663,7 @@ final class RawAutocompleteHints {
             String currentKey,
             String containerKey,
             String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         String key = normalize(currentKey);
         String path = buildFullPath(containerPath, key);
         List<String> tagHints = tagValueHints(key, path, registryAccess);
@@ -642,22 +671,23 @@ final class RawAutocompleteHints {
             return tagHints;
         }
 
-        RegistryHint fixed = switch (slotType) {
-            case VALUE_ID_ATTRIBUTE -> RegistryHint.ATTRIBUTE;
-            case VALUE_ID_BANNER_PATTERN -> RegistryHint.BANNER_PATTERN;
-            case VALUE_ID_BLOCK_ENTITY -> RegistryHint.BLOCK_ENTITY;
-            case VALUE_ID_COMPONENT -> RegistryHint.COMPONENT;
-            case VALUE_ID_DAMAGE_TYPE -> RegistryHint.DAMAGE_TYPE;
-            case VALUE_ID_EFFECT -> RegistryHint.EFFECT;
-            case VALUE_ID_ENCHANTMENT -> RegistryHint.ENCHANTMENT;
-            case VALUE_ID_ENTITY -> RegistryHint.ENTITY;
-            case VALUE_ID_ITEM -> RegistryHint.ITEM;
-            case VALUE_ID_POTION -> RegistryHint.POTION;
-            case VALUE_ID_SOUND -> RegistryHint.SOUND;
-            case VALUE_ID_TRIM_MATERIAL -> RegistryHint.TRIM_MATERIAL;
-            case VALUE_ID_TRIM_PATTERN -> RegistryHint.TRIM_PATTERN;
-            default -> null;
-        };
+        RegistryHint fixed =
+                switch (slotType) {
+                    case VALUE_ID_ATTRIBUTE -> RegistryHint.ATTRIBUTE;
+                    case VALUE_ID_BANNER_PATTERN -> RegistryHint.BANNER_PATTERN;
+                    case VALUE_ID_BLOCK_ENTITY -> RegistryHint.BLOCK_ENTITY;
+                    case VALUE_ID_COMPONENT -> RegistryHint.COMPONENT;
+                    case VALUE_ID_DAMAGE_TYPE -> RegistryHint.DAMAGE_TYPE;
+                    case VALUE_ID_EFFECT -> RegistryHint.EFFECT;
+                    case VALUE_ID_ENCHANTMENT -> RegistryHint.ENCHANTMENT;
+                    case VALUE_ID_ENTITY -> RegistryHint.ENTITY;
+                    case VALUE_ID_ITEM -> RegistryHint.ITEM;
+                    case VALUE_ID_POTION -> RegistryHint.POTION;
+                    case VALUE_ID_SOUND -> RegistryHint.SOUND;
+                    case VALUE_ID_TRIM_MATERIAL -> RegistryHint.TRIM_MATERIAL;
+                    case VALUE_ID_TRIM_PATTERN -> RegistryHint.TRIM_PATTERN;
+                    default -> null;
+                };
         return fixed == null
                 ? guessRegistryIds(currentKey, containerKey, containerPath, registryAccess)
                 : ids(fixed, registryAccess);
@@ -671,22 +701,13 @@ final class RawAutocompleteHints {
             String currentKey,
             String containerKey,
             String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (registryAccess == null || text == null || text.length() > REGISTRY_BINDING_PROBE_MAX_TEXT_LENGTH) {
             return List.of();
         }
 
         for (RegistryHint hint : validatedRegistryCandidates(
-                text,
-                replaceStart,
-                cursor,
-                insideQuote,
-                currentKey,
-                containerKey,
-                containerPath,
-                registryAccess
-        )) {
+                text, replaceStart, cursor, insideQuote, currentKey, containerKey, containerPath, registryAccess)) {
             List<String> values = ids(hint, registryAccess);
             if (!values.isEmpty()
                     && acceptsRegistryValue(text, replaceStart, cursor, insideQuote, values, registryAccess)) {
@@ -723,8 +744,7 @@ final class RawAutocompleteHints {
                 && (path.contains("/spawndata/entity") || path.contains("/spawnpotentials/data/entity"))) {
             return mergeUnique(
                     CATALOG.objectKeyHints("entity", path, "", List.of(), null),
-                    CATALOG.objectKeyHints("spawndata", path, "", List.of(), null)
-            );
+                    CATALOG.objectKeyHints("spawndata", path, "", List.of(), null));
         }
         if (container.contains("entity")) {
             return CATALOG.objectKeyHints("entity", path, "", List.of(), null);
@@ -740,7 +760,7 @@ final class RawAutocompleteHints {
             return List.of();
         }
 
-        Set<String> keys = new java.util.LinkedHashSet<>();
+        Set<String> keys = new LinkedHashSet<>();
         for (String siblingKey : siblingKeys) {
             if (siblingKey != null && !siblingKey.isBlank()) {
                 keys.add(normalize(siblingKey));
@@ -780,10 +800,7 @@ final class RawAutocompleteHints {
     }
 
     static List<String> objectKeyHintsForSiblingValues(
-            String containerKey,
-            String containerPath,
-            Map<String, String> siblingValues
-    ) {
+            String containerKey, String containerPath, Map<String, String> siblingValues) {
         if (siblingValues == null || siblingValues.isEmpty()) {
             return List.of();
         }
@@ -824,21 +841,18 @@ final class RawAutocompleteHints {
                 && pathEndsWith(path, "components", "minecraft:attribute_modifiers", "modifiers")) {
             return CATALOG.objectKeyHints("attribute_modifier", path, "", List.of(), null);
         }
-        if ("patterns".equals(container)
-                && pathEndsWith(path, "components", "minecraft:banner_patterns", "patterns")) {
+        if ("patterns".equals(container) && pathEndsWith(path, "components", "minecraft:banner_patterns", "patterns")) {
             return CATALOG.objectKeyHints("banner_pattern", path, "", List.of(), null);
         }
         if ("effects".equals(container)
                 && (pathEndsWith(path, "components", "minecraft:suspicious_stew_effects", "effects")
-                || path.contains("/on_consume_effects/effects"))) {
+                        || path.contains("/on_consume_effects/effects"))) {
             return CATALOG.objectKeyHints("effects", path, "", List.of(), null);
         }
-        if ("explosions".equals(container)
-                && pathEndsWith(path, "components", "minecraft:fireworks", "explosions")) {
+        if ("explosions".equals(container) && pathEndsWith(path, "components", "minecraft:fireworks", "explosions")) {
             return CATALOG.objectKeyHints("explosions", path, "", List.of(), null);
         }
-        if ("minecraft:container".equals(container)
-                && pathEndsWith(path, "components", "minecraft:container")) {
+        if ("minecraft:container".equals(container) && pathEndsWith(path, "components", "minecraft:container")) {
             return CATALOG.objectKeyHints("container_entry", path, "", List.of(), null);
         }
         if ("minecraft:bundle_contents".equals(container)
@@ -851,7 +865,7 @@ final class RawAutocompleteHints {
         }
         if ("items".equals(container)
                 && (pathEndsWith(path, "components", "minecraft:container", "items")
-                || pathEndsWith(path, "components", "minecraft:bundle_contents", "items"))) {
+                        || pathEndsWith(path, "components", "minecraft:bundle_contents", "items"))) {
             return CATALOG.objectKeyHints("items", path, "", List.of(), null);
         }
         if ("item".equals(container) && path.contains("minecraft:container")) {
@@ -862,9 +876,9 @@ final class RawAutocompleteHints {
 
     private static boolean isItemStackObjectContext(String container, String path) {
         return "minecraft:use_remainder".equals(container)
-                && pathEndsWith(path, "components", "minecraft:use_remainder")
+                        && pathEndsWith(path, "components", "minecraft:use_remainder")
                 || "item".equals(container)
-                && (path.contains("/entityplacer/item") || path.contains("/passengers/item"))
+                        && (path.contains("/entityplacer/item") || path.contains("/passengers/item"))
                 || "value".equals(container) && path.endsWith("/hover_event/value");
     }
 
@@ -880,8 +894,7 @@ final class RawAutocompleteHints {
             List<String> catalogObjectKeys,
             List<String> componentNbtFields,
             List<String> dynamicKeyHints,
-            List<String> profileComponents
-    ) {
+            List<String> profileComponents) {
         if (context == null) {
             return false;
         }
@@ -896,11 +909,7 @@ final class RawAutocompleteHints {
                 || hasItems(profileComponents);
     }
 
-    static List<String> dynamicKeyHints(
-            String containerKey,
-            String containerPath,
-            RegistryAccess registryAccess
-    ) {
+    static List<String> dynamicKeyHints(String containerKey, String containerPath, RegistryAccess registryAccess) {
         return registryMapKeys(containerKey, containerPath, registryAccess);
     }
 
@@ -918,8 +927,7 @@ final class RawAutocompleteHints {
             int replaceEnd,
             String containerKey,
             String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (registryAccess == null || text == null || text.length() > REGISTRY_BINDING_PROBE_MAX_TEXT_LENGTH) {
             return List.of();
         }
@@ -937,11 +945,7 @@ final class RawAutocompleteHints {
         return List.of();
     }
 
-    static List<String> contextualValueHints(
-            String currentKey,
-            String containerPath,
-            RegistryAccess registryAccess
-    ) {
+    static List<String> contextualValueHints(String currentKey, String containerPath, RegistryAccess registryAccess) {
         String key = normalize(currentKey);
         if (key.isBlank()) {
             return List.of();
@@ -973,11 +977,7 @@ final class RawAutocompleteHints {
         };
     }
 
-    static List<String> siblingValueHints(
-            String currentKey,
-            String containerPath,
-            Map<String, String> siblingValues
-    ) {
+    static List<String> siblingValueHints(String currentKey, String containerPath, Map<String, String> siblingValues) {
         if (siblingValues == null || siblingValues.isEmpty()) {
             return List.of();
         }
@@ -994,10 +994,10 @@ final class RawAutocompleteHints {
         }
         if ("operation".equals(key)
                 && (siblingValues.containsKey("amount")
-                || siblingValues.containsKey("type")
-                || siblingValues.containsKey("attribute")
-                || siblingValues.containsKey("attributename")
-                || path.contains("attribute_modifiers"))) {
+                        || siblingValues.containsKey("type")
+                        || siblingValues.containsKey("attribute")
+                        || siblingValues.containsKey("attributename")
+                        || path.contains("attribute_modifiers"))) {
             return MODERN_ATTRIBUTE_OPERATIONS;
         }
         if ("value".equals(key) && "show_text".equals(action)) {
@@ -1014,11 +1014,7 @@ final class RawAutocompleteHints {
     }
 
     static List<String> siblingRegistryValueHints(
-            String currentKey,
-            String containerPath,
-            Map<String, String> siblingValues,
-            RegistryAccess registryAccess
-    ) {
+            String currentKey, String containerPath, Map<String, String> siblingValues, RegistryAccess registryAccess) {
         if (siblingValues == null || siblingValues.isEmpty()) {
             return List.of();
         }
@@ -1039,30 +1035,23 @@ final class RawAutocompleteHints {
         }
         if (("attribute".equals(key) || "attributename".equals(key) || "type".equals(key))
                 && (siblingValues.containsKey("amount")
-                || siblingValues.containsKey("operation")
-                || path.contains("attribute_modifiers"))) {
+                        || siblingValues.containsKey("operation")
+                        || path.contains("attribute_modifiers"))) {
             return ids(RegistryHint.ATTRIBUTE, registryAccess);
         }
         if (("sound".equals(key) || "sound_id".equals(key))
                 && (siblingValues.containsKey("range") || siblingValues.containsKey("use_duration"))) {
             return ids(RegistryHint.SOUND, registryAccess);
         }
-        if ("blocks".equals(key) && (siblingValues.containsKey("speed")
-                || siblingValues.containsKey("correct_for_drops"))) {
-            return mergeUnique(
-                    ids(RegistryHint.BLOCK, registryAccess),
-                    tagIds(RegistryHint.BLOCK, registryAccess)
-            );
+        if ("blocks".equals(key)
+                && (siblingValues.containsKey("speed") || siblingValues.containsKey("correct_for_drops"))) {
+            return mergeUnique(ids(RegistryHint.BLOCK, registryAccess), tagIds(RegistryHint.BLOCK, registryAccess));
         }
         return List.of();
     }
 
     static EnumSet<RawValueMode> expectedValueModes(
-            String currentKey,
-            String containerPath,
-            String prefix,
-            boolean insideQuote
-    ) {
+            String currentKey, String containerPath, String prefix, boolean insideQuote) {
         if (insideQuote) {
             return EnumSet.of(RawValueMode.STRING);
         }
@@ -1094,8 +1083,7 @@ final class RawAutocompleteHints {
             String containerPath,
             Map<String, String> siblingValues,
             EnumSet<RawValueMode> expectedModes,
-            boolean insideQuote
-    ) {
+            boolean insideQuote) {
         if (insideQuote || siblingValues == null || siblingValues.isEmpty()) {
             return expectedModes;
         }
@@ -1112,8 +1100,8 @@ final class RawAutocompleteHints {
         }
         if ("operation".equals(key)
                 && (siblingValues.containsKey("amount")
-                || siblingValues.containsKey("type")
-                || path.contains("attribute_modifiers"))) {
+                        || siblingValues.containsKey("type")
+                        || path.contains("attribute_modifiers"))) {
             return EnumSet.of(RawValueMode.STRING);
         }
         if ("components".equals(key) && "show_item".equals(action)
@@ -1132,11 +1120,7 @@ final class RawAutocompleteHints {
     }
 
     static RawSlotType refineSlotTypeWithSiblingValues(
-            RawSlotType slotType,
-            String currentKey,
-            String containerPath,
-            Map<String, String> siblingValues
-    ) {
+            RawSlotType slotType, String currentKey, String containerPath, Map<String, String> siblingValues) {
         if (slotType != RawSlotType.VALUE_UNKNOWN || siblingValues == null || siblingValues.isEmpty()) {
             return slotType;
         }
@@ -1146,25 +1130,27 @@ final class RawAutocompleteHints {
         if ("id".equals(key) && siblingValues.containsKey("count")) {
             return RawSlotType.VALUE_ID_ITEM;
         }
-        if ("type".equals(key) && (siblingValues.containsKey("amount")
-                || siblingValues.containsKey("operation")
-                || siblingValues.containsKey("attribute")
-                || siblingValues.containsKey("attributename")
-                || path.contains("attribute_modifiers"))) {
+        if ("type".equals(key)
+                && (siblingValues.containsKey("amount")
+                        || siblingValues.containsKey("operation")
+                        || siblingValues.containsKey("attribute")
+                        || siblingValues.containsKey("attributename")
+                        || path.contains("attribute_modifiers"))) {
             return RawSlotType.VALUE_ID_ATTRIBUTE;
         }
         if (("attribute".equals(key) || "attributename".equals(key))
                 && (siblingValues.containsKey("amount")
-                || siblingValues.containsKey("operation")
-                || path.contains("attribute_modifiers"))) {
+                        || siblingValues.containsKey("operation")
+                        || path.contains("attribute_modifiers"))) {
             return RawSlotType.VALUE_ID_ATTRIBUTE;
         }
         if ("id".equals(key) && siblingValues.containsKey("lvl")) {
             return RawSlotType.VALUE_ID_ENCHANTMENT;
         }
-        if ("id".equals(key) && (siblingValues.containsKey("amplifier")
-                || siblingValues.containsKey("duration")
-                || siblingValues.containsKey("show_particles"))) {
+        if ("id".equals(key)
+                && (siblingValues.containsKey("amplifier")
+                        || siblingValues.containsKey("duration")
+                        || siblingValues.containsKey("show_particles"))) {
             return RawSlotType.VALUE_ID_EFFECT;
         }
         if ("pattern".equals(key) && siblingValues.containsKey("color")) {
@@ -1181,8 +1167,7 @@ final class RawAutocompleteHints {
             String containerPath,
             RegistryAccess registryAccess,
             EnumSet<RawValueMode> expectedModes,
-            boolean insideQuote
-    ) {
+            boolean insideQuote) {
         if (insideQuote || text == null || text.length() > RUNTIME_PROBE_MAX_TEXT_LENGTH) {
             return expectedModes;
         }
@@ -1214,9 +1199,7 @@ final class RawAutocompleteHints {
     }
 
     private static EnumSet<RawValueMode> mergeRuntimeModes(
-            EnumSet<RawValueMode> expectedModes,
-            EnumSet<RawValueMode> runtimeModes
-    ) {
+            EnumSet<RawValueMode> expectedModes, EnumSet<RawValueMode> runtimeModes) {
         if (expectedModes == null || expectedModes.isEmpty() || expectedModes.contains(RawValueMode.NONE)) {
             return runtimeModes;
         }
@@ -1282,8 +1265,7 @@ final class RawAutocompleteHints {
             String fullPath,
             List<String> activeProfiles,
             String itemId,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         String key = normalize(currentKey);
         String componentId = activeComponentIdFromContainerPath(containerPath);
         if (key.isBlank() || componentId.isBlank()) {
@@ -1304,7 +1286,8 @@ final class RawAutocompleteHints {
         if (isNumericLikeKey(key)) {
             return isLikelyIntegerNumberKey(key, fullPath) ? RawSlotType.VALUE_INT : RawSlotType.VALUE_FLOAT;
         }
-        if (!CATALOG.objectKeyHints(key, fullPath, itemId, activeProfiles, registryAccess).isEmpty()
+        if (!CATALOG.objectKeyHints(key, fullPath, itemId, activeProfiles, registryAccess)
+                        .isEmpty()
                 || isLikelyCompositeFieldName(key)) {
             return RawSlotType.VALUE_UNKNOWN;
         }
@@ -1353,11 +1336,7 @@ final class RawAutocompleteHints {
     }
 
     private static List<String> guessRegistryIds(
-            String currentKey,
-            String containerKey,
-            String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            String currentKey, String containerKey, String containerPath, RegistryAccess registryAccess) {
         String key = normalize(currentKey);
         if (key.isBlank()) {
             return List.of();
@@ -1456,11 +1435,7 @@ final class RawAutocompleteHints {
                 || pathEndsWith(path, "components", "minecraft:repairable", "items");
     }
 
-    private static List<RegistryHint> registryCandidates(
-            String currentKey,
-            String containerKey,
-            String containerPath
-    ) {
+    private static List<RegistryHint> registryCandidates(String currentKey, String containerKey, String containerPath) {
         String key = normalize(currentKey);
         if (key.isBlank()) {
             return List.of();
@@ -1535,16 +1510,13 @@ final class RawAutocompleteHints {
         if (key.contains("entity")) {
             return List.of(RegistryHint.ENTITY);
         }
-        if (key.contains("trim") && key.contains("material")
-                || path.contains("trim") && key.contains("material")) {
+        if (key.contains("trim") && key.contains("material") || path.contains("trim") && key.contains("material")) {
             return List.of(RegistryHint.TRIM_MATERIAL);
         }
-        if (key.contains("trim") && key.contains("pattern")
-                || path.contains("trim") && key.contains("pattern")) {
+        if (key.contains("trim") && key.contains("pattern") || path.contains("trim") && key.contains("pattern")) {
             return List.of(RegistryHint.TRIM_PATTERN);
         }
-        if (key.contains("banner") && key.contains("pattern")
-                || path.contains("banner") && key.contains("pattern")) {
+        if (key.contains("banner") && key.contains("pattern") || path.contains("banner") && key.contains("pattern")) {
             return List.of(RegistryHint.BANNER_PATTERN);
         }
         if ("pattern".equals(key) && path.contains("minecraft:banner_patterns")) {
@@ -1566,18 +1538,9 @@ final class RawAutocompleteHints {
             String currentKey,
             String containerKey,
             String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         String cacheKey = registryHintProbeCacheKey(
-                text,
-                replaceStart,
-                cursor,
-                insideQuote,
-                currentKey,
-                containerKey,
-                containerPath,
-                registryAccess
-        );
+                text, replaceStart, cursor, insideQuote, currentKey, containerKey, containerPath, registryAccess);
         synchronized (RUNTIME_PROBE_CACHE_LOCK) {
             List<RegistryHint> cached = REGISTRY_HINT_PROBE_CACHE.get(cacheKey);
             if (cached != null) {
@@ -1586,23 +1549,12 @@ final class RawAutocompleteHints {
         }
 
         List<RegistryHint> explicit = registryCandidates(currentKey, containerKey, containerPath);
-        List<RegistryHint> accepted = acceptedRegistryCandidates(
-                explicit,
-                text,
-                replaceStart,
-                cursor,
-                insideQuote,
-                registryAccess
-        );
-        if (accepted.isEmpty() && !acceptsArbitraryStringValue(text, replaceStart, cursor, insideQuote, registryAccess)) {
+        List<RegistryHint> accepted =
+                acceptedRegistryCandidates(explicit, text, replaceStart, cursor, insideQuote, registryAccess);
+        if (accepted.isEmpty()
+                && !acceptsArbitraryStringValue(text, replaceStart, cursor, insideQuote, registryAccess)) {
             List<RegistryHint> dynamic = acceptedRegistryCandidates(
-                    VALUE_REGISTRY_HINTS,
-                    text,
-                    replaceStart,
-                    cursor,
-                    insideQuote,
-                    registryAccess
-            );
+                    VALUE_REGISTRY_HINTS, text, replaceStart, cursor, insideQuote, registryAccess);
             accepted = dynamic.size() > 3 ? List.of() : dynamic;
         }
 
@@ -1618,8 +1570,7 @@ final class RawAutocompleteHints {
             int replaceStart,
             int cursor,
             boolean insideQuote,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
@@ -1627,7 +1578,8 @@ final class RawAutocompleteHints {
         LinkedHashSet<RegistryHint> accepted = new LinkedHashSet<>();
         for (RegistryHint hint : candidates) {
             List<String> values = ids(hint, registryAccess);
-            if (!values.isEmpty() && acceptsRegistryValue(text, replaceStart, cursor, insideQuote, values, registryAccess)) {
+            if (!values.isEmpty()
+                    && acceptsRegistryValue(text, replaceStart, cursor, insideQuote, values, registryAccess)) {
                 accepted.add(hint);
             }
         }
@@ -1635,20 +1587,9 @@ final class RawAutocompleteHints {
     }
 
     private static boolean acceptsArbitraryStringValue(
-            String text,
-            int replaceStart,
-            int cursor,
-            boolean insideQuote,
-            RegistryAccess registryAccess
-    ) {
+            String text, int replaceStart, int cursor, boolean insideQuote, RegistryAccess registryAccess) {
         return acceptsValueProbe(
-                text,
-                replaceStart,
-                cursor,
-                insideQuote,
-                "itemeditor:not_a_real_registry_value_999",
-                registryAccess
-        );
+                text, replaceStart, cursor, insideQuote, "itemeditor:not_a_real_registry_value_999", registryAccess);
     }
 
     private static boolean acceptsRegistryValue(
@@ -1657,8 +1598,7 @@ final class RawAutocompleteHints {
             int cursor,
             boolean insideQuote,
             List<String> values,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         int safeStart = Math.clamp(replaceStart, 0, text.length());
         int safeCursor = Math.clamp(cursor, safeStart, text.length());
         int checked = 0;
@@ -1685,8 +1625,7 @@ final class RawAutocompleteHints {
             int cursor,
             boolean insideQuote,
             String value,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         int safeStart = Math.clamp(replaceStart, 0, text.length());
         int safeCursor = Math.clamp(cursor, safeStart, text.length());
         String prefix = text.substring(0, safeStart);
@@ -1703,8 +1642,7 @@ final class RawAutocompleteHints {
             String currentKey,
             String containerKey,
             String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         TextWindow window = textWindow(text, replaceStart, cursor);
         return System.identityHashCode(registryAccess)
                 + ":" + insideQuote
@@ -1733,10 +1671,7 @@ final class RawAutocompleteHints {
     }
 
     private static List<String> debugStickStateProperties(
-            String currentKey,
-            String path,
-            RegistryAccess registryAccess
-    ) {
+            String currentKey, String path, RegistryAccess registryAccess) {
         if (!pathEndsWith(path, "components", "minecraft:debug_stick_state", currentKey)) {
             return List.of();
         }
@@ -1744,10 +1679,7 @@ final class RawAutocompleteHints {
     }
 
     private static List<RegistryHint> semanticRegistryHintsFromText(
-            String text,
-            boolean includeEntitySpawn,
-            boolean includeBlockEntity
-    ) {
+            String text, boolean includeEntitySpawn, boolean includeBlockEntity) {
         String normalized = normalize(text);
         if (includeEntitySpawn && (normalized.contains("entity") || normalized.contains("spawn"))) {
             return List.of(RegistryHint.ENTITY);
@@ -1772,10 +1704,7 @@ final class RawAutocompleteHints {
     }
 
     private static List<String> registryMapKeys(
-            String containerKey,
-            String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            String containerKey, String containerPath, RegistryAccess registryAccess) {
         List<RegistryHint> hints = registryMapHints(containerKey, containerPath);
         if (hints.isEmpty()) {
             return List.of();
@@ -1783,18 +1712,15 @@ final class RawAutocompleteHints {
         return ids(hints.getFirst(), registryAccess);
     }
 
-    private static List<RegistryHint> registryMapHints(
-            String containerKey,
-            String containerPath
-    ) {
+    private static List<RegistryHint> registryMapHints(String containerKey, String containerPath) {
         String key = normalize(containerKey);
         String path = normalize(containerPath);
         if (key.endsWith("enchantments")
-                        || key.endsWith("stored_enchantments")
-                        || path.endsWith("/minecraft:enchantments")
-                        || path.endsWith("/minecraft:stored_enchantments")
-                        || path.endsWith("/minecraft:enchantments/levels")
-                        || path.endsWith("/minecraft:stored_enchantments/levels")) {
+                || key.endsWith("stored_enchantments")
+                || path.endsWith("/minecraft:enchantments")
+                || path.endsWith("/minecraft:stored_enchantments")
+                || path.endsWith("/minecraft:enchantments/levels")
+                || path.endsWith("/minecraft:stored_enchantments/levels")) {
             return List.of(RegistryHint.ENCHANTMENT);
         }
         if ("modifiers".equals(key) && pathEndsWith(path, "components", "minecraft:attribute_modifiers", "modifiers")) {
@@ -1815,11 +1741,7 @@ final class RawAutocompleteHints {
     }
 
     private static boolean registryMapKeyAccepted(
-            String prefix,
-            String suffix,
-            List<String> ids,
-            RegistryAccess registryAccess
-    ) {
+            String prefix, String suffix, List<String> ids, RegistryAccess registryAccess) {
         int checked = 0;
         for (String id : ids) {
             if (id == null || id.isBlank()) {
@@ -1828,7 +1750,9 @@ final class RawAutocompleteHints {
             for (String value : List.of("1", "{}", "[]", "\"\"")) {
                 String candidate = prefix + quoteProbeValue(id) + ": " + value + suffix;
                 if (RawItemDataUtil.parse(candidate, registryAccess).success()
-                        || RawItemDataUtil.parse(candidate + RawAutocompleteUtil.closingSuffix(candidate), registryAccess).success()) {
+                        || RawItemDataUtil.parse(
+                                        candidate + RawAutocompleteUtil.closingSuffix(candidate), registryAccess)
+                                .success()) {
                     return true;
                 }
             }
@@ -1851,11 +1775,7 @@ final class RawAutocompleteHints {
     }
 
     private static EnumSet<RawValueMode> runtimeProbeModes(
-            String text,
-            int replaceStart,
-            int cursor,
-            RegistryAccess registryAccess
-    ) {
+            String text, int replaceStart, int cursor, RegistryAccess registryAccess) {
         if (registryAccess == null) {
             return EnumSet.noneOf(RawValueMode.class);
         }
@@ -1872,10 +1792,14 @@ final class RawAutocompleteHints {
         String prefix = text.substring(0, safeStart);
         String suffix = text.substring(safeCursor);
         EnumSet<RawValueMode> modes = EnumSet.noneOf(RawValueMode.class);
-        addIf(modes, RawValueMode.BOOLEAN,
+        addIf(
+                modes,
+                RawValueMode.BOOLEAN,
                 parsesWithProbe(prefix, suffix, "1b", registryAccess)
                         || parsesWithProbe(prefix, suffix, "true", registryAccess));
-        addIf(modes, RawValueMode.NUMBER,
+        addIf(
+                modes,
+                RawValueMode.NUMBER,
                 parsesWithProbe(prefix, suffix, "1", registryAccess)
                         || parsesWithProbe(prefix, suffix, "1.0f", registryAccess));
         addIf(modes, RawValueMode.STRING, parsesWithProbe(prefix, suffix, "\"x\"", registryAccess));
@@ -1888,12 +1812,9 @@ final class RawAutocompleteHints {
     }
 
     private static boolean parsesWithProbe(
-            String prefix,
-            String suffix,
-            String probeValue,
-            RegistryAccess registryAccess
-    ) {
-        return RawItemDataUtil.parse(prefix + probeValue + suffix, registryAccess).success();
+            String prefix, String suffix, String probeValue, RegistryAccess registryAccess) {
+        return RawItemDataUtil.parse(prefix + probeValue + suffix, registryAccess)
+                .success();
     }
 
     private static String runtimeProbeCacheKey(String text, int replaceStart, int cursor) {
@@ -1913,18 +1834,12 @@ final class RawAutocompleteHints {
         return new TextWindow(safeStart, safeCursor, left, right, text.substring(left, right));
     }
 
-    private record TextWindow(int safeStart, int safeCursor, int left, int right, String value) {
-    }
+    private record TextWindow(int safeStart, int safeCursor, int left, int right, String value) {}
 
     private static String runtimePathProbeCacheKey(
-            String currentKey,
-            String containerPath,
-            RegistryAccess registryAccess
-    ) {
+            String currentKey, String containerPath, RegistryAccess registryAccess) {
         String path = buildFullPath(containerPath, currentKey);
-        return path.contains("components/")
-                ? System.identityHashCode(registryAccess) + ":" + path
-                : "";
+        return path.contains("components/") ? System.identityHashCode(registryAccess) + ":" + path : "";
     }
 
     private static boolean hasCompositeSnippet(String currentKey) {
@@ -1939,7 +1854,9 @@ final class RawAutocompleteHints {
         }
 
         String normalized = value.trim();
-        if (normalized.length() >= 2 && normalized.charAt(0) == '"' && normalized.charAt(normalized.length() - 1) == '"') {
+        if (normalized.length() >= 2
+                && normalized.charAt(0) == '"'
+                && normalized.charAt(normalized.length() - 1) == '"') {
             normalized = normalized.substring(1, normalized.length() - 1);
         }
         return normalized.toLowerCase(Locale.ROOT);
@@ -2071,7 +1988,7 @@ final class RawAutocompleteHints {
 
     private static boolean isBlockEntityIdPath(String container, String path) {
         return "minecraft:block_entity_data".equals(container)
-                && pathEndsWith(path, "components", "minecraft:block_entity_data", "id")
+                        && pathEndsWith(path, "components", "minecraft:block_entity_data", "id")
                 || pathEndsWith(path, "blockentitytag", "id");
     }
 
@@ -2230,20 +2147,14 @@ final class RawAutocompleteHints {
         @SuppressWarnings({"unchecked", "rawtypes"})
         private List<String> ids(RegistryAccess registryAccess) {
             List<String> ids = RUNTIME.registryIds(
-                    registryAccess,
-                    (ResourceKey) this.registryKey,
-                    (Registry) this.builtinFallback
-            );
+                    registryAccess, (ResourceKey) this.registryKey, (Registry) this.builtinFallback);
             return this == LOOT_TABLE ? mergeUnique(ids, EXTERNAL_LOOT_TABLE_IDS.get()) : ids;
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         private List<String> tagIds(RegistryAccess registryAccess) {
             return RUNTIME.registryTagIds(
-                    registryAccess,
-                    (ResourceKey) this.registryKey,
-                    (Registry) this.builtinFallback
-            );
+                    registryAccess, (ResourceKey) this.registryKey, (Registry) this.builtinFallback);
         }
     }
 
@@ -2253,8 +2164,7 @@ final class RawAutocompleteHints {
             String keyContains,
             String keySuffix,
             String pathContains,
-            String pathSuffix
-    ) {
+            String pathSuffix) {
         private DirectRegistryRule {
             exactKey = normalize(exactKey);
             keyContains = normalize(keyContains);
@@ -2263,35 +2173,7 @@ final class RawAutocompleteHints {
             pathSuffix = normalize(pathSuffix);
         }
 
-        private static DirectRegistryRule exactOrPathSuffix(
-                RegistryHint hint,
-                String exactKey,
-                String pathSuffix
-        ) {
-            return new DirectRegistryRule(hint, exactKey, "", "", "", pathSuffix);
-        }
-
-        private static DirectRegistryRule exactOrContains(
-                RegistryHint hint,
-                String exactKey,
-                String keyContains
-        ) {
-            return new DirectRegistryRule(hint, exactKey, keyContains, "", "", "");
-        }
-
-        private static DirectRegistryRule exactOrSuffix(
-                RegistryHint hint,
-                String exactKey,
-                String keySuffix
-        ) {
-            return new DirectRegistryRule(hint, exactKey, "", keySuffix, "", "");
-        }
-
-        private static DirectRegistryRule contains(
-                RegistryHint hint,
-                String keyContains,
-                String pathContains
-        ) {
+        private static DirectRegistryRule contains(RegistryHint hint, String keyContains, String pathContains) {
             return new DirectRegistryRule(hint, "", keyContains, "", pathContains, "");
         }
 
@@ -2308,10 +2190,12 @@ final class RawAutocompleteHints {
 
     private record RegistryKeywordRule(RegistryHint hint, List<String> tokens) {
         private RegistryKeywordRule {
-            tokens = tokens == null ? List.of() : tokens.stream()
-                    .map(RawAutocompleteHints::normalize)
-                    .filter(token -> !token.isBlank())
-                    .toList();
+            tokens = tokens == null
+                    ? List.of()
+                    : tokens.stream()
+                            .map(RawAutocompleteHints::normalize)
+                            .filter(token -> !token.isBlank())
+                            .toList();
         }
 
         private static RegistryKeywordRule of(RegistryHint hint, String... tokens) {
@@ -2330,8 +2214,7 @@ final class RawAutocompleteHints {
             List<String> values,
             RegistryHint registryHint,
             List<String> suffix,
-            String contains
-    ) {
+            String contains) {
         private PathRule {
             slotType = slotType == null ? RawSlotType.VALUE_UNKNOWN : slotType;
             values = values == null ? List.of() : values;
@@ -2355,11 +2238,7 @@ final class RawAutocompleteHints {
             return new PathRule(RawValueMode.STRING, RawSlotType.VALUE_STRING, values, null, List.of(suffix), "");
         }
 
-        private static PathRule stringRegistry(
-                RawSlotType slotType,
-                RegistryHint registryHint,
-                String... suffix
-        ) {
+        private static PathRule stringRegistry(RawSlotType slotType, RegistryHint registryHint, String... suffix) {
             return new PathRule(RawValueMode.STRING, slotType, List.of(), registryHint, List.of(suffix), "");
         }
 
@@ -2370,8 +2249,7 @@ final class RawAutocompleteHints {
                     List.of(),
                     RegistryHint.EFFECT,
                     List.of(),
-                    "/on_consume_effects/effects/"
-            );
+                    "/on_consume_effects/effects/");
         }
 
         private static PathRule mode(RawValueMode mode, String... suffix) {

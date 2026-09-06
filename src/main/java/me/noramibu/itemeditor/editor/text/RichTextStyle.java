@@ -10,8 +10,7 @@ public record RichTextStyle(
         boolean italic,
         boolean underlined,
         boolean strikethrough,
-        boolean obfuscated
-) {
+        boolean obfuscated) {
 
     public static final RichTextStyle EMPTY = new RichTextStyle(null, null, false, false, false, false, false);
 
@@ -23,8 +22,23 @@ public record RichTextStyle(
                 style.isItalic(),
                 style.isUnderlined(),
                 style.isStrikethrough(),
-                style.isObfuscated()
-        );
+                style.isObfuscated());
+    }
+
+    public static Style objectStyle(Style source) {
+        return objectStyle(source, true);
+    }
+
+    public static Style objectTokenStyle(Style source) {
+        return objectStyle(source, false);
+    }
+
+    private static Style objectStyle(Style source, boolean includeColor) {
+        RichTextStyle value = fromStyle(source);
+        Style target = (includeColor ? value : value.withColor(null)).toStyle();
+        if (source.getClickEvent() != null) target = target.withClickEvent(source.getClickEvent());
+        if (source.getHoverEvent() != null) target = target.withHoverEvent(source.getHoverEvent());
+        return target;
     }
 
     public Style toStyle() {
@@ -44,30 +58,67 @@ public record RichTextStyle(
     }
 
     public RichTextStyle withColor(Integer color) {
-        return new RichTextStyle(color, this.shadowColor, this.bold, this.italic, this.underlined, this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                color, this.shadowColor, this.bold, this.italic, this.underlined, this.strikethrough, this.obfuscated);
     }
 
     public RichTextStyle withShadowColor(Integer shadowColor) {
-        return new RichTextStyle(this.color, shadowColor, this.bold, this.italic, this.underlined, this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                this.color, shadowColor, this.bold, this.italic, this.underlined, this.strikethrough, this.obfuscated);
     }
 
     public RichTextStyle toggleBold() {
-        return new RichTextStyle(this.color, this.shadowColor, !this.bold, this.italic, this.underlined, this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                this.color,
+                this.shadowColor,
+                !this.bold,
+                this.italic,
+                this.underlined,
+                this.strikethrough,
+                this.obfuscated);
     }
 
     public RichTextStyle toggleItalic() {
-        return new RichTextStyle(this.color, this.shadowColor, this.bold, !this.italic, this.underlined, this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                this.color,
+                this.shadowColor,
+                this.bold,
+                !this.italic,
+                this.underlined,
+                this.strikethrough,
+                this.obfuscated);
     }
 
     public RichTextStyle toggleUnderlined() {
-        return new RichTextStyle(this.color, this.shadowColor, this.bold, this.italic, !this.underlined, this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                this.color,
+                this.shadowColor,
+                this.bold,
+                this.italic,
+                !this.underlined,
+                this.strikethrough,
+                this.obfuscated);
     }
 
     public RichTextStyle toggleStrikethrough() {
-        return new RichTextStyle(this.color, this.shadowColor, this.bold, this.italic, this.underlined, !this.strikethrough, this.obfuscated);
+        return new RichTextStyle(
+                this.color,
+                this.shadowColor,
+                this.bold,
+                this.italic,
+                this.underlined,
+                !this.strikethrough,
+                this.obfuscated);
     }
 
     public RichTextStyle toggleObfuscated() {
-        return new RichTextStyle(this.color, this.shadowColor, this.bold, this.italic, this.underlined, this.strikethrough, !this.obfuscated);
+        return new RichTextStyle(
+                this.color,
+                this.shadowColor,
+                this.bold,
+                this.italic,
+                this.underlined,
+                this.strikethrough,
+                !this.obfuscated);
     }
 }

@@ -1,46 +1,45 @@
 package me.noramibu.itemeditor.util;
 
-import com.mojang.serialization.DataResult;
-import com.mojang.serialization.DynamicOps;
-import com.mojang.serialization.JsonOps;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import me.noramibu.itemeditor.editor.ValidationMessage;
-import net.minecraft.core.component.DataComponentType;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.component.TypedDataComponent;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.DoubleTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.nbt.SnbtPrinterTagVisitor;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.TypedEntityData;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.JsonOps;
+import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import me.noramibu.itemeditor.editor.ValidationMessage;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.component.TypedDataComponent;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.SnbtPrinterTagVisitor;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.TypedEntityData;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 
 public final class RawItemDataUtil {
 
-    private static final Gson GSON = new GsonBuilder()
-            .setPrettyPrinting()
-            .disableHtmlEscaping()
-            .create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    private RawItemDataUtil() {
-    }
+    private RawItemDataUtil() {}
 
     public static String serialize(ItemStack stack, RegistryAccess registryAccess) {
         return serialize(stack, registryAccess, false);
@@ -51,13 +50,13 @@ public final class RawItemDataUtil {
             return ItemEditorText.str("raw.empty");
         }
 
-        DataResult<Tag> result = ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
+        DataResult<Tag> result =
+                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
         return result.result()
                 .map(tag -> printTag(withKnownDefaults(tag, showKnownDefaults)))
                 .orElseGet(() -> ItemEditorText.str(
                         "raw.serialize_failed",
-                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))
-                ));
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))));
     }
 
     public static String serializeJson(ItemStack stack, RegistryAccess registryAccess) {
@@ -69,12 +68,12 @@ public final class RawItemDataUtil {
             return ItemEditorText.str("raw.empty");
         }
 
-        DataResult<Tag> nbtResult = ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
+        DataResult<Tag> nbtResult =
+                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
         if (nbtResult.result().isEmpty()) {
             return ItemEditorText.str(
                     "raw.serialize_failed",
-                    nbtResult.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))
-            );
+                    nbtResult.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")));
         }
 
         Tag withDefaults = withKnownDefaults(nbtResult.result().get(), showKnownDefaults);
@@ -82,16 +81,13 @@ public final class RawItemDataUtil {
             JsonElement jsonElement = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, withDefaults);
             return GSON.toJson(jsonElement);
         } catch (RuntimeException exception) {
-            return ItemEditorText.str(
-                    "raw.serialize_failed",
-                    exceptionMessage(exception)
-            );
+            return ItemEditorText.str("raw.serialize_failed", exceptionMessage(exception));
         }
     }
 
     public static String serializeGiveCommand(ItemStack stack, RegistryAccess registryAccess) {
         String itemArgument = serializeCommandItemArgument(stack, registryAccess);
-        return itemArgument.isBlank() ? "" : "/give @s " + itemArgument + " " + commandCount(stack);
+        return itemArgument.isBlank() ? "" : "/give @p " + itemArgument + " " + commandCount(stack);
     }
 
     public static String serializeItemCommand(ItemStack stack, RegistryAccess registryAccess) {
@@ -131,16 +127,14 @@ public final class RawItemDataUtil {
         return Stream.of("!" + componentId);
     }
 
-    private static Stream<String> serializePresentCommandComponent(DataComponentType<?> type, Object value, DynamicOps<Tag> ops) {
+    private static Stream<String> serializePresentCommandComponent(
+            DataComponentType<?> type, Object value, DynamicOps<Tag> ops) {
         Identifier componentId = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
         if (componentId == null) {
             return Stream.empty();
         }
         TypedDataComponent<?> component = TypedDataComponent.createUnchecked(type, value);
-        return component.encodeValue(ops)
-                .result()
-                .stream()
-                .map(tag -> componentId + "=" + tag);
+        return component.encodeValue(ops).result().stream().map(tag -> componentId + "=" + tag);
     }
 
     private static int commandCount(ItemStack stack) {
@@ -174,27 +168,10 @@ public final class RawItemDataUtil {
             }
             return new ParseResult(null, exception.getRawMessage().getString(), line, column);
         } catch (RuntimeException exception) {
-            return new ParseResult(
-                    null,
-                    exceptionMessage(exception),
-                    -1,
-                    -1
-            );
+            return new ParseResult(null, exceptionMessage(exception), -1, -1);
         }
 
-        DataResult<ItemStack> result = ItemStack.CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                parsedTag
-        );
-
-        return result.result()
-                .map(stack -> new ParseResult(stack, null, -1, -1))
-                .orElseGet(() -> new ParseResult(
-                        null,
-                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")),
-                        -1,
-                        -1
-                ));
+        return parseItemTag(parsedTag, registryAccess);
     }
 
     public static ParseResult parseFlexible(String rawData, RegistryAccess registryAccess) {
@@ -212,11 +189,7 @@ public final class RawItemDataUtil {
             return snbt;
         }
         return new ParseResult(
-                null,
-                ItemEditorText.str("import.parse_failed_detail", snbt.error(), json.error()),
-                -1,
-                -1
-        );
+                null, ItemEditorText.str("import.parse_failed_detail", snbt.error(), json.error()), -1, -1);
     }
 
     public static ParseResult parseTagFlexible(Tag tag, RegistryAccess registryAccess) {
@@ -236,12 +209,7 @@ public final class RawItemDataUtil {
             Tag converted = JsonOps.INSTANCE.convertTo(NbtOps.INSTANCE, json);
             return parseItemTag(unwrapItemChild(converted), registryAccess);
         } catch (RuntimeException exception) {
-            return new ParseResult(
-                    null,
-                    exceptionMessage(exception),
-                    -1,
-                    -1
-            );
+            return new ParseResult(null, exceptionMessage(exception), -1, -1);
         }
     }
 
@@ -253,10 +221,8 @@ public final class RawItemDataUtil {
     }
 
     private static ParseResult parseItemTag(Tag tag, RegistryAccess registryAccess) {
-        DataResult<ItemStack> result = ItemStack.CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                tag
-        );
+        DataResult<ItemStack> result =
+                ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), tag);
 
         return result.result()
                 .map(stack -> new ParseResult(stack, null, -1, -1))
@@ -264,8 +230,7 @@ public final class RawItemDataUtil {
                         null,
                         result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")),
                         -1,
-                        -1
-                ));
+                        -1));
     }
 
     private static String exceptionMessage(RuntimeException exception) {
@@ -461,6 +426,14 @@ public final class RawItemDataUtil {
 
     public static List<ValidationMessage> validatePreviewStack(ItemStack preview) {
         List<ValidationMessage> messages = new ArrayList<>();
+        for (var type : List.of(DataComponents.ENTITY_DATA, DataComponents.BLOCK_ENTITY_DATA)) {
+            var data = preview.get(type);
+            String error = data == null ? null : networkNbtError(networkNbtUsage(data.copyTagWithoutId()));
+            if (error != null) {
+                messages.add(ValidationMessage.error(
+                        ItemEditorText.str("preview.validation.component_failed", type + ": " + error)));
+            }
+        }
         boolean runtimeValid = validateSpawnerEntityReferences(preview, messages);
         if (!runtimeValid) {
             return messages;
@@ -469,18 +442,37 @@ public final class RawItemDataUtil {
         ItemStack strictTarget = preview;
         int maxStackSize = preview.getMaxStackSize();
         if (preview.getCount() > maxStackSize) {
-            messages.add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.count_exceeds_max",
-                    preview.getCount(),
-                    maxStackSize
-            )));
+            messages.add(ValidationMessage.error(
+                    ItemEditorText.str("preview.validation.count_exceeds_max", preview.getCount(), maxStackSize)));
             strictTarget = preview.copyWithCount(maxStackSize);
         }
 
         DataResult<ItemStack> strictResult = ItemStack.validateStrict(strictTarget);
-        strictResult.resultOrPartial(problem ->
-                messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
+        strictResult.resultOrPartial(problem -> messages.add(
+                ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", problem))));
         return messages;
+    }
+
+    public static long networkNbtUsage(CompoundTag tag) {
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            buffer.writeNbt(tag);
+            var accounter = NbtAccounter.unlimitedHeap();
+            buffer.readNbt(accounter);
+            return accounter.getUsage();
+        } catch (RuntimeException exception) {
+            return -1;
+        } finally {
+            buffer.release();
+        }
+    }
+
+    public static String networkNbtError(long usage) {
+        if (usage < 0) return ItemEditorText.str("raw.unknown_error");
+        long limit = NbtAccounter.DEFAULT_NBT_QUOTA;
+        return usage <= limit
+                ? null
+                : ItemEditorText.str("display.lore.image_art.nbt_too_large", usage, limit, usage - limit);
     }
 
     public static String format(String rawData, RegistryAccess registryAccess, boolean showKnownDefaults) {
@@ -494,25 +486,10 @@ public final class RawItemDataUtil {
         }
 
         StringBuilder output = new StringBuilder(rawData.length());
-        boolean inString = false;
-        boolean escaping = false;
         for (int index = 0; index < rawData.length(); index++) {
             char value = rawData.charAt(index);
-            if (inString) {
-                output.append(value);
-                if (escaping) {
-                    escaping = false;
-                } else if (value == '\\') {
-                    escaping = true;
-                } else if (value == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-
             if (value == '"') {
-                inString = true;
-                output.append(value);
+                index = RawTextScan.appendQuoted(output, rawData, index);
                 continue;
             }
 
@@ -634,10 +611,7 @@ public final class RawItemDataUtil {
             return true;
         }
         messages.add(ValidationMessage.error(ItemEditorText.str(
-                "validation.registry_missing",
-                ItemEditorText.str("special.spawner.entity_id"),
-                entityIdRaw
-        )));
+                "validation.registry_missing", ItemEditorText.str("common.entity_id"), entityIdRaw)));
         return false;
     }
 }

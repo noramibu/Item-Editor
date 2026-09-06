@@ -1,8 +1,19 @@
 package me.noramibu.itemeditor.editor;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -18,15 +29,9 @@ import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-
 public final class ItemEditorState {
+
+    public final Set<DataComponentType<?>> removedComponents = new LinkedHashSet<>();
 
     public String customName = "";
     public String count = "1";
@@ -42,9 +47,11 @@ public final class ItemEditorState {
     public String customModelString = "";
     public String customModelColor = "";
     public final List<String> canBreakBlockIds = new ArrayList<>();
+    public boolean canBreakAnyBlock;
     public boolean canBreakShowInTooltip = true;
     public boolean canBreakCollapsed = true;
     public final List<String> canPlaceOnBlockIds = new ArrayList<>();
+    public boolean canPlaceOnAnyBlock;
     public boolean canPlaceOnShowInTooltip = true;
     public boolean canPlaceOnCollapsed = true;
     public boolean hideTooltip;
@@ -59,9 +66,7 @@ public final class ItemEditorState {
     public boolean rawEditorShowDefaults;
     public boolean rawEditorAutocompleteDisabled;
     public boolean rawEditorWordWrap = true;
-    public boolean rawEditorHorizontalScroll;
     public int rawEditorFontSizePercent = 100;
-    public boolean rawEditorOptionsLoaded;
     public int uiRawEditorCursor;
     public int uiRawEditorSelectionCursor;
     public double uiRawEditorScrollAmount;
@@ -128,15 +133,23 @@ public final class ItemEditorState {
         public String amount = "0";
         public String operation = AttributeModifier.Operation.ADD_VALUE.name();
         public String slotGroup = EquipmentSlotGroup.ANY.name();
+        public ItemAttributeModifiers.Display display = ItemAttributeModifiers.Display.attributeModifiers();
+        public Component displayText = Component.empty();
         public boolean uiCollapsed = true;
 
         public static AttributeModifierDraft fromEntry(ItemAttributeModifiers.Entry entry) {
             AttributeModifierDraft draft = new AttributeModifierDraft();
-            draft.attributeId = entry.attribute().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.attributeId = entry.attribute()
+                    .unwrapKey()
+                    .map(key -> key.identifier().toString())
+                    .orElse("");
             draft.modifierId = entry.modifier().id().toString();
             draft.amount = String.valueOf(entry.modifier().amount());
             draft.operation = entry.modifier().operation().name();
             draft.slotGroup = entry.slot().name();
+            draft.display = entry.display();
+            if (entry.display() instanceof ItemAttributeModifiers.Display.OverrideText override)
+                draft.displayText = override.component().copy();
             return draft;
         }
     }
@@ -148,7 +161,10 @@ public final class ItemEditorState {
 
         public static EnchantmentDraft fromEntry(Holder<Enchantment> enchantment, int level) {
             EnchantmentDraft draft = new EnchantmentDraft();
-            draft.enchantmentId = enchantment.unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.enchantmentId = enchantment
+                    .unwrapKey()
+                    .map(key -> key.identifier().toString())
+                    .orElse("");
             draft.level = Integer.toString(level);
             return draft;
         }
@@ -279,7 +295,6 @@ public final class ItemEditorState {
         public String swingAnimationDuration = "";
         public String customDataSnbt = "";
         public final List<DebugStickStateDraft> debugStickStates = new ArrayList<>();
-        public boolean uiDyeCollapsed = true;
 
         public final SignData sign = new SignData();
 
@@ -335,6 +350,7 @@ public final class ItemEditorState {
         public String itemFrameRotation = "";
         public String itemFrameDropChance = "";
         public String itemFrameFacing = "";
+        public ItemStack itemFrameItem = ItemStack.EMPTY;
 
         public final EntitySpawnDraft spawnEggEntity = new EntitySpawnDraft();
         public String spawnEggVillagerTypeId = "";
@@ -419,7 +435,6 @@ public final class ItemEditorState {
         public String lodestoneX = "";
         public String lodestoneY = "";
         public String lodestoneZ = "";
-        public String dyeColor = "";
 
         public String equippableSlot = "";
         public String equippableEquipSoundId = "";
@@ -480,10 +495,24 @@ public final class ItemEditorState {
         public boolean customNameVisible;
         public String customName = "";
         public String health = "";
+        public ItemStack itemEntityStack = ItemStack.EMPTY;
+        public String itemEntityCount = "1";
+        public String itemEntityAge = "";
+        public String itemEntityPickupDelay = "";
+        public String itemEntityOwner = "";
+        public String itemEntityThrower = "";
+        public final Map<String, String> displayValues = new LinkedHashMap<>();
+        public ItemStack displayItemStack = ItemStack.EMPTY;
+        public boolean uiDisplayTransformCollapsed = true;
+        public boolean uiDisplayRenderingCollapsed;
         public final List<EntityAttributeDraft> attributes = new ArrayList<>();
         public boolean uiAttributesCollapsed = true;
+        public final List<PotionEffectDraft> effects = new ArrayList<>();
+        public boolean uiEffectsCollapsed = true;
         public final EntityEquipmentDraft equipment = new EntityEquipmentDraft();
         public CompoundTag originalEntityTag = new CompoundTag();
+        public final Map<String, String> entityTagEdits = new LinkedHashMap<>();
+        public final Set<String> uiExpandedTagGroups = new HashSet<>();
     }
 
     public static final class EntityAttributeDraft {
@@ -501,8 +530,7 @@ public final class ItemEditorState {
     }
 
     public static final class EntityEquipmentDraft {
-        private static final String DEFAULT_DROP_CHANCE =
-                Float.toString(DropChances.DEFAULT_EQUIPMENT_DROP_CHANCE);
+        private static final String DEFAULT_DROP_CHANCE = Float.toString(DropChances.DEFAULT_EQUIPMENT_DROP_CHANCE);
 
         private final EnumMap<EquipmentSlot, ItemStack> stacks = new EnumMap<>(EquipmentSlot.class);
         private final EnumMap<EquipmentSlot, String> dropChances = new EnumMap<>(EquipmentSlot.class);
@@ -627,6 +655,31 @@ public final class ItemEditorState {
         public boolean ambient;
         public String visible = "";
         public String showIcon = "";
+        public CompoundTag originalTag = new CompoundTag();
+        public boolean uiCollapsed;
+
+        public PotionEffectDraft copy() {
+            PotionEffectDraft copy = new PotionEffectDraft();
+            copy.effectId = this.effectId;
+            copy.duration = this.duration;
+            copy.amplifier = this.amplifier;
+            copy.ambient = this.ambient;
+            copy.visible = this.visible;
+            copy.showIcon = this.showIcon;
+            copy.originalTag = this.originalTag.copy();
+            copy.uiCollapsed = this.uiCollapsed;
+            return copy;
+        }
+
+        public boolean hasSameValues(PotionEffectDraft other) {
+            return other != null
+                    && Objects.equals(this.effectId, other.effectId)
+                    && Objects.equals(this.duration, other.duration)
+                    && Objects.equals(this.amplifier, other.amplifier)
+                    && this.ambient == other.ambient
+                    && Objects.equals(this.visible, other.visible)
+                    && Objects.equals(this.showIcon, other.showIcon);
+        }
     }
 
     public static final class SuspiciousStewEffectDraft {
@@ -659,7 +712,10 @@ public final class ItemEditorState {
 
         public static BannerLayerDraft fromLayer(BannerPatternLayers.Layer layer) {
             BannerLayerDraft draft = new BannerLayerDraft();
-            draft.patternId = layer.pattern().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+            draft.patternId = layer.pattern()
+                    .unwrapKey()
+                    .map(key -> key.identifier().toString())
+                    .orElse("");
             draft.color = layer.color().name();
             return draft;
         }
@@ -710,9 +766,21 @@ public final class ItemEditorState {
         public static final String TYPE_APPLY_EFFECTS = "minecraft:apply_effects";
         public static final String TYPE_CLEAR_ALL_EFFECTS = "minecraft:clear_all_effects";
         public static final String TYPE_PLAY_SOUND = "minecraft:play_sound";
+        public static final String TYPE_TELEPORT_RANDOMLY = "minecraft:teleport_randomly";
+        public static final String TYPE_REMOVE_EFFECTS = "minecraft:remove_effects";
+        public static final List<String> ALL_TYPES = List.of(
+                TYPE_APPLY_EFFECTS,
+                TYPE_REMOVE_EFFECTS,
+                TYPE_CLEAR_ALL_EFFECTS,
+                TYPE_TELEPORT_RANDOMLY,
+                TYPE_PLAY_SOUND);
+        public static final List<String> EDITABLE_TYPES = ALL_TYPES.stream()
+                .filter(type -> !type.equals(TYPE_REMOVE_EFFECTS))
+                .toList();
 
         public String type = TYPE_APPLY_EFFECTS;
         public String probability = "1.0";
+        public String diameter = "16";
         public String soundId = "";
         public boolean uiCollapsed = true;
         public final List<PotionEffectDraft> effects = new ArrayList<>();
@@ -783,8 +851,7 @@ public final class ItemEditorState {
             if (!(other instanceof DebugStickStateDraft draft)) {
                 return false;
             }
-            return Objects.equals(this.blockId, draft.blockId)
-                    && Objects.equals(this.propertyName, draft.propertyName);
+            return Objects.equals(this.blockId, draft.blockId) && Objects.equals(this.propertyName, draft.propertyName);
         }
 
         @Override

@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.ItemEditorClient;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
@@ -16,19 +17,21 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 
-import java.util.Objects;
-
 final class AttributesPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
     @Override
     public void apply(ItemPreviewApplyContext context) {
-        if (this.sameList(context.state().attributeModifiers, context.baselineState().attributeModifiers,
+        if (this.sameList(
+                context.state().attributeModifiers,
+                context.baselineState().attributeModifiers,
                 (left, right) -> Objects.equals(left.attributeId, right.attributeId)
                         && Objects.equals(left.modifierId, right.modifierId)
                         && Objects.equals(left.amount, right.amount)
                         && Objects.equals(left.operation, right.operation)
-                        && Objects.equals(left.slotGroup, right.slotGroup))) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.ATTRIBUTE_MODIFIERS);
+                        && Objects.equals(left.slotGroup, right.slotGroup)
+                        && Objects.equals(left.display, right.display))) {
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.ATTRIBUTE_MODIFIERS);
             return;
         }
 
@@ -36,16 +39,20 @@ final class AttributesPreviewApplier extends AbstractPreviewApplierSupport imple
         ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
 
         for (int index = 0; index < context.state().attributeModifiers.size(); index++) {
-            ItemEditorState.AttributeModifierDraft draft = context.state().attributeModifiers.get(index);
+            ItemEditorState.AttributeModifierDraft draft =
+                    context.state().attributeModifiers.get(index);
             if (draft.attributeId.isBlank()) continue;
 
             Holder<Attribute> attribute = RegistryUtil.resolveHolder(attributeRegistry, draft.attributeId);
             if (attribute == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.unknown_attribute", draft.attributeId)));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("preview.validation.unknown_attribute", draft.attributeId)));
                 continue;
             }
 
-            Double amount = ValidationUtil.parseDouble(draft.amount, ItemEditorText.str("attributes.modifier.amount"), context.messages());
+            Double amount = ValidationUtil.parseDouble(
+                    draft.amount, ItemEditorText.str("attributes.modifier.amount"), context.messages());
             if (amount == null) continue;
 
             AttributeModifier.Operation operation;
@@ -54,7 +61,8 @@ final class AttributesPreviewApplier extends AbstractPreviewApplierSupport imple
                 operation = AttributeModifier.Operation.valueOf(draft.operation);
                 slotGroup = EquipmentSlotGroup.valueOf(draft.slotGroup);
             } catch (IllegalArgumentException exception) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.attribute_operation")));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str("preview.validation.attribute_operation")));
                 continue;
             }
 
@@ -64,12 +72,14 @@ final class AttributesPreviewApplier extends AbstractPreviewApplierSupport imple
             } else {
                 modifierId = Identifier.tryParse(draft.modifierId);
                 if (modifierId == null) {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.modifier_id", draft.modifierId)));
+                    context.messages()
+                            .add(ValidationMessage.error(
+                                    ItemEditorText.str("preview.validation.modifier_id", draft.modifierId)));
                     continue;
                 }
             }
 
-            builder.add(attribute, new AttributeModifier(modifierId, amount, operation), slotGroup);
+            builder.add(attribute, new AttributeModifier(modifierId, amount, operation), slotGroup, draft.display);
         }
 
         ItemAttributeModifiers built = builder.build();

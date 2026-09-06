@@ -4,20 +4,19 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
-import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextColorPresets;
-import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.client.Minecraft;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextColorPresets;
+import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class RichTextToolbarUtil {
     private static final int TOOLBAR_BUTTON_MAX_WIDTH = 132;
@@ -31,33 +30,31 @@ public final class RichTextToolbarUtil {
     private static final int TOOLBAR_COMPACT_BUTTON_CHROME_PADDING = 10;
     private static final int TOOLBAR_CONTENT_WIDTH_MIN = 140;
     private static final int DEFAULT_SHADOW_COLOR = 0xFF000000;
+    private static final int BASIC_TOKEN_ACTION_COUNT = 3;
     private static final String TOKEN_PLACEHOLDER = "text";
 
     public static final List<ToolAction> BASIC_ACTIONS = List.of(
             deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
             deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
+            deferredAction("toolbar.translation", RichTextToolbarUtil::openTranslationTokenDialog),
             formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
             formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
-            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
-            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
+            formatAction(
+                    "toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
+            formatAction(
+                    "toolbar.short.strikethrough",
+                    ChatFormatting.STRIKETHROUGH,
+                    RichTextAreaComponent::toggleStrikethrough,
+                    false),
             textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, false),
             textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
             textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
-    );
+            textAction("common.reset", RichTextAreaComponent::clearFormatting, false));
 
     public static final List<ToolAction> EXTENDED_ACTIONS = BASIC_ACTIONS;
 
-    public static final List<ToolAction> BOOK_METADATA_ACTIONS = List.of(
-            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
-            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
-            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, false),
-            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, false),
-            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, false),
-            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
-    );
+    public static final List<ToolAction> BOOK_METADATA_ACTIONS =
+            BASIC_ACTIONS.subList(BASIC_TOKEN_ACTION_COUNT, BASIC_ACTIONS.size());
 
     public static final List<ToolAction> BOOK_OUTPUT_ACTIONS = outputActions(true, false);
 
@@ -65,52 +62,55 @@ public final class RichTextToolbarUtil {
 
     private static List<ToolAction> outputActions(boolean includeHoverModes, boolean includeSuggestCommand) {
         return List.of(
-            deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
-            deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
-            deferredAction("toolbar.event", (screen, editor) -> openEventTokenDialog(screen, editor, includeHoverModes, includeSuggestCommand)),
-            formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, true),
-            formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, true),
-            formatAction("toolbar.short.underline", ChatFormatting.UNDERLINE, RichTextAreaComponent::toggleUnderline, true),
-            formatAction("toolbar.short.strikethrough", ChatFormatting.STRIKETHROUGH, RichTextAreaComponent::toggleStrikethrough, true),
-            textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, true),
-            textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
-            textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
-            textAction("toolbar.reset", RichTextAreaComponent::clearFormatting, false)
-        );
+                deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
+                deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
+                deferredAction("toolbar.translation", RichTextToolbarUtil::openTranslationTokenDialog),
+                deferredAction(
+                        "toolbar.event",
+                        (screen, editor) ->
+                                openEventTokenDialog(screen, editor, includeHoverModes, includeSuggestCommand)),
+                formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, true),
+                formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, true),
+                formatAction(
+                        "toolbar.short.underline",
+                        ChatFormatting.UNDERLINE,
+                        RichTextAreaComponent::toggleUnderline,
+                        true),
+                formatAction(
+                        "toolbar.short.strikethrough",
+                        ChatFormatting.STRIKETHROUGH,
+                        RichTextAreaComponent::toggleStrikethrough,
+                        true),
+                textAction("toolbar.obf", RichTextAreaComponent::toggleObfuscated, true),
+                textAction("toolbar.cap", RichTextAreaComponent::capitalizeSelectionOrAll, false),
+                textAction("toolbar.low", RichTextAreaComponent::lowercaseSelectionOrAll, false),
+                textAction("common.reset", RichTextAreaComponent::clearFormatting, false));
     }
 
-    private RichTextToolbarUtil() {
-    }
+    private RichTextToolbarUtil() {}
 
     private static ToolAction formatAction(
             String labelKey,
             ChatFormatting formatting,
             Consumer<RichTextAreaComponent> action,
-            boolean requiresPreparation
-    ) {
+            boolean requiresPreparation) {
         return new ToolAction(styled(labelKey, formatting), tooltipFor(labelKey), action, requiresPreparation);
     }
 
     private static ToolAction textAction(
-            String labelKey,
-            Consumer<RichTextAreaComponent> action,
-            boolean requiresPreparation
-    ) {
+            String labelKey, Consumer<RichTextAreaComponent> action, boolean requiresPreparation) {
         return new ToolAction(ItemEditorText.tr(labelKey), tooltipFor(labelKey), action, requiresPreparation);
     }
 
     private static ToolAction deferredAction(
-            String labelKey,
-            BiConsumer<ItemEditorScreen, RichTextAreaComponent> action
-    ) {
+            String labelKey, BiConsumer<ItemEditorScreen, RichTextAreaComponent> action) {
         return new ToolAction(
                 ItemEditorText.tr(labelKey),
                 tooltipFor(labelKey),
                 action,
                 false,
                 true,
-                ToolActionPlacement.BEFORE_COLORS
-        );
+                ToolActionPlacement.BEFORE_COLORS);
     }
 
     public static Component tooltipFor(String labelKey) {
@@ -119,7 +119,9 @@ public final class RichTextToolbarUtil {
         }
 
         String suffix;
-        if (labelKey.startsWith("toolbar.short.")) {
+        if (labelKey.equals("common.reset")) {
+            suffix = "reset";
+        } else if (labelKey.startsWith("toolbar.short.")) {
             suffix = labelKey.substring("toolbar.short.".length());
         } else if (labelKey.startsWith("toolbar.")) {
             suffix = labelKey.substring("toolbar.".length());
@@ -143,34 +145,25 @@ public final class RichTextToolbarUtil {
             boolean includeColorPicker,
             boolean includeGradient,
             boolean compactToolbar,
-            int toolbarWidthHint
-    ) {
+            int toolbarWidthHint) {
         FlowLayout tools = UiFactory.column();
         tools.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
-        AtomicReference<List<Integer>> gradientColors = new AtomicReference<>(
-                TextColorPresets.normalizeGradientStops(List.of(selectedColor.get(), TextColorPresets.gradientEndFor(selectedColor.get())))
-        );
+        AtomicReference<List<Integer>> gradientColors = new AtomicReference<>(TextColorPresets.normalizeGradientStops(
+                List.of(selectedColor.get(), TextColorPresets.gradientEndFor(selectedColor.get()))));
         AtomicInteger selectedShadowColor = TextStylingController.initialShadowColor(editor, DEFAULT_SHADOW_COLOR);
-        AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult = new AtomicReference<>(
-                new UnifiedColorPickerDialog.ColorPickerResult(
-                        UnifiedColorPickerDialog.PaintMode.COLOR,
-                        false,
-                        List.of(selectedColor.get())
-                )
-        );
+        AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult =
+                new AtomicReference<>(new UnifiedColorPickerDialog.ColorPickerResult(
+                        UnifiedColorPickerDialog.PaintMode.COLOR, false, List.of(selectedColor.get())));
         Runnable preparation = prepareStyledApply == null ? () -> {} : prepareStyledApply;
         List<ToolbarItem> toolbarItems = new ArrayList<>();
         int maxRowWidth = toolbarAvailableWidth(screen, compactToolbar, toolbarWidthHint);
 
         ButtonComponent colorButton = null;
         if (includeColorPicker) {
-            String unifiedColorDialogTitle = includeGradient && !gradientDialogTitle.isBlank()
-                    ? gradientDialogTitle
-                    : colorDialogTitle;
+            String unifiedColorDialogTitle =
+                    includeGradient && !gradientDialogTitle.isBlank() ? gradientDialogTitle : colorDialogTitle;
             colorButton = UiFactory.button(
-                    toolbarColorLabel(selectedColor.get()),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> {
+                    toolbarColorLabel(selectedColor.get()), UiFactory.ButtonTextPreset.STANDARD, button -> {
                         UnifiedColorPickerDialog.ColorPickerResult initial = lastColorResult.get();
                         List<Integer> initialColors = initial.colors();
                         if (!initial.shadow() && initial.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
@@ -189,34 +182,45 @@ public final class RichTextToolbarUtil {
                                         includeGradient,
                                         true,
                                         selectedColor.get(),
-                                        editor.selectedTextOr("")
-                                ),
-                                result -> applyUnifiedColor(editor, preparation, selectedColor, gradientColors, selectedShadowColor, lastColorResult, result, button)
-                        );
-                    }
-            );
+                                        editor.selectedTextOr(""),
+                                        false),
+                                result -> applyUnifiedColor(
+                                        editor,
+                                        preparation,
+                                        selectedColor,
+                                        gradientColors,
+                                        selectedShadowColor,
+                                        lastColorResult,
+                                        result,
+                                        button));
+                    });
             Component tooltip = tooltipFor("toolbar.color");
             if (!tooltip.getString().isBlank()) {
                 colorButton.tooltip(List.of(tooltip));
             } else if (!colorTooltip.isBlank() || !gradientTooltip.isBlank()) {
-                colorButton.tooltip(List.of(Component.literal(colorTooltip.isBlank() ? gradientTooltip : colorTooltip)));
+                colorButton.tooltip(
+                        List.of(Component.literal(colorTooltip.isBlank() ? gradientTooltip : colorTooltip)));
             }
             toolbarItems.add(toolbarItem(colorButton, maxRowWidth));
         }
         ButtonComponent finalColorButton = colorButton;
 
-        appendActionButtons(toolbarItems, actions, ToolActionPlacement.BEFORE_COLORS, screen, editor, preparation, maxRowWidth);
+        appendActionButtons(
+                toolbarItems, actions, ToolActionPlacement.BEFORE_COLORS, screen, editor, preparation, maxRowWidth);
 
         for (TextColorPresets.Preset preset : TextColorPresets.STANDARD) {
             ButtonComponent presetButton = UiFactory.button(
-                    standardColorLabel(preset), UiFactory.ButtonTextPreset.STANDARD,
-                    button -> applySolidColor(editor, preparation, selectedColor, lastColorResult, preset.rgb(), finalColorButton)
-            );
-            presetButton.tooltip(List.of(Component.literal(preset.label() + " " + ValidationUtil.toHex(preset.rgb())).withColor(preset.rgb())));
+                    standardColorLabel(preset),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    button -> applySolidColor(
+                            editor, preparation, selectedColor, lastColorResult, preset.rgb(), finalColorButton));
+            presetButton.tooltip(List.of(Component.literal(preset.label() + " " + ValidationUtil.toHex(preset.rgb()))
+                    .withColor(preset.rgb())));
             toolbarItems.add(toolbarItem(presetButton, maxRowWidth));
         }
 
-        appendActionButtons(toolbarItems, actions, ToolActionPlacement.AFTER_COLORS, screen, editor, preparation, maxRowWidth);
+        appendActionButtons(
+                toolbarItems, actions, ToolActionPlacement.AFTER_COLORS, screen, editor, preparation, maxRowWidth);
 
         appendWrappedRows(tools, toolbarItems, maxRowWidth);
         return tools;
@@ -267,16 +271,12 @@ public final class RichTextToolbarUtil {
             AtomicInteger selectedColor,
             AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult,
             int color,
-            ButtonComponent pickColorButton
-    ) {
+            ButtonComponent pickColorButton) {
         boolean hadSelection = editor.hasSelection();
         preparation.run();
         selectedColor.set(color);
         lastColorResult.set(new UnifiedColorPickerDialog.ColorPickerResult(
-                UnifiedColorPickerDialog.PaintMode.COLOR,
-                false,
-                List.of(color)
-        ));
+                UnifiedColorPickerDialog.PaintMode.COLOR, false, List.of(color)));
         editor.applyColor(color);
         if (pickColorButton != null) {
             pickColorButton.setMessage(toolbarColorLabel(color));
@@ -293,8 +293,7 @@ public final class RichTextToolbarUtil {
             AtomicInteger selectedShadowColor,
             AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult,
             UnifiedColorPickerDialog.ColorPickerResult result,
-            ButtonComponent button
-    ) {
+            ButtonComponent button) {
         boolean hadSelection = editor.hasSelection();
         preparation.run();
         List<Integer> colors = result.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT
@@ -339,20 +338,19 @@ public final class RichTextToolbarUtil {
     }
 
     private static Component toolbarShadowGradientLabel(List<Integer> colors) {
-        return ItemEditorText.tr("toolbar.color").copy()
+        return ItemEditorText.tr("toolbar.color")
+                .copy()
                 .withColor(0xFFFFFF)
-                .withStyle(style -> style.withShadowColor((TextColorPresets.normalizeGradientStops(colors).getFirst() & 0xFFFFFF) | 0xFF000000));
+                .withStyle(style -> style.withShadowColor(
+                        (TextColorPresets.normalizeGradientStops(colors).getFirst() & 0xFFFFFF) | 0xFF000000));
     }
 
     private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {
-        boolean forcedCompact = compactToolbar;
-        int hintedWidth = toolbarWidthHint > 1
-                ? toolbarWidthHint
-                : Math.max(1, screen.editorContentWidthHint());
+        int hintedWidth = toolbarWidthHint > 1 ? toolbarWidthHint : Math.max(1, screen.editorContentWidthHint());
         int contentWidth = Math.max(TOOLBAR_CONTENT_WIDTH_MIN, hintedWidth);
-        int sideInsets = UiFactory.scaledPixels(forcedCompact ? 10 : 14);
-        int safety = UiFactory.scaledPixels(forcedCompact ? 12 : 18);
-        int preferredMin = forcedCompact ? 160 : 200;
+        int sideInsets = UiFactory.scaledPixels(compactToolbar ? 10 : 14);
+        int safety = UiFactory.scaledPixels(compactToolbar ? 12 : 18);
+        int preferredMin = compactToolbar ? 160 : 200;
         int available = Math.max(1, contentWidth - sideInsets - safety);
         return Math.clamp(available, Math.min(preferredMin, contentWidth), contentWidth);
     }
@@ -429,15 +427,15 @@ public final class RichTextToolbarUtil {
             ItemEditorScreen screen,
             RichTextAreaComponent editor,
             Runnable preparation,
-            int maxRowWidth
-    ) {
+            int maxRowWidth) {
         for (ToolAction action : actions) {
             if (action.placement() != placement) {
                 continue;
             }
-            ButtonComponent button = UiFactory.button(action.label(), UiFactory.ButtonTextPreset.STANDARD, component ->
-                    applyToolbarAction(screen, editor, action, preparation)
-            );
+            ButtonComponent button = UiFactory.button(
+                    action.label(),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    component -> applyToolbarAction(screen, editor, action, preparation));
             if (!action.tooltip().getString().isBlank()) {
                 button.tooltip(List.of(action.tooltip()));
             }
@@ -445,7 +443,8 @@ public final class RichTextToolbarUtil {
         }
     }
 
-    private static void applyToolbarAction(ItemEditorScreen screen, RichTextAreaComponent editor, ToolAction action, Runnable preparation) {
+    private static void applyToolbarAction(
+            ItemEditorScreen screen, RichTextAreaComponent editor, ToolAction action, Runnable preparation) {
         boolean hadSelection = editor.hasSelection();
         if (action.requiresPreparation()) {
             preparation.run();
@@ -459,45 +458,43 @@ public final class RichTextToolbarUtil {
     }
 
     private static void openHeadTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
-        boolean hadSelection = editor.hasSelection();
-        screen.openRichTextHeadDialog(ItemEditorText.str("dialog.rich_text.head.title"), token -> {
-            editor.insertTemplate(token);
-            editor.resumeEditing();
-            editor.collapseUnexpectedSelection(hadSelection);
-        });
+        screen.openRichTextHeadDialog(ItemEditorText.str("toolbar.tooltip.head"), tokenInserter(editor));
     }
 
     private static void openSpriteTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
-        boolean hadSelection = editor.hasSelection();
-        screen.openRichTextSpriteDialog(ItemEditorText.str("dialog.rich_text.sprite.title"), token -> {
-            editor.insertTemplate(token);
-            editor.resumeEditing();
-            editor.collapseUnexpectedSelection(hadSelection);
-        });
+        screen.openRichTextSpriteDialog(ItemEditorText.str("toolbar.tooltip.sprite"), tokenInserter(editor));
+    }
+
+    private static void openTranslationTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
+        screen.openRichTextTranslationDialog(
+                ItemEditorText.str("dialog.rich_text.translation.title"),
+                editor.selectedTextOr(""),
+                tokenInserter(editor));
     }
 
     private static void openEventTokenDialog(
             ItemEditorScreen screen,
             RichTextAreaComponent editor,
             boolean includeHoverModes,
-            boolean includeSuggestCommand
-    ) {
-        boolean hadSelection = editor.hasSelection();
+            boolean includeSuggestCommand) {
         screen.openRichTextEventDialog(
-                ItemEditorText.str("dialog.rich_text.event.title"),
+                ItemEditorText.str("toolbar.event"),
                 includeHoverModes,
                 includeSuggestCommand,
                 editor.selectedTextOr(TOKEN_PLACEHOLDER),
-                token -> {
-                    editor.insertTemplate(token);
-                    editor.resumeEditing();
-                    editor.collapseUnexpectedSelection(hadSelection);
-                }
-        );
+                tokenInserter(editor));
     }
 
-    private record ToolbarItem(UIComponent component, int layoutWidth) {
+    private static Consumer<String> tokenInserter(RichTextAreaComponent editor) {
+        boolean hadSelection = editor.hasSelection();
+        return token -> {
+            editor.insertTemplate(token);
+            editor.resumeEditing();
+            editor.collapseUnexpectedSelection(hadSelection);
+        };
     }
+
+    private record ToolbarItem(UIComponent component, int layoutWidth) {}
 
     public record ToolAction(
             Component label,
@@ -505,22 +502,23 @@ public final class RichTextToolbarUtil {
             BiConsumer<ItemEditorScreen, RichTextAreaComponent> action,
             boolean requiresPreparation,
             boolean deferredMutation,
-            ToolActionPlacement placement
-    ) {
+            ToolActionPlacement placement) {
         public ToolAction(
                 Component label,
                 Component tooltip,
                 Consumer<RichTextAreaComponent> action,
                 boolean requiresPreparation,
-                ToolActionPlacement placement
-        ) {
+                ToolActionPlacement placement) {
             this(label, tooltip, (screen, editor) -> action.accept(editor), requiresPreparation, false, placement);
         }
 
-        public ToolAction(Component label, Component tooltip, Consumer<RichTextAreaComponent> action, boolean requiresPreparation) {
+        public ToolAction(
+                Component label,
+                Component tooltip,
+                Consumer<RichTextAreaComponent> action,
+                boolean requiresPreparation) {
             this(label, tooltip, action, requiresPreparation, ToolActionPlacement.BEFORE_COLORS);
         }
-
     }
 
     public enum ToolActionPlacement {

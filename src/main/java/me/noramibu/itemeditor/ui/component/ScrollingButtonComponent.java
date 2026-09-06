@@ -2,10 +2,9 @@ package me.noramibu.itemeditor.ui.component;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
+import java.util.function.Consumer;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-
-import java.util.function.Consumer;
 
 final class ScrollingButtonComponent extends ButtonComponent {
 
@@ -21,13 +20,9 @@ final class ScrollingButtonComponent extends ButtonComponent {
         }
 
         this.renderer.draw((OwoUIGraphics) graphics, this, delta);
-        Component label = this.active
-                ? this.getMessage()
-                : this.getMessage().copy().withColor(0xA0A0A0);
+        Component label =
+                this.active ? this.getMessage() : this.getMessage().copy().withColor(0xA0A0A0);
         this.renderScrollingStringOverContents(
-                graphics.textRendererForWidget(this, GuiGraphics.HoveredTextEffects.NONE),
-                label,
-                2
-        );
+                graphics.textRendererForWidget(this, GuiGraphics.HoveredTextEffects.NONE), label, 2);
     }
 }

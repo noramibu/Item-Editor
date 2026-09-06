@@ -3,10 +3,6 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.network.chat.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -14,6 +10,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.network.chat.Component;
 
 public final class ColorTokenListEditor {
     private static final int INPUT_FIELD_WIDTH = 220;
@@ -26,8 +25,7 @@ public final class ColorTokenListEditor {
     private static final int MIN_BUTTON_WIDTH = 42;
     private static final int MAX_BUTTON_WIDTH = 180;
 
-    private ColorTokenListEditor() {
-    }
+    private ColorTokenListEditor() {}
 
     public static FlowLayout buildField(
             Component label,
@@ -38,8 +36,7 @@ public final class ColorTokenListEditor {
             int availableWidth,
             Consumer<Runnable> mutateRefresh,
             BiConsumer<Integer, IntConsumer> openColorPicker,
-            Function<Integer, Component> chipTooltip
-    ) {
+            Function<Integer, Component> chipTooltip) {
         int rowGap = Math.max(1, UiFactory.scaleProfile().spacing());
         int requiredInlineWidth = INPUT_FIELD_WIDTH + PICK_BUTTON_WIDTH + REMOVE_BUTTON_WIDTH + (rowGap * 2);
         boolean compactLayout = availableWidth < UiFactory.scaledPixels(requiredInlineWidth);
@@ -50,24 +47,25 @@ public final class ColorTokenListEditor {
         String currentRaw = currentValueSupplier.get();
         FlowLayout inputRow = compactLayout ? UiFactory.column() : UiFactory.row();
         inputRow.child(UiFactory.textBox(currentRaw, value -> mutateRefresh.accept(() -> setter.accept(value)))
-                    .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INPUT_FIELD_WIDTH)));
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INPUT_FIELD_WIDTH)));
 
         int selectedColor = firstColorOrDefault(currentRaw, fallbackColor);
         ButtonComponent pickButton = UiFactory.button(
-                ItemEditorText.tr("common.pick").copy().withColor(selectedColor), UiFactory.ButtonTextPreset.STANDARD,
+                ItemEditorText.tr("common.pick").copy().withColor(selectedColor),
+                UiFactory.ButtonTextPreset.STANDARD,
                 button -> openColorPicker.accept(
                         firstColorOrDefault(currentValueSupplier.get(), fallbackColor),
-                        color -> mutateRefresh.accept(() -> setter.accept(appendColor(currentValueSupplier.get(), ValidationUtil.toHex(color))))
-                )
-        );
+                        color -> mutateRefresh.accept(() ->
+                                setter.accept(appendColor(currentValueSupplier.get(), ValidationUtil.toHex(color))))));
         pickButton.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(PICK_BUTTON_WIDTH));
         inputRow.child(pickButton);
 
         ButtonComponent removeButton = UiFactory.button(
-                ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD,
-                button -> mutateRefresh.accept(() -> setter.accept(removeLastColor(currentValueSupplier.get())))
-        );
-        removeButton.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(REMOVE_BUTTON_WIDTH));
+                ItemEditorText.tr("common.remove"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> mutateRefresh.accept(() -> setter.accept(removeLastColor(currentValueSupplier.get()))));
+        removeButton.horizontalSizing(
+                compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(REMOVE_BUTTON_WIDTH));
         inputRow.child(removeButton);
 
         content.child(inputRow);
@@ -83,40 +81,53 @@ public final class ColorTokenListEditor {
                 int displayColor = parsed == null ? fallbackColor : parsed;
 
                 FlowLayout chipRow = compactLayout ? UiFactory.column() : UiFactory.row();
-                ButtonComponent handle = UiFactory.button(ItemEditorText.tr("special.firework.color_handle"), UiFactory.ButtonTextPreset.STANDARD,  button -> {});
-                handle.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(HANDLE_BUTTON_WIDTH));
+                ButtonComponent handle = UiFactory.button(
+                        ItemEditorText.tr("special.firework.color_handle"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> {});
+                handle.horizontalSizing(
+                        compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(HANDLE_BUTTON_WIDTH));
                 handle.active(false);
                 chipRow.child(handle);
 
-                ButtonComponent moveLeft = UiFactory.button(ItemEditorText.tr("special.firework.color_move_left"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                        mutateRefresh.accept(() -> setter.accept(moveColorToken(currentValueSupplier.get(), currentIndex, currentIndex - 1)))
-                );
-                moveLeft.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(MOVE_BUTTON_WIDTH));
+                ButtonComponent moveLeft = UiFactory.button(
+                        ItemEditorText.tr("special.firework.color_move_left"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> mutateRefresh.accept(() -> setter.accept(
+                                moveColorToken(currentValueSupplier.get(), currentIndex, currentIndex - 1))));
+                moveLeft.horizontalSizing(
+                        compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(MOVE_BUTTON_WIDTH));
                 moveLeft.active(currentIndex > 0);
                 chipRow.child(moveLeft);
 
-                ButtonComponent moveRight = UiFactory.button(ItemEditorText.tr("special.firework.color_move_right"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                        mutateRefresh.accept(() -> setter.accept(moveColorToken(currentValueSupplier.get(), currentIndex, currentIndex + 1)))
-                );
-                moveRight.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(MOVE_BUTTON_WIDTH));
+                ButtonComponent moveRight = UiFactory.button(
+                        ItemEditorText.tr("special.firework.color_move_right"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> mutateRefresh.accept(() -> setter.accept(
+                                moveColorToken(currentValueSupplier.get(), currentIndex, currentIndex + 1))));
+                moveRight.horizontalSizing(
+                        compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(MOVE_BUTTON_WIDTH));
                 moveRight.active(currentIndex < colorTokens.size() - 1);
                 chipRow.child(moveRight);
 
                 ButtonComponent chip = UiFactory.button(
-                        Component.literal(ValidationUtil.toHex(displayColor)).withColor(displayColor), UiFactory.ButtonTextPreset.STANDARD,
+                        Component.literal(ValidationUtil.toHex(displayColor)).withColor(displayColor),
+                        UiFactory.ButtonTextPreset.STANDARD,
                         button -> openColorPicker.accept(
                                 displayColor,
-                                color -> mutateRefresh.accept(() -> setter.accept(replaceColorAt(currentValueSupplier.get(), currentIndex, ValidationUtil.toHex(color))))
-                        )
-                );
+                                color -> mutateRefresh.accept(() -> setter.accept(replaceColorAt(
+                                        currentValueSupplier.get(), currentIndex, ValidationUtil.toHex(color))))));
                 chip.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(CHIP_BUTTON_WIDTH));
                 chip.tooltip(List.of(chipTooltip.apply(currentIndex)));
                 chipRow.child(chip);
 
-                ButtonComponent removeChip = UiFactory.button(ItemEditorText.tr("common.remove"), UiFactory.ButtonTextPreset.STANDARD,  button ->
-                        mutateRefresh.accept(() -> setter.accept(removeColorAt(currentValueSupplier.get(), currentIndex)))
-                );
-                removeChip.horizontalSizing(compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(REMOVE_CHIP_BUTTON_WIDTH));
+                ButtonComponent removeChip = UiFactory.button(
+                        ItemEditorText.tr("common.remove"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> mutateRefresh.accept(
+                                () -> setter.accept(removeColorAt(currentValueSupplier.get(), currentIndex))));
+                removeChip.horizontalSizing(
+                        compactLayout ? Sizing.fill(100) : resolveBoundedButtonSizing(REMOVE_CHIP_BUTTON_WIDTH));
                 chipRow.child(removeChip);
                 chips.child(chipRow);
             }

@@ -1,11 +1,10 @@
 package me.noramibu.itemeditor.storage;
 
-import net.minecraft.world.item.ItemStack;
-
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import net.minecraft.world.item.ItemStack;
 
 final class SavedItemRuntimeCaches {
 
@@ -39,7 +38,8 @@ final class SavedItemRuntimeCaches {
         }
         this.decodeMemoLock.writeLock().lock();
         try {
-            Map<String, ItemStack> byFingerprint = this.decodedTagMemoCache.computeIfAbsent(key.tagHash(), ignored -> new HashMap<>());
+            Map<String, ItemStack> byFingerprint =
+                    this.decodedTagMemoCache.computeIfAbsent(key.tagHash(), ignored -> new HashMap<>());
             byFingerprint.put(key.fingerprint(), stack.copy());
         } finally {
             this.decodeMemoLock.writeLock().unlock();
@@ -49,7 +49,9 @@ final class SavedItemRuntimeCaches {
     Map<String, ItemStack> hotPageStacks(Object key, long signature) {
         synchronized (this.hotPageCacheLock) {
             CachedPage cached = this.hotPageCache.get(key);
-            return cached == null || cached.entriesSignature() != signature ? null : copyStacksMap(cached.loadedStacks());
+            return cached == null || cached.entriesSignature() != signature
+                    ? null
+                    : copyStacksMap(cached.loadedStacks());
         }
     }
 
@@ -66,6 +68,16 @@ final class SavedItemRuntimeCaches {
         synchronized (this.hotPageCacheLock) {
             this.hotPageCache.clear();
         }
+    }
+
+    void invalidateDecodedItems() {
+        this.decodeMemoLock.writeLock().lock();
+        try {
+            this.decodedTagMemoCache.clear();
+        } finally {
+            this.decodeMemoLock.writeLock().unlock();
+        }
+        this.invalidateHotPageCache();
     }
 
     private static Map<String, ItemStack> copyStacksMap(Map<String, ItemStack> source) {
@@ -87,6 +99,5 @@ final class SavedItemRuntimeCaches {
         };
     }
 
-    private record CachedPage(long entriesSignature, Map<String, ItemStack> loadedStacks) {
-    }
+    private record CachedPage(long entriesSignature, Map<String, ItemStack> loadedStacks) {}
 }

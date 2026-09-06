@@ -7,8 +7,7 @@ public final class StorageServices {
     private static StorageDataFoundation foundation;
     private static SavedItemStorageService savedItems;
 
-    private StorageServices() {
-    }
+    private StorageServices() {}
 
     public static synchronized void initialize(Minecraft minecraft) {
         if (foundation != null) {

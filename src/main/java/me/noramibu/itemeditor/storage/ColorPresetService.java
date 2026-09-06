@@ -1,21 +1,19 @@
 package me.noramibu.itemeditor.storage;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Predicate;
 import me.noramibu.itemeditor.storage.model.ColorPresetEntry;
 import me.noramibu.itemeditor.storage.model.ColorsFileModel;
 import me.noramibu.itemeditor.util.TextColorPresets;
 import me.noramibu.itemeditor.util.ValidationUtil;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.Predicate;
-
 public final class ColorPresetService {
 
     private static final ColorPresetService INSTANCE = new ColorPresetService();
 
-    private ColorPresetService() {
-    }
+    private ColorPresetService() {}
 
     public static ColorPresetService instance() {
         return INSTANCE;
@@ -43,9 +41,8 @@ public final class ColorPresetService {
             if (stops.size() < 2) {
                 continue;
             }
-            String name = entry.name == null || entry.name.isBlank()
-                    ? TextColorPresets.gradientSummary(stops)
-                    : entry.name;
+            String name =
+                    entry.name == null || entry.name.isBlank() ? TextColorPresets.gradientSummary(stops) : entry.name;
             presets.add(new TextColorPresets.CustomGradientPreset(entry.id, name, stops));
         }
         return presets;
@@ -59,9 +56,8 @@ public final class ColorPresetService {
             if (stops.isEmpty()) {
                 continue;
             }
-            String name = entry.name == null || entry.name.isBlank()
-                    ? TextColorPresets.shadowSummary(stops)
-                    : entry.name;
+            String name =
+                    entry.name == null || entry.name.isBlank() ? TextColorPresets.shadowSummary(stops) : entry.name;
             presets.add(new TextColorPresets.CustomShadowPreset(entry.id, name, stops));
         }
         return presets;
@@ -108,7 +104,8 @@ public final class ColorPresetService {
 
     public synchronized void saveGradientPreset(String name, List<Integer> colors) {
         List<Integer> normalizedStops = TextColorPresets.normalizeGradientStops(colors);
-        saveStopsPreset(PresetBucket.GRADIENT, name, normalizedStops, TextColorPresets.gradientSummary(normalizedStops), 2);
+        saveStopsPreset(
+                PresetBucket.GRADIENT, name, normalizedStops, TextColorPresets.gradientSummary(normalizedStops), 2);
     }
 
     public synchronized void saveShadowPreset(String name, List<Integer> colors) {
@@ -124,8 +121,7 @@ public final class ColorPresetService {
                 id,
                 name,
                 normalizedStops,
-                TextColorPresets.gradientSummary(normalizedStops)
-        );
+                TextColorPresets.gradientSummary(normalizedStops));
     }
 
     public synchronized boolean updateShadowPreset(String id, String name, List<Integer> colors) {
@@ -139,8 +135,7 @@ public final class ColorPresetService {
                 id,
                 name,
                 normalizedStops,
-                TextColorPresets.shadowSummary(normalizedStops)
-        );
+                TextColorPresets.shadowSummary(normalizedStops));
     }
 
     public synchronized void removeColorPreset(String id) {
@@ -173,8 +168,7 @@ public final class ColorPresetService {
             String id,
             String name,
             List<Integer> colors,
-            String defaultName
-    ) {
+            String defaultName) {
         String normalizedId = id == null ? "" : id.trim();
         if (normalizedId.isEmpty()) {
             return false;
@@ -196,12 +190,7 @@ public final class ColorPresetService {
     }
 
     private static void saveStopsPreset(
-            PresetBucket bucket,
-            String name,
-            List<Integer> colors,
-            String defaultName,
-            int minimumStops
-    ) {
+            PresetBucket bucket, String name, List<Integer> colors, String defaultName, int minimumStops) {
         if (colors.size() < minimumStops) {
             return;
         }
@@ -232,18 +221,16 @@ public final class ColorPresetService {
     }
 
     private static ColorPresetEntry matchingStopsEntry(
-            List<ColorPresetEntry> entries,
-            String normalizedName,
-            List<String> hexStops,
-            int minimumStops
-    ) {
+            List<ColorPresetEntry> entries, String normalizedName, List<String> hexStops, int minimumStops) {
         for (ColorPresetEntry candidate : entries) {
             if (candidate == null) {
                 continue;
             }
             boolean sameName = candidate.name != null && candidate.name.equalsIgnoreCase(normalizedName);
-            List<Integer> candidateStops = minimumStops <= 1 ? parseShadowStops(candidate) : parseGradientStops(candidate);
-            boolean sameStops = candidateStops.size() >= minimumStops && hexRawStops(candidateStops).equals(hexStops);
+            List<Integer> candidateStops =
+                    minimumStops <= 1 ? parseShadowStops(candidate) : parseGradientStops(candidate);
+            boolean sameStops = candidateStops.size() >= minimumStops
+                    && hexRawStops(candidateStops).equals(hexStops);
             if (sameName || sameStops) {
                 return candidate;
             }
@@ -279,9 +266,10 @@ public final class ColorPresetService {
     }
 
     private static List<String> hexStops(PresetBucket bucket, List<Integer> colors) {
-        return hexRawStops(bucket == PresetBucket.SHADOW
-                ? TextColorPresets.normalizeShadowStops(colors)
-                : TextColorPresets.normalizeGradientStops(colors));
+        return hexRawStops(
+                bucket == PresetBucket.SHADOW
+                        ? TextColorPresets.normalizeShadowStops(colors)
+                        : TextColorPresets.normalizeGradientStops(colors));
     }
 
     private static List<String> hexRawStops(List<Integer> colors) {
@@ -335,7 +323,8 @@ public final class ColorPresetService {
         }
     }
 
-    private static int visibleEntryIndex(List<ColorPresetEntry> entries, String id, Predicate<ColorPresetEntry> visible) {
+    private static int visibleEntryIndex(
+            List<ColorPresetEntry> entries, String id, Predicate<ColorPresetEntry> visible) {
         for (int index = 0; index < entries.size(); index++) {
             ColorPresetEntry entry = entries.get(index);
             if (entry != null && id.equals(entry.id) && visible.test(entry)) {
@@ -389,5 +378,9 @@ public final class ColorPresetService {
         return model;
     }
 
-    private enum PresetBucket { COLOR, GRADIENT, SHADOW }
+    private enum PresetBucket {
+        COLOR,
+        GRADIENT,
+        SHADOW
+    }
 }

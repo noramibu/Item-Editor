@@ -21,37 +21,22 @@ public final class ConfirmationDialog {
     private static final int FOOTER_BUTTON_MAX_WIDTH = 140;
     private static final int FOOTER_BUTTON_WIDTH_DIVISOR = 4;
 
-    private ConfirmationDialog() {
-    }
+    private ConfirmationDialog() {}
 
     public static FlowLayout create(
-            String title,
-            String body,
-            String confirmText,
-            Runnable onConfirm,
-            String cancelText,
-            Runnable onCancel
-    ) {
+            String title, String body, String confirmText, Runnable onConfirm, String cancelText, Runnable onCancel) {
         FlowLayout overlay = DialogUiUtil.overlay();
         int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
         int buttonReserve = DialogUiUtil.buttonRowReserve(
-                compactButtons,
-                COMPACT_BUTTON_ROWS,
-                BUTTON_RESERVE_COMPACT_EXTRA,
-                BUTTON_RESERVE_NORMAL_EXTRA
-        );
+                compactButtons, COMPACT_BUTTON_ROWS, BUTTON_RESERVE_COMPACT_EXTRA, BUTTON_RESERVE_NORMAL_EXTRA);
         boolean hasBody = !body.isBlank();
         int headerReserve = UiFactory.scaledPixels(HEADER_RESERVE_WITH_BODY);
         int bodyHeight = 0;
         FlowLayout dialog;
         if (hasBody) {
             DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
-                    BODY_SCROLL_HEIGHT,
-                    headerReserve + buttonReserve,
-                    BODY_SCROLL_MIN_HEIGHT,
-                    DIALOG_MIN_HEIGHT
-            );
+                    BODY_SCROLL_HEIGHT, headerReserve + buttonReserve, BODY_SCROLL_MIN_HEIGHT, DIALOG_MIN_HEIGHT);
             bodyHeight = sizing.contentHeight();
             dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         } else {
@@ -60,7 +45,8 @@ public final class ConfirmationDialog {
         dialog.child(UiFactory.title(title));
         if (hasBody) {
             FlowLayout bodyContent = UiFactory.column();
-            bodyContent.child(UiFactory.message(body, BODY_TEXT_COLOR).maxWidth(DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN)));
+            bodyContent.child(UiFactory.message(body, BODY_TEXT_COLOR)
+                    .maxWidth(DialogUiUtil.dialogTextWidth(dialogWidth, BODY_TEXT_MARGIN)));
             dialog.child(DialogUiUtil.scrollCard(bodyContent, bodyHeight));
         }
 
@@ -71,8 +57,7 @@ public final class ConfirmationDialog {
                 FOOTER_BUTTON_MAX_WIDTH,
                 FOOTER_BUTTON_WIDTH_DIVISOR,
                 new DialogUiUtil.FooterAction(Component.literal(cancelText), button -> onCancel.run()),
-                new DialogUiUtil.FooterAction(Component.literal(confirmText), button -> onConfirm.run())
-        );
+                new DialogUiUtil.FooterAction(Component.literal(confirmText), button -> onConfirm.run()));
 
         dialog.child(buttonRow);
         overlay.child(dialog);

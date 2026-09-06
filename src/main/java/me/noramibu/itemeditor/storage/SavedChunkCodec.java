@@ -1,16 +1,14 @@
 package me.noramibu.itemeditor.storage;
 
-import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
-import net.minecraft.nbt.CompoundTag;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
+import net.minecraft.nbt.CompoundTag;
 
 final class SavedChunkCodec {
 
-    private SavedChunkCodec() {
-    }
+    private SavedChunkCodec() {}
 
     static SavedChunkData fromTag(CompoundTag root, String fallbackChunkId) {
         String chunkId = root.getStringOr("chunkId", fallbackChunkId);
@@ -21,12 +19,13 @@ final class SavedChunkCodec {
             if (id.isBlank()) {
                 continue;
             }
-            entries.put(slot, new SavedChunkEntry(
-                    id,
-                    entryTag.getLongOr("savedAt", 0L),
-                    entryTag.getLongOr("updatedAt", 0L),
-                    entryTag.getCompoundOrEmpty("item")
-            ));
+            entries.put(
+                    slot,
+                    new SavedChunkEntry(
+                            id,
+                            entryTag.getLongOr("savedAt", 0L),
+                            entryTag.getLongOr("updatedAt", 0L),
+                            entryTag.getCompoundOrEmpty("item")));
         }
         return new SavedChunkData(chunkId, entries);
     }
@@ -77,12 +76,9 @@ final class SavedChunkCodec {
         return signature;
     }
 
-    record DecodeKey(int tagHash, String fingerprint) {
-    }
+    record DecodeKey(int tagHash, String fingerprint) {}
 
-    record SavedChunkData(String chunkId, Map<Integer, SavedChunkEntry> entries) {
-    }
+    record SavedChunkData(String chunkId, Map<Integer, SavedChunkEntry> entries) {}
 
-    record SavedChunkEntry(String id, long savedAt, long updatedAt, CompoundTag itemTag) {
-    }
+    record SavedChunkEntry(String id, long savedAt, long updatedAt, CompoundTag itemTag) {}
 }

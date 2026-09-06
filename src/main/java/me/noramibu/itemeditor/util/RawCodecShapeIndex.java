@@ -3,8 +3,6 @@ package me.noramibu.itemeditor.util;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.MapCodec;
-import net.minecraft.core.component.DataComponentType;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -15,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.core.component.DataComponentType;
 
 final class RawCodecShapeIndex {
 
@@ -34,9 +33,7 @@ final class RawCodecShapeIndex {
             return List.of();
         }
 
-        String cacheKey = Objects.requireNonNullElse(componentId, "")
-                + "@"
-                + System.identityHashCode(type);
+        String cacheKey = Objects.requireNonNullElse(componentId, "") + "@" + System.identityHashCode(type);
         List<String> cached = this.cache.get(cacheKey);
         if (cached != null) {
             return cached;
@@ -61,11 +58,7 @@ final class RawCodecShapeIndex {
         return findFields(codec, new IdentityHashMap<>(), 0);
     }
 
-    private static List<String> findFields(
-            Object value,
-            IdentityHashMap<Object, Boolean> seen,
-            int depth
-    ) {
+    private static List<String> findFields(Object value, IdentityHashMap<Object, Boolean> seen, int depth) {
         if (value == null || depth > MAX_REFLECTION_DEPTH) {
             return List.of();
         }
@@ -73,41 +66,43 @@ final class RawCodecShapeIndex {
             return List.of();
         }
 
-        if (value instanceof MapCodec<?> mapCodec) {
-            return mapCodecKeys(mapCodec);
-        }
-        if (value instanceof Iterable<?> iterable) {
-            for (Object entry : iterable) {
-                List<String> fields = findFields(entry, seen, depth + 1);
-                if (!fields.isEmpty()) {
-                    return fields;
-                }
+        switch (value) {
+            case MapCodec<?> mapCodec -> {
+                return mapCodecKeys(mapCodec);
             }
-            return List.of();
-        }
-        if (value instanceof Map<?, ?> map) {
-            for (Object entry : map.values()) {
-                List<String> fields = findFields(entry, seen, depth + 1);
-                if (!fields.isEmpty()) {
-                    return fields;
+            case Iterable<?> iterable -> {
+                for (Object entry : iterable) {
+                    List<String> fields = findFields(entry, seen, depth + 1);
+                    if (!fields.isEmpty()) {
+                        return fields;
+                    }
                 }
+                return List.of();
             }
-            return List.of();
-        }
-        if (value instanceof Optional<?> optional) {
-            return optional
-                    .map(entry -> findFields(entry, seen, depth + 1))
-                    .orElse(List.of());
-        }
-        if (value.getClass().isArray()) {
-            int length = Array.getLength(value);
-            for (int index = 0; index < length; index++) {
-                List<String> fields = findFields(Array.get(value, index), seen, depth + 1);
-                if (!fields.isEmpty()) {
-                    return fields;
+            case Map<?, ?> map -> {
+                for (Object entry : map.values()) {
+                    List<String> fields = findFields(entry, seen, depth + 1);
+                    if (!fields.isEmpty()) {
+                        return fields;
+                    }
                 }
+                return List.of();
             }
-            return List.of();
+            case Optional<?> optional -> {
+                return optional.map(entry -> findFields(entry, seen, depth + 1)).orElse(List.of());
+            }
+            case Object array
+            when array.getClass().isArray() -> {
+                int length = Array.getLength(array);
+                for (int index = 0; index < length; index++) {
+                    List<String> fields = findFields(Array.get(array, index), seen, depth + 1);
+                    if (!fields.isEmpty()) {
+                        return fields;
+                    }
+                }
+                return List.of();
+            }
+            default -> {}
         }
         if (!shouldInspectFields(value.getClass())) {
             return List.of();

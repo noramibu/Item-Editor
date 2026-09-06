@@ -24,8 +24,7 @@ final class RawCursorContext {
             boolean inComponentsObject,
             String currentKey,
             String containerKey,
-            String containerPath
-    ) {
+            String containerPath) {
         this.slot = slot;
         this.insideString = insideString;
         this.inObject = inObject;
@@ -57,12 +56,7 @@ final class RawCursorContext {
 
     RawAutocompleteIndex.Context indexContext() {
         return new RawAutocompleteIndex.Context(
-                this.inObject,
-                this.inRootObject,
-                this.inComponentsObject,
-                this.containerKey,
-                this.containerPath
-        );
+                this.inObject, this.inRootObject, this.inComponentsObject, this.containerKey, this.containerPath);
     }
 
     enum Slot {
@@ -258,8 +252,7 @@ final class RawCursorContext {
                     top != null && top.object && "components".equals(top.parentKey()),
                     currentKey,
                     containerKey,
-                    containerPath
-            );
+                    containerPath);
         }
 
         private Slot resolveSlot(Frame top) {

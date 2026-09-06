@@ -8,6 +8,12 @@ import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import me.noramibu.itemeditor.editor.text.RawEditorPreparedText;
 import me.noramibu.itemeditor.ui.component.raw.RawEditorLayout;
 import me.noramibu.itemeditor.ui.component.raw.RawEditorRenderer;
@@ -20,15 +26,8 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.util.Util;
-import org.lwjgl.glfw.GLFW;
 import org.joml.Matrix3x2fStack;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BooleanSupplier;
+import org.lwjgl.glfw.GLFW;
 
 public final class RawTextAreaComponent extends BaseUIComponent implements GreedyInputUIComponent {
     private static final int HISTORY_LIMIT = 128;
@@ -117,11 +116,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private boolean draggingHorizontalScrollbar;
     private int scrollbarDragOffset;
     private int horizontalScrollbarDragOffset;
-    private int[] lineStarts = new int[]{0};
+    private int[] lineStarts = new int[] {0};
     private List<FoldRegion> foldRegions = List.of();
     private FoldRegion[] foldByStartLine = new FoldRegion[0];
     private RawEditorLayout layout = RawEditorLayout.empty();
-    private int[] lineDepthStarts = new int[]{0};
+    private int[] lineDepthStarts = new int[] {0};
     private boolean lineDepthStartsDirty = true;
     private int contentHeight = 1;
     private int maxVisibleLineWidth;
@@ -129,16 +128,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private boolean layoutPending;
     private int fontSizePercent = 100;
     private float cachedTextScale = Float.NaN;
+
     public RawTextAreaComponent(Sizing horizontalSizing, Sizing verticalSizing, String value) {
         this(horizontalSizing, verticalSizing);
         this.resetText(value == null ? "" : value);
     }
 
-    public RawTextAreaComponent(
-            Sizing horizontalSizing,
-            Sizing verticalSizing,
-            RawEditorPreparedText preparedText
-    ) {
+    public RawTextAreaComponent(Sizing horizontalSizing, Sizing verticalSizing, RawEditorPreparedText preparedText) {
         this(horizontalSizing, verticalSizing);
         this.resetPreparedText(preparedText);
     }
@@ -203,9 +199,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             this.autocompleteSelected = -1;
             return this;
         }
-        this.autocompleteEntries = entries.stream()
-                .filter(Objects::nonNull)
-                .toList();
+        this.autocompleteEntries = entries.stream().filter(Objects::nonNull).toList();
         if (this.autocompleteEntries.isEmpty()) {
             this.autocompleteSelected = -1;
             return this;
@@ -335,14 +329,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             int selection,
             double scrollAmount,
             List<HistorySnapshot> undoHistory,
-            List<HistorySnapshot> redoHistory
-    ) {
+            List<HistorySnapshot> redoHistory) {
         this.document.restoreEditorState(
                 cursor,
                 selection,
                 this.toDocumentHistorySnapshots(undoHistory),
-                this.toDocumentHistorySnapshots(redoHistory)
-        );
+                this.toDocumentHistorySnapshots(redoHistory));
         this.syncFromDocument();
         this.scrollAmount = scrollAmount;
         if (!this.layoutPending) {
@@ -358,10 +350,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         this.document.undo(this.scrollAmount).ifPresent(restored -> {
             this.restoreDocumentState(restored);
             this.historyChanged.run();
-            this.changedEvents.sink().onChanged(
-                    this.text,
-                    ChangeDelta.fullReplace(restored.previousLength(), this.text)
-            );
+            this.changedEvents
+                    .sink()
+                    .onChanged(this.text, ChangeDelta.fullReplace(restored.previousLength(), this.text));
         });
     }
 
@@ -369,10 +360,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         this.document.redo(this.scrollAmount).ifPresent(restored -> {
             this.restoreDocumentState(restored);
             this.historyChanged.run();
-            this.changedEvents.sink().onChanged(
-                    this.text,
-                    ChangeDelta.fullReplace(restored.previousLength(), this.text)
-            );
+            this.changedEvents
+                    .sink()
+                    .onChanged(this.text, ChangeDelta.fullReplace(restored.previousLength(), this.text));
         });
     }
 
@@ -422,7 +412,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         context.fill(gutterRight - 1, innerTop, gutterRight, scrollbarBottom, COLOR_GUTTER_BORDER);
         context.fill(scrollbarLeft, innerTop, this.scrollbarRight(), scrollbarBottom, 0x55202A38);
         this.renderScrollbarThumb(context, scrollbarLeft, innerTop, scrollbarBottom);
-        this.renderHorizontalScrollbar(context, contentLeft, scrollbarLeft, this.horizontalScrollbarTop(), this.innerBottom());
+        this.renderHorizontalScrollbar(
+                context, contentLeft, scrollbarLeft, this.horizontalScrollbarTop(), this.innerBottom());
 
         context.enableScissor(innerLeft, innerTop, innerRight, innerBottom);
         try {
@@ -631,8 +622,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return super.onKeyPress(input);
         }
 
-        boolean ctrl = input.hasControlDownWithQuirk()
-                || (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
+        boolean ctrl = input.hasControlDownWithQuirk() || (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
         boolean shift = input.hasShiftDown();
         int keyCode = input.key();
         boolean hasAutocompletePopup = !this.autocompleteEntries.isEmpty()
@@ -680,8 +670,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                         return true;
                     }
                 }
-                default -> {
-                }
+                default -> {}
             }
         }
 
@@ -739,11 +728,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 return true;
             }
             case GLFW.GLFW_KEY_LEFT -> {
-                this.moveHorizontal(ctrl ? this.document.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor), shift);
+                this.moveHorizontal(
+                        ctrl ? this.document.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor),
+                        shift);
                 return true;
             }
             case GLFW.GLFW_KEY_RIGHT -> {
-                this.moveHorizontal(ctrl ? this.document.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor), shift);
+                this.moveHorizontal(
+                        ctrl ? this.document.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor), shift);
                 return true;
             }
             case GLFW.GLFW_KEY_HOME -> {
@@ -1101,15 +1093,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void commitTextChange(String nextText, int newCursor, int newSelection) {
-        this.applyDocumentEdit(this.document.replaceContent(
-                nextText,
-                newCursor,
-                newSelection,
-                this.scrollAmount,
-                -1,
-                -1,
-                ""
-        ));
+        this.applyDocumentEdit(
+                this.document.replaceContent(nextText, newCursor, newSelection, this.scrollAmount, -1, -1, ""));
     }
 
     private void applyDocumentEdit(RawTextDocument.EditResult edit) {
@@ -1121,13 +1106,13 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         boolean foldStructuralEdit = edit.changed()
                 && edit.start() >= 0
                 && (this.containsFoldStructuralChar(edit.removedText())
-                || this.containsFoldStructuralChar(edit.replacement()));
+                        || this.containsFoldStructuralChar(edit.replacement()));
         boolean autocompleteStructuralEdit = edit.changed()
                 && edit.start() >= 0
                 && (foldStructuralEdit
-                || edit.lineCountChanged()
-                || this.containsAutocompleteStructuralChar(edit.removedText())
-                || this.containsAutocompleteStructuralChar(edit.replacement()));
+                        || edit.lineCountChanged()
+                        || this.containsAutocompleteStructuralChar(edit.removedText())
+                        || this.containsAutocompleteStructuralChar(edit.replacement()));
 
         if (edit.changed()) {
             this.historyChanged.run();
@@ -1171,13 +1156,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     private boolean updateEditedLineLayout(int lineIndex) {
         int wrapWidth = Math.max(1, this.contentWidth());
         RawEditorLayout updated = this.layout.updateLine(
-                this.text,
-                this.lineStarts,
-                lineIndex,
-                this.fontMetrics,
-                wrapWidth,
-                this.lineHeightWithSpacing()
-        );
+                this.text, this.lineStarts, lineIndex, this.fontMetrics, wrapWidth, this.lineHeightWithSpacing());
         if (updated == null) {
             return false;
         }
@@ -1227,11 +1206,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 continue;
             }
             converted.add(new RawTextDocument.HistorySnapshot(
-                    snapshot.text(),
-                    snapshot.cursor(),
-                    snapshot.selection(),
-                    snapshot.scroll()
-            ));
+                    snapshot.text(), snapshot.cursor(), snapshot.selection(), snapshot.scroll()));
         }
         return converted;
     }
@@ -1249,9 +1224,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void resetPreparedText(RawEditorPreparedText preparedText) {
-        RawEditorPreparedText prepared = preparedText == null
-                ? RawEditorPreparedText.prepare("")
-                : preparedText;
+        RawEditorPreparedText prepared = preparedText == null ? RawEditorPreparedText.prepare("") : preparedText;
         this.document.reset(prepared.text(), prepared.lineStarts());
         this.syncFromDocument();
         this.foldRegions = prepared.folds().stream()
@@ -1282,7 +1255,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         context.fill(scrollbarLeft, thumbTop, this.scrollbarRight(), thumbBottom, 0xAA9AA6B5);
     }
 
-    private void renderHorizontalScrollbar(OwoUIGraphics context, int trackLeft, int trackRight, int trackTop, int trackBottom) {
+    private void renderHorizontalScrollbar(
+            OwoUIGraphics context, int trackLeft, int trackRight, int trackTop, int trackBottom) {
         if (!this.canHorizontalScroll() || trackRight <= trackLeft) {
             return;
         }
@@ -1292,7 +1266,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         context.fill(thumbLeft, trackTop, thumbRight, trackBottom, 0xAA9AA6B5);
     }
 
-    private void renderGhostSuggestion(OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
+    private void renderGhostSuggestion(
+            OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
         if (!this.focused || this.hasSelection() || this.ghostSuggestion.isBlank()) return;
         if (this.wordWrap || this.horizontalRenderOffset() > 0) return;
         int renderedScroll = this.renderedScroll();
@@ -1343,9 +1318,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
         context.fill(popupX, popupY, popupX + popupWidth, popupY + popupHeight, COLOR_AUTOCOMPLETE_BG);
         context.fill(popupX, popupY, popupX + popupWidth, popupY + 1, COLOR_AUTOCOMPLETE_BORDER);
-        context.fill(popupX, popupY + popupHeight - 1, popupX + popupWidth, popupY + popupHeight, COLOR_AUTOCOMPLETE_BORDER);
+        context.fill(
+                popupX, popupY + popupHeight - 1, popupX + popupWidth, popupY + popupHeight, COLOR_AUTOCOMPLETE_BORDER);
         context.fill(popupX, popupY, popupX + 1, popupY + popupHeight, COLOR_AUTOCOMPLETE_BORDER);
-        context.fill(popupX + popupWidth - 1, popupY, popupX + popupWidth, popupY + popupHeight, COLOR_AUTOCOMPLETE_BORDER);
+        context.fill(
+                popupX + popupWidth - 1, popupY, popupX + popupWidth, popupY + popupHeight, COLOR_AUTOCOMPLETE_BORDER);
 
         int start = layout.start();
         int end = layout.end();
@@ -1360,8 +1337,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                     rowTop - 1,
                     popupX + popupWidth - 1,
                     rowBottom,
-                    isSelected ? COLOR_AUTOCOMPLETE_SELECTED_BG : COLOR_AUTOCOMPLETE_ROW_BG
-            );
+                    isSelected ? COLOR_AUTOCOMPLETE_SELECTED_BG : COLOR_AUTOCOMPLETE_ROW_BG);
 
             AutocompletePopupEntry entry = this.autocompleteEntries.get(index);
             String label = entry.label();
@@ -1395,8 +1371,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                     detailVisible,
                     textX + usedWidth + this.rawTextWidth("  "),
                     textY,
-                    isSelected ? COLOR_AUTOCOMPLETE_SELECTED_TEXT : COLOR_AUTOCOMPLETE_DETAIL
-            );
+                    isSelected ? COLOR_AUTOCOMPLETE_SELECTED_TEXT : COLOR_AUTOCOMPLETE_DETAIL);
         }
     }
 
@@ -1436,16 +1411,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int start = this.autocompleteWindowStart(selected, this.autocompleteEntries.size(), visibleRows);
         int end = Math.min(this.autocompleteEntries.size(), start + visibleRows);
         return new AutocompletePopupLayout(
-                popupX,
-                popupY,
-                popupWidth,
-                popupHeight,
-                rowHeight,
-                visibleRows,
-                selected,
-                start,
-                end
-        );
+                popupX, popupY, popupWidth, popupHeight, rowHeight, visibleRows, selected, start, end);
     }
 
     private int autocompletePopupWidth(int maxWidth) {
@@ -1504,7 +1470,9 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 continue;
             }
             int lineNo = lineIndex + 1;
-            int color = lineNo == this.errorLine ? COLOR_GUTTER_ERROR : (visibleLine == activeVisibleLine ? COLOR_GUTTER_ACTIVE : COLOR_GUTTER_LINE);
+            int color = lineNo == this.errorLine
+                    ? COLOR_GUTTER_ERROR
+                    : (visibleLine == activeVisibleLine ? COLOR_GUTTER_ACTIVE : COLOR_GUTTER_LINE);
             String lineNoText = Integer.toString(lineNo);
             int textWidth = this.rawTextWidth(lineNoText);
             int x = minNumberX;
@@ -1518,17 +1486,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 int markerColor = visibleLine == activeVisibleLine ? COLOR_FOLD_ACTIVE : COLOR_FOLD_MARKER;
                 String marker = foldRegion.collapsed ? "+" : "-";
                 context.fill(foldMarkerLeft, lineY - 1, foldMarkerRight, lineY + lineHeight - 1, 0x332A3444);
-                int markerX = foldMarkerLeft + RawGutterMetrics.centeredMarkerTextOffset(
-                        this.fontMetrics,
-                        marker,
-                        this.foldMarkerWidth()
-                );
+                int markerX = foldMarkerLeft
+                        + RawGutterMetrics.centeredMarkerTextOffset(this.fontMetrics, marker, this.foldMarkerWidth());
                 this.drawRawText(context, marker, markerX, lineY, markerColor);
             }
         }
     }
 
-    private void renderText(OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
+    private void renderText(
+            OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
         int renderedScroll = this.renderedScroll();
         int horizontalOffset = this.horizontalRenderOffset();
         int[] depthStarts = this.lineDepthStartsForRender();
@@ -1549,10 +1515,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             int boundedSegmentStart = Math.clamp(segmentStart, 0, line.length());
             int boundedSegmentEnd = Math.clamp(segmentEnd, boundedSegmentStart, line.length());
             String segment = line.substring(boundedSegmentStart, boundedSegmentEnd);
-            this.renderIndentGuides(context, contentLeft - horizontalOffset, lineY, lineHeight, this.wordWrap ? segment : line);
+            this.renderIndentGuides(
+                    context, contentLeft - horizontalOffset, lineY, lineHeight, this.wordWrap ? segment : line);
             FoldRegion collapsedRegion = this.foldRegionStartingAt(lineIndex);
             if (collapsedRegion != null && collapsedRegion.collapsed && boundedSegmentStart == 0) {
-                this.renderCollapsedLine(context, contentLeft - horizontalOffset, lineY, contentWidth, line, collapsedRegion);
+                this.renderCollapsedLine(
+                        context, contentLeft - horizontalOffset, lineY, contentWidth, line, collapsedRegion);
                 continue;
             }
             if (line.isEmpty()) {
@@ -1574,13 +1542,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                         this.drawRawText(context, segment, contentLeft, lineY, COLOR_TEXT);
                     }
                 } else if (this.canHorizontalScroll()) {
-                    String source = line.substring(Math.clamp(this.rawIndexAtWidth(line, horizontalOffset), 0, line.length()));
+                    String source =
+                            line.substring(Math.clamp(this.rawIndexAtWidth(line, horizontalOffset), 0, line.length()));
                     String visible = this.trimToWidthRaw(source, contentWidth);
                     if (!visible.isEmpty()) {
                         this.drawRawText(context, visible, contentLeft, lineY, COLOR_TEXT);
                     }
                 } else {
-                    String renderSource = line.length() > MAX_RENDER_LINE_CHARS ? line.substring(0, MAX_RENDER_LINE_CHARS) : line;
+                    String renderSource =
+                            line.length() > MAX_RENDER_LINE_CHARS ? line.substring(0, MAX_RENDER_LINE_CHARS) : line;
                     String visible = this.trimToWidthRaw(renderSource, contentWidth);
                     if (!visible.isEmpty()) this.drawRawText(context, visible, contentLeft, lineY, COLOR_TEXT);
                 }
@@ -1641,8 +1611,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             int lineIndex,
             String line,
             int baseDepth,
-            RawEditorLayout.VisualRow row
-    ) {
+            RawEditorLayout.VisualRow row) {
         int lineStart = this.lineStarts[lineIndex];
         int rowStart = this.layout.documentStart(row);
         int rowEnd = this.layout.documentEnd(row);
@@ -1653,8 +1622,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int contentRight = x + availableWidth;
         int measuredLocal = Math.max(0, row.localStart());
         double advanceFromRowStart = 0d;
-        for (RawSyntaxHighlighter.SyntaxSpan span
-                : this.syntaxHighlighter.spansForLine(lineIndex, lineStart, line, baseDepth)) {
+        for (RawSyntaxHighlighter.SyntaxSpan span :
+                this.syntaxHighlighter.spansForLine(lineIndex, lineStart, line, baseDepth)) {
             if (span.endOffset() <= rowStart) {
                 continue;
             }
@@ -1682,8 +1651,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 tokenX = this.syntaxTokenX(
                         x,
                         horizontalOffset,
-                        advanceFromRowStart + this.rawTextAdvance(line, localStart, localStart + clipStart)
-                );
+                        advanceFromRowStart + this.rawTextAdvance(line, localStart, localStart + clipStart));
             }
             if (tokenX >= contentRight) {
                 break;
@@ -1693,8 +1661,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                     tokenX,
                     y,
                     contentRight - tokenX,
-                    new SyntaxRun(this.syntaxKind(span.kind()), token, span.color())
-            );
+                    new SyntaxRun(this.syntaxKind(span.kind()), token, span.color()));
             advanceFromRowStart += this.rawTextAdvance(line, localStart, localEnd);
             measuredLocal = localEnd;
         }
@@ -1718,19 +1685,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             case PLAIN -> this.drawSyntaxToken(context, x, y, availableWidth, run.text(), run.color());
             case STRING -> this.renderStringToken(context, x, y, availableWidth, run.text());
             case NUMERIC -> this.renderNumericToken(context, x, y, availableWidth, run.text());
-            case HEX -> this.drawSyntaxToken(
-                    context,
-                    x,
-                    y,
-                    availableWidth,
-                    run.text(),
-                    run.color(),
-                    true
-            );
+            case HEX -> this.drawSyntaxToken(context, x, y, availableWidth, run.text(), run.color(), true);
         }
     }
 
-    private void renderSelection(OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
+    private void renderSelection(
+            OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
         if (!this.hasSelection()) return;
         for (RawEditorRenderer.RenderRect rect : this.renderer.selectionRectangles(
                 this.layout,
@@ -1743,8 +1703,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.renderedScroll(),
                 this.horizontalRenderOffset(),
                 lineHeight,
-                this.scaledFontLineHeight()
-        )) {
+                this.scaledFontLineHeight())) {
             context.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), COLOR_SELECTION);
         }
     }
@@ -1761,13 +1720,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private void renderErrorUnderline(
-            OwoUIGraphics context,
-            int contentLeft,
-            int top,
-            int contentWidth,
-            int visibleHeight,
-            int lineHeight
-    ) {
+            OwoUIGraphics context, int contentLeft, int top, int contentWidth, int visibleHeight, int lineHeight) {
         if (this.errorLine <= 0) {
             return;
         }
@@ -1795,8 +1748,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.horizontalRenderOffset(),
                 lineHeight,
                 this.scaledFontLineHeight(),
-                underlineHeight
-        )) {
+                underlineHeight)) {
             context.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), COLOR_ERROR_UNDERLINE);
         }
     }
@@ -1830,8 +1782,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.horizontalRenderOffset(),
                 this.lineHeightWithSpacing(),
                 this.endOfLineClickTolerance(),
-                expandWrappedLineEnd
-        );
+                expandWrappedLineEnd);
     }
 
     private void startScrollbarDrag(double mouseY) {
@@ -1893,7 +1844,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         int trackRight = this.scrollbarLeft();
         int thumbWidth = this.currentHorizontalThumbWidth(trackLeft, trackRight);
         int travel = Math.max(1, (trackRight - trackLeft) - thumbWidth);
-        int left = Math.clamp((int) Math.floor(mouseX) - this.horizontalScrollbarDragOffset, trackLeft, trackLeft + travel);
+        int left = Math.clamp(
+                (int) Math.floor(mouseX) - this.horizontalScrollbarDragOffset, trackLeft, trackLeft + travel);
         double ratio = (double) (left - trackLeft) / (double) travel;
         this.horizontalScrollAmount = ratio * maxHorizontal;
         this.clampHorizontalScrollAmount();
@@ -1933,26 +1885,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return Math.clamp(thumb, HORIZONTAL_SCROLLBAR_MIN_THUMB, Math.max(HORIZONTAL_SCROLLBAR_MIN_THUMB, trackWidth));
     }
 
-    private int drawSyntaxToken(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            String token,
-            int color
-    ) {
+    private int drawSyntaxToken(OwoUIGraphics context, int x, int y, int availableWidth, String token, int color) {
         return this.drawSyntaxToken(context, x, y, availableWidth, token, color, false);
     }
 
     private int drawSyntaxToken(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            String token,
-            int color,
-            boolean hexColorChip
-    ) {
+            OwoUIGraphics context, int x, int y, int availableWidth, String token, int color, boolean hexColorChip) {
         String visible = this.visibleToken(token, availableWidth);
         if (visible.isEmpty()) {
             return 0;
@@ -1988,13 +1926,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this.trimToWidthRaw(token, availableWidth);
     }
 
-    private void renderStringToken(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            String token
-    ) {
+    private void renderStringToken(OwoUIGraphics context, int x, int y, int availableWidth, String token) {
         if (availableWidth <= 0 || token.isEmpty()) {
             return;
         }
@@ -2008,14 +1940,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             char c = token.charAt(index);
             if (c == '\\') {
                 int escapeEnd = this.scanEscapeSequence(token, index);
-                this.drawSyntaxToken(
-                        context,
-                        partX,
-                        y,
-                        partAvailable,
-                        token.substring(index, escapeEnd),
-                        COLOR_ESCAPE
-                );
+                this.drawSyntaxToken(context, partX, y, partAvailable, token.substring(index, escapeEnd), COLOR_ESCAPE);
                 index = escapeEnd;
                 continue;
             }
@@ -2024,25 +1949,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             while (next < token.length() && token.charAt(next) != '\\') {
                 next++;
             }
-            this.drawSyntaxToken(
-                    context,
-                    partX,
-                    y,
-                    partAvailable,
-                    token.substring(index, next),
-                    COLOR_STRING
-            );
+            this.drawSyntaxToken(context, partX, y, partAvailable, token.substring(index, next), COLOR_STRING);
             index = next;
         }
     }
 
-    private void renderNumericToken(
-            OwoUIGraphics context,
-            int x,
-            int y,
-            int availableWidth,
-            String token
-    ) {
+    private void renderNumericToken(OwoUIGraphics context, int x, int y, int availableWidth, String token) {
         if (availableWidth <= 0 || token.isEmpty()) {
             return;
         }
@@ -2052,14 +1964,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return;
         }
 
-        int prefixWidth = this.drawSyntaxToken(
-                context,
-                x,
-                y,
-                availableWidth,
-                token.substring(0, suffixStart),
-                COLOR_NUMBER
-        );
+        int prefixWidth =
+                this.drawSyntaxToken(context, x, y, availableWidth, token.substring(0, suffixStart), COLOR_NUMBER);
         if (prefixWidth >= availableWidth) {
             return;
         }
@@ -2068,14 +1974,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         if (suffixAvailable <= 0) {
             return;
         }
-        this.drawSyntaxToken(
-                context,
-                suffixX,
-                y,
-                suffixAvailable,
-                token.substring(suffixStart),
-                COLOR_NUMBER_SUFFIX
-        );
+        this.drawSyntaxToken(context, suffixX, y, suffixAvailable, token.substring(suffixStart), COLOR_NUMBER_SUFFIX);
     }
 
     private int scanEscapeSequence(String token, int start) {
@@ -2097,9 +1996,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private boolean isNonHexChar(char value) {
-        return (value < '0' || value > '9')
-                && (value < 'a' || value > 'f')
-                && (value < 'A' || value > 'F');
+        return (value < '0' || value > '9') && (value < 'a' || value > 'f') && (value < 'A' || value > 'F');
     }
 
     private int numericSuffixStart(String token) {
@@ -2190,11 +2087,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 && this.lineDepthStarts.length == this.lineStarts.length) {
             return this.lineDepthStarts;
         }
-        this.lineDepthStarts = this.syntaxHighlighter.lineDepthStarts(
-                this.text,
-                this.lineStarts,
-                MAX_SYNTAX_DEPTH_SCAN_TOTAL_CHARS
-        );
+        this.lineDepthStarts =
+                this.syntaxHighlighter.lineDepthStarts(this.text, this.lineStarts, MAX_SYNTAX_DEPTH_SCAN_TOTAL_CHARS);
         this.lineDepthStartsDirty = false;
         return this.lineDepthStarts;
     }
@@ -2377,8 +2271,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 case '{', '}', '[', ']', ':', ',', '"', '\'' -> {
                     return true;
                 }
-                default -> {
-                }
+                default -> {}
             }
         }
         return false;
@@ -2412,8 +2305,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 wrapWidth,
                 this.lineHeightWithSpacing(),
                 this.wordWrap,
-                this.layoutFoldSpans()
-        );
+                this.layoutFoldSpans());
         this.layoutPending = false;
         this.wrapLayoutWidth = wrapWidth;
         this.moveCursorOutOfHiddenRegion();
@@ -2515,11 +2407,11 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             int lineY,
             int contentWidth,
             String line,
-            FoldRegion collapsedRegion
-    ) {
+            FoldRegion collapsedRegion) {
         String suffix = " ...";
         String summary = line + suffix;
-        String renderSource = summary.length() > MAX_RENDER_LINE_CHARS ? summary.substring(0, MAX_RENDER_LINE_CHARS) : summary;
+        String renderSource =
+                summary.length() > MAX_RENDER_LINE_CHARS ? summary.substring(0, MAX_RENDER_LINE_CHARS) : summary;
         String visible = this.trimToWidthRaw(renderSource, contentWidth);
         if (!visible.isEmpty()) {
             this.drawRawText(context, visible, contentLeft, lineY, COLOR_TEXT);
@@ -2530,8 +2422,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 Integer.toString(Math.max(1, collapsedRegion.endLine - collapsedRegion.startLine)),
                 markerX,
                 lineY,
-                COLOR_GHOST
-        );
+                COLOR_GHOST);
     }
 
     private int innerLeft() {
@@ -2567,8 +2458,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 FOLD_MARKER_WIDTH,
                 FOLD_MARKER_TEXT_PADDING,
                 GUTTER_FOLD_GAP,
-                GUTTER_LINE_RIGHT_INSET
-        );
+                GUTTER_LINE_RIGHT_INSET);
     }
 
     private int contentLeft() {
@@ -2604,9 +2494,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     }
 
     private int scrollbarReserveWidth() {
-        return this.scrollbarWidth()
-                + UiFactory.scaledPixels(SCROLLBAR_RESERVE_EXTRA)
-                + this.scrollbarEdgeInset();
+        return this.scrollbarWidth() + UiFactory.scaledPixels(SCROLLBAR_RESERVE_EXTRA) + this.scrollbarEdgeInset();
     }
 
     private int scrollbarEdgeInset() {
@@ -2676,13 +2564,15 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     private double currentGuiMouseX() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth() / (double) minecraft.getWindow().getScreenWidth();
+        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth()
+                / (double) minecraft.getWindow().getScreenWidth();
         return minecraft.mouseHandler.xpos() * scaleX;
     }
 
     private double currentGuiMouseY() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight() / (double) minecraft.getWindow().getScreenHeight();
+        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight()
+                / (double) minecraft.getWindow().getScreenHeight();
         return minecraft.mouseHandler.ypos() * scaleY;
     }
 
@@ -2698,23 +2588,12 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         return this.canHorizontalScroll() ? (int) Math.floor(this.horizontalScrollAmount) : 0;
     }
 
-    private record CaretAnchor(int x, int y) {
-    }
+    private record CaretAnchor(int x, int y) {}
 
-    private record ResolvedMouse(double screenX, double screenY) {
-    }
+    private record ResolvedMouse(double screenX, double screenY) {}
 
     private record AutocompletePopupLayout(
-            int x,
-            int y,
-            int width,
-            int height,
-            int rowHeight,
-            int visibleRows,
-            int selected,
-            int start,
-            int end
-    ) {
+            int x, int y, int width, int height, int rowHeight, int visibleRows, int selected, int start, int end) {
         private boolean contains(double mouseX, double mouseY) {
             return mouseX >= this.x
                     && mouseX < this.x + this.width
@@ -2733,7 +2612,8 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
         this.ensureTextScaleCache();
         if (Math.abs(this.cachedTextScale - 1.0F) < 0.001F) {
-            context.drawString(Minecraft.getInstance().font, this.fontMetrics.formattedSequence(value), x, y, color, false);
+            context.drawString(
+                    Minecraft.getInstance().font, this.fontMetrics.formattedSequence(value), x, y, color, false);
             return;
         }
 
@@ -2794,8 +2674,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         HEX
     }
 
-    private record SyntaxRun(SyntaxRunKind kind, String text, int color) {
-    }
+    private record SyntaxRun(SyntaxRunKind kind, String text, int color) {}
 
     private static final class FoldRegion {
         private int startLine;
@@ -2816,8 +2695,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
     }
 
-    private record LineRange(int startLine, int endLine) {
-    }
+    private record LineRange(int startLine, int endLine) {}
 
     public record HistorySnapshot(String text, int cursor, int selection, double scroll) {
         public HistorySnapshot {

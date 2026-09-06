@@ -1,7 +1,5 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.core.RegistryAccess;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -9,6 +7,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import net.minecraft.core.RegistryAccess;
 
 final class RawSuggestionPipeline {
 
@@ -24,8 +23,7 @@ final class RawSuggestionPipeline {
     private static final int WEIGHT_SOURCE = 70;
     private static final int WEIGHT_CONFIDENCE = 10;
 
-    private RawSuggestionPipeline() {
-    }
+    private RawSuggestionPipeline() {}
 
     static List<RawAutocompleteUtil.Suggestion> limit(
             Collection<RawAutocompleteUtil.Suggestion> source,
@@ -34,8 +32,7 @@ final class RawSuggestionPipeline {
             int replaceEnd,
             RegistryAccess registryAccess,
             EnumSet<RawValueMode> expectedModes,
-            RawSlotType slotType
-    ) {
+            RawSlotType slotType) {
         if (source == null || source.isEmpty()) {
             return List.of();
         }
@@ -62,9 +59,7 @@ final class RawSuggestionPipeline {
         return registryAccess != null && text != null && text.length() <= PARSE_FILTER_MAX_TEXT_LENGTH;
     }
 
-    private static List<ParseFilteredSuggestion> unfiltered(
-            List<RawAutocompleteUtil.Suggestion> suggestions
-    ) {
+    private static List<ParseFilteredSuggestion> unfiltered(List<RawAutocompleteUtil.Suggestion> suggestions) {
         return suggestions.stream()
                 .map(candidate -> new ParseFilteredSuggestion(candidate, 2, Integer.MAX_VALUE))
                 .toList();
@@ -76,8 +71,7 @@ final class RawSuggestionPipeline {
             int replaceStart,
             int replaceEnd,
             RegistryAccess registryAccess,
-            Comparator<RawAutocompleteUtil.Suggestion> baseComparator
-    ) {
+            Comparator<RawAutocompleteUtil.Suggestion> baseComparator) {
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
@@ -90,21 +84,14 @@ final class RawSuggestionPipeline {
 
         List<ParseFilteredSuggestion> accepted = new ArrayList<>();
         for (RawAutocompleteUtil.Suggestion candidate : candidates) {
-            ParseFilteredSuggestion parsed = parseCandidate(
-                    candidate,
-                    prefix,
-                    suffix,
-                    safeStart,
-                    registryAccess,
-                    baselineCursor
-            );
+            ParseFilteredSuggestion parsed =
+                    parseCandidate(candidate, prefix, suffix, safeStart, registryAccess, baselineCursor);
             if (parsed != null) {
                 accepted.add(parsed);
             }
         }
 
-        accepted.sort(Comparator
-                .comparingInt(ParseFilteredSuggestion::parseRank)
+        accepted.sort(Comparator.comparingInt(ParseFilteredSuggestion::parseRank)
                 .thenComparingInt(ParseFilteredSuggestion::distanceToTarget)
                 .thenComparing(ParseFilteredSuggestion::suggestion, baseComparator));
         return accepted;
@@ -116,8 +103,7 @@ final class RawSuggestionPipeline {
             String suffix,
             int safeStart,
             RegistryAccess registryAccess,
-            int baselineCursor
-    ) {
+            int baselineCursor) {
         if (candidate.source() == RawAutocompleteUtil.SuggestionSource.REGISTRY
                 && "registry map key".equals(candidate.reason())) {
             return new ParseFilteredSuggestion(candidate, 2, Integer.MAX_VALUE);
@@ -131,7 +117,9 @@ final class RawSuggestionPipeline {
                 return new ParseFilteredSuggestion(candidate, 0, 0);
             }
             if (suffix.isBlank()
-                    && RawItemDataUtil.parse(candidateText + RawAutocompleteUtil.closingSuffix(candidateText), registryAccess).success()) {
+                    && RawItemDataUtil.parse(
+                                    candidateText + RawAutocompleteUtil.closingSuffix(candidateText), registryAccess)
+                            .success()) {
                 return new ParseFilteredSuggestion(candidate, 1, 0);
             }
 
@@ -143,18 +131,14 @@ final class RawSuggestionPipeline {
             int distanceToCaret = Math.abs(errorCursor - (safeStart + insert.length()));
             boolean nearCaret = distanceToCaret <= PARSE_FILTER_NEAR_CARET_WINDOW;
             boolean movedForward = baselineCursor < 0 ? nearCaret : errorCursor > baselineCursor;
-            if (movedForward && nearCaret
-                    && (bestError == null || distanceToCaret < bestError.distanceToTarget())) {
+            if (movedForward && nearCaret && (bestError == null || distanceToCaret < bestError.distanceToTarget())) {
                 bestError = new ParseFilteredSuggestion(candidate, 1, distanceToCaret);
             }
         }
         return bestError;
     }
 
-    private static List<String> validationInserts(
-            RawAutocompleteUtil.Suggestion candidate,
-            String suffix
-    ) {
+    private static List<String> validationInserts(RawAutocompleteUtil.Suggestion candidate, String suffix) {
         if (candidate.kind() != RawAutocompleteUtil.SuggestionKind.KEY
                 || RawAutocompleteUtil.suffixStartsWithColon(suffix, 0)) {
             return List.of(candidate.insertText());
@@ -169,9 +153,8 @@ final class RawSuggestionPipeline {
     }
 
     private static String validationKey(RawAutocompleteUtil.Suggestion candidate) {
-        String key = candidate.label() == null || candidate.label().isBlank()
-                ? candidate.insertText()
-                : candidate.label();
+        String key =
+                candidate.label() == null || candidate.label().isBlank() ? candidate.insertText() : candidate.label();
         return unquoteValidationKey(key).toLowerCase(Locale.ROOT);
     }
 
@@ -228,15 +211,13 @@ final class RawSuggestionPipeline {
             int replaceStart,
             EnumSet<RawValueMode> expectedModes,
             RawSlotType slotType,
-            Comparator<RawAutocompleteUtil.Suggestion> fallbackComparator
-    ) {
+            Comparator<RawAutocompleteUtil.Suggestion> fallbackComparator) {
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
 
         return candidates.stream()
-                .sorted(Comparator
-                        .comparingInt((ParseFilteredSuggestion candidate) ->
+                .sorted(Comparator.comparingInt((ParseFilteredSuggestion candidate) ->
                                 weightedScore(candidate, text, replaceStart, expectedModes, slotType))
                         .reversed()
                         .thenComparing(ParseFilteredSuggestion::suggestion, fallbackComparator))
@@ -249,8 +230,7 @@ final class RawSuggestionPipeline {
             String text,
             int replaceStart,
             EnumSet<RawValueMode> expectedModes,
-            RawSlotType slotType
-    ) {
+            RawSlotType slotType) {
         RawAutocompleteUtil.Suggestion suggestion = candidate.suggestion();
         return (typeMatchScore(suggestion, expectedModes, slotType) * WEIGHT_TYPE_MATCH)
                 + (parserScore(candidate) * WEIGHT_PARSER)
@@ -270,10 +250,7 @@ final class RawSuggestionPipeline {
     }
 
     private static int typeMatchScore(
-            RawAutocompleteUtil.Suggestion suggestion,
-            EnumSet<RawValueMode> expectedModes,
-            RawSlotType slotType
-    ) {
+            RawAutocompleteUtil.Suggestion suggestion, EnumSet<RawValueMode> expectedModes, RawSlotType slotType) {
         if (slotType == RawSlotType.OBJECT_KEY) {
             boolean keyCompletion = suggestion.kind() == RawAutocompleteUtil.SuggestionKind.KEY
                     || isComponentKeyValueSnippet(suggestion);
@@ -281,8 +258,7 @@ final class RawSuggestionPipeline {
         }
 
         RawValueMode mode = RawValueClassifier.classify(suggestion.insertText());
-        if (expectedModes != null && !expectedModes.isEmpty()
-                && !expectedModes.contains(RawValueMode.NONE)) {
+        if (expectedModes != null && !expectedModes.isEmpty() && !expectedModes.contains(RawValueMode.NONE)) {
             if (expectedModes.contains(mode)) {
                 return 3;
             }
@@ -306,11 +282,7 @@ final class RawSuggestionPipeline {
         return insert != null && insert.contains(suggestion.label()) && insert.contains(": ");
     }
 
-    private static int recencyScore(
-            String text,
-            int replaceStart,
-            RawAutocompleteUtil.Suggestion suggestion
-    ) {
+    private static int recencyScore(String text, int replaceStart, RawAutocompleteUtil.Suggestion suggestion) {
         if (text == null || text.isBlank()) {
             return 0;
         }
@@ -318,8 +290,9 @@ final class RawSuggestionPipeline {
         int safeStart = Math.clamp(replaceStart, 0, text.length());
         String haystack = text.substring(0, safeStart).toLowerCase(Locale.ROOT);
         String needle = (suggestion.label() == null || suggestion.label().isBlank()
-                ? suggestion.insertText()
-                : suggestion.label()).toLowerCase(Locale.ROOT);
+                        ? suggestion.insertText()
+                        : suggestion.label())
+                .toLowerCase(Locale.ROOT);
         if (needle.isBlank()) {
             return 0;
         }
@@ -343,9 +316,5 @@ final class RawSuggestionPipeline {
     }
 
     private record ParseFilteredSuggestion(
-            RawAutocompleteUtil.Suggestion suggestion,
-            int parseRank,
-            int distanceToTarget
-    ) {
-    }
+            RawAutocompleteUtil.Suggestion suggestion, int parseRank, int distanceToTarget) {}
 }

@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -9,8 +10,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-
-import java.util.Objects;
 
 final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -22,7 +21,8 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         if (this.sameCommandBlockData(context.special(), context.baselineSpecial())) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
             return;
         }
 
@@ -50,10 +50,7 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
             this.clearToPrototype(context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
             return;
         }
-        context.previewStack().set(
-                DataComponents.BLOCK_ENTITY_DATA,
-                TypedEntityData.of(commandBlockType, blockTag)
-        );
+        context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(commandBlockType, blockTag));
     }
 
     private boolean applyRuntimeState(CompoundTag blockTag, SpecialDataApplyContext context) {
@@ -61,18 +58,10 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         setDefaultTrueBoolean(blockTag, "TrackOutput", special.commandBlockTrackOutput);
         setDefaultTrueBoolean(blockTag, "UpdateLastExecution", special.commandBlockUpdateLastExecution);
 
-        if (!putSuccessCount(
-                blockTag,
-                special.commandBlockSuccessCount,
-                context
-        )) {
+        if (!putSuccessCount(blockTag, special.commandBlockSuccessCount, context)) {
             return false;
         }
-        if (!putLastExecution(
-                blockTag,
-                special.commandBlockLastExecution,
-                context
-        )) {
+        if (!putLastExecution(blockTag, special.commandBlockLastExecution, context)) {
             return false;
         }
 
@@ -86,11 +75,7 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         return true;
     }
 
-    private boolean putSuccessCount(
-            CompoundTag blockTag,
-            String raw,
-            SpecialDataApplyContext context
-    ) {
+    private boolean putSuccessCount(CompoundTag blockTag, String raw, SpecialDataApplyContext context) {
         if (isBlank(raw)) {
             blockTag.remove("SuccessCount");
             return true;
@@ -100,8 +85,7 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
                 ItemEditorText.str("special.command_block.success_count"),
                 0,
                 Integer.MAX_VALUE,
-                context.messages()
-        );
+                context.messages());
         if (parsed == null) {
             return false;
         }
@@ -109,11 +93,7 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         return true;
     }
 
-    private boolean putLastExecution(
-            CompoundTag blockTag,
-            String raw,
-            SpecialDataApplyContext context
-    ) {
+    private boolean putLastExecution(CompoundTag blockTag, String raw, SpecialDataApplyContext context) {
         if (isBlank(raw)) {
             blockTag.remove("LastExecution");
             return true;
@@ -122,49 +102,28 @@ final class CommandBlockSpecialDataApplier extends AbstractPreviewApplierSupport
         try {
             long parsed = Long.parseLong(raw);
             if (parsed < -1L) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.range",
-                        label,
-                        -1L,
-                        Long.MAX_VALUE
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("validation.range", label, -1L, Long.MAX_VALUE)));
                 return false;
             }
             blockTag.putLong("LastExecution", parsed);
             return true;
         } catch (NumberFormatException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.whole_number",
-                    label
-            )));
+            context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.whole_number", label)));
             return false;
         }
     }
 
     private BlockEntityType<?> resolveCommandBlockType(SpecialDataApplyContext context) {
-        if (context.previewStack().is(Items.COMMAND_BLOCK)
-                || context.previewStack().is(Items.REPEATING_COMMAND_BLOCK)
-                || context.previewStack().is(Items.CHAIN_COMMAND_BLOCK)) {
-            return BlockEntityType.COMMAND_BLOCK;
-        }
-
-        TypedEntityData<BlockEntityType<?>> previewData = context.previewStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (previewData != null && previewData.type() == BlockEntityType.COMMAND_BLOCK) {
-            return BlockEntityType.COMMAND_BLOCK;
-        }
-
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
-        if (originalData != null && originalData.type() == BlockEntityType.COMMAND_BLOCK) {
-            return BlockEntityType.COMMAND_BLOCK;
-        }
-
-        return null;
+        return context.resolveBlockEntityType(
+                BlockEntityType.COMMAND_BLOCK,
+                context.previewStack().is(Items.COMMAND_BLOCK)
+                        || context.previewStack().is(Items.REPEATING_COMMAND_BLOCK)
+                        || context.previewStack().is(Items.CHAIN_COMMAND_BLOCK));
     }
 
-    private boolean sameCommandBlockData(
-            ItemEditorState.SpecialData current,
-            ItemEditorState.SpecialData baseline
-    ) {
+    private boolean sameCommandBlockData(ItemEditorState.SpecialData current, ItemEditorState.SpecialData baseline) {
         return Objects.equals(current.commandBlockCommand, baseline.commandBlockCommand)
                 && Objects.equals(current.commandBlockCustomName, baseline.commandBlockCustomName)
                 && current.commandBlockAuto == baseline.commandBlockAuto

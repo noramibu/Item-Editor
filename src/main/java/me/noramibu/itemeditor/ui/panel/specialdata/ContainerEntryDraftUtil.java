@@ -10,8 +10,7 @@ import net.minecraft.world.item.Item;
 public final class ContainerEntryDraftUtil {
     public static final int BUNDLE_PAGE_SIZE = 54;
 
-    private ContainerEntryDraftUtil() {
-    }
+    private ContainerEntryDraftUtil() {}
 
     public static Item resolveItem(String rawItemId) {
         Identifier id = IdFieldNormalizer.parse(rawItemId);

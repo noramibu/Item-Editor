@@ -12,15 +12,6 @@ import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.VerticalAlignment;
-import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
-import me.noramibu.itemeditor.util.ColorInterpolationUtil;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import me.noramibu.itemeditor.util.TextColorPresets;
-import me.noramibu.itemeditor.util.ValidationUtil;
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +21,14 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
+import me.noramibu.itemeditor.util.ColorInterpolationUtil;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextColorPresets;
+import me.noramibu.itemeditor.util.ValidationUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class UnifiedColorPickerDialog {
 
@@ -74,17 +73,13 @@ public final class UnifiedColorPickerDialog {
     private static final int MODE_BUTTON_TEXT_RESERVE = 26;
     private static final int MODE_CHECKBOX_TEXT_RESERVE = 34;
     private static final int CONTENT_BOTTOM_PADDING_EXTRA = 8;
-    private static final String SAMPLE_TEXT = "lorem ipsum dolar sit amet consectetur adipiscing elit sed do eiusmod tempor";
+    private static final String SAMPLE_TEXT =
+            "lorem ipsum dolar sit amet consectetur adipiscing elit sed do eiusmod tempor";
 
-    private UnifiedColorPickerDialog() {
-    }
+    private UnifiedColorPickerDialog() {}
 
     public static FlowLayout create(
-            String title,
-            Options options,
-            Consumer<ColorPickerResult> onApply,
-            Runnable onCancel
-    ) {
+            String title, Options options, Consumer<ColorPickerResult> onApply, Runnable onCancel) {
         Options normalizedOptions = options == null ? Options.richText(0xFFFFFF, List.of(0xFFFFFF, 0x55FFFF)) : options;
         PickerState state = new PickerState(normalizedOptions);
         FlowLayout overlay = DialogUiUtil.overlay();
@@ -92,11 +87,7 @@ public final class UnifiedColorPickerDialog {
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
         boolean compactLayout = dialogWidth < 420 || compactButtons;
         int buttonRowReserve = DialogUiUtil.buttonRowReserve(
-                compactButtons,
-                COMPACT_BUTTON_ROWS,
-                BUTTON_RESERVE_COMPACT_EXTRA,
-                BUTTON_RESERVE_NORMAL_EXTRA
-        );
+                compactButtons, COMPACT_BUTTON_ROWS, BUTTON_RESERVE_COMPACT_EXTRA, BUTTON_RESERVE_NORMAL_EXTRA);
         int headerReserve = UiFactory.scaledPixels(HEADER_RESERVE);
         int dialogHeight = DialogUiUtil.dialogHeight(Integer.MAX_VALUE, DIALOG_MIN_HEIGHT);
         int contentHeight = Math.max(CONTENT_MIN_HEIGHT, dialogHeight - headerReserve - buttonRowReserve);
@@ -105,7 +96,8 @@ public final class UnifiedColorPickerDialog {
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
         dialog.child(UiFactory.title(title));
 
-        FlowLayout modeSlot = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        FlowLayout modeSlot =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         dialog.child(modeSlot);
 
         FlowLayout contentSlot = UiFactory.column();
@@ -129,8 +121,8 @@ public final class UnifiedColorPickerDialog {
                     FOOTER_BUTTON_MAX_WIDTH,
                     FOOTER_BUTTON_DIVISOR,
                     new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run()),
-                    new DialogUiUtil.FooterAction(ItemEditorText.tr(applyKey(state)), button -> onApply.accept(state.result()))
-            );
+                    new DialogUiUtil.FooterAction(
+                            ItemEditorText.tr(applyKey(state)), button -> onApply.accept(state.result())));
             buttonRow.horizontalAlignment(HorizontalAlignment.RIGHT);
             footerSlot.child(buttonRow);
         };
@@ -139,7 +131,14 @@ public final class UnifiedColorPickerDialog {
             double scrollOffset = restoreScroll ? ScrollStateUtil.offset(contentScroll) : 0;
             state.ensureAllowedMode(normalizedOptions);
             rebuildChrome.run();
-            rebuildBody(contentSlot, normalizedOptions, state, contentWidth, contentHeight, compactLayout, rebuildAll.get());
+            rebuildBody(
+                    contentSlot,
+                    normalizedOptions,
+                    state,
+                    contentWidth,
+                    contentHeight,
+                    compactLayout,
+                    rebuildAll.get());
             rebuildFooter.run();
             if (restoreScroll) {
                 restoreScroll(contentScroll, scrollOffset);
@@ -151,10 +150,13 @@ public final class UnifiedColorPickerDialog {
         return overlay;
     }
 
-    private static FlowLayout buildModeControls(Options options, PickerState state, int contentWidth, Runnable rebuildAll) {
-        FlowLayout controls = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+    private static FlowLayout buildModeControls(
+            Options options, PickerState state, int contentWidth, Runnable rebuildAll) {
+        FlowLayout controls =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         List<ModeButtonSpec> buttons = new ArrayList<>();
-        Component shadowLabel = options.allowShadow() ? ItemEditorText.tr("dialog.unified_color_picker.shadow") : Component.empty();
+        Component shadowLabel =
+                options.allowShadow() ? ItemEditorText.tr("dialog.unified_color_picker.shadow") : Component.empty();
         if (options.allowColorMode()) {
             Component label = ItemEditorText.tr("dialog.unified_color_picker.mode.color");
             buttons.add(new ModeButtonSpec(label, state.mode() != PaintMode.COLOR, () -> {
@@ -209,8 +211,7 @@ public final class UnifiedColorPickerDialog {
             int contentWidth,
             int contentHeight,
             boolean compactLayout,
-            Runnable rebuildAll
-    ) {
+            Runnable rebuildAll) {
         contentSlot.clearChildren();
 
         boolean wideLayout = contentWidth >= WIDE_LAYOUT_WIDTH_THRESHOLD;
@@ -220,38 +221,54 @@ public final class UnifiedColorPickerDialog {
                 ? Math.max(PICKER_MIN_SIZE, (contentWidth - columnGap) * leftColumnPercent / 100)
                 : contentWidth;
         int pickerContentWidth = wideLayout ? leftColumnWidth : contentWidth;
-        int savedContentWidth = wideLayout
-                ? Math.max(PICKER_MIN_SIZE, contentWidth - leftColumnWidth - columnGap)
-                : pickerContentWidth;
+        int savedContentWidth =
+                wideLayout ? Math.max(PICKER_MIN_SIZE, contentWidth - leftColumnWidth - columnGap) : pickerContentWidth;
         int controlsContentWidth = wideLayout ? savedContentWidth : pickerContentWidth;
         int previewTextWidth = Math.max(1, pickerContentWidth - UiFactory.scaledPixels(PREVIEW_TEXT_WIDTH_RESERVE));
         int pickerSize = pickerSize(Math.min(pickerContentWidth, contentHeight));
-        int rgbInputWidth = rgbInputWidth(pickerContentWidth);
 
         FlowLayout pickerSection = section();
-        LabelComponent selectedTitle = UiFactory.title(selectedStopTitle(state)).shadow(false).maxWidth(pickerContentWidth);
+        LabelComponent selectedTitle =
+                UiFactory.title(selectedStopTitle(state)).shadow(false).maxWidth(pickerContentWidth);
         pickerSection.child(selectedTitle);
 
         LabelComponent errorLabel = UiFactory.message("", 0xFF8A8A);
         AtomicBoolean syncing = new AtomicBoolean(false);
         ColorPickerComponent picker = new ColorPickerComponent()
-                .selectedColor(Color.ofRgb(state.selectedRgb()))
-                .showAlpha(false)
+                .selectedColor(
+                        options.allowAlpha() ? Color.ofArgb(state.selectedColor()) : Color.ofRgb(state.selectedRgb()))
+                .showAlpha(options.allowAlpha())
                 .selectorWidth(PICKER_SELECTOR_WIDTH)
                 .selectorPadding(PICKER_SELECTOR_PADDING);
         picker.sizing(Sizing.fixed(pickerSize), Sizing.fixed(pickerSize));
 
-        ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(state.selectedRgb(), compactLayout ? SWATCH_COMPACT_SIZE : SWATCH_SIZE);
-        TextBoxComponent hexInput = UiFactory.textBox(ValidationUtil.toHex(state.selectedRgb()), value -> {});
-        TextBoxComponent redInput = UiFactory.textBox(Integer.toString((state.selectedRgb() >> 16) & 0xFF), value -> {});
-        TextBoxComponent greenInput = UiFactory.textBox(Integer.toString((state.selectedRgb() >> 8) & 0xFF), value -> {});
+        ColorPickerUiUtil.Swatch swatch = ColorPickerUiUtil.createSwatch(
+                options.allowAlpha() ? state.selectedColor() : state.selectedRgb(),
+                compactLayout ? SWATCH_COMPACT_SIZE : SWATCH_SIZE,
+                options.allowAlpha());
+        TextBoxComponent hexInput = UiFactory.textBox(
+                options.allowAlpha()
+                        ? ValidationUtil.toArgbHex(state.selectedColor())
+                        : ValidationUtil.toHex(state.selectedRgb()),
+                value -> {});
+        TextBoxComponent alphaInput = options.allowAlpha()
+                ? UiFactory.textBox(Integer.toString((state.selectedColor() >>> 24) & 0xFF), value -> {})
+                : null;
+        TextBoxComponent redInput =
+                UiFactory.textBox(Integer.toString((state.selectedRgb() >> 16) & 0xFF), value -> {});
+        TextBoxComponent greenInput =
+                UiFactory.textBox(Integer.toString((state.selectedRgb() >> 8) & 0xFF), value -> {});
         TextBoxComponent blueInput = UiFactory.textBox(Integer.toString(state.selectedRgb() & 0xFF), value -> {});
 
         FlowLayout stopsSection = section();
-        FlowLayout stopsList = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
-        FlowLayout stopActions = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        FlowLayout stopsList =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
+        FlowLayout stopActions =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         if (state.mode() == PaintMode.GRADIENT) {
-            stopsSection.child(UiFactory.title(ItemEditorText.tr(stopsTitleKey(state))).shadow(false).maxWidth(controlsContentWidth));
+            stopsSection.child(UiFactory.title(ItemEditorText.tr(stopsTitleKey(state)))
+                    .shadow(false)
+                    .maxWidth(controlsContentWidth));
             stopsSection.child(stopsList);
             stopsSection.child(stopActions);
         }
@@ -259,69 +276,87 @@ public final class UnifiedColorPickerDialog {
         FlowLayout preview = section();
         Runnable refreshPreview = () -> {
             preview.clearChildren();
-            preview.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false).maxWidth(previewTextWidth));
+            preview.child(UiFactory.title(ItemEditorText.tr("screen.preview"))
+                    .shadow(false)
+                    .maxWidth(previewTextWidth));
             preview.child(buildPreview(state, options.previewText(), previewTextWidth));
         };
 
         AtomicReference<Runnable> refreshUi = new AtomicReference<>(() -> {});
         Runnable syncInputs = ColorPickerUiUtil.createSyncRunnable(
                 syncing,
-                state::selectedRgb,
+                options.allowAlpha() ? state::selectedColor : state::selectedRgb,
                 picker,
                 swatch.swatch(),
                 swatch.label(),
                 hexInput,
-                ColorPickerUiUtil.rgbPostSync(state::selectedRgb, redInput, greenInput, blueInput, errorLabel)
-        );
-        ColorPickerUiUtil.bindPickerAndRgbInputs(
-                picker,
-                syncing,
-                hexInput,
-                redInput,
-                greenInput,
-                blueInput,
-                errorLabel,
-                rgb -> {
-                    state.setSelectedRgb(rgb);
-                    syncInputs.run();
-                    refreshUi.get().run();
-                }
-        );
+                options.allowAlpha(),
+                options.allowAlpha()
+                        ? ColorPickerUiUtil.argbPostSync(
+                                state::selectedColor, alphaInput, redInput, greenInput, blueInput, errorLabel)
+                        : ColorPickerUiUtil.rgbPostSync(
+                                state::selectedRgb, redInput, greenInput, blueInput, errorLabel));
+        if (options.allowAlpha()) {
+            ColorPickerUiUtil.bindPickerAndArgbInputs(
+                    picker, syncing, hexInput, alphaInput, redInput, greenInput, blueInput, errorLabel, color -> {
+                        state.setSelectedColor(color);
+                        syncInputs.run();
+                        refreshUi.get().run();
+                    });
+        } else {
+            ColorPickerUiUtil.bindPickerAndRgbInputs(
+                    picker, syncing, hexInput, redInput, greenInput, blueInput, errorLabel, color -> {
+                        state.setSelectedColor(color);
+                        syncInputs.run();
+                        refreshUi.get().run();
+                    });
+        }
 
         FlowLayout sampleRow = UiFactory.row();
         sampleRow.child(swatch.swatch());
         sampleRow.child(swatch.label());
         FlowLayout hexRow = UiFactory.row();
-        hexRow.child(ColorPickerUiUtil.compactInputField(ItemEditorText.tr("common.hex"), hexInput, HEX_INPUT_WIDTH));
+        hexRow.child(ColorPickerUiUtil.compactInputField(
+                options.allowAlpha() ? ItemEditorText.tr("common.argb") : ItemEditorText.tr("common.hex"),
+                hexInput,
+                HEX_INPUT_WIDTH));
         hexRow.child(sampleRow);
         FlowLayout rgbRow = UiFactory.row();
-        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(ItemEditorText.tr("common.rgb.red"), redInput, rgbInputWidth));
-        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(ItemEditorText.tr("common.rgb.green"), greenInput, rgbInputWidth));
-        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(ItemEditorText.tr("common.rgb.blue"), blueInput, rgbInputWidth));
+        int channelInputWidth = rgbInputWidth(pickerContentWidth, options.allowAlpha() ? 4 : 3);
+        if (options.allowAlpha()) {
+            rgbRow.child(
+                    ColorPickerUiUtil.compactInputFieldPixels(Component.literal("A"), alphaInput, channelInputWidth));
+        }
+        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(
+                ItemEditorText.tr("common.rgb.red"), redInput, channelInputWidth));
+        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(
+                ItemEditorText.tr("common.rgb.green"), greenInput, channelInputWidth));
+        rgbRow.child(ColorPickerUiUtil.compactInputFieldPixels(
+                ItemEditorText.tr("common.rgb.blue"), blueInput, channelInputWidth));
         pickerSection.child(picker);
         pickerSection.child(hexRow);
         pickerSection.child(rgbRow);
 
         FlowLayout savedSection = section();
-        savedSection.child(UiFactory.title(ItemEditorText.tr("dialog.unified_color_picker.saved_presets")).shadow(false).maxWidth(savedContentWidth));
-        FlowLayout savedList = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
+        savedSection.child(UiFactory.title(ItemEditorText.tr("dialog.unified_color_picker.saved_presets"))
+                .shadow(false)
+                .maxWidth(savedContentWidth));
+        FlowLayout savedList =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
         AtomicReference<Runnable> refreshSaved = new AtomicReference<>(() -> {});
         Component saveLabel = ItemEditorText.tr(saveKey(state));
-        ButtonComponent saveCurrentButton = UiFactory.button(
-                saveLabel,
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> {
-                    savePreset(state);
-                    refreshSaved.get().run();
-                }
-        );
+        ButtonComponent saveCurrentButton = UiFactory.button(saveLabel, UiFactory.ButtonTextPreset.COMPACT, button -> {
+            savePreset(state);
+            refreshSaved.get().run();
+        });
         saveCurrentButton.setMessage(saveLabel);
         if (!saveCurrentButton.getMessage().getString().equals(saveLabel.getString())) {
             saveCurrentButton.tooltip(List.of(saveLabel));
         }
         saveCurrentButton.horizontalSizing(Sizing.fill(100));
         savedSection.child(saveCurrentButton);
-        savedSection.child(buildSavedFilters(options, state, savedContentWidth, () -> refreshSaved.get().run()));
+        savedSection.child(buildSavedFilters(
+                options, state, savedContentWidth, () -> refreshSaved.get().run()));
         savedSection.child(savedList);
 
         refreshUi.set(() -> {
@@ -333,12 +368,15 @@ public final class UnifiedColorPickerDialog {
             refreshPreview.run();
             refreshSaved.get().run();
         });
-        refreshSaved.set(() -> rebuildSavedPresets(options, state, savedList, savedContentWidth, rebuildAll, refreshSaved.get()));
+        refreshSaved.set(() ->
+                rebuildSavedPresets(options, state, savedList, savedContentWidth, rebuildAll, refreshSaved.get()));
         refreshUi.get().run();
 
-        FlowLayout content = wideLayout ? UiFactory.row().gap(CONTENT_GAP) : UiFactory.column().gap(CONTENT_GAP);
-        int contentBottomPadding = UiFactory.scaleProfile().controlHeight()
-                + UiFactory.scaledPixels(CONTENT_BOTTOM_PADDING_EXTRA);
+        FlowLayout content = wideLayout
+                ? UiFactory.row().gap(CONTENT_GAP)
+                : UiFactory.column().gap(CONTENT_GAP);
+        int contentBottomPadding =
+                UiFactory.scaleProfile().controlHeight() + UiFactory.scaledPixels(CONTENT_BOTTOM_PADDING_EXTRA);
         content.padding(Insets.of(0, contentBottomPadding, 0, UiFactory.scrollContentInset(SCROLLBAR_GUTTER_BASE)));
         if (wideLayout) {
             content.verticalAlignment(VerticalAlignment.TOP);
@@ -368,31 +406,41 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static FlowLayout section() {
-        FlowLayout section = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        FlowLayout section =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
         section.horizontalSizing(Sizing.fill(100));
         return section;
     }
 
-    private static FlowLayout buildSavedFilters(Options options, PickerState state, int maxWidth, Runnable refreshSaved) {
-        FlowLayout filters = UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
+    private static FlowLayout buildSavedFilters(
+            Options options, PickerState state, int maxWidth, Runnable refreshSaved) {
+        FlowLayout filters =
+                UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
         List<SavedFilterSpec> specs = new ArrayList<>();
         if (options.showColorPresets()) {
-            specs.add(new SavedFilterSpec(ItemEditorText.tr("dialog.unified_color_picker.show_colors"), state.showColorPresets(), checked -> {
-                state.showColorPresets(checked);
-                refreshSaved.run();
-            }));
+            specs.add(new SavedFilterSpec(
+                    ItemEditorText.tr("dialog.unified_color_picker.show_colors"), state.showColorPresets(), checked -> {
+                        state.showColorPresets(checked);
+                        refreshSaved.run();
+                    }));
         }
         if (options.showGradientPresets()) {
-            specs.add(new SavedFilterSpec(ItemEditorText.tr("dialog.unified_color_picker.show_gradients"), state.showGradientPresets(), checked -> {
-                state.showGradientPresets(checked);
-                refreshSaved.run();
-            }));
+            specs.add(new SavedFilterSpec(
+                    ItemEditorText.tr("dialog.unified_color_picker.show_gradients"),
+                    state.showGradientPresets(),
+                    checked -> {
+                        state.showGradientPresets(checked);
+                        refreshSaved.run();
+                    }));
         }
         if (options.showShadowPresets()) {
-            specs.add(new SavedFilterSpec(ItemEditorText.tr("dialog.unified_color_picker.show_shadows"), state.showShadowPresets(), checked -> {
-                state.showShadowPresets(checked);
-                refreshSaved.run();
-            }));
+            specs.add(new SavedFilterSpec(
+                    ItemEditorText.tr("dialog.unified_color_picker.show_shadows"),
+                    state.showShadowPresets(),
+                    checked -> {
+                        state.showShadowPresets(checked);
+                        refreshSaved.run();
+                    }));
         }
         appendSavedFilterRows(filters, specs, maxWidth);
         return filters;
@@ -431,12 +479,7 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static void rebuildStops(
-            FlowLayout stopsList,
-            PickerState state,
-            Runnable syncInputs,
-            Runnable refreshUi,
-            int rowWidth
-    ) {
+            FlowLayout stopsList, PickerState state, Runnable syncInputs, Runnable refreshUi, int rowWidth) {
         stopsList.clearChildren();
         int selectButtonWidth = stopSelectButtonWidth(rowWidth);
         for (int index = 0; index < state.size(); index++) {
@@ -444,17 +487,14 @@ public final class UnifiedColorPickerDialog {
             int rgb = state.color(stopIndex);
             FlowLayout row = UiFactory.row();
             row.horizontalSizing(Sizing.fill(100));
-            Component label = Component.literal(stopButtonLabel(state, stopIndex)).withColor(rgb);
-            ButtonComponent select = UiFactory.fixedWidthButton(
-                    label,
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    selectButtonWidth,
-                    button -> {
+            Component label =
+                    Component.literal(stopButtonLabel(state, stopIndex)).withColor(rgb);
+            ButtonComponent select =
+                    UiFactory.fixedWidthButton(label, UiFactory.ButtonTextPreset.COMPACT, selectButtonWidth, button -> {
                         state.select(stopIndex);
                         syncInputs.run();
                         refreshUi.run();
-                    }
-            );
+                    });
             row.child(select);
             row.child(stopRowAction("^", stopIndex > 0, () -> {
                 state.move(stopIndex, stopIndex - 1);
@@ -476,22 +516,19 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static void rebuildStopActions(
-            FlowLayout stopActions,
-            PickerState state,
-            Runnable syncInputs,
-            Runnable refreshUi
-    ) {
+            FlowLayout stopActions, PickerState state, Runnable syncInputs, Runnable refreshUi) {
         stopActions.clearChildren();
         ButtonComponent add = stopAction(ItemEditorText.tr("common.add"), true, () -> {
             state.addAfterSelected();
             syncInputs.run();
             refreshUi.run();
         });
-        ButtonComponent remove = stopAction(ItemEditorText.tr("common.remove"), state.size() > state.minimumStops(), () -> {
-            state.removeSelected();
-            syncInputs.run();
-            refreshUi.run();
-        });
+        ButtonComponent remove =
+                stopAction(ItemEditorText.tr("common.remove"), state.size() > state.minimumStops(), () -> {
+                    state.remove(state.selectedIndex());
+                    syncInputs.run();
+                    refreshUi.run();
+                });
         FlowLayout row = UiFactory.row();
         add.horizontalSizing(Sizing.fill(49));
         remove.horizontalSizing(Sizing.fill(49));
@@ -507,7 +544,8 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static ButtonComponent stopRowAction(String label, boolean active, Runnable action) {
-        ButtonComponent button = UiFactory.button(Component.literal(label), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
+        ButtonComponent button =
+                UiFactory.button(Component.literal(label), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
         button.active(active);
         button.horizontalSizing(UiFactory.fixed(STOP_ROW_ACTION_WIDTH));
         return button;
@@ -516,14 +554,18 @@ public final class UnifiedColorPickerDialog {
     private static void savePreset(PickerState state) {
         if (state.shadow()) {
             String editId = state.editingShadowPresetId();
-            if (editId == null || editId.isBlank() || !TextColorPresets.updateShadowPreset(editId, state.resultColors())) {
+            if (editId == null
+                    || editId.isBlank()
+                    || !TextColorPresets.updateShadowPreset(editId, state.resultColors())) {
                 TextColorPresets.saveShadowPreset(state.resultColors());
             }
         } else if (state.mode() == PaintMode.COLOR) {
             TextColorPresets.saveColorPreset(state.selectedRgb());
         } else {
             String editId = state.editingGradientPresetId();
-            if (editId == null || editId.isBlank() || !TextColorPresets.updateGradientPreset(editId, state.resultColors())) {
+            if (editId == null
+                    || editId.isBlank()
+                    || !TextColorPresets.updateGradientPreset(editId, state.resultColors())) {
                 TextColorPresets.saveGradientPreset(state.resultColors());
             }
         }
@@ -535,8 +577,7 @@ public final class UnifiedColorPickerDialog {
             FlowLayout savedList,
             int savedContentWidth,
             Runnable rebuildAll,
-            Runnable refreshSaved
-    ) {
+            Runnable refreshSaved) {
         savedList.clearChildren();
         int rowCount = 0;
         if (options.showColorPresets() && state.showColorPresets()) {
@@ -547,7 +588,8 @@ public final class UnifiedColorPickerDialog {
                     savedContentWidth,
                     SAVED_ACTION_COUNT,
                     (preset, width) -> savedColorButtonLabel(options.previewText(), preset.rgb(), width),
-                    preset -> Component.literal(ValidationUtil.toHex(preset.rgb())).withColor(preset.rgb()),
+                    preset -> Component.literal(ValidationUtil.toHex(preset.rgb()))
+                            .withColor(preset.rgb()),
                     preset -> matchesColorPreset(state, preset.rgb()),
                     preset -> {
                         state.load(PaintMode.COLOR, false, List.of(preset.rgb()));
@@ -558,8 +600,7 @@ public final class UnifiedColorPickerDialog {
                     (preset, direction) -> TextColorPresets.moveColorPreset(preset.id(), direction),
                     preset -> TextColorPresets.removeColorPreset(preset.id()),
                     ItemEditorText.tr("dialog.unified_color_picker.saved_color_remove_hint"),
-                    refreshSaved
-            );
+                    refreshSaved);
         }
         if (options.showGradientPresets() && state.showGradientPresets()) {
             rowCount += rebuildSavedPresetGroup(
@@ -584,8 +625,7 @@ public final class UnifiedColorPickerDialog {
                     (preset, direction) -> TextColorPresets.moveGradientPreset(preset.id(), direction),
                     preset -> TextColorPresets.removeGradientPreset(preset.id()),
                     ItemEditorText.tr("dialog.unified_color_picker.saved_gradient_remove_hint"),
-                    refreshSaved
-            );
+                    refreshSaved);
         }
         if (options.showShadowPresets() && state.showShadowPresets()) {
             rowCount += rebuildSavedPresetGroup(
@@ -594,8 +634,10 @@ public final class UnifiedColorPickerDialog {
                     "dialog.unified_color_picker.saved_shadows",
                     savedContentWidth,
                     SAVED_EDIT_ACTION_COUNT,
-                    (preset, width) -> savedShadowButtonLabel(options.previewText(), options.shadowPreviewTextColor(), preset.colors(), width),
-                    preset -> colorCodesTooltip("Shadow ", TextColorPresets.normalizeShadowStopsOrDefault(preset.colors())),
+                    (preset, width) -> savedShadowButtonLabel(
+                            options.previewText(), options.shadowPreviewTextColor(), preset.colors(), width),
+                    preset -> colorCodesTooltip(
+                            "Shadow ", TextColorPresets.normalizeShadowStopsOrDefault(preset.colors())),
                     preset -> matchesShadowPreset(state, preset.colors()),
                     preset -> {
                         state.loadShadowPreset(preset.colors());
@@ -610,11 +652,11 @@ public final class UnifiedColorPickerDialog {
                     (preset, direction) -> TextColorPresets.moveShadowPreset(preset.id(), direction),
                     preset -> TextColorPresets.removeShadowPreset(preset.id()),
                     ItemEditorText.tr("dialog.unified_color_picker.saved_shadow_remove_hint"),
-                    refreshSaved
-            );
+                    refreshSaved);
         }
         if (rowCount == 0) {
-            savedList.child(UiFactory.muted(ItemEditorText.tr("dialog.unified_color_picker.saved_empty"), savedContentWidth));
+            savedList.child(
+                    UiFactory.muted(ItemEditorText.tr("dialog.unified_color_picker.saved_empty"), savedContentWidth));
         }
     }
 
@@ -633,8 +675,7 @@ public final class UnifiedColorPickerDialog {
             BiConsumer<T, Integer> move,
             Consumer<T> remove,
             Component removeHint,
-            Runnable refreshSaved
-    ) {
+            Runnable refreshSaved) {
         if (presets.isEmpty()) {
             return 0;
         }
@@ -665,8 +706,7 @@ public final class UnifiedColorPickerDialog {
                     },
                     savedApplyButtonWidth,
                     SAVED_ACTION_BUTTON_WIDTH,
-                    removeHint
-            ));
+                    removeHint));
         }
         return presets.size();
     }
@@ -697,9 +737,8 @@ public final class UnifiedColorPickerDialog {
     private static boolean matchesShadowPreset(PickerState state, List<Integer> colors) {
         return state.shadow()
                 && sameColors(
-                TextColorPresets.normalizeShadowStopsOrDefault(state.resultColors()),
-                TextColorPresets.normalizeShadowStopsOrDefault(colors)
-        );
+                        TextColorPresets.normalizeShadowStopsOrDefault(state.resultColors()),
+                        TextColorPresets.normalizeShadowStopsOrDefault(colors));
     }
 
     private static boolean sameColors(List<Integer> left, List<Integer> right) {
@@ -727,7 +766,8 @@ public final class UnifiedColorPickerDialog {
         Component label;
         if (state.shadow()) {
             label = state.mode() == PaintMode.GRADIENT
-                    ? shadowGradientLabel(text, state.resultColors(), state.options().shadowPreviewTextColor())
+                    ? shadowGradientLabel(
+                            text, state.resultColors(), state.options().shadowPreviewTextColor())
                     : shadowLabel(text, state.selectedRgb(), state.options().shadowPreviewTextColor());
         } else if (state.mode() == PaintMode.GRADIENT) {
             label = TextColorPresets.gradientLabel(text, state.resultColors());
@@ -741,7 +781,9 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static Component shadowLabel(String text, int rgb, int foregroundRgb) {
-        return Component.literal(text).withColor(foregroundRgb & 0xFFFFFF).withStyle(style -> style.withShadowColor((rgb & 0xFFFFFF) | 0xFF000000));
+        return Component.literal(text)
+                .withColor(foregroundRgb & 0xFFFFFF)
+                .withStyle(style -> style.withShadowColor((rgb & 0xFFFFFF) | 0xFF000000));
     }
 
     private static Component shadowGradientLabel(String text, List<Integer> colors, int foregroundRgb) {
@@ -753,7 +795,7 @@ public final class UnifiedColorPickerDialog {
 
         int codePointCount = text.codePointCount(0, text.length());
         int colorIndex = 0;
-        for (int index = 0; index < text.length();) {
+        for (int index = 0; index < text.length(); ) {
             int codePoint = text.codePointAt(index);
             float progress = codePointCount == 1 ? 0f : (float) colorIndex / (codePointCount - 1);
             int shadowColor = ColorInterpolationUtil.interpolateRgb(gradientColors, progress) | 0xFF000000;
@@ -767,7 +809,8 @@ public final class UnifiedColorPickerDialog {
     }
 
     private static Component savedColorButtonLabel(String previewText, int rgb, int buttonWidth) {
-        return Component.literal(fittedPresetPreviewText(previewText, buttonWidth)).withColor(rgb & 0xFFFFFF);
+        return Component.literal(fittedPresetPreviewText(previewText, buttonWidth))
+                .withColor(rgb & 0xFFFFFF);
     }
 
     private static Component savedGradientButtonLabel(String previewText, List<Integer> colors, int buttonWidth) {
@@ -776,9 +819,11 @@ public final class UnifiedColorPickerDialog {
         return TextColorPresets.gradientLabel(fittedText, normalized);
     }
 
-    private static Component savedShadowButtonLabel(String previewText, int foregroundRgb, List<Integer> colors, int buttonWidth) {
+    private static Component savedShadowButtonLabel(
+            String previewText, int foregroundRgb, List<Integer> colors, int buttonWidth) {
         List<Integer> normalized = TextColorPresets.normalizeShadowStopsOrDefault(colors);
-        String fittedText = fittedPresetPreviewText(previewText, buttonWidth, normalized.size() > 1 ? normalized.size() : 0);
+        String fittedText =
+                fittedPresetPreviewText(previewText, buttonWidth, normalized.size() > 1 ? normalized.size() : 0);
         if (normalized.size() == 1) {
             return shadowLabel(fittedText, normalized.getFirst(), foregroundRgb);
         }
@@ -795,7 +840,8 @@ public final class UnifiedColorPickerDialog {
             text = SAMPLE_TEXT;
         }
         String suffix = colorCount > 1 ? " (" + colorCount + ")" : "";
-        int textBudget = Math.max(SAVED_LABEL_MIN_WIDTH, buttonWidth - UiFactory.scaledPixels(SAVED_LABEL_TEXT_RESERVE));
+        int textBudget =
+                Math.max(SAVED_LABEL_MIN_WIDTH, buttonWidth - UiFactory.scaledPixels(SAVED_LABEL_TEXT_RESERVE));
         Minecraft minecraft = Minecraft.getInstance();
         String fullText = text + suffix;
         if (minecraft.font.width(fullText) <= textBudget) {
@@ -847,11 +893,11 @@ public final class UnifiedColorPickerDialog {
         return Math.max(32, rowWidth - actionWidth - gaps);
     }
 
-    private static int rgbInputWidth(int pickerContentWidth) {
-        int gaps = UiFactory.scaleProfile().spacing() * 2;
-        int fieldExtras = UiFactory.scaledPixels(ColorPickerUiUtil.INPUT_BORDER_CLIP_PADDING) * 3;
+    private static int rgbInputWidth(int pickerContentWidth, int channelCount) {
+        int gaps = UiFactory.scaleProfile().spacing() * Math.max(0, channelCount - 1);
+        int fieldExtras = UiFactory.scaledPixels(ColorPickerUiUtil.INPUT_BORDER_CLIP_PADDING) * channelCount;
         int edgePadding = UiFactory.scaledPixels(RGB_ROW_EDGE_PADDING);
-        int maxInputWidth = Math.max(1, (pickerContentWidth - gaps - fieldExtras - edgePadding) / 3);
+        int maxInputWidth = Math.max(1, (pickerContentWidth - gaps - fieldExtras - edgePadding) / channelCount);
         int preferredWidth = pickerContentWidth < UiFactory.scaledPixels(RGB_INPUT_COMPACT_THRESHOLD)
                 ? UiFactory.scaledPixels(RGB_INPUT_COMPACT_WIDTH)
                 : UiFactory.scaledPixels(RGB_INPUT_WIDTH);
@@ -870,11 +916,8 @@ public final class UnifiedColorPickerDialog {
 
     private static ButtonComponent modeButton(ModeButtonSpec spec, int width) {
         ButtonComponent button = UiFactory.fixedWidthButton(
-                spec.label(),
-                UiFactory.ButtonTextPreset.STANDARD,
-                width,
-                ignored -> spec.action().run()
-        );
+                spec.label(), UiFactory.ButtonTextPreset.STANDARD, width, ignored -> spec.action()
+                        .run());
         button.active(spec.active());
         return button;
     }
@@ -887,7 +930,8 @@ public final class UnifiedColorPickerDialog {
         return desiredWidth > contentWidth;
     }
 
-    private static boolean modeControlsFitWithShadow(int contentWidth, List<ModeButtonSpec> buttons, Component shadowLabel) {
+    private static boolean modeControlsFitWithShadow(
+            int contentWidth, List<ModeButtonSpec> buttons, Component shadowLabel) {
         if (shadowLabel == null || shadowLabel.getString().isBlank()) {
             return false;
         }
@@ -908,12 +952,16 @@ public final class UnifiedColorPickerDialog {
         if (buttons.size() <= 1 || modeButtonsNeedStacking(contentWidth, buttons)) {
             return Math.max(UiFactory.scaledPixels(MODE_BUTTON_MIN_WIDTH), contentWidth);
         }
-        return Math.max(UiFactory.scaledPixels(MODE_BUTTON_MIN_WIDTH), (contentWidth - UiFactory.scaleProfile().spacing()) / buttons.size());
+        return Math.max(
+                UiFactory.scaledPixels(MODE_BUTTON_MIN_WIDTH),
+                (contentWidth - UiFactory.scaleProfile().spacing()) / buttons.size());
     }
 
     private static int modeButtonDesiredWidth(Component label) {
         int textWidth = Minecraft.getInstance().font.width(label.getString());
-        return Math.max(UiFactory.scaledPixels(MODE_BUTTON_MIN_WIDTH), textWidth + UiFactory.scaledPixels(MODE_BUTTON_TEXT_RESERVE));
+        return Math.max(
+                UiFactory.scaledPixels(MODE_BUTTON_MIN_WIDTH),
+                textWidth + UiFactory.scaledPixels(MODE_BUTTON_TEXT_RESERVE));
     }
 
     private static int pickerSize(int available) {
@@ -927,8 +975,8 @@ public final class UnifiedColorPickerDialog {
 
     private static String stopButtonLabel(PickerState state, int index) {
         String prefix = state.selectedIndex() == index ? "> " : "";
-        return prefix + ItemEditorText.str("dialog.unified_color_picker.stop_label", index + 1)
-                + " " + ValidationUtil.toHex(state.color(index));
+        return prefix + ItemEditorText.str("dialog.unified_color_picker.stop_label", index + 1) + " "
+                + ValidationUtil.toHex(state.color(index));
     }
 
     private static String applyKey(PickerState state) {
@@ -964,18 +1012,16 @@ public final class UnifiedColorPickerDialog {
         GRADIENT
     }
 
-    private record ModeButtonSpec(Component label, boolean active, Runnable action) {
-    }
+    private record ModeButtonSpec(Component label, boolean active, Runnable action) {}
 
-    private record SavedFilterSpec(Component label, boolean checked, Consumer<Boolean> onChanged) {
-    }
+    private record SavedFilterSpec(Component label, boolean checked, Consumer<Boolean> onChanged) {}
 
     public record ColorPickerResult(PaintMode mode, boolean shadow, List<Integer> colors) {
         public ColorPickerResult {
             mode = mode == null ? PaintMode.COLOR : mode;
             colors = mode == PaintMode.GRADIENT
                     ? TextColorPresets.normalizeGradientStops(colors)
-                    : normalizeColor(colors);
+                    : normalizeColor(colors, true);
         }
     }
 
@@ -990,8 +1036,8 @@ public final class UnifiedColorPickerDialog {
             boolean showGradientPresets,
             boolean showShadowPresets,
             int shadowPreviewTextColor,
-            String previewText
-    ) {
+            String previewText,
+            boolean allowAlpha) {
         public Options {
             if (!allowColorMode && !allowGradientMode) {
                 allowColorMode = true;
@@ -1010,6 +1056,7 @@ public final class UnifiedColorPickerDialog {
             showShadowPresets = showShadowPresets && allowShadow;
             shadowPreviewTextColor &= 0xFFFFFF;
             previewText = normalizePreviewText(previewText);
+            allowAlpha = allowAlpha && initialMode == PaintMode.COLOR;
         }
 
         public static Options plainColor(int initialRgb) {
@@ -1024,8 +1071,8 @@ public final class UnifiedColorPickerDialog {
                     false,
                     false,
                     initialRgb,
-                    SAMPLE_TEXT
-            );
+                    SAMPLE_TEXT,
+                    false);
         }
 
         public static Options richText(int initialRgb, List<Integer> initialGradientColors) {
@@ -1037,18 +1084,23 @@ public final class UnifiedColorPickerDialog {
                     ? List.of(initialRgb & 0xFFFFFF)
                     : TextColorPresets.normalizeGradientStops(initialGradientColors);
             return new Options(
+                    PaintMode.COLOR, false, colors, true, true, true, true, true, true, initialRgb, previewText, false);
+        }
+
+        public static Options argbColor(int initialArgb) {
+            return new Options(
                     PaintMode.COLOR,
                     false,
-                    colors,
+                    List.of(initialArgb),
                     true,
-                    true,
-                    true,
-                    true,
-                    true,
-                    true,
-                    initialRgb,
-                    previewText
-            );
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    initialArgb,
+                    SAMPLE_TEXT,
+                    true);
         }
     }
 
@@ -1191,6 +1243,10 @@ public final class UnifiedColorPickerDialog {
         }
 
         private int selectedRgb() {
+            return this.selectedColor() & 0xFFFFFF;
+        }
+
+        private int selectedColor() {
             return this.colors.get(this.selectedIndex);
         }
 
@@ -1206,8 +1262,8 @@ public final class UnifiedColorPickerDialog {
             return this.mode == PaintMode.GRADIENT ? 2 : 1;
         }
 
-        private void setSelectedRgb(int rgb) {
-            this.colors.set(this.selectedIndex, rgb & 0xFFFFFF);
+        private void setSelectedColor(int color) {
+            this.colors.set(this.selectedIndex, this.options.allowAlpha() ? color : color & 0xFFFFFF);
             if (!this.shadow) {
                 this.editingShadowPresetId = "";
             }
@@ -1235,10 +1291,6 @@ public final class UnifiedColorPickerDialog {
             this.colors.remove(index);
             this.select(Math.min(index, this.colors.size() - 1));
             this.rememberCurrentColors();
-        }
-
-        private void removeSelected() {
-            this.remove(this.selectedIndex);
         }
 
         private void move(int from, int to) {
@@ -1270,9 +1322,10 @@ public final class UnifiedColorPickerDialog {
 
         private void replaceWithoutRemembering(List<Integer> colors) {
             this.colors.clear();
-            this.colors.addAll(this.mode == PaintMode.GRADIENT
-                    ? TextColorPresets.normalizeGradientStops(colors)
-                    : normalizeColor(colors));
+            this.colors.addAll(
+                    this.mode == PaintMode.GRADIENT
+                            ? TextColorPresets.normalizeGradientStops(colors)
+                            : normalizeColor(colors, this.options.allowAlpha()));
             this.select(Math.min(this.selectedIndex, this.colors.size() - 1));
         }
 
@@ -1303,15 +1356,11 @@ public final class UnifiedColorPickerDialog {
             if (targetMode == PaintMode.COLOR) {
                 return List.of(this.selectedRgb());
             }
-            return this.mode == PaintMode.GRADIENT
-                    ? List.copyOf(this.colors)
-                    : List.of(this.selectedRgb());
+            return this.mode == PaintMode.GRADIENT ? List.copyOf(this.colors) : List.of(this.selectedRgb());
         }
 
         private int fallbackSelectedIndexFor(PaintMode targetMode) {
-            return targetMode == PaintMode.GRADIENT && this.mode == PaintMode.GRADIENT
-                    ? this.selectedIndex
-                    : 0;
+            return targetMode == PaintMode.GRADIENT && this.mode == PaintMode.GRADIENT ? this.selectedIndex : 0;
         }
 
         private RememberedColors rememberedColors(boolean shadow, PaintMode mode) {
@@ -1337,11 +1386,11 @@ public final class UnifiedColorPickerDialog {
         }
     }
 
-    private static List<Integer> normalizeColor(List<Integer> colors) {
+    private static List<Integer> normalizeColor(List<Integer> colors, boolean allowAlpha) {
         if (colors != null) {
             for (Integer color : colors) {
                 if (color != null) {
-                    return List.of(color & 0xFFFFFF);
+                    return List.of(allowAlpha ? color : color & 0xFFFFFF);
                 }
             }
         }

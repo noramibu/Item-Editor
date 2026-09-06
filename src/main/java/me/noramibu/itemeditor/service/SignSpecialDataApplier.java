@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -13,15 +15,13 @@ import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.SignText;
 
-import java.util.List;
-import java.util.Objects;
-
 final class SignSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
         if (this.sameSignData(context.special().sign, context.baselineSpecial().sign)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.BLOCK_ENTITY_DATA);
             return;
         }
 
@@ -36,13 +36,20 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         }
 
         CompoundTag blockEntityTag = new CompoundTag();
-        TypedEntityData<BlockEntityType<?>> blockEntityData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        TypedEntityData<BlockEntityType<?>> blockEntityData =
+                context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
         if (blockEntityData != null && blockEntityData.type() == signType) {
             blockEntityTag = blockEntityData.copyTagWithoutId();
         }
 
-        blockEntityTag.store("front_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.front, context.messages()));
-        blockEntityTag.store("back_text", SignText.DIRECT_CODEC, this.buildSignText(context.special().sign.back, context.messages()));
+        blockEntityTag.store(
+                "front_text",
+                SignText.DIRECT_CODEC,
+                this.buildSignText(context.special().sign.front, context.messages()));
+        blockEntityTag.store(
+                "back_text",
+                SignText.DIRECT_CODEC,
+                this.buildSignText(context.special().sign.back, context.messages()));
 
         context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(signType, blockEntityTag));
     }
@@ -60,7 +67,8 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
             return previewData.type();
         }
 
-        TypedEntityData<BlockEntityType<?>> originalData = context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
+        TypedEntityData<BlockEntityType<?>> originalData =
+                context.originalStack().get(DataComponents.BLOCK_ENTITY_DATA);
         if (originalData != null && this.isSignBlockEntityType(originalData.type())) {
             return originalData.type();
         }
@@ -81,10 +89,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
                 color = DyeColor.valueOf(sideDraft.color);
             } catch (IllegalArgumentException exception) {
                 messages.add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.sign.color"),
-                        sideDraft.color
-                )));
+                        "validation.registry_missing", ItemEditorText.str("special.sign.color"), sideDraft.color)));
             }
         }
 
@@ -97,9 +102,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
     }
 
     private boolean isSignDataDefault(ItemEditorState.SignData signData) {
-        return !signData.waxed
-                && this.isSignSideDefault(signData.front)
-                && this.isSignSideDefault(signData.back);
+        return !signData.waxed && this.isSignSideDefault(signData.front) && this.isSignSideDefault(signData.back);
     }
 
     private boolean isSignSideDefault(ItemEditorState.SignSideDraft sideDraft) {

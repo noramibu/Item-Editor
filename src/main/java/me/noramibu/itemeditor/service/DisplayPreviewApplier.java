@@ -1,14 +1,14 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
+import me.noramibu.itemeditor.util.TextComponentCompactor;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.component.ItemLore;
-
-import java.util.ArrayList;
-import java.util.List;
 
 final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
@@ -46,7 +46,8 @@ final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implemen
             return false;
         }
         for (int index = 0; index < lines.size(); index++) {
-            if (!this.sameDraftAsComponent(lines.get(index), originalLore.lines().get(index))) {
+            if (!this.sameDraftAsComponent(
+                    lines.get(index), originalLore.lines().get(index))) {
                 return false;
             }
         }
@@ -58,9 +59,8 @@ final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implemen
     }
 
     private Component rebuiltLoreComponent(ItemEditorState.LoreLineDraft draft, List<ValidationMessage> messages) {
-        Component compact = TextComponentUtil.compactStyleFlags(
-                TextComponentUtil.parseStyledLine(draft.rawText, draft.style, messages)
-        );
+        Component compact =
+                TextComponentCompactor.compact(TextComponentUtil.parseStyledLine(draft.rawText, draft.style, messages));
         if (compact.getStyle().isItalic()) {
             return compact;
         }

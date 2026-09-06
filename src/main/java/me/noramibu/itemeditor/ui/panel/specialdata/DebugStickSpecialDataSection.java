@@ -4,7 +4,12 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -18,16 +23,35 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.properties.Property;
 
-import java.util.Comparator;
-import java.util.List;
-
 public final class DebugStickSpecialDataSection {
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        var result = new ArrayList<>(SpecialDataSearch.targets(
+                context,
+                EditorCategory.SPECIAL_DATA,
+                "special.debug_stick.title",
+                "debug-stick",
+                () -> {},
+                Field.values()));
+        for (int index = 0; index < context.special().debugStickStates.size(); index++) {
+            var draft = context.special().debugStickStates.get(index);
+            result.addAll(SpecialDataSearch.targets(
+                    context,
+                    EditorCategory.SPECIAL_DATA,
+                    List.of(
+                            ItemEditorText.str("special.debug_stick.title"),
+                            ItemEditorText.str("special.debug_stick.entry", index + 1)),
+                    SpecialDataSearch.scope("debug-stick-entry", draft),
+                    () -> {},
+                    EntryField.values()));
+        }
+        return result;
+    }
+
     private static final int EMPTY_HINT_WIDTH = 320;
     private static final int SUMMARY_WIDTH = 360;
     private static final int ROW_GAP = 4;
 
-    private DebugStickSpecialDataSection() {
-    }
+    private DebugStickSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return ItemEditorCapabilities.supportsDebugStickData(stack);
@@ -36,18 +60,18 @@ public final class DebugStickSpecialDataSection {
     public static FlowLayout build(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout card = UiFactory.card();
+        card.id("debug-stick");
         card.child(UiFactory.title(ItemEditorText.tr("special.debug_stick.title")));
 
         ButtonComponent add = UiFactory.positiveButton(
-                ItemEditorText.tr("special.debug_stick.add"),
+                Field.ADD.text(),
                 UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> special.debugStickStates.add(new ItemEditorState.DebugStickStateDraft()))
-        );
+                button -> context.mutateRefresh(
+                        () -> special.debugStickStates.add(new ItemEditorState.DebugStickStateDraft())));
         ButtonComponent clear = UiFactory.negativeButton(
-                ItemEditorText.tr("common.clear_all"),
+                Field.CLEAR_ALL.text(),
                 UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(special.debugStickStates::clear)
-        );
+                button -> context.mutateRefresh(special.debugStickStates::clear));
         card.child(UiFactory.actionButtonRow(add, clear));
 
         if (special.debugStickStates.isEmpty()) {
@@ -63,22 +87,16 @@ public final class DebugStickSpecialDataSection {
     }
 
     private static FlowLayout buildEntry(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special,
-            int index,
-            List<String> blockIds
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special, int index, List<String> blockIds) {
         ItemEditorState.DebugStickStateDraft draft = special.debugStickStates.get(index);
         FlowLayout entry = UiFactory.subCard();
-        entry.child(UiFactory.title(ItemEditorText.str("special.debug_stick.entry", index + 1)).shadow(false));
+        entry.id(SpecialDataSearch.scope("debug-stick-entry", draft));
+        entry.child(UiFactory.title(ItemEditorText.str("special.debug_stick.entry", index + 1))
+                .shadow(false));
         entry.child(UiFactory.muted(summary(draft), SUMMARY_WIDTH));
 
         entry.child(OrderedListControls.actionRow(
-                context,
-                special.debugStickStates,
-                index,
-                ItemEditorState.DebugStickStateDraft::copy
-        ));
+                context, special.debugStickStates, index, ItemEditorState.DebugStickStateDraft::copy));
 
         FlowLayout row = usesStackedRows(context) ? UiFactory.column() : UiFactory.row();
         row.gap(ROW_GAP);
@@ -88,34 +106,31 @@ public final class DebugStickSpecialDataSection {
             row.child(block.horizontalSizing(Sizing.fill(100)));
             row.child(property.horizontalSizing(Sizing.fill(100)));
         } else {
-            row.child(block.horizontalSizing(Sizing.fill(50)));
-            row.child(property.horizontalSizing(Sizing.fill(50)));
+            row.child(block.horizontalSizing(Sizing.expand(50)));
+            row.child(property.horizontalSizing(Sizing.expand(50)));
         }
         entry.child(row);
         return entry;
     }
 
     private static UIComponent blockField(
-            SpecialDataPanelContext context,
-            ItemEditorState.DebugStickStateDraft draft,
-            List<String> blockIds
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.DebugStickStateDraft draft, List<String> blockIds) {
         FlowLayout row = UiFactory.row();
         row.gap(ROW_GAP);
         row.child(UiFactory.textBox(
-                draft.blockId,
-                text -> context.mutate(() -> {
-                    draft.blockId = IdFieldNormalizer.normalize(text);
-                    if (!propertyNames(context, draft.blockId).contains(draft.propertyName)) {
-                        draft.propertyName = "";
-                    }
-                })
-        ).horizontalSizing(Sizing.expand(100)));
+                        draft.blockId,
+                        text -> context.mutate(() -> {
+                            draft.blockId = IdFieldNormalizer.normalize(text);
+                            if (!propertyNames(context, draft.blockId).contains(draft.propertyName)) {
+                                draft.propertyName = "";
+                            }
+                        }))
+                .horizontalSizing(Sizing.expand(100)));
         ButtonComponent button = UiFactory.button(
                 ItemEditorText.tr("common.pick"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 anchor -> context.openSearchablePicker(
-                        ItemEditorText.str("special.debug_stick.block"),
+                        EntryField.BLOCK.text().getString(),
                         "",
                         blockIds,
                         id -> id,
@@ -124,24 +139,20 @@ public final class DebugStickSpecialDataSection {
                             if (!propertyNames(context, id).contains(draft.propertyName)) {
                                 draft.propertyName = "";
                             }
-                        })
-                )
-        );
+                        })));
         button.horizontalSizing(Sizing.fixed(buttonWidth(context)));
         row.child(button);
-        return UiFactory.field(ItemEditorText.tr("special.debug_stick.block"), Component.empty(), row);
+        return UiFactory.field(EntryField.BLOCK.text(), Component.empty(), row);
     }
 
     private static UIComponent propertyField(
-            SpecialDataPanelContext context,
-            ItemEditorState.DebugStickStateDraft draft
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.DebugStickStateDraft draft) {
         FlowLayout row = UiFactory.row();
         row.gap(ROW_GAP);
         row.child(UiFactory.textBox(
-                draft.propertyName,
-                context.bindText(value -> draft.propertyName = value == null ? "" : value.trim())
-        ).horizontalSizing(Sizing.expand(100)));
+                        draft.propertyName,
+                        context.bindText(value -> draft.propertyName = value == null ? "" : value.trim()))
+                .horizontalSizing(Sizing.expand(100)));
         ButtonComponent button = UiFactory.button(
                 ItemEditorText.tr("common.pick"),
                 UiFactory.ButtonTextPreset.STANDARD,
@@ -151,13 +162,11 @@ public final class DebugStickSpecialDataSection {
                         () -> context.mutateRefresh(() -> draft.propertyName = ""),
                         propertyNames(context, draft.blockId),
                         value -> value,
-                        value -> context.mutateRefresh(() -> draft.propertyName = value)
-                )
-        );
+                        value -> context.mutateRefresh(() -> draft.propertyName = value)));
         button.active(draft.blockId != null && !draft.blockId.isBlank());
         button.horizontalSizing(Sizing.fixed(buttonWidth(context)));
         row.child(button);
-        return UiFactory.field(ItemEditorText.tr("special.debug_stick.property"), Component.empty(), row);
+        return UiFactory.field(EntryField.PROPERTY.text(), Component.empty(), row);
     }
 
     private static String summary(ItemEditorState.DebugStickStateDraft draft) {
@@ -199,4 +208,33 @@ public final class DebugStickSpecialDataSection {
         return context.isCompactPanel(620);
     }
 
+    private enum Field implements SpecialDataSearch.Field {
+        ADD("special.debug_stick.add"),
+        CLEAR_ALL("common.clear_all");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum EntryField implements SpecialDataSearch.Field {
+        BLOCK("special.debug_stick.block"),
+        PROPERTY("special.debug_stick.property");
+
+        private final String key;
+
+        EntryField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
 }

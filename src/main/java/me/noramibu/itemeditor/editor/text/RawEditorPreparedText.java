@@ -9,13 +9,13 @@ public record RawEditorPreparedText(String text, int[] lineStarts, List<Fold> fo
 
     public RawEditorPreparedText {
         text = text == null ? "" : text;
-        lineStarts = lineStarts == null || lineStarts.length == 0 ? new int[]{0} : lineStarts;
+        lineStarts = lineStarts == null || lineStarts.length == 0 ? new int[] {0} : lineStarts;
         folds = folds == null ? List.of() : List.copyOf(folds);
     }
 
     public static RawEditorPreparedText prepare(String value) {
         String text = value == null ? "" : value;
-        int[] lineStarts = new int[Math.max(16, Math.min(4096, text.length() / 64 + 1))];
+        int[] lineStarts = new int[Math.clamp(text.length() / 64 + 1, 16, 4096)];
         lineStarts[0] = 0;
         int lineCount = 1;
         int line = 0;
@@ -68,9 +68,7 @@ public record RawEditorPreparedText(String text, int[] lineStarts, List<Fold> fo
         return new RawEditorPreparedText(text, Arrays.copyOf(lineStarts, lineCount), folds);
     }
 
-    public record Fold(int startLine, int endLine, char type) {
-    }
+    public record Fold(int startLine, int endLine, char type) {}
 
-    private record OpenSymbol(char type, int line) {
-    }
+    private record OpenSymbol(char type, int line) {}
 }

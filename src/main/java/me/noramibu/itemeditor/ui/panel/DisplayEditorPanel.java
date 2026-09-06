@@ -2,14 +2,19 @@ package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
+import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
-import io.wispforest.owo.ui.container.FlowLayout;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.RichTextHorizontalScrollbarComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
@@ -19,15 +24,12 @@ import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.TextComponentCompactor;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
 
 public final class DisplayEditorPanel implements EditorPanel {
     private static final int LORE_BASE_COLOR_FALLBACK = 0xB387FF;
@@ -61,6 +63,41 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     @Override
+    public List<EditorSearchDialog.Target> searchTargets() {
+        List<EditorSearchDialog.Target> targets = new ArrayList<>();
+        for (LoreField field : LoreField.values()) {
+            targets.add(field.target(
+                    this.screen,
+                    EditorCategory.DISPLAY,
+                    "display-lore",
+                    field == LoreField.TITLE
+                            ? PanelSearchDeclaration.parents(EditorCategory.DISPLAY)
+                            : PanelSearchDeclaration.parents(EditorCategory.DISPLAY, LoreField.TITLE.label()),
+                    EditorSearchDialog.english(LoreField.TITLE.path()),
+                    () -> {}));
+        }
+        SpecialDataPanelContext context = new SpecialDataPanelContext(this.screen);
+        this.addVisualSearchTargets(
+                targets, MiscSpecialDataSections.searchDyedColorTargets(context, EditorCategory.DISPLAY));
+        this.addVisualSearchTargets(
+                targets, MiscSpecialDataSections.searchTrimTargets(context, EditorCategory.DISPLAY));
+        return List.copyOf(targets);
+    }
+
+    private void addVisualSearchTargets(
+            List<EditorSearchDialog.Target> targets, List<EditorSearchDialog.Target> visualTargets) {
+        String category = EditorCategory.DISPLAY.title().getString();
+        for (EditorSearchDialog.Target target : visualTargets) {
+            List<String> path = new ArrayList<>();
+            if (target.path().isEmpty() || !category.equals(target.path().getFirst())) {
+                path.add(category);
+            }
+            path.addAll(target.path());
+            targets.add(new EditorSearchDialog.Target(path, target.terms(), target.open()));
+        }
+    }
+
+    @Override
     public UIComponent build() {
         ItemEditorState state = this.screen.session().state();
         FlowLayout root = UiFactory.column();
@@ -68,10 +105,8 @@ public final class DisplayEditorPanel implements EditorPanel {
         int loreBaseColor = defaultLoreStyle.color() != null ? defaultLoreStyle.color() : LORE_BASE_COLOR_FALLBACK;
         int loreEditorHeight = this.resolveLoreEditorHeight();
 
-        FlowLayout section = UiFactory.section(
-                ItemEditorText.tr("display.lore.title"),
-                Component.empty()
-        );
+        FlowLayout section = UiFactory.section(LoreField.TITLE.label(), Component.empty());
+        section.id("display-lore");
 
         RichTextDocument initialDocument = this.documentFromState(state);
         LabelComponent lineCount = UiFactory.muted(this.lineCountText(initialDocument.logicalLineCount()));
@@ -96,22 +131,25 @@ public final class DisplayEditorPanel implements EditorPanel {
                         ? ItemEditorText.str("display.lore.max_lines", ItemLore.MAX_LINES)
                         : null,
                 commitDocument,
-                true
-        );
+                true);
         this.applyRichEditorRenderMode(loreSection.editor(), state.uiRenderObjectsInLore);
 
         FlowLayout editorFrame = UiFactory.subCard();
         editorFrame.padding(Insets.of(EDITOR_FRAME_PADDING));
         editorFrame.surface(Surface.flat(EDITOR_FRAME_FILL_COLOR).and(Surface.outline(EDITOR_FRAME_OUTLINE_COLOR)));
         editorFrame.child(loreSection.toolbar());
-        editorFrame.child(UiFactory.checkbox(
-                ItemEditorText.tr("display.lore.render_objects"),
-                state.uiRenderObjectsInLore,
-                value -> {
-                    state.uiRenderObjectsInLore = value;
-                    this.applyRichEditorRenderMode(loreSection.editor(), value);
-                }
-        ));
+        ButtonComponent imageArtButton = UiFactory.button(
+                LoreField.IMAGE.label(),
+                UiFactory.ButtonTextPreset.STANDARD,
+                ignored ->
+                        this.screen.openLoreImageArtDialog((lines, append) -> this.applyLoreArt(state, lines, append)));
+        imageArtButton.horizontalSizing(Sizing.fill(100));
+        imageArtButton.tooltip(List.of(ItemEditorText.tr("display.lore.image_art.tooltip")));
+        editorFrame.child(imageArtButton);
+        editorFrame.child(UiFactory.checkbox(LoreField.RENDER.label(), state.uiRenderObjectsInLore, value -> {
+            state.uiRenderObjectsInLore = value;
+            this.applyRichEditorRenderMode(loreSection.editor(), value);
+        }));
         FlowLayout editorStack = UiFactory.column();
         editorStack.gap(0);
         editorStack.child(loreSection.editor());
@@ -139,19 +177,21 @@ public final class DisplayEditorPanel implements EditorPanel {
         }
     }
 
-    private FlowLayout buildFooter(RichTextAreaComponent editor, Consumer<RichTextDocument> commitDocument, LabelComponent lineCount) {
+    private FlowLayout buildFooter(
+            RichTextAreaComponent editor, Consumer<RichTextDocument> commitDocument, LabelComponent lineCount) {
         int contentWidth = this.screen.editorContentWidthHint();
-        boolean compactLayout = LayoutModeUtil.isCompactWidth(
-                contentWidth,
-                COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD
-        );
+        boolean compactLayout = LayoutModeUtil.isCompactWidth(contentWidth, COMPACT_LAYOUT_CONTENT_WIDTH_THRESHOLD);
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.gap(Math.max(2, UiFactory.scaleProfile().tightSpacing()));
 
         Component fullCount = Component.literal(lineCount.text().getString());
         int preferredCountWidth = compactLayout
-                ? Math.max(FOOTER_COUNT_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(FOOTER_COUNT_WIDTH_COMPACT_RESERVE))
-                : Math.max(FOOTER_COUNT_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(FOOTER_COUNT_WIDTH_REGULAR_RESERVE));
+                ? Math.max(
+                        FOOTER_COUNT_WIDTH_MIN,
+                        contentWidth - UiFactory.scaledPixels(FOOTER_COUNT_WIDTH_COMPACT_RESERVE))
+                : Math.max(
+                        FOOTER_COUNT_WIDTH_MIN,
+                        contentWidth - UiFactory.scaledPixels(FOOTER_COUNT_WIDTH_REGULAR_RESERVE));
         int countWidth = Math.min(contentWidth, preferredCountWidth);
         Component fittedCount = UiFactory.fitToWidth(fullCount, countWidth);
         lineCount.text(fittedCount);
@@ -161,13 +201,14 @@ public final class DisplayEditorPanel implements EditorPanel {
         lineCount.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
         row.child(lineCount);
 
-        Component clearLabel = ItemEditorText.tr("display.lore.clear");
-        ButtonComponent clearLore = UiFactory.button(clearLabel, UiFactory.ButtonTextPreset.STANDARD,  button -> {
+        Component clearLabel = LoreField.CLEAR.label();
+        ButtonComponent clearLore = UiFactory.button(clearLabel, UiFactory.ButtonTextPreset.STANDARD, button -> {
             RichTextDocument empty = RichTextDocument.empty();
             editor.document(empty);
             commitDocument.accept(empty);
         });
-        int preferredClearWidth = Math.clamp(UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE), CLEAR_BUTTON_WIDTH_MIN, CLEAR_BUTTON_WIDTH_MAX);
+        int preferredClearWidth = Math.clamp(
+                UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE), CLEAR_BUTTON_WIDTH_MIN, CLEAR_BUTTON_WIDTH_MAX);
         int clearWidth = Math.min(contentWidth, preferredClearWidth);
         clearLore.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
         if (!compactLayout) {
@@ -209,11 +250,22 @@ public final class DisplayEditorPanel implements EditorPanel {
         }
     }
 
+    private void applyLoreArt(ItemEditorState state, List<Component> lines, boolean append) {
+        PanelBindings.mutateRefresh(this.screen, () -> {
+            if (!append) {
+                state.loreLines.clear();
+            }
+            for (Component line : lines) {
+                ItemEditorState.LoreLineDraft draft = new ItemEditorState.LoreLineDraft();
+                draft.rawText = TextComponentUtil.toMarkup(line);
+                draft.originalComponent = TextComponentCompactor.compact(line);
+                state.loreLines.add(draft);
+            }
+        });
+    }
+
     private void preserveOriginalLoreComponent(
-            ItemEditorState.LoreLineDraft draft,
-            List<ItemEditorState.LoreLineDraft> previousLines,
-            int index
-    ) {
+            ItemEditorState.LoreLineDraft draft, List<ItemEditorState.LoreLineDraft> previousLines, int index) {
         if (index >= previousLines.size()) {
             return;
         }
@@ -238,7 +290,8 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     private RichTextStyle defaultLoreStyle() {
-        return RichTextStyle.fromStyle(Component.empty().withStyle(ChatFormatting.DARK_PURPLE).getStyle());
+        return RichTextStyle.fromStyle(
+                Component.empty().withStyle(ChatFormatting.DARK_PURPLE).getStyle());
     }
 
     private int resolveLoreEditorHeight() {
@@ -254,7 +307,9 @@ public final class DisplayEditorPanel implements EditorPanel {
     private double resolveLoreHeightRatio(int contentHeight, int contentWidth) {
         double ratio = contentHeight >= LORE_HEIGHT_RATIO_THRESHOLD_LARGE
                 ? LORE_HEIGHT_RATIO_LARGE
-                : (contentHeight >= LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM ? LORE_HEIGHT_RATIO_MEDIUM : LORE_HEIGHT_RATIO_SMALL);
+                : (contentHeight >= LORE_HEIGHT_RATIO_THRESHOLD_MEDIUM
+                        ? LORE_HEIGHT_RATIO_MEDIUM
+                        : LORE_HEIGHT_RATIO_SMALL);
         if (contentWidth < LORE_WIDTH_RATIO_PENALTY_THRESHOLD) {
             ratio -= LORE_WIDTH_RATIO_PENALTY;
         }
@@ -262,7 +317,24 @@ public final class DisplayEditorPanel implements EditorPanel {
     }
 
     private void applyRichEditorRenderMode(RichTextAreaComponent editor, boolean renderStructured) {
-        editor.structuredRenderMode(renderStructured)
-                .lineWrap(!renderStructured);
+        editor.structuredRenderMode(renderStructured).lineWrap(!renderStructured);
+    }
+
+    private enum LoreField implements PanelSearchDeclaration {
+        TITLE("display.lore.title"),
+        IMAGE("display.lore.image_art.button"),
+        RENDER("common.render_objects"),
+        CLEAR("display.lore.clear");
+
+        private final String path;
+
+        LoreField(String path) {
+            this.path = path;
+        }
+
+        @Override
+        public String path() {
+            return this.path;
+        }
     }
 }

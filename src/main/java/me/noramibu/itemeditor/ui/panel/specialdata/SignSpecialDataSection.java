@@ -5,9 +5,18 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -35,15 +44,35 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.storage.TagValueInput;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 public final class SignSpecialDataSection {
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        var result = new ArrayList<>(SpecialDataSearch.targets(
+                context, EditorCategory.SPECIAL_DATA, "special.sign.title", "sign", () -> {}, Field.values()));
+        var sign = context.special().sign;
+        for (var side : List.of(sign.front, sign.back)) {
+            String title = side == sign.front ? "special.sign.front" : "special.sign.back";
+            result.addAll(SpecialDataSearch.targets(
+                    context,
+                    EditorCategory.SPECIAL_DATA,
+                    List.of(ItemEditorText.str("special.sign.title"), ItemEditorText.str(title)),
+                    SpecialDataSearch.scope("sign-side", side),
+                    () -> {},
+                    SideField.values()));
+            result.add(new EditorSearchDialog.Target(
+                    List.of(
+                            SpecialDataSearch.categoryTitle(context, EditorCategory.SPECIAL_DATA),
+                            ItemEditorText.str("special.sign.title"),
+                            ItemEditorText.str(title)),
+                    title + " text " + EditorSearchDialog.english(title),
+                    () -> context.screen()
+                            .revealSearchTarget(
+                                    EditorCategory.SPECIAL_DATA,
+                                    new EditorSearchDialog.Location(
+                                            SpecialDataSearch.scope("sign-side", side), "sign-text"))));
+        }
+        return result;
+    }
+
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
     private static final int BOARD_STYLE_PICKER_WIDTH = 180;
     private static final int SIGN_EDITOR_VERTICAL_PADDING_BASE = 12;
@@ -57,8 +86,7 @@ public final class SignSpecialDataSection {
 
     private static final int SIGN_LINE_COUNT = 4;
 
-    private SignSpecialDataSection() {
-    }
+    private SignSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return ItemEditorCapabilities.supportsSignData(stack);
@@ -69,22 +97,25 @@ public final class SignSpecialDataSection {
         boolean hangingSign = isHangingSign(context.originalStack());
         boolean compactLayout = isCompactLayout(context);
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.sign.title"), Component.empty());
-        section.child(UiFactory.checkbox(ItemEditorText.tr("special.sign.waxed"), signData.waxed, context.bindToggle(value -> signData.waxed = value)));
+        section.id("sign");
+        section.child(UiFactory.checkbox(
+                Field.WAXED.text(), signData.waxed, context.bindToggle(value -> signData.waxed = value)));
 
         SignBoardStyle activeStyle = resolveBoardStyle(signData.boardStyle);
         section.child(PickerFieldFactory.dropdownField(
                 context,
-                ItemEditorText.tr("special.sign.board_style"),
+                Field.BOARD_STYLE.text(),
                 Component.empty(),
                 ItemEditorText.tr(activeStyle.labelKey()),
                 compactLayout ? -1 : BOARD_STYLE_PICKER_WIDTH,
                 Arrays.asList(SignBoardStyle.values()),
                 style -> ItemEditorText.str(style.labelKey()),
-                style -> context.mutateRefresh(() -> signData.boardStyle = style.id())
-        ));
+                style -> context.mutateRefresh(() -> signData.boardStyle = style.id())));
 
-        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.front"), signData.front, activeStyle, hangingSign));
-        section.child(buildSignSideSection(context, ItemEditorText.tr("special.sign.back"), signData.back, activeStyle, hangingSign));
+        section.child(buildSignSideSection(
+                context, ItemEditorText.tr("special.sign.front"), signData.front, activeStyle, hangingSign));
+        section.child(buildSignSideSection(
+                context, ItemEditorText.tr("special.sign.back"), signData.back, activeStyle, hangingSign));
         return section;
     }
 
@@ -93,29 +124,27 @@ public final class SignSpecialDataSection {
             Component title,
             ItemEditorState.SignSideDraft sideDraft,
             SignBoardStyle boardStyle,
-            boolean hangingSign
-    ) {
+            boolean hangingSign) {
         boolean compactLayout = isCompactLayout(context);
         ensureSignLineCount(sideDraft);
 
         FlowLayout card = UiFactory.subCard();
+        card.id(SpecialDataSearch.scope("sign-side", sideDraft));
         card.child(UiFactory.title(title).shadow(false));
 
         card.child(DyeColorSelectorSection.build(
                 context,
-                ItemEditorText.tr("special.sign.color"),
+                SideField.COLOR.text(),
                 Component.empty(),
-                ItemEditorText.tr("special.sign.color"),
+                SideField.COLOR.text(),
                 sideDraft.color,
                 compactLayout ? -1 : BOARD_STYLE_PICKER_WIDTH,
                 null,
-                color -> sideDraft.color = color.name()
-        ));
+                color -> sideDraft.color = color.name()));
         card.child(UiFactory.checkbox(
-                ItemEditorText.tr("special.sign.glowing"),
+                SideField.GLOWING.text(),
                 sideDraft.glowing,
-                value -> context.mutateRefresh(() -> sideDraft.glowing = value)
-        ));
+                value -> context.mutateRefresh(() -> sideDraft.glowing = value)));
 
         SignPreviewWidgets preview = buildPreviewWidgets(context, sideDraft, boardStyle, hangingSign);
         AtomicBoolean normalizingDocument = new AtomicBoolean(false);
@@ -152,8 +181,8 @@ public final class SignSpecialDataSection {
                         refreshPreview(preview, sideDraft);
                         context.screen().restorePanelScroll(panelScrollOffset);
                     });
-                }
-        );
+                });
+        editorSection.editor().id("sign-text");
         editorSection.editor().lineWrap(false);
         boolean renderObjects = context.screen().session().state().uiRenderObjectsInSign;
         editorSection.editor().renderStructuredObjects(renderObjects);
@@ -162,13 +191,12 @@ public final class SignSpecialDataSection {
         FlowLayout editorFrame = UiFactory.framedEditorCard();
         editorFrame.child(editorSection.toolbar());
         editorFrame.child(UiFactory.checkbox(
-                ItemEditorText.tr("special.sign.render_objects"),
+                SideField.RENDER_OBJECTS.text(),
                 renderObjects,
                 value -> context.mutateRefresh(() -> {
                     context.screen().session().state().uiRenderObjectsInSign = value;
                     editorSection.editor().renderStructuredObjects(value);
-                })
-        ));
+                })));
         FlowLayout editorRow = UiFactory.row();
         editorRow.horizontalSizing(Sizing.fill(100));
         editorRow.verticalAlignment(VerticalAlignment.TOP);
@@ -247,22 +275,20 @@ public final class SignSpecialDataSection {
             SpecialDataPanelContext context,
             ItemEditorState.SignSideDraft sideDraft,
             SignBoardStyle boardStyle,
-            boolean hangingSign
-    ) {
+            boolean hangingSign) {
         int previewSize = UiFactory.responsiveSquareSize(
                 context.panelWidthHint(),
                 context.screen().editorContentHeightHint(),
                 0.13,
                 0.24,
                 SIGN_PREVIEW_SIZE_MIN,
-                SIGN_PREVIEW_SIZE_MAX
-        );
+                SIGN_PREVIEW_SIZE_MAX);
         FlowLayout previewCard = UiFactory.subCard();
         previewCard.child(UiFactory.title(ItemEditorText.tr("screen.preview")).shadow(false));
-        BlockState previewState = orientedPreviewState(boardStyle.previewBlock(hangingSign).defaultBlockState());
+        BlockState previewState =
+                orientedPreviewState(boardStyle.previewBlock(hangingSign).defaultBlockState());
         SignBlockEntity previewEntity = (SignBlockEntity) Objects.requireNonNull(
-                ((EntityBlock) previewState.getBlock()).newBlockEntity(BlockPos.ZERO, previewState)
-        );
+                ((EntityBlock) previewState.getBlock()).newBlockEntity(BlockPos.ZERO, previewState));
         var level = Minecraft.getInstance().level;
         if (level != null) {
             previewEntity.setLevel(level);
@@ -304,17 +330,12 @@ public final class SignSpecialDataSection {
         CompoundTag tag = new CompoundTag();
         tag.store("front_text", SignText.DIRECT_CODEC, text);
         tag.store("back_text", SignText.DIRECT_CODEC, text);
-        entity.loadWithComponents(TagValueInput.create(
-                ProblemReporter.DISCARDING,
-                level.registryAccess(),
-                tag
-        ));
+        entity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag));
     }
 
     private static SignText buildSignText(ItemEditorState.SignSideDraft sideDraft) {
-        SignText signText = new SignText()
-                .setColor(resolveSignColor(sideDraft.color))
-                .setHasGlowingText(sideDraft.glowing);
+        SignText signText =
+                new SignText().setColor(resolveSignColor(sideDraft.color)).setHasGlowingText(sideDraft.glowing);
         for (int index = 0; index < SIGN_LINE_COUNT; index++) {
             String raw = Objects.toString(sideDraft.lines.get(index), "");
             signText = signText.setMessage(index, TextComponentUtil.parseMarkup(raw));
@@ -376,7 +397,8 @@ public final class SignSpecialDataSection {
             lineSlot.horizontalSizing(Sizing.fill(100));
             lineSlot.verticalSizing(UiFactory.fixed(SIGN_LINE_SLOT_HEIGHT));
             lineSlot.verticalAlignment(VerticalAlignment.TOP);
-            lineSlot.child(UiFactory.muted(Component.literal(Integer.toString(line)), SIGN_LINE_NUMBER_WIDTH).shadow(false));
+            lineSlot.child(UiFactory.muted(Component.literal(Integer.toString(line)), SIGN_LINE_NUMBER_WIDTH)
+                    .shadow(false));
             gutter.child(lineSlot);
         }
         gutter.margins(Insets.top(UiFactory.scaledPixels(SIGN_LINE_NUMBER_TOP_OFFSET)));
@@ -387,22 +409,11 @@ public final class SignSpecialDataSection {
         return (SIGN_LINE_COUNT * SIGN_LINE_SLOT_HEIGHT) + UiFactory.scaledPixels(SIGN_EDITOR_VERTICAL_PADDING_BASE);
     }
 
-    private record SignPreviewWidgets(FlowLayout card, SignBlockEntity entity) {
-    }
+    private record SignPreviewWidgets(FlowLayout card, SignBlockEntity entity) {}
 
     private enum SignBoardStyle {
-        OAK(
-                "oak",
-                "special.sign.board_style.oak",
-                Blocks.OAK_WALL_SIGN,
-                Blocks.OAK_WALL_HANGING_SIGN
-        ),
-        SPRUCE(
-                "spruce",
-                "special.sign.board_style.spruce",
-                Blocks.SPRUCE_WALL_SIGN,
-                Blocks.SPRUCE_WALL_HANGING_SIGN
-        );
+        OAK("oak", "special.sign.board_style.oak", Blocks.OAK_WALL_SIGN, Blocks.OAK_WALL_HANGING_SIGN),
+        SPRUCE("spruce", "special.sign.board_style.spruce", Blocks.SPRUCE_WALL_SIGN, Blocks.SPRUCE_WALL_HANGING_SIGN);
 
         private final String id;
         private final String labelKey;
@@ -426,6 +437,37 @@ public final class SignSpecialDataSection {
 
         public Block previewBlock(boolean hangingSign) {
             return hangingSign ? this.hangingBlock : this.standingBlock;
+        }
+    }
+
+    private enum Field implements SpecialDataSearch.Field {
+        WAXED("special.sign.waxed"),
+        BOARD_STYLE("special.sign.board_style");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum SideField implements SpecialDataSearch.Field {
+        COLOR("special.sign.color"),
+        GLOWING("special.sign.glowing"),
+        RENDER_OBJECTS("common.render_objects");
+
+        private final String key;
+
+        SideField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
         }
     }
 }
