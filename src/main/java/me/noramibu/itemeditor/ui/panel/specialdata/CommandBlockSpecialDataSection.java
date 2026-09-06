@@ -4,8 +4,13 @@ import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -14,9 +19,26 @@ import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.function.Consumer;
-
 public final class CommandBlockSpecialDataSection {
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        var result = new ArrayList<>(SpecialDataSearch.targets(
+                context,
+                EditorCategory.SPECIAL_DATA,
+                "special.command_block.title",
+                "command-block",
+                () -> {},
+                Field.values()));
+        result.addAll(SpecialDataSearch.targets(
+                context,
+                EditorCategory.SPECIAL_DATA,
+                List.of(
+                        ItemEditorText.str("special.command_block.title"),
+                        ItemEditorText.str("special.command_block.runtime")),
+                "command-block",
+                () -> context.special().uiCommandBlockRuntimeCollapsed = false,
+                RuntimeField.values()));
+        return result;
+    }
 
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int COMMAND_EDITOR_HEIGHT = 78;
@@ -29,8 +51,7 @@ public final class CommandBlockSpecialDataSection {
     private static final String COMMAND_BLOCK_CHAIN_ID = "minecraft:chain_command_block";
     private static final String COMMAND_BLOCK_REPEATING_ID = "minecraft:repeating_command_block";
 
-    private CommandBlockSpecialDataSection() {
-    }
+    private CommandBlockSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return ItemEditorCapabilities.supportsCommandBlockData(stack);
@@ -41,114 +62,83 @@ public final class CommandBlockSpecialDataSection {
         boolean compactLayout = isCompactLayout(context);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.command_block.title"), Component.empty());
+        section.id("command-block");
         section.child(commandBlockTypeRow(context, special));
         section.child(UiFactory.muted(commandBlockMode(special.commandBlockItemId), HINT_WIDTH));
         section.child(commandField(context, special));
         section.child(richTextField(
                 context,
-                ItemEditorText.tr("special.command_block.custom_name"),
+                Field.CUSTOM_NAME,
                 special.commandBlockCustomName,
                 NAME_EDITOR_HEIGHT,
                 "special.command_block.custom_name.placeholder",
                 "special.command_block.custom_name.color_title",
                 "special.command_block.custom_name.gradient_title",
-                document -> special.commandBlockCustomName = TextComponentUtil.serializeEditorDocument(document)
-        ));
+                document -> special.commandBlockCustomName = TextComponentUtil.serializeEditorDocument(document)));
         section.child(activationCard(context, special, compactLayout));
         section.child(runtimeCard(context, special, compactLayout));
         return section;
     }
 
     private static FlowLayout commandBlockTypeRow(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special
-    ) {
-        ButtonComponent normal = commandBlockTypeButton(
-                context,
-                special,
-                ItemEditorText.tr("special.command_block.type.normal"),
-                COMMAND_BLOCK_NORMAL_ID
-        );
-        ButtonComponent chain = commandBlockTypeButton(
-                context,
-                special,
-                ItemEditorText.tr("special.command_block.type.chain"),
-                COMMAND_BLOCK_CHAIN_ID
-        );
-        ButtonComponent repeating = commandBlockTypeButton(
-                context,
-                special,
-                ItemEditorText.tr("special.command_block.type.repeating"),
-                COMMAND_BLOCK_REPEATING_ID
-        );
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+        ButtonComponent normal = commandBlockTypeButton(context, special, Field.NORMAL.text(), COMMAND_BLOCK_NORMAL_ID);
+        ButtonComponent chain = commandBlockTypeButton(context, special, Field.CHAIN.text(), COMMAND_BLOCK_CHAIN_ID);
+        ButtonComponent repeating =
+                commandBlockTypeButton(context, special, Field.REPEATING.text(), COMMAND_BLOCK_REPEATING_ID);
         return UiFactory.actionButtonRow(normal, chain, repeating);
     }
 
     private static ButtonComponent commandBlockTypeButton(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special,
-            Component label,
-            String itemId
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special, Component label, String itemId) {
         boolean selected = itemId.equals(commandBlockItemId(special.commandBlockItemId));
         ButtonComponent button = UiFactory.button(
                 selected ? label.copy().withColor(0x6DFF8D) : label,
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.mutateRefresh(() -> special.commandBlockItemId = itemId)
-        );
+                ignored -> context.mutateRefresh(() -> special.commandBlockItemId = itemId));
         button.active(!selected);
         return button;
     }
 
     private static FlowLayout activationCard(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special,
-            boolean compactLayout
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special, boolean compactLayout) {
         FlowLayout card = UiFactory.subCard();
-        card.child(UiFactory.title(ItemEditorText.tr("special.command_block.activation")).shadow(false));
-        addPackedRows(
+        card.child(UiFactory.title(ItemEditorText.tr("special.command_block.activation"))
+                .shadow(false));
+        UiFactory.addPackedRows(
                 card,
                 compactLayout ? 2 : 3,
                 UiFactory.checkbox(
-                        ItemEditorText.tr("special.command_block.auto"),
+                        Field.AUTO.text(),
                         special.commandBlockAuto,
-                        value -> context.mutateRefresh(() -> special.commandBlockAuto = value)
-                ),
+                        value -> context.mutateRefresh(() -> special.commandBlockAuto = value)),
                 UiFactory.checkbox(
-                        ItemEditorText.tr("special.command_block.powered"),
+                        Field.POWERED.text(),
                         special.commandBlockPowered,
-                        value -> context.mutateRefresh(() -> special.commandBlockPowered = value)
-                ),
+                        value -> context.mutateRefresh(() -> special.commandBlockPowered = value)),
                 UiFactory.checkbox(
-                        ItemEditorText.tr("special.command_block.condition_met"),
+                        Field.CONDITION_MET.text(),
                         special.commandBlockConditionMet,
-                        value -> context.mutateRefresh(() -> special.commandBlockConditionMet = value)
-                )
-        );
+                        value -> context.mutateRefresh(() -> special.commandBlockConditionMet = value)));
         return card;
     }
 
     private static FlowLayout commandField(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout field = UiFactory.column().gap(UiFactory.scaleProfile().tightSpacing());
-        field.child(UiFactory.title(ItemEditorText.tr("special.command_block.command")).shadow(false));
+        field.child(UiFactory.title(Field.COMMAND.text()).shadow(false));
         field.child(UiFactory.muted(
                 ItemEditorText.tr("special.command_block.command_hint"),
-                Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(HINT_WIDTH_RESERVE))
-        ));
+                Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(HINT_WIDTH_RESERVE))));
         field.child(UiFactory.textArea(
-                special.commandBlockCommand,
-                COMMAND_EDITOR_HEIGHT,
-                context.bindText(value -> special.commandBlockCommand = value)
-        ).horizontalSizing(Sizing.fill(100)));
+                        special.commandBlockCommand,
+                        COMMAND_EDITOR_HEIGHT,
+                        context.bindText(value -> special.commandBlockCommand = value))
+                .horizontalSizing(Sizing.fill(100)));
         return field;
     }
 
     private static FlowLayout runtimeCard(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special,
-            boolean compactLayout
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special, boolean compactLayout) {
         FlowLayout card = UiFactory.subCard();
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("special.command_block.runtime"))
@@ -156,9 +146,8 @@ public final class CommandBlockSpecialDataSection {
                 .horizontalSizing(Sizing.expand(100)));
         header.child(UiFactory.collapseToggleButton(
                 special.uiCommandBlockRuntimeCollapsed,
-                () -> context.mutateRefresh(() ->
-                        special.uiCommandBlockRuntimeCollapsed = !special.uiCommandBlockRuntimeCollapsed)
-        ));
+                () -> context.mutateRefresh(
+                        () -> special.uiCommandBlockRuntimeCollapsed = !special.uiCommandBlockRuntimeCollapsed)));
         card.child(header);
 
         if (special.uiCommandBlockRuntimeCollapsed) {
@@ -166,74 +155,65 @@ public final class CommandBlockSpecialDataSection {
             return card;
         }
 
-        addPackedRows(
+        UiFactory.addPackedRows(
                 card,
                 compactLayout ? 1 : 2,
                 UiFactory.checkbox(
-                        ItemEditorText.tr("special.command_block.track_output"),
+                        RuntimeField.TRACK_OUTPUT.text(),
                         special.commandBlockTrackOutput,
-                        value -> context.mutateRefresh(() -> special.commandBlockTrackOutput = value)
-                ),
+                        value -> context.mutateRefresh(() -> special.commandBlockTrackOutput = value)),
                 UiFactory.checkbox(
-                        ItemEditorText.tr("special.command_block.update_last_execution"),
+                        RuntimeField.UPDATE_LAST_EXECUTION.text(),
                         special.commandBlockUpdateLastExecution,
-                        value -> context.mutateRefresh(() -> special.commandBlockUpdateLastExecution = value)
-                )
-        );
-        addPackedRows(
+                        value -> context.mutateRefresh(() -> special.commandBlockUpdateLastExecution = value)));
+        UiFactory.addPackedRows(
                 card,
                 compactLayout ? 1 : 2,
                 numericField(
                         context,
-                        ItemEditorText.tr("special.command_block.success_count"),
+                        RuntimeField.SUCCESS_COUNT.text(),
                         special.commandBlockSuccessCount,
-                        value -> special.commandBlockSuccessCount = value
-                ),
+                        value -> special.commandBlockSuccessCount = value),
                 numericField(
                         context,
-                        ItemEditorText.tr("special.command_block.last_execution"),
+                        RuntimeField.LAST_EXECUTION.text(),
                         special.commandBlockLastExecution,
-                        value -> special.commandBlockLastExecution = value
-                )
-        );
+                        value -> special.commandBlockLastExecution = value));
         UIComponent lastOutputEditor = richTextField(
                 context,
-                ItemEditorText.tr("special.command_block.last_output"),
+                RuntimeField.LAST_OUTPUT,
                 special.commandBlockLastOutput,
                 LAST_OUTPUT_EDITOR_HEIGHT,
                 "special.command_block.last_output.placeholder",
                 "special.command_block.last_output.color_title",
                 "special.command_block.last_output.gradient_title",
-                document -> special.commandBlockLastOutput = TextComponentUtil.serializeEditorDocument(document)
-        );
+                document -> special.commandBlockLastOutput = TextComponentUtil.serializeEditorDocument(document));
         card.child(lastOutputEditor);
         return card;
     }
 
     private static UIComponent numericField(
-            SpecialDataPanelContext context,
-            Component label,
-            String value,
-            Consumer<String> setter
-    ) {
+            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter) {
         return UiFactory.field(
-                label,
-                Component.empty(),
-                UiFactory.textBox(value, context.bindText(setter))
-                        .horizontalSizing(isCompactLayout(context) ? Sizing.fill(100) : UiFactory.fixed(NUMBER_FIELD_WIDTH))
-        ).horizontalSizing(Sizing.fill(100));
+                        label,
+                        Component.empty(),
+                        UiFactory.textBox(value, context.bindText(setter))
+                                .horizontalSizing(
+                                        isCompactLayout(context)
+                                                ? Sizing.fill(100)
+                                                : UiFactory.fixed(NUMBER_FIELD_WIDTH)))
+                .horizontalSizing(Sizing.fill(100));
     }
 
     private static UIComponent richTextField(
             SpecialDataPanelContext context,
-            Component label,
+            SpecialDataSearch.Field label,
             String markup,
             int height,
             String placeholderKey,
             String colorTitleKey,
             String gradientTitleKey,
-            Consumer<RichTextDocument> setter
-    ) {
+            Consumer<RichTextDocument> setter) {
         StyledTextFieldSection.BoundEditor editor = StyledTextFieldSection.create(
                 context.screen(),
                 RichTextDocument.fromMarkup(markup),
@@ -247,14 +227,13 @@ public final class CommandBlockSpecialDataSection {
                 "",
                 null,
                 document -> null,
-                document -> context.mutate(() -> setter.accept(document))
-        );
+                document -> context.mutate(() -> setter.accept(document)));
 
         FlowLayout frame = UiFactory.framedEditorCard();
         frame.child(editor.toolbar());
         frame.child(editor.editor());
         frame.child(editor.validation());
-        return UiFactory.field(label, Component.empty(), frame);
+        return UiFactory.field(label.text(), Component.empty(), frame);
     }
 
     private static String commandBlockMode(String itemId) {
@@ -282,24 +261,49 @@ public final class CommandBlockSpecialDataSection {
                 special.commandBlockTrackOutput
                         ? ItemEditorText.str("special.command_block.enabled")
                         : ItemEditorText.str("special.command_block.disabled"),
-                special.commandBlockSuccessCount.isBlank() ? "0" : special.commandBlockSuccessCount
-        );
+                special.commandBlockSuccessCount.isBlank() ? "0" : special.commandBlockSuccessCount);
     }
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
         return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
     }
 
-    private static void addPackedRows(FlowLayout parent, int perRow, UIComponent... components) {
-        for (int index = 0; index < components.length; index += perRow) {
-            FlowLayout row = UiFactory.row();
-            int rowEnd = Math.min(components.length, index + perRow);
-            int rowSize = rowEnd - index;
-            int width = Math.max(1, (100 - rowSize) / Math.max(1, rowSize));
-            for (int componentIndex = index; componentIndex < rowEnd; componentIndex++) {
-                row.child(components[componentIndex].horizontalSizing(Sizing.fill(width)));
-            }
-            parent.child(row);
+    private enum Field implements SpecialDataSearch.Field {
+        CUSTOM_NAME("common.custom_name"),
+        NORMAL("special.command_block.type.normal"),
+        CHAIN("special.command_block.type.chain"),
+        REPEATING("special.command_block.type.repeating"),
+        AUTO("special.command_block.auto"),
+        POWERED("special.command_block.powered"),
+        CONDITION_MET("special.command_block.condition_met"),
+        COMMAND("special.command_block.command");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum RuntimeField implements SpecialDataSearch.Field {
+        TRACK_OUTPUT("special.command_block.track_output"),
+        UPDATE_LAST_EXECUTION("special.command_block.update_last_execution"),
+        SUCCESS_COUNT("special.command_block.success_count"),
+        LAST_EXECUTION("special.command_block.last_execution"),
+        LAST_OUTPUT("special.command_block.last_output");
+
+        private final String key;
+
+        RuntimeField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
         }
     }
 }

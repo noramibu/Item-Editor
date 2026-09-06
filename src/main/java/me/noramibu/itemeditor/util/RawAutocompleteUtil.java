@@ -1,7 +1,5 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.core.RegistryAccess;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,6 +16,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import net.minecraft.core.RegistryAccess;
 
 public final class RawAutocompleteUtil {
     private static final Pattern NAMESPACED_ID_PATTERN = Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
@@ -27,15 +26,11 @@ public final class RawAutocompleteUtil {
             Pattern.compile("(?:\"([A-Za-z0-9_.:-]+)\"|([A-Za-z0-9_.-]+))\\s*:\\s*\"([^\"]*)\"");
     private static final List<String> LITERAL_VALUES = List.of("true", "false", "null");
     private static final List<String> STRING_VALUE_TEMPLATES = List.of("\"\"");
-    private RawAutocompleteUtil() {
-    }
+
+    private RawAutocompleteUtil() {}
 
     public static AutocompleteResult suggest(
-            String rawText,
-            int caretIndex,
-            RegistryAccess registryAccess,
-            String fallbackItemId
-    ) {
+            String rawText, int caretIndex, RegistryAccess registryAccess, String fallbackItemId) {
         RawAutocompleteIndex index = RawAutocompleteIndex.create(rawText);
         return suggest(rawText, caretIndex, registryAccess, index, fallbackItemId);
     }
@@ -45,8 +40,7 @@ public final class RawAutocompleteUtil {
             int caretIndex,
             RegistryAccess registryAccess,
             RawAutocompleteIndex index,
-            String fallbackItemId
-    ) {
+            String fallbackItemId) {
         return suggest(rawText, caretIndex, registryAccess, index, fallbackItemId, List.of());
     }
 
@@ -56,12 +50,9 @@ public final class RawAutocompleteUtil {
             RegistryAccess registryAccess,
             RawAutocompleteIndex index,
             String fallbackItemId,
-            List<String> lootTableIds
-    ) {
+            List<String> lootTableIds) {
         return RawAutocompleteHints.withExternalLootTableIds(
-                lootTableIds,
-                () -> suggestInternal(rawText, caretIndex, registryAccess, index, fallbackItemId)
-        );
+                lootTableIds, () -> suggestInternal(rawText, caretIndex, registryAccess, index, fallbackItemId));
     }
 
     private static AutocompleteResult suggestInternal(
@@ -69,13 +60,11 @@ public final class RawAutocompleteUtil {
             int caretIndex,
             RegistryAccess registryAccess,
             RawAutocompleteIndex index,
-            String fallbackItemId
-    ) {
+            String fallbackItemId) {
         String text = Objects.requireNonNullElse(rawText, "");
         int cursor = Math.clamp(caretIndex, 0, text.length());
-        RawAutocompleteIndex effectiveIndex = index == null || !index.matches(text)
-                ? RawAutocompleteIndex.create(text)
-                : index;
+        RawAutocompleteIndex effectiveIndex =
+                index == null || !index.matches(text) ? RawAutocompleteIndex.create(text) : index;
         RawCursorContext cursorContext = RawCursorContext.create(text, cursor);
 
         boolean insideQuote = cursorContext.insideString();
@@ -91,11 +80,8 @@ public final class RawAutocompleteUtil {
             topLevelItemId = fallbackId;
         }
         List<String> activeProfiles = RawAutocompleteHints.inferItemProfiles(topLevelItemId, registryAccess);
-        List<String> profileComponents = RawAutocompleteHints.componentsForContext(
-                topLevelItemId,
-                activeProfiles,
-                registryAccess
-        );
+        List<String> profileComponents =
+                RawAutocompleteHints.componentsForContext(topLevelItemId, activeProfiles, registryAccess);
         boolean keyPosition = cursorContext.slot() == RawCursorContext.Slot.OBJECT_KEY;
         if (cursorContext.slot() == RawCursorContext.Slot.UNKNOWN) {
             keyPosition = isLikelyObjectKeyPosition(text, cursor, insideQuote);
@@ -114,9 +100,8 @@ public final class RawAutocompleteUtil {
                 ? null
                 : detectKeyCorrectionContext(text, cursor, keyPosition, insideQuote);
         if (correction != null) {
-            UnaryOperator<String> keyInsert = insideQuote
-                    ? quotedInsert(text, cursor, cursor)
-                    : RawAutocompleteUtil::formatKeyInsert;
+            UnaryOperator<String> keyInsert =
+                    insideQuote ? quotedInsert(text, cursor, cursor) : RawAutocompleteUtil::formatKeyInsert;
             UnaryOperator<String> dynamicKeyInsert = registryMapKeyInsert(
                     text,
                     cursor,
@@ -124,14 +109,9 @@ public final class RawAutocompleteUtil {
                     insideQuote,
                     context.containerKey(),
                     context.containerPath(),
-                    keyInsert
-            );
-            RawSuggestionSources.Key keySources = RawSuggestionSources.key(
-                    context,
-                    topLevelItemId,
-                    activeProfiles,
-                    registryAccess
-            );
+                    keyInsert);
+            RawSuggestionSources.Key keySources =
+                    RawSuggestionSources.key(context, topLevelItemId, activeProfiles, registryAccess);
             List<String> seenContainerKeys = effectiveIndex.seenKeysForContainer(context.containerKey());
             if (!isKnownContainerKey(
                     correction.keyPrefix(),
@@ -139,8 +119,7 @@ public final class RawAutocompleteUtil {
                     keySources.catalogObjectKeys(),
                     keySources.componentNbtFields(),
                     keySources.dynamicKeyHints(),
-                    seenContainerKeys
-            )) {
+                    seenContainerKeys)) {
                 RawSuggestionBuilder correctionOutput = new RawSuggestionBuilder();
                 RawSuggestionSources.addKeyMatches(
                         correctionOutput,
@@ -149,8 +128,7 @@ public final class RawAutocompleteUtil {
                         correction.keyPrefix(),
                         itemStackKeyInsert(text, cursor, correction.replaceEnd(), insideQuote, context.containerPath()),
                         dynamicKeyInsert,
-                        false
-                );
+                        false);
                 RawSuggestionSources.addKeyMatches(
                         correctionOutput,
                         keySources,
@@ -158,8 +136,7 @@ public final class RawAutocompleteUtil {
                         correction.keyPrefix(),
                         itemStackKeyInsert(text, cursor, correction.replaceEnd(), insideQuote, context.containerPath()),
                         dynamicKeyInsert,
-                        true
-                );
+                        true);
                 correctionOutput.suppressEchoTypedKeySuggestion(correction.keyPrefix());
                 AutocompleteResult correctionResult = autocompleteResult(
                         text,
@@ -170,8 +147,7 @@ public final class RawAutocompleteUtil {
                         registryAccess,
                         RawAutocompleteHints.expectedModesForSlot(RawSlotType.OBJECT_KEY),
                         RawSlotType.OBJECT_KEY,
-                        context.containerKey()
-                );
+                        context.containerKey());
                 if (!correctionResult.suggestions().isEmpty()) {
                     return correctionResult;
                 }
@@ -180,37 +156,20 @@ public final class RawAutocompleteUtil {
 
         if (keyPosition) {
             int keyReplaceEnd = keyReplaceEnd(text, cursor, insideQuote);
-            UnaryOperator<String> keyInsert = insideQuote
-                    ? quotedInsert(text, cursor, keyReplaceEnd)
-                    : RawAutocompleteUtil::formatKeyInsert;
-            RawSuggestionSources.Key keySources = RawSuggestionSources.key(
-                    context,
-                    topLevelItemId,
-                    activeProfiles,
-                    registryAccess
-            );
+            UnaryOperator<String> keyInsert =
+                    insideQuote ? quotedInsert(text, cursor, keyReplaceEnd) : RawAutocompleteUtil::formatKeyInsert;
+            RawSuggestionSources.Key keySources =
+                    RawSuggestionSources.key(context, topLevelItemId, activeProfiles, registryAccess);
             Map<String, String> siblingValues = localSiblingValues(text, cursor);
             List<String> siblingKeys = localSiblingKeys(text, cursor);
             List<String> siblingValueKeyHints = RawAutocompleteHints.objectKeyHintsForSiblingValues(
-                    context.containerKey(),
-                    context.containerPath(),
-                    siblingValues
-            );
+                    context.containerKey(), context.containerPath(), siblingValues);
             List<String> siblingKeyHints = RawAutocompleteHints.mergeUnique(
                     siblingValueKeyHints,
                     RawAutocompleteHints.mergeUnique(
-                            siblingKeys,
-                            RawAutocompleteHints.objectKeyHintsForSiblingKeys(siblingKeys)
-                    )
-            );
+                            siblingKeys, RawAutocompleteHints.objectKeyHintsForSiblingKeys(siblingKeys)));
             List<String> validatedRegistryKeyHints = RawAutocompleteHints.validatedRegistryMapKeyHints(
-                    text,
-                    replaceStart,
-                    keyReplaceEnd,
-                    context.containerKey(),
-                    context.containerPath(),
-                    registryAccess
-            );
+                    text, replaceStart, keyReplaceEnd, context.containerKey(), context.containerPath(), registryAccess);
             boolean focusedSiblingKeys = !siblingValueKeyHints.isEmpty();
             boolean strictContextKeys = RawAutocompleteHints.shouldUseStrictContextKeySuggestions(
                     context,
@@ -219,23 +178,16 @@ public final class RawAutocompleteUtil {
                     keySources.componentNbtFields(),
                     RawAutocompleteHints.mergeUnique(
                             validatedRegistryKeyHints,
-                            RawAutocompleteHints.mergeUnique(keySources.dynamicKeyHints(), siblingKeyHints)
-                    ),
-                    profileComponents
-            );
+                            RawAutocompleteHints.mergeUnique(keySources.dynamicKeyHints(), siblingKeyHints)),
+                    profileComponents);
             List<String> seenContainerKeys = effectiveIndex.seenKeysForContainer(context.containerKey());
             List<String> currentObjectKeys = currentObjectKeys(text, cursor, insideQuote);
             boolean completingQuotedKeyWithColon = insideQuote && quotedKeyHasColonAfterCursor(text, cursor);
             UnaryOperator<String> componentKeyInsert = context.inComponentsObject()
                     ? componentKeyInsert(text, cursor, keyReplaceEnd, insideQuote, topLevelItemId, registryAccess)
                     : null;
-            UnaryOperator<String> itemStackKeyInsert = itemStackKeyInsert(
-                    text,
-                    cursor,
-                    keyReplaceEnd,
-                    insideQuote,
-                    context.containerPath()
-            );
+            UnaryOperator<String> itemStackKeyInsert =
+                    itemStackKeyInsert(text, cursor, keyReplaceEnd, insideQuote, context.containerPath());
             UnaryOperator<String> dynamicKeyInsert = registryMapKeyInsert(
                     text,
                     cursor,
@@ -243,8 +195,7 @@ public final class RawAutocompleteUtil {
                     insideQuote,
                     context.containerKey(),
                     context.containerPath(),
-                    keyInsert
-            );
+                    keyInsert);
             if (context.inComponentsObject()) {
                 output.addSuggestions(
                         profileComponents,
@@ -282,7 +233,8 @@ public final class RawAutocompleteUtil {
                             SuggestionSource.REGISTRY,
                             "component registry key");
                 }
-            } else if (context.inRootObject() || (!context.inObject() && context.containerKey().isBlank())) {
+            } else if (context.inRootObject()
+                    || (!context.inObject() && context.containerKey().isBlank())) {
                 output.addSuggestions(
                         RawAutocompleteHints.topLevelKeys(),
                         prefix,
@@ -290,19 +242,11 @@ public final class RawAutocompleteUtil {
                         itemStackKeyInsert,
                         0,
                         SuggestionSource.CATALOG,
-                        "item stack key"
-                );
+                        "item stack key");
             }
             if (!focusedSiblingKeys) {
                 RawSuggestionSources.addKeyMatches(
-                        output,
-                        keySources,
-                        List.of(),
-                        prefix,
-                        itemStackKeyInsert,
-                        dynamicKeyInsert,
-                        false
-                );
+                        output, keySources, List.of(), prefix, itemStackKeyInsert, dynamicKeyInsert, false);
             }
             output.addSuggestions(
                     validatedRegistryKeyHints,
@@ -329,8 +273,7 @@ public final class RawAutocompleteUtil {
                     itemStackKeyInsert,
                     0,
                     SuggestionSource.SIBLING,
-                    "sibling context key"
-            );
+                    "sibling context key");
             if (!prefix.isBlank()) {
                 if (!focusedSiblingKeys) {
                     output.addSuggestions(
@@ -355,14 +298,7 @@ public final class RawAutocompleteUtil {
 
                 if (!focusedSiblingKeys) {
                     RawSuggestionSources.addKeyMatches(
-                            output,
-                            keySources,
-                            seenContainerKeys,
-                            prefix,
-                            itemStackKeyInsert,
-                            dynamicKeyInsert,
-                            true
-                    );
+                            output, keySources, seenContainerKeys, prefix, itemStackKeyInsert, dynamicKeyInsert, true);
                 }
                 if (completingQuotedKeyWithColon) {
                     output.addSuggestions(
@@ -392,15 +328,14 @@ public final class RawAutocompleteUtil {
                             SuggestionSource.VALIDATED_REGISTRY,
                             "near validated registry key completion");
                 }
-                    output.addNearestSuggestions(
-                            siblingKeyHints,
-                            prefix,
-                            SuggestionKind.KEY,
-                            itemStackKeyInsert,
-                            0,
-                            SuggestionSource.SIBLING,
-                            "near sibling context key"
-                    );
+                output.addNearestSuggestions(
+                        siblingKeyHints,
+                        prefix,
+                        SuggestionKind.KEY,
+                        itemStackKeyInsert,
+                        0,
+                        SuggestionSource.SIBLING,
+                        "near sibling context key");
                 if (!strictContextKeys) {
                     output.addNearestSuggestions(
                             effectiveIndex.seenKeys(),
@@ -467,8 +402,7 @@ public final class RawAutocompleteUtil {
                     registryAccess,
                     RawAutocompleteHints.expectedModesForSlot(RawSlotType.OBJECT_KEY),
                     RawSlotType.OBJECT_KEY,
-                    currentKey
-            );
+                    currentKey);
         }
 
         if (cursorContext.slot() == RawCursorContext.Slot.AFTER_VALUE && !insideQuote && prefix.isBlank()) {
@@ -482,8 +416,7 @@ public final class RawAutocompleteUtil {
                     registryAccess,
                     EnumSet.of(RawValueMode.NONE),
                     RawSlotType.VALUE_UNKNOWN,
-                    currentKey
-            );
+                    currentKey);
         }
 
         RawSuggestionSources.Value valueSources = RawSuggestionSources.value(
@@ -497,20 +430,20 @@ public final class RawAutocompleteUtil {
                 localSiblingValues(text, cursor),
                 activeProfiles,
                 topLevelItemId,
-                registryAccess
-        );
+                registryAccess);
         RawSlotType slotType = valueSources.slotType();
         EnumSet<RawValueMode> expectedModes = valueSources.expectedModes();
         List<String> typedCatalogValueHints = valueSources.typedCatalogHints();
         List<String> typedRegistryHints = valueSources.typedRegistryHints();
-        BooleanInsertStyle booleanInsertStyle = detectBooleanInsertStyle(text, replaceStart, context.containerPath(), currentKey);
+        BooleanInsertStyle booleanInsertStyle =
+                detectBooleanInsertStyle(text, replaceStart, context.containerPath(), currentKey);
         int valueReplaceEnd = valueReplaceEnd(text, cursor, insideQuote);
         UnaryOperator<String> stringValueInsert = valueInsert(text, cursor, valueReplaceEnd, insideQuote);
         UnaryOperator<String> rawValueInsert = rawValueInsert(text, valueReplaceEnd);
         String specificValueSnippet = RawAutocompleteHints.valueSnippet(currentKey, topLevelItemId, registryAccess);
         boolean hasSpecificValueSnippet = !specificValueSnippet.isEmpty();
-        boolean hasCompositeSpecificValueSnippet = specificValueSnippet.startsWith("{")
-                || specificValueSnippet.startsWith("[");
+        boolean hasCompositeSpecificValueSnippet =
+                specificValueSnippet.startsWith("{") || specificValueSnippet.startsWith("[");
 
         if (insideQuote) {
             output.addSuggestions(
@@ -611,7 +544,8 @@ public final class RawAutocompleteUtil {
                     SuggestionSource.CATALOG,
                     "near catalog value");
         }
-        addValueSnippetSuggestions(output, text, cursor, insideQuote, currentKey, prefix, topLevelItemId, registryAccess);
+        addValueSnippetSuggestions(
+                output, text, cursor, insideQuote, currentKey, prefix, topLevelItemId, registryAccess);
         boolean hasCompositeValueSnippet = expectedModes.contains(RawValueMode.NONE)
                 && (!typedCatalogValueHints.isEmpty() || hasSpecificValueSnippet);
         if (shouldOfferGenericValueFallbacks(slotType, expectedModes) && !hasCompositeValueSnippet) {
@@ -621,15 +555,7 @@ public final class RawAutocompleteUtil {
                 && shouldOfferGenericValueFallbacks(slotType, expectedModes)
                 && (!hasCompositeValueSnippet || hasSpecificValueSnippet)) {
             addValueSnippetSuggestions(
-                    output,
-                    text,
-                    cursor,
-                    insideQuote,
-                    context.containerKey(),
-                    prefix,
-                    topLevelItemId,
-                    registryAccess
-            );
+                    output, text, cursor, insideQuote, context.containerKey(), prefix, topLevelItemId, registryAccess);
         }
 
         return autocompleteResult(
@@ -641,8 +567,7 @@ public final class RawAutocompleteUtil {
                 registryAccess,
                 expectedModes,
                 slotType,
-                currentKey
-        );
+                currentKey);
     }
 
     private static AutocompleteResult autocompleteResult(
@@ -654,23 +579,14 @@ public final class RawAutocompleteUtil {
             RegistryAccess registryAccess,
             EnumSet<RawValueMode> expectedModes,
             RawSlotType slotType,
-            String currentKey
-    ) {
+            String currentKey) {
         return new AutocompleteResult(
                 requestedCaret,
                 replaceStart,
                 replaceEnd,
                 RawSuggestionPipeline.limit(
-                        candidates,
-                        text,
-                        replaceStart,
-                        replaceEnd,
-                        registryAccess,
-                        expectedModes,
-                        slotType
-                ),
-                currentKey
-        );
+                        candidates, text, replaceStart, replaceEnd, registryAccess, expectedModes, slotType),
+                currentKey);
     }
 
     public static String closingSuffix(String text) {
@@ -704,10 +620,7 @@ public final class RawAutocompleteUtil {
         return suffix.toString();
     }
 
-    private static boolean shouldOfferGenericValueFallbacks(
-            RawSlotType slotType,
-            EnumSet<RawValueMode> expectedModes
-    ) {
+    private static boolean shouldOfferGenericValueFallbacks(RawSlotType slotType, EnumSet<RawValueMode> expectedModes) {
         return slotType == RawSlotType.VALUE_UNKNOWN
                 && (expectedModes == null || expectedModes.isEmpty() || expectedModes.contains(RawValueMode.NONE));
     }
@@ -778,7 +691,8 @@ public final class RawAutocompleteUtil {
 
         int arrayEnd = localArrayEnd(text, arrayStart);
         int scanEnd = arrayEnd < 0 ? text.length() : arrayEnd;
-        forEachShallowObject(text, arrayStart + 1, scanEnd, (start, end) -> collectObjectKeys(text, start + 1, end, keys));
+        forEachShallowObject(
+                text, arrayStart + 1, scanEnd, (start, end) -> collectObjectKeys(text, start + 1, end, keys));
     }
 
     private static void collectArrayEntryValues(String text, int cursor, Map<String, String> values) {
@@ -789,7 +703,8 @@ public final class RawAutocompleteUtil {
 
         int arrayEnd = localArrayEnd(text, arrayStart);
         int scanEnd = arrayEnd < 0 ? text.length() : arrayEnd;
-        forEachShallowObject(text, arrayStart + 1, scanEnd, (start, end) -> collectObjectValues(text, start + 1, end, values));
+        forEachShallowObject(
+                text, arrayStart + 1, scanEnd, (start, end) -> collectObjectValues(text, start + 1, end, values));
     }
 
     private static int localArrayStart(String text, int cursor) {
@@ -845,12 +760,7 @@ public final class RawAutocompleteUtil {
         return -1;
     }
 
-    private static void forEachShallowObject(
-            String text,
-            int start,
-            int end,
-            ObjectRangeConsumer consumer
-    ) {
+    private static void forEachShallowObject(String text, int start, int end, ObjectRangeConsumer consumer) {
         int depth = 0;
         int cursor = Math.clamp(start, 0, text.length());
         int safeEnd = Math.clamp(end, cursor, text.length());
@@ -1000,13 +910,7 @@ public final class RawAutocompleteUtil {
                 }
                 int next = skipWhitespaceForward(text, quoteEnd + 1);
                 if (depth == 0 && next < safeEnd && text.charAt(next) == ':') {
-                    cursor = collectObjectValue(
-                            text,
-                            text.substring(cursor + 1, quoteEnd),
-                            next + 1,
-                            safeEnd,
-                            values
-                    );
+                    cursor = collectObjectValue(text, text.substring(cursor + 1, quoteEnd), next + 1, safeEnd, values);
                 } else {
                     cursor = quoteEnd + 1;
                 }
@@ -1023,13 +927,7 @@ public final class RawAutocompleteUtil {
                 }
                 int next = skipWhitespaceForward(text, tokenEnd);
                 if (next < safeEnd && text.charAt(next) == ':') {
-                    cursor = collectObjectValue(
-                            text,
-                            text.substring(cursor, tokenEnd),
-                            next + 1,
-                            safeEnd,
-                            values
-                    );
+                    cursor = collectObjectValue(text, text.substring(cursor, tokenEnd), next + 1, safeEnd, values);
                 } else {
                     cursor = tokenEnd;
                 }
@@ -1040,12 +938,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static int collectObjectValue(
-            String text,
-            String key,
-            int valueStart,
-            int safeEnd,
-            Map<String, String> values
-    ) {
+            String text, String key, int valueStart, int safeEnd, Map<String, String> values) {
         int start = skipWhitespaceForward(text, valueStart);
         int end = shallowValueEnd(text, start, safeEnd);
         if (start < end && key != null && !key.isBlank()) {
@@ -1078,12 +971,7 @@ public final class RawAutocompleteUtil {
         return safeEnd;
     }
 
-    private static void collectSimpleStringFieldValues(
-            String text,
-            int start,
-            int end,
-            Map<String, String> values
-    ) {
+    private static void collectSimpleStringFieldValues(String text, int start, int end, Map<String, String> values) {
         int safeStart = Math.clamp(start, 0, text.length());
         int safeEnd = Math.clamp(end, safeStart, text.length());
         Matcher matcher = SIMPLE_STRING_FIELD_PATTERN.matcher(text.substring(safeStart, safeEnd));
@@ -1094,12 +982,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static boolean refineKeyPosition(
-            String text,
-            int cursor,
-            boolean insideQuote,
-            boolean currentGuess,
-            RawAutocompleteIndex.Context context
-    ) {
+            String text, int cursor, boolean insideQuote, boolean currentGuess, RawAutocompleteIndex.Context context) {
         if (insideQuote) {
             Boolean keyInString = classifyActiveStringAsKey(text, cursor);
             return Objects.requireNonNullElse(keyInString, currentGuess);
@@ -1172,11 +1055,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static void addBooleanSuggestions(
-            RawSuggestionBuilder output,
-            String prefix,
-            BooleanInsertStyle style,
-            UnaryOperator<String> insertMapper
-    ) {
+            RawSuggestionBuilder output, String prefix, BooleanInsertStyle style, UnaryOperator<String> insertMapper) {
         switch (style) {
             case NBT_BYTE -> {
                 output.addMappedSuggestion("true", insertMapper.apply("1b"), prefix);
@@ -1190,12 +1069,9 @@ public final class RawAutocompleteUtil {
     }
 
     private static BooleanInsertStyle detectBooleanInsertStyle(
-            String text,
-            int replaceStart,
-            String containerPath,
-            String currentKey
-    ) {
-        String path = RawAutocompleteHints.buildFullPath(containerPath, Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT));
+            String text, int replaceStart, String containerPath, String currentKey) {
+        String path = RawAutocompleteHints.buildFullPath(
+                containerPath, Objects.requireNonNullElse(currentKey, "").toLowerCase(Locale.ROOT));
         if (RawAutocompleteHints.isBooleanPath(path)) {
             return BooleanInsertStyle.NBT_BYTE;
         }
@@ -1222,26 +1098,13 @@ public final class RawAutocompleteUtil {
             int replaceEnd,
             boolean insideQuote,
             String itemId,
-            RegistryAccess registryAccess
-    ) {
-        return componentId -> componentKeySnippetInsert(
-                componentId,
-                text,
-                cursor,
-                replaceEnd,
-                insideQuote,
-                itemId,
-                registryAccess
-        );
+            RegistryAccess registryAccess) {
+        return componentId ->
+                componentKeySnippetInsert(componentId, text, cursor, replaceEnd, insideQuote, itemId, registryAccess);
     }
 
     private static UnaryOperator<String> itemStackKeyInsert(
-            String text,
-            int cursor,
-            int replaceEnd,
-            boolean insideQuote,
-            String containerPath
-    ) {
+            String text, int cursor, int replaceEnd, boolean insideQuote, String containerPath) {
         return key -> itemStackKeySnippetInsert(key, text, cursor, replaceEnd, insideQuote, containerPath);
     }
 
@@ -1252,8 +1115,7 @@ public final class RawAutocompleteUtil {
             boolean insideQuote,
             String containerKey,
             String containerPath,
-            UnaryOperator<String> keyInsert
-    ) {
+            UnaryOperator<String> keyInsert) {
         String value = RawAutocompleteHints.registryMapKeySnippetValue(containerKey, containerPath);
         return value.isBlank()
                 ? keyInsert
@@ -1261,13 +1123,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static String itemStackKeySnippetInsert(
-            String key,
-            String text,
-            int cursor,
-            int replaceEnd,
-            boolean insideQuote,
-            String containerPath
-    ) {
+            String key, String text, int cursor, int replaceEnd, boolean insideQuote, String containerPath) {
         String value = RawAutocompleteHints.keySnippetValue(key, containerPath);
         return value.isBlank()
                 ? keyOnlyInsert(key, text, cursor, replaceEnd, insideQuote)
@@ -1281,23 +1137,17 @@ public final class RawAutocompleteUtil {
             int replaceEnd,
             boolean insideQuote,
             String itemId,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         String value = RawAutocompleteHints.keySnippetValue(componentId, itemId, registryAccess);
         if (value.isBlank()) {
-            value = RawAutocompleteHints.keyValidationPlaceholders(componentId, itemId, registryAccess).getFirst();
+            value = RawAutocompleteHints.keyValidationPlaceholders(componentId, itemId, registryAccess)
+                    .getFirst();
         }
         return keyValueSnippetInsert(componentId, value, text, cursor, replaceEnd, insideQuote);
     }
 
     private static String keyValueSnippetInsert(
-            String key,
-            String value,
-            String text,
-            int cursor,
-            int replaceEnd,
-            boolean insideQuote
-    ) {
+            String key, String value, String text, int cursor, int replaceEnd, boolean insideQuote) {
         if (suffixStartsWithColon(text, replaceEnd)) {
             return keyOnlyInsert(key, text, cursor, replaceEnd, insideQuote);
         }
@@ -1307,16 +1157,8 @@ public final class RawAutocompleteUtil {
                 + keySnippetSuffix(text, replaceEnd);
     }
 
-    private static String keyOnlyInsert(
-            String key,
-            String text,
-            int cursor,
-            int replaceEnd,
-            boolean insideQuote
-    ) {
-        return insideQuote
-                ? quotedInsert(text, cursor, replaceEnd).apply(key)
-                : formatKeyInsert(key);
+    private static String keyOnlyInsert(String key, String text, int cursor, int replaceEnd, boolean insideQuote) {
+        return insideQuote ? quotedInsert(text, cursor, replaceEnd).apply(key) : formatKeyInsert(key);
     }
 
     static boolean suffixStartsWithColon(String text, int cursor) {
@@ -1370,8 +1212,7 @@ public final class RawAutocompleteUtil {
         while (previousEnd > 0) {
             int previousStart = text.lastIndexOf('\n', previousEnd - 1) + 1;
             String previousIndent = currentLineIndent(text, previousStart);
-            if (previousIndent.length() > currentIndent.length()
-                    && previousIndent.startsWith(currentIndent)) {
+            if (previousIndent.length() > currentIndent.length() && previousIndent.startsWith(currentIndent)) {
                 return previousIndent.substring(currentIndent.length());
             }
             previousEnd = previousStart - 1;
@@ -1383,28 +1224,11 @@ public final class RawAutocompleteUtil {
         String compact = compactSnippet(snippet);
         StringBuilder out = new StringBuilder(compact.length() + 32);
         int level = 0;
-        boolean inString = false;
-        boolean escaping = false;
 
         for (int index = 0; index < compact.length(); index++) {
             char value = compact.charAt(index);
-            if (inString) {
-                out.append(value);
-                if (escaping) {
-                    escaping = false;
-                } else if (value == '\\') {
-                    escaping = true;
-                } else if (value == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-
             switch (value) {
-                case '"' -> {
-                    inString = true;
-                    out.append(value);
-                }
+                case '"' -> index = RawTextScan.appendQuoted(out, compact, index);
                 case '{', '[' -> {
                     out.append(value);
                     if (!nextNonWhitespaceIs(compact, index + 1, value == '{' ? '}' : ']')) {
@@ -1435,31 +1259,16 @@ public final class RawAutocompleteUtil {
 
     private static String compactSnippet(String snippet) {
         StringBuilder out = new StringBuilder(snippet.length());
-        boolean inString = false;
-        boolean escaping = false;
         boolean pendingSpace = false;
 
         for (int index = 0; index < snippet.length(); index++) {
             char value = snippet.charAt(index);
-            if (inString) {
-                out.append(value);
-                if (escaping) {
-                    escaping = false;
-                } else if (value == '\\') {
-                    escaping = true;
-                } else if (value == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-
             if (value == '"') {
                 if (pendingSpace && needsSnippetSpaceBefore(out)) {
                     out.append(' ');
                 }
                 pendingSpace = false;
-                inString = true;
-                out.append(value);
+                index = RawTextScan.appendQuoted(out, snippet, index);
             } else if (Character.isWhitespace(value)) {
                 pendingSpace = true;
             } else {
@@ -1478,27 +1287,14 @@ public final class RawAutocompleteUtil {
             return false;
         }
         char previous = out.charAt(out.length() - 1);
-        return previous != '{'
-                && previous != '['
-                && previous != '('
-                && previous != ':'
-                && previous != ',';
+        return previous != '{' && previous != '[' && previous != '(' && previous != ':' && previous != ',';
     }
 
     private static boolean needsSnippetSpaceAfter(char value) {
-        return value != '}'
-                && value != ']'
-                && value != ')'
-                && value != ':'
-                && value != ',';
+        return value != '}' && value != ']' && value != ')' && value != ':' && value != ',';
     }
 
-    private static void appendSnippetNewline(
-            StringBuilder out,
-            String baseIndent,
-            String indentUnit,
-            int level
-    ) {
+    private static void appendSnippetNewline(StringBuilder out, String baseIndent, String indentUnit, int level) {
         out.append('\n').append(baseIndent);
         out.repeat(indentUnit, Math.max(0, level));
     }
@@ -1534,8 +1330,7 @@ public final class RawAutocompleteUtil {
             String currentKey,
             String prefix,
             String itemId,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (insideQuote) {
             return;
         }
@@ -1565,17 +1360,11 @@ public final class RawAutocompleteUtil {
                 0,
                 0,
                 SuggestionSource.CATALOG,
-                "value template"
-        ));
+                "value template"));
     }
 
     private static boolean shouldSuggestAtPosition(
-            String text,
-            int cursor,
-            boolean keyPosition,
-            boolean insideQuote,
-            String prefix
-    ) {
+            String text, int cursor, boolean keyPosition, boolean insideQuote, String prefix) {
         if (insideQuote) {
             return !completedQuotedTokenAhead(text, cursor, prefix);
         }
@@ -1628,12 +1417,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static void addKeyStructuralSuggestions(
-            RawSuggestionBuilder output,
-            String text,
-            int cursor,
-            boolean insideQuote,
-            String prefix
-    ) {
+            RawSuggestionBuilder output, String text, int cursor, boolean insideQuote, String prefix) {
         if (insideQuote) {
             return;
         }
@@ -1649,12 +1433,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static void addValueStructuralSuggestions(
-            RawSuggestionBuilder output,
-            String text,
-            int cursor,
-            boolean insideQuote,
-            String prefix
-    ) {
+            RawSuggestionBuilder output, String text, int cursor, boolean insideQuote, String prefix) {
         if (insideQuote) {
             return;
         }
@@ -1679,11 +1458,7 @@ public final class RawAutocompleteUtil {
         }
     }
 
-    private static void addAfterValueStructuralSuggestions(
-            RawSuggestionBuilder output,
-            String text,
-            int cursor
-    ) {
+    private static void addAfterValueStructuralSuggestions(RawSuggestionBuilder output, String text, int cursor) {
         int next = skipWhitespaceForward(text, cursor);
         char nextChar = next >= text.length() ? '\0' : text.charAt(next);
         if (nextChar != ',' && nextChar != '}' && nextChar != ']') {
@@ -1728,11 +1503,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static KeyCorrection detectKeyCorrectionContext(
-            String text,
-            int cursor,
-            boolean keyPosition,
-            boolean insideQuote
-    ) {
+            String text, int cursor, boolean keyPosition, boolean insideQuote) {
         if (text == null || text.isBlank() || keyPosition || insideQuote) {
             return null;
         }
@@ -1801,7 +1572,7 @@ public final class RawAutocompleteUtil {
         for (int index = lineStart; index < end; index++) {
             char value = text.charAt(index);
             if (value == '"' || value == '\'') {
-                int quoteEnd = findQuotedEnd(text, index + 1, value);
+                int quoteEnd = RawTextScan.quotedEnd(text, index + 1, value);
                 if (quoteEnd < 0 || quoteEnd >= end) {
                     break;
                 }
@@ -1820,11 +1591,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static boolean isKeyCorrectionChar(char value) {
-        return Character.isLetterOrDigit(value)
-                || value == '_'
-                || value == ':'
-                || value == '.'
-                || value == '-';
+        return Character.isLetterOrDigit(value) || value == '_' || value == ':' || value == '.' || value == '-';
     }
 
     private static boolean isKnownContainerKey(
@@ -1833,8 +1600,7 @@ public final class RawAutocompleteUtil {
             List<String> catalogObjectKeys,
             List<String> componentNbtFields,
             List<String> dynamicKeyHints,
-            List<String> seenContainerKeys
-    ) {
+            List<String> seenContainerKeys) {
         if (key == null || key.isBlank()) {
             return false;
         }
@@ -1868,8 +1634,7 @@ public final class RawAutocompleteUtil {
             case ':' -> {
                 return false;
             }
-            default -> {
-            }
+            default -> {}
         }
 
         if (isTokenCharacter(value) || value == '"') {
@@ -1904,30 +1669,30 @@ public final class RawAutocompleteUtil {
 
         for (int index = 0; index < text.length(); index++) {
             char value = text.charAt(index);
-            if (value == '"') {
-                int quoteEnd = findStringEnd(text, index + 1);
-                if (quoteEnd < 0) {
-                    return "";
+            boolean quoted = value == '"';
+            if (quoted || isParserTokenCharacter(value)) {
+                int end = quoted ? findStringEnd(text, index + 1) : index + 1;
+                if (end < 0) return "";
+                if (!quoted) {
+                    while (end < text.length() && isParserTokenCharacter(text.charAt(end))) end++;
                 }
-                String stringToken = text.substring(index + 1, quoteEnd).replace("\\\"", "\"");
+                String token =
+                        quoted ? text.substring(index + 1, end).replace("\\\"", "\"") : text.substring(index, end);
                 String found = consumeTopLevelToken(
-                        stringToken,
-                        true,
-                        expectingRootKey,
-                        expectingRootValue,
-                        pendingRootKey
-                );
-                if (!found.isEmpty()) {
-                    return found;
-                }
+                        token,
+                        quoted,
+                        (quoted || depth == 1) && expectingRootKey,
+                        (quoted || depth == 1) && expectingRootValue,
+                        pendingRootKey);
+                if (!found.isEmpty()) return found;
                 if (depth == 1 && expectingRootKey) {
-                    pendingRootKey = stringToken;
+                    pendingRootKey = token;
                     expectingRootKey = false;
                 } else if (depth == 1 && expectingRootValue) {
                     pendingRootKey = "";
                     expectingRootValue = false;
                 }
-                index = quoteEnd;
+                index = quoted ? end : end - 1;
                 continue;
             }
 
@@ -1964,35 +1729,7 @@ public final class RawAutocompleteUtil {
                         expectingRootValue = true;
                     }
                 }
-                default -> {
-                    if (!isParserTokenCharacter(value)) {
-                        continue;
-                    }
-
-                    int end = index + 1;
-                    while (end < text.length() && isParserTokenCharacter(text.charAt(end))) {
-                        end++;
-                    }
-                    String rawToken = text.substring(index, end);
-                    String found = consumeTopLevelToken(
-                            rawToken,
-                            false,
-                            depth == 1 && expectingRootKey,
-                            depth == 1 && expectingRootValue,
-                            pendingRootKey
-                    );
-                    if (!found.isEmpty()) {
-                        return found;
-                    }
-                    if (depth == 1 && expectingRootKey) {
-                        pendingRootKey = rawToken;
-                        expectingRootKey = false;
-                    } else if (depth == 1 && expectingRootValue) {
-                        pendingRootKey = "";
-                        expectingRootValue = false;
-                    }
-                    index = end - 1;
-                }
+                default -> {}
             }
         }
 
@@ -2000,19 +1737,15 @@ public final class RawAutocompleteUtil {
     }
 
     private static String consumeTopLevelToken(
-            String token,
-            boolean quoted,
-            boolean expectingRootKey,
-            boolean expectingRootValue,
-            String pendingRootKey
-    ) {
+            String token, boolean quoted, boolean expectingRootKey, boolean expectingRootValue, String pendingRootKey) {
         if (token == null || token.isBlank()) {
             return "";
         }
         if (expectingRootKey || !expectingRootValue || !"id".equals(pendingRootKey)) {
             return "";
         }
-        if (quoted && NAMESPACED_ID_PATTERN.matcher(token.toLowerCase(Locale.ROOT)).matches()) {
+        if (quoted
+                && NAMESPACED_ID_PATTERN.matcher(token.toLowerCase(Locale.ROOT)).matches()) {
             return token.toLowerCase(Locale.ROOT);
         }
         return "";
@@ -2071,9 +1804,7 @@ public final class RawAutocompleteUtil {
             return cursor;
         }
         int quoteEnd = findStringEndOnLine(text, cursor);
-        return quoteEnd >= cursor && needsValueCommaAfterCompletion(text, quoteEnd + 1)
-                ? quoteEnd + 1
-                : cursor;
+        return quoteEnd >= cursor && needsValueCommaAfterCompletion(text, quoteEnd + 1) ? quoteEnd + 1 : cursor;
     }
 
     private static int keyReplaceEnd(String text, int cursor, boolean insideQuote) {
@@ -2101,15 +1832,9 @@ public final class RawAutocompleteUtil {
         return next < text.length() && text.charAt(next) == ':';
     }
 
-    private static UnaryOperator<String> valueInsert(
-            String text,
-            int cursor,
-            int replaceEnd,
-            boolean insideQuote
-    ) {
-        UnaryOperator<String> formatter = insideQuote
-                ? quotedInsert(text, cursor, replaceEnd)
-                : RawAutocompleteUtil::formatValueInsert;
+    private static UnaryOperator<String> valueInsert(String text, int cursor, int replaceEnd, boolean insideQuote) {
+        UnaryOperator<String> formatter =
+                insideQuote ? quotedInsert(text, cursor, replaceEnd) : RawAutocompleteUtil::formatValueInsert;
         return value -> appendMissingValueComma(formatter.apply(value), text, replaceEnd);
     }
 
@@ -2117,11 +1842,7 @@ public final class RawAutocompleteUtil {
         return value -> appendMissingValueComma(value, text, replaceEnd);
     }
 
-    private static String appendMissingValueComma(
-            String insert,
-            String text,
-            int cursor
-    ) {
+    private static String appendMissingValueComma(String insert, String text, int cursor) {
         if (insert == null || insert.endsWith(",") || !needsValueCommaAfterCompletion(text, cursor)) {
             return insert;
         }
@@ -2170,17 +1891,11 @@ public final class RawAutocompleteUtil {
     }
 
     private static boolean isObjectKeyAheadTokenCharacter(char value) {
-        return Character.isLetterOrDigit(value)
-                || value == '_'
-                || value == '.'
-                || value == '-'
-                || value == '/';
+        return Character.isLetterOrDigit(value) || value == '_' || value == '.' || value == '-' || value == '/';
     }
 
     private static UnaryOperator<String> quotedInsert(String text, int cursor, int replaceEnd) {
-        return value -> shouldAppendClosingQuote(text, cursor, replaceEnd)
-                ? value + "\""
-                : value;
+        return value -> shouldAppendClosingQuote(text, cursor, replaceEnd) ? value + "\"" : value;
     }
 
     private static boolean shouldAppendClosingQuote(String text, int cursor, int replaceEnd) {
@@ -2227,7 +1942,7 @@ public final class RawAutocompleteUtil {
     }
 
     private static int findStringEnd(String text, int start) {
-        return findQuotedEnd(text, start, '"');
+        return RawTextScan.quotedEnd(text, start, '"');
     }
 
     private static int findStringEndOnLine(String text, int start) {
@@ -2239,25 +1954,6 @@ public final class RawAutocompleteUtil {
         int newline = text.indexOf('\n', lineStart);
         int carriageReturn = text.indexOf('\r', lineStart);
         return (newline >= 0 && newline < end) || (carriageReturn >= 0 && carriageReturn < end) ? -1 : end;
-    }
-
-    private static int findQuotedEnd(String text, int start, char quote) {
-        boolean escaping = false;
-        for (int index = start; index < text.length(); index++) {
-            char value = text.charAt(index);
-            if (escaping) {
-                escaping = false;
-                continue;
-            }
-            if (value == '\\') {
-                escaping = true;
-                continue;
-            }
-            if (value == quote) {
-                return index;
-            }
-        }
-        return -1;
     }
 
     private static int skipWhitespaceForward(String text, int index) {
@@ -2282,7 +1978,8 @@ public final class RawAutocompleteUtil {
         return cursor;
     }
 
-    public record AutocompleteResult(int requestedCaret, int replaceStart, int replaceEnd, List<Suggestion> suggestions, String currentKey) {
+    public record AutocompleteResult(
+            int requestedCaret, int replaceStart, int replaceEnd, List<Suggestion> suggestions, String currentKey) {
         public static AutocompleteResult empty(int caretIndex) {
             return new AutocompleteResult(caretIndex, caretIndex, caretIndex, List.of(), null);
         }
@@ -2296,15 +1993,8 @@ public final class RawAutocompleteUtil {
             int contextRank,
             SuggestionSource source,
             int confidence,
-            String reason
-    ) {
-        public Suggestion(
-                String label,
-                String insertText,
-                SuggestionKind kind,
-                int matchRank,
-                int contextRank
-        ) {
+            String reason) {
+        public Suggestion(String label, String insertText, SuggestionKind kind, int matchRank, int contextRank) {
             this(
                     label,
                     insertText,
@@ -2313,8 +2003,7 @@ public final class RawAutocompleteUtil {
                     contextRank,
                     defaultSource(kind),
                     defaultConfidence(defaultSource(kind)),
-                    ""
-            );
+                    "");
         }
 
         public Suggestion(
@@ -2324,16 +2013,13 @@ public final class RawAutocompleteUtil {
                 int matchRank,
                 int contextRank,
                 SuggestionSource source,
-                String reason
-        ) {
+                String reason) {
             this(label, insertText, kind, matchRank, contextRank, source, -1, reason);
         }
 
         public Suggestion {
             source = source == null ? defaultSource(kind) : source;
-            confidence = confidence < 0
-                    ? defaultConfidence(source)
-                    : Math.clamp(confidence, 0, 100);
+            confidence = confidence < 0 ? defaultConfidence(source) : Math.clamp(confidence, 0, 100);
             reason = Objects.requireNonNullElse(reason, "");
         }
 
@@ -2404,15 +2090,12 @@ public final class RawAutocompleteUtil {
         NBT_BYTE
     }
 
-    private record DelimiterFrame(char value, int index) {
-    }
+    private record DelimiterFrame(char value, int index) {}
 
     @FunctionalInterface
     private interface ObjectRangeConsumer {
         void accept(int start, int end);
     }
 
-    private record KeyCorrection(int replaceStart, int replaceEnd, String keyPrefix) {
-    }
-
+    private record KeyCorrection(int replaceStart, int replaceEnd, String keyPrefix) {}
 }

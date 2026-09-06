@@ -179,6 +179,7 @@ Save items into a built-in storage menu:
 | Japanese | 日本語 | `ja_jp` |
 | Spanish | Español | `es_es` |
 | Russian | Русский | `ru_ru` |
+| Ukrainian | Українська | `uk_ua` |
 | Simplified Chinese | 简体中文 | `zh_cn` |
 | Traditional Chinese | 繁體中文 | `zh_tw` |
 | Hindi | हिन्दी | `hi_in` |

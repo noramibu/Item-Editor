@@ -2,14 +2,18 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ContainerEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -18,17 +22,16 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 import org.apache.commons.lang3.math.Fraction;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-
 public final class BundleSpecialDataSection {
+    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
+        return SpecialDataSearch.targets(
+                context, EditorCategory.SPECIAL_DATA, "special.bundle.title", "bundle", () -> {}, Field.values());
+    }
 
     private static final int EMPTY_HINT_WIDTH = 280;
     private static final int METRICS_HINT_WIDTH = 280;
 
-    private BundleSpecialDataSection() {
-    }
+    private BundleSpecialDataSection() {}
 
     public static boolean supports(ItemStack stack) {
         return ItemEditorCapabilities.supportsBundleData(stack);
@@ -40,11 +43,11 @@ public final class BundleSpecialDataSection {
         special.bundleEditorPage = Math.clamp(special.bundleEditorPage, 0, maxPage);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.bundle.title"), Component.empty());
+        section.id("bundle");
         section.child(buildMetricsCard(special));
         section.child(UiFactory.muted(
                 ItemEditorText.tr("special.bundle.summary", special.bundleEntries.size(), maxPage + 1),
-                EMPTY_HINT_WIDTH
-        ));
+                EMPTY_HINT_WIDTH));
         section.child(UiFactory.actionButtonRow(openButton(context, special)));
         section.child(UiFactory.actionButtonRow(resetButton(context, special), clearButton(context, special)));
         section.child(UiFactory.muted(ItemEditorText.tr("special.bundle.editor_hint"), EMPTY_HINT_WIDTH));
@@ -70,13 +73,14 @@ public final class BundleSpecialDataSection {
 
         Fraction weight = weightResult.result().orElseGet(() -> Fraction.getFraction(0, 1));
         double fillPercent = weight.doubleValue() * 100d;
-        card.child(UiFactory.muted(ItemEditorText.tr(
-                "special.bundle.metrics.value",
-                contents.size(),
-                weight.getNumerator(),
-                weight.getDenominator(),
-                formatPercent(fillPercent)
-        ), METRICS_HINT_WIDTH));
+        card.child(UiFactory.muted(
+                ItemEditorText.tr(
+                        "special.bundle.metrics.value",
+                        contents.size(),
+                        weight.getNumerator(),
+                        weight.getDenominator(),
+                        formatPercent(fillPercent)),
+                METRICS_HINT_WIDTH));
 
         if (fillPercent > 100d) {
             card.child(UiFactory.message(ItemEditorText.tr("special.bundle.metrics.overfilled"), 0xFF8A8A));
@@ -87,33 +91,28 @@ public final class BundleSpecialDataSection {
 
     private static ButtonComponent openButton(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         return UiFactory.button(
-                ItemEditorText.tr("special.bundle.open_editor"),
-                UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.screen().session().minecraft().setScreen(ContainerEditorScreen.bundle(
-                        context.screen(),
-                        special
-                ))
-        );
+                Field.OPEN_EDITOR.text(), UiFactory.ButtonTextPreset.COMPACT, ignored -> context.screen()
+                        .session()
+                        .minecraft()
+                        .setScreen(ContainerEditorScreen.bundle(context.screen(), special)));
     }
 
     private static ButtonComponent resetButton(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         return UiFactory.button(
-                ItemEditorText.tr("common.reset"),
+                Field.RESET.text(),
                 UiFactory.ButtonTextPreset.COMPACT,
-                ignored -> context.mutateRefresh(() -> resetFromOriginal(special, context.originalStack()))
-        );
+                ignored -> context.mutateRefresh(() -> resetFromOriginal(special, context.originalStack())));
     }
 
     private static ButtonComponent clearButton(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         return UiFactory.button(
-                ItemEditorText.tr("common.clear_all").copy().withColor(0xFF8A8A),
+                Field.CLEAR_ALL.text().copy().withColor(0xFF8A8A),
                 UiFactory.ButtonTextPreset.COMPACT,
                 ignored -> context.mutateRefresh(() -> {
                     special.bundleEntries.clear();
                     special.selectedBundleIndex = -1;
                     special.bundleEditorPage = 0;
-                })
-        );
+                }));
     }
 
     private static void resetFromOriginal(ItemEditorState.SpecialData special, ItemStack originalStack) {
@@ -131,13 +130,8 @@ public final class BundleSpecialDataSection {
             if (stack.isEmpty() || stack.is(Items.AIR)) {
                 continue;
             }
-            int count = Math.max(1, template.count());
-            ItemEditorState.ContainerEntryDraft draft = new ItemEditorState.ContainerEntryDraft();
-            draft.slot = Integer.toString(index);
-            draft.itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-            draft.count = Integer.toString(count);
-            draft.templateStack = stack.copyWithCount(count);
-            special.bundleEntries.add(draft);
+            special.bundleEntries.add(ItemEditorState.ContainerEntryDraft.fromSlot(
+                    index, stack.copyWithCount(Math.max(1, template.count()))));
             index++;
         }
         special.selectedBundleIndex = special.bundleEntries.isEmpty() ? -1 : 0;
@@ -190,4 +184,19 @@ public final class BundleSpecialDataSection {
         return new ItemStack(item, count);
     }
 
+    private enum Field implements SpecialDataSearch.Field {
+        OPEN_EDITOR("special.bundle.open_editor"),
+        RESET("common.reset"),
+        CLEAR_ALL("common.clear_all");
+
+        private final String key;
+
+        Field(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
 }

@@ -1,11 +1,10 @@
 package me.noramibu.itemeditor.ui.component.raw;
 
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public final class RawFontMetrics implements RawEditorTextMeasurer {
     private static final Style RAW_STYLE = Style.EMPTY;
@@ -56,7 +55,8 @@ public final class RawFontMetrics implements RawEditorTextMeasurer {
             return 0;
         }
         this.ensureScale();
-        return (int) Math.ceil(Minecraft.getInstance().font.width(this.formattedSequence(value)) * this.cachedTextScale);
+        return (int)
+                Math.ceil(Minecraft.getInstance().font.width(this.formattedSequence(value)) * this.cachedTextScale);
     }
 
     @Override

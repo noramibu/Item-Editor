@@ -2,30 +2,113 @@ package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.UIComponent;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.ui.panel.specialdata.ArmorStandSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BannerSpecialDataSection;
-import me.noramibu.itemeditor.ui.panel.specialdata.BundleSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.BucketCreatureSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.BundleSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.CommandBlockSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ContainerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.DebugStickSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.EntityVariantSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.FireworkSpecialDataSection;
-import me.noramibu.itemeditor.ui.panel.specialdata.ArmorStandSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.ItemFrameSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.MiscSpecialDataSections;
 import me.noramibu.itemeditor.ui.panel.specialdata.PotionSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.SignSpecialDataSection;
-import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
-import me.noramibu.itemeditor.ui.panel.specialdata.SpawnerSpecialDataSection;
 import me.noramibu.itemeditor.ui.panel.specialdata.SpawnEggSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.SpawnerSpecialDataSection;
+import me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataPanelContext;
 import me.noramibu.itemeditor.ui.panel.specialdata.StewSpecialDataSection;
+import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
-
-import java.util.function.Supplier;
+import net.minecraft.world.item.ItemStack;
 
 public final class SpecialDataEditorPanel implements EditorPanel {
+    private record Section(
+            Predicate<ItemStack> supports,
+            Function<SpecialDataPanelContext, UIComponent> build,
+            Function<SpecialDataPanelContext, List<EditorSearchDialog.Target>> search) {}
+
+    private static final List<Section> SECTIONS = List.of(
+            new Section(
+                    PotionSpecialDataSection::supports,
+                    PotionSpecialDataSection::build,
+                    PotionSpecialDataSection::searchTargets),
+            new Section(
+                    StewSpecialDataSection::supports,
+                    StewSpecialDataSection::build,
+                    StewSpecialDataSection::searchTargets),
+            new Section(
+                    FireworkSpecialDataSection::supportsRocket,
+                    FireworkSpecialDataSection::buildRocket,
+                    FireworkSpecialDataSection::searchRocketTargets),
+            new Section(
+                    FireworkSpecialDataSection::supportsStar,
+                    FireworkSpecialDataSection::buildStar,
+                    FireworkSpecialDataSection::searchStarTargets),
+            new Section(
+                    BannerSpecialDataSection::supports,
+                    BannerSpecialDataSection::build,
+                    BannerSpecialDataSection::searchTargets),
+            new Section(
+                    ArmorStandSpecialDataSection::supports,
+                    ArmorStandSpecialDataSection::build,
+                    ArmorStandSpecialDataSection::searchTargets),
+            new Section(
+                    ItemFrameSpecialDataSection::supports,
+                    ItemFrameSpecialDataSection::build,
+                    ItemFrameSpecialDataSection::searchTargets),
+            new Section(
+                    SpawnEggSpecialDataSection::supports,
+                    SpawnEggSpecialDataSection::build,
+                    SpawnEggSpecialDataSection::searchTargets),
+            new Section(
+                    EntityVariantSpecialDataSection::supports,
+                    EntityVariantSpecialDataSection::build,
+                    EntityVariantSpecialDataSection::searchTargets),
+            new Section(
+                    BucketCreatureSpecialDataSection::supports,
+                    BucketCreatureSpecialDataSection::build,
+                    BucketCreatureSpecialDataSection::searchTargets),
+            new Section(
+                    MiscSpecialDataSections::supportsProfile,
+                    MiscSpecialDataSections::buildProfile,
+                    MiscSpecialDataSections::searchProfileTargets),
+            new Section(
+                    MiscSpecialDataSections::supportsInstrument,
+                    MiscSpecialDataSections::buildInstrument,
+                    MiscSpecialDataSections::searchInstrumentTargets),
+            new Section(
+                    DebugStickSpecialDataSection::supports,
+                    DebugStickSpecialDataSection::build,
+                    DebugStickSpecialDataSection::searchTargets),
+            new Section(
+                    ContainerSpecialDataSection::supports,
+                    ContainerSpecialDataSection::build,
+                    ContainerSpecialDataSection::searchTargets),
+            new Section(
+                    BundleSpecialDataSection::supports,
+                    BundleSpecialDataSection::build,
+                    BundleSpecialDataSection::searchTargets),
+            new Section(
+                    SignSpecialDataSection::supports,
+                    SignSpecialDataSection::build,
+                    SignSpecialDataSection::searchTargets),
+            new Section(
+                    CommandBlockSpecialDataSection::supports,
+                    CommandBlockSpecialDataSection::build,
+                    CommandBlockSpecialDataSection::searchTargets),
+            new Section(
+                    SpawnerSpecialDataSection::supports,
+                    SpawnerSpecialDataSection::build,
+                    SpawnerSpecialDataSection::searchTargets));
+
     private final SpecialDataPanelContext context;
 
     public SpecialDataEditorPanel(ItemEditorScreen screen) {
@@ -33,42 +116,27 @@ public final class SpecialDataEditorPanel implements EditorPanel {
     }
 
     @Override
-    public UIComponent build() {
-        var stack = this.context.originalStack();
-        FlowLayout root = UiFactory.column();
-        int sectionCount = 0;
-
-        if (this.addIf(root, PotionSpecialDataSection.supports(stack), () -> PotionSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, StewSpecialDataSection.supports(stack), () -> StewSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, FireworkSpecialDataSection.supportsRocket(stack), () -> FireworkSpecialDataSection.buildRocket(this.context))) sectionCount++;
-        if (this.addIf(root, FireworkSpecialDataSection.supportsStar(stack), () -> FireworkSpecialDataSection.buildStar(this.context))) sectionCount++;
-        if (this.addIf(root, BannerSpecialDataSection.supports(stack), () -> BannerSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, ArmorStandSpecialDataSection.supports(stack), () -> ArmorStandSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, ItemFrameSpecialDataSection.supports(stack), () -> ItemFrameSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, SpawnEggSpecialDataSection.supports(stack), () -> SpawnEggSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, EntityVariantSpecialDataSection.supports(stack), () -> EntityVariantSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, BucketCreatureSpecialDataSection.supports(stack), () -> BucketCreatureSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, MiscSpecialDataSections.supportsProfile(stack), () -> MiscSpecialDataSections.buildProfile(this.context))) sectionCount++;
-        if (this.addIf(root, MiscSpecialDataSections.supportsInstrument(stack), () -> MiscSpecialDataSections.buildInstrument(this.context))) sectionCount++;
-        if (this.addIf(root, DebugStickSpecialDataSection.supports(stack), () -> DebugStickSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, ContainerSpecialDataSection.supports(stack), () -> ContainerSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, BundleSpecialDataSection.supports(stack), () -> BundleSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, SignSpecialDataSection.supports(stack), () -> SignSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, CommandBlockSpecialDataSection.supports(stack), () -> CommandBlockSpecialDataSection.build(this.context))) sectionCount++;
-        if (this.addIf(root, SpawnerSpecialDataSection.supports(stack), () -> SpawnerSpecialDataSection.build(this.context))) sectionCount++;
-
-        if (sectionCount == 0) {
-            root.child(UiFactory.muted(ItemEditorText.tr("special.empty"), this.context.panelWidthHint()));
+    public List<EditorSearchDialog.Target> searchTargets() {
+        var result = new ArrayList<EditorSearchDialog.Target>();
+        for (Section section : SECTIONS) {
+            if (section.supports().test(context.originalStack())) {
+                result.addAll(section.search().apply(context));
+            }
         }
-
-        return root;
+        return result;
     }
 
-    private boolean addIf(FlowLayout root, boolean condition, Supplier<UIComponent> sectionBuilder) {
-        if (condition) {
-            root.child(sectionBuilder.get());
-            return true;
+    @Override
+    public UIComponent build() {
+        FlowLayout root = UiFactory.column();
+        for (Section section : SECTIONS) {
+            if (section.supports().test(context.originalStack())) {
+                root.child(section.build().apply(context));
+            }
         }
-        return false;
+        if (root.children().isEmpty()) {
+            root.child(UiFactory.muted(ItemEditorText.tr("special.empty"), context.panelWidthHint()));
+        }
+        return root;
     }
 }

@@ -4,12 +4,15 @@ import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.network.chat.Component;
 
-import java.util.List;
-
 public final class TriStateBooleanUi {
-    public static final List<String> VALUES = List.of("", "true", "false");
+    private TriStateBooleanUi() {}
 
-    private TriStateBooleanUi() {
+    public static String next(String value) {
+        return switch (value == null ? "" : value) {
+            case "true" -> "false";
+            case "false" -> "";
+            default -> "true";
+        };
     }
 
     public static Component label(String value) {

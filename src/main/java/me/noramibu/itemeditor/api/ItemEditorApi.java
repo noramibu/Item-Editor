@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.api;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.service.ItemApplyService;
@@ -10,16 +13,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 /** Client-side entry points for opening Item Editor from another mod. */
 @Environment(EnvType.CLIENT)
 public final class ItemEditorApi {
 
-    private ItemEditorApi() {
-    }
+    private ItemEditorApi() {}
 
     /**
      * Opens a copy of {@code stack} and returns the edited copy to {@code onSave}.
@@ -33,10 +31,13 @@ public final class ItemEditorApi {
             return false;
         }
         ItemStack copy = stack.copy();
-        return onClientThread(() -> openNow(copy, edited -> {
-            onSave.accept(edited.copy());
-            return ItemApplyService.ApplyResult.success("");
-        }, -1));
+        return onClientThread(() -> openNow(
+                copy,
+                edited -> {
+                    onSave.accept(edited.copy());
+                    return ItemApplyService.ApplyResult.success("");
+                },
+                -1));
     }
 
     /**
@@ -49,20 +50,18 @@ public final class ItemEditorApi {
     public static boolean openPlayerInventorySlot(int inventorySlot) {
         return onClientThread(() -> {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null
-                    || inventorySlot < 0
-                    || inventorySlot >= Inventory.INVENTORY_SIZE) {
+            if (minecraft.player == null || inventorySlot < 0 || inventorySlot >= Inventory.INVENTORY_SIZE) {
                 return false;
             }
-            ItemStack original = minecraft.player.getInventory().getItem(inventorySlot).copy();
+            ItemStack original =
+                    minecraft.player.getInventory().getItem(inventorySlot).copy();
             if (original.isEmpty()) {
                 return false;
             }
             return openNow(
                     original,
                     edited -> ItemApplyService.applyToSlot(minecraft, inventorySlot, edited, original),
-                    inventorySlot
-            );
+                    inventorySlot);
         });
     }
 
@@ -76,23 +75,14 @@ public final class ItemEditorApi {
     }
 
     private static boolean openNow(
-            ItemStack stack,
-            Function<ItemStack, ItemApplyService.ApplyResult> saveHandler,
-            int verificationSlot
-    ) {
+            ItemStack stack, Function<ItemStack, ItemApplyService.ApplyResult> saveHandler, int verificationSlot) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null
-                || minecraft.level == null
-                || minecraft.screen instanceof ItemEditorScreen) {
+        if (minecraft.player == null || minecraft.level == null || minecraft.screen instanceof ItemEditorScreen) {
             return false;
         }
-        ItemEditorSessionOrigin.External origin = new ItemEditorSessionOrigin.External(
-                minecraft.screen,
-                saveHandler,
-                verificationSlot
-        );
+        ItemEditorSessionOrigin.External origin =
+                new ItemEditorSessionOrigin.External(minecraft.screen, saveHandler, verificationSlot);
         minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(minecraft, stack, origin)));
         return true;
     }
-
 }

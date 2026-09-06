@@ -15,8 +15,7 @@ public final class RawEditorRenderer {
             int renderedScroll,
             int horizontalOffset,
             int lineHeight,
-            int textLineHeight
-    ) {
+            int textLineHeight) {
         if (selection.empty()) {
             return List.of();
         }
@@ -70,8 +69,7 @@ public final class RawEditorRenderer {
             int horizontalOffset,
             int lineHeight,
             int textLineHeight,
-            int underlineHeight
-    ) {
+            int underlineHeight) {
         if (lineIndex < 0 || lineIndex >= document.lineCount() || layout.hiddenLine(lineIndex)) {
             return List.of();
         }
@@ -120,6 +118,5 @@ public final class RawEditorRenderer {
         return rectangles;
     }
 
-    public record RenderRect(int left, int top, int right, int bottom) {
-    }
+    public record RenderRect(int left, int top, int right, int bottom) {}
 }

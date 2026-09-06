@@ -13,6 +13,19 @@ import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
@@ -22,8 +35,8 @@ import me.noramibu.itemeditor.storage.StorageSortMode;
 import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.RichTextTokenDialog;
-import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
 import me.noramibu.itemeditor.ui.util.UiColors;
@@ -41,20 +54,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import org.jetbrains.annotations.NotNull;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
@@ -93,14 +92,23 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private StackLayout rootLayout;
     private FlowLayout activeDialog;
 
+    public StoragePagesScreen(Minecraft minecraft, Screen returnScreen) {
+        this(
+                minecraft,
+                StorageScreen.lastRuntimePage(),
+                StorageScreen.lastRuntimeQuery(),
+                StorageScreen.lastRuntimeSortMode(),
+                StorageScreen.rememberedMode(),
+                returnScreen);
+    }
+
     public StoragePagesScreen(
             Minecraft minecraft,
             int returnPage,
             String returnQuery,
             StorageSortMode returnSortMode,
             StorageScreenMode returnMode,
-            Screen returnScreen
-    ) {
+            Screen returnScreen) {
         this(minecraft, returnPage, returnQuery, returnSortMode, returnMode, returnScreen, null);
     }
 
@@ -111,8 +119,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             StorageSortMode returnSortMode,
             StorageScreenMode returnMode,
             Screen returnScreen,
-            Consumer<ItemStack> pickedStackConsumer
-    ) {
+            Consumer<ItemStack> pickedStackConsumer) {
         super(ItemEditorText.tr("storage.pages.title"));
         this.minecraft = minecraft;
         this.returnPage = Math.max(1, returnPage);
@@ -145,7 +152,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("storage.pages.title"), dense ? 0.82F : 1.0F)
                 .horizontalSizing(Sizing.expand(100)));
-        header.child(this.headerButton(ItemEditorText.tr("common.cancel"), 88, () -> this.openStoragePage(this.returnPage)));
+        header.child(
+                this.headerButton(ItemEditorText.tr("common.cancel"), 88, () -> this.openStoragePage(this.returnPage)));
         shell.child(header);
 
         TextBoxComponent search = UiFactory.textBox(this.filter, value -> {
@@ -155,37 +163,32 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         search.horizontalSizing(Sizing.fill(100));
         shell.child(search);
         shell.child(UiFactory.muted(
-                ItemEditorText.tr("storage.pages.search_help"),
-                this.contentTextWidth(),
-                dense ? 0.82F : 1.0F
-        ));
-        var displayEmpty = UiFactory.checkbox(ItemEditorText.tr("storage.pages.display_empty"), this.displayEmptyPages, checked -> {
-            this.displayEmptyPages = checked;
-            this.refreshPageList();
-        });
+                ItemEditorText.tr("storage.pages.search_help"), this.contentTextWidth(), dense ? 0.82F : 1.0F));
+        var displayEmpty = UiFactory.checkbox(
+                ItemEditorText.tr("storage.pages.display_empty"), this.displayEmptyPages, checked -> {
+                    this.displayEmptyPages = checked;
+                    this.refreshPageList();
+                });
         displayEmpty.tooltip(List.of(ItemEditorText.tr("storage.pages.display_empty")));
         FlowLayout pageTools = UiFactory.packedActionButtonRow(
                 this.headerButton(
                         ItemEditorText.tr("storage.pages.new_empty").copy().withColor(UiColors.SUCCESS),
                         ACTION_NEW_EMPTY_WIDTH,
-                        this::createPage
-                ),
+                        this::createPage),
                 this.headerButton(
                         ItemEditorText.tr("storage.pages.remove_empty").copy().withColor(UiColors.DANGER),
                         ACTION_REMOVE_EMPTY_WIDTH,
-                        this::removeEmptyPages
-                ),
+                        this::removeEmptyPages),
                 this.headerButton(
                         ItemEditorText.tr("storage.import_other_mods").copy().withColor(UiColors.SUCCESS),
                         ACTION_IMPORT_OTHER_WIDTH,
-                        this::openOtherModsImport
-                ),
+                        this::openOtherModsImport),
                 this.headerButton(
-                        ItemEditorText.tr("storage.pages.export_all_json").copy().withColor(UiColors.SUCCESS),
+                        ItemEditorText.tr("storage.pages.export_all_json")
+                                .copy()
+                                .withColor(UiColors.SUCCESS),
                         ACTION_EXPORT_ALL_JSON_WIDTH,
-                        this::exportAllItemsJson
-                )
-        );
+                        this::exportAllItemsJson));
         shell.child(displayEmpty);
         shell.child(pageTools);
 
@@ -194,14 +197,16 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
         this.pageList = UiFactory.scrollContentColumn(SCROLLBAR_THICKNESS);
         this.refreshPageList();
-        ScrollContainer<FlowLayout> scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.expand(100), this.pageList);
+        ScrollContainer<FlowLayout> scroll =
+                UIContainers.verticalScroll(Sizing.fill(100), Sizing.expand(100), this.pageList);
         this.pageScroll = scroll;
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         scroll.scrollbarThiccness(UiFactory.scaledScrollbarThickness(SCROLLBAR_THICKNESS));
         scroll.scrollStep(UiFactory.scaledScrollStep(10));
         shell.child(scroll);
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
+        this.statusLabel =
+                UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(Math.max(100, this.width - 60));
         shell.child(this.statusLabel);
 
         UiFactory.centerInRoot(root, shell, dense ? 3 : 8);
@@ -228,7 +233,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         }
         double scrollOffset = ScrollStateUtil.offset(this.pageScroll);
         this.pageList.clearChildren();
-        List<SavedItemStorageService.PageInfo> pages = this.storage.listPages(Math.max(this.returnPage, this.visiblePageLimit));
+        List<SavedItemStorageService.PageInfo> pages =
+                this.storage.listPages(Math.max(this.returnPage, this.visiblePageLimit));
         this.updateSummary(pages);
         for (SavedItemStorageService.PageInfo page : this.filteredPages(pages)) {
             this.pageList.child(this.buildPageRow(page));
@@ -239,7 +245,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private FlowLayout buildPageRow(SavedItemStorageService.PageInfo page) {
         FlowLayout row = UIContainers.verticalFlow(Sizing.fill(100), Sizing.content());
         row.gap(this.denseLayout() ? 1 : Math.max(1, UiFactory.scaleProfile().tightSpacing()));
-        row.padding(Insets.of(this.denseLayout() ? 2 : Math.max(4, UiFactory.scaleProfile().padding() - 1)));
+        row.padding(Insets.of(
+                this.denseLayout() ? 2 : Math.max(4, UiFactory.scaleProfile().padding() - 1)));
         row.surface(PAGE_ROW_SURFACE);
         row.allowOverflow(false);
         FlowLayout summary = UiFactory.row();
@@ -251,8 +258,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             row.child(UiFactory.muted(
                     Component.literal(pageMetaLine(page) + " | " + pageTimeLine(page)),
                     this.contentTextWidth(),
-                    0.78F
-            ));
+                    0.78F));
         } else {
             row.child(UiFactory.muted(Component.literal(pageMetaLine(page)), this.contentTextWidth()));
             row.child(UiFactory.muted(Component.literal(pageTimeLine(page)), this.contentTextWidth()));
@@ -261,33 +267,62 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         if (page.id().equals(this.renamingPageId)) {
             row.child(this.buildRenameEditor());
             row.child(UiFactory.actionButtonRow(
-                    UiFactory.positiveButton(ItemEditorText.tr("common.save"), UiFactory.ButtonTextPreset.STANDARD, button -> this.renamePage(page)),
-                    UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.updatePageState(this.filter, "", "", "", ""))
-            ));
+                    UiFactory.positiveButton(
+                            ItemEditorText.tr("common.save"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.renamePage(page)),
+                    UiFactory.button(
+                            ItemEditorText.tr("common.cancel"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.updatePageState(this.filter, "", "", "", ""))));
             return row;
         }
 
         if (page.id().equals(this.confirmingDeletePageId)) {
             row.child(UiFactory.message(ItemEditorText.tr("storage.pages.delete_confirm"), UiColors.DANGER));
             row.child(UiFactory.actionButtonRow(
-                    UiFactory.negativeButton(ItemEditorText.tr("common.delete"), UiFactory.ButtonTextPreset.STANDARD, button -> this.deletePage(page, true)),
-                    UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.updatePageState(this.filter, "", "", "", ""))
-            ));
+                    UiFactory.negativeButton(
+                            ItemEditorText.tr("common.delete"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.deletePage(page, true)),
+                    UiFactory.button(
+                            ItemEditorText.tr("common.cancel"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.updatePageState(this.filter, "", "", "", ""))));
             return row;
         }
 
         if (page.id().equals(this.exportingPageId)) {
             row.child(UiFactory.actionButtonRow(
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_chest"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPage(page, false)),
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_shulker"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPage(page, true)),
-                    UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.updatePageState(this.filter, "", "", "", ""))
-            ));
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_chest"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPage(page, false)),
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_shulker"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPage(page, true)),
+                    UiFactory.button(
+                            ItemEditorText.tr("common.cancel"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.updatePageState(this.filter, "", "", "", ""))));
             row.child(UiFactory.actionButtonRow(
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_give_chest"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPageCommands(page, false, false)),
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_item_chest"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPageCommands(page, false, true)),
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_give_shulker"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPageCommands(page, true, false)),
-                    UiFactory.button(ItemEditorText.tr("storage.pages.export_item_shulker"), UiFactory.ButtonTextPreset.STANDARD, button -> this.exportPageCommands(page, true, true))
-            ));
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_give_chest"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPageCommands(page, false, false)),
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_item_chest"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPageCommands(page, false, true)),
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_give_shulker"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPageCommands(page, true, false)),
+                    UiFactory.button(
+                            ItemEditorText.tr("storage.pages.export_item_shulker"),
+                            UiFactory.ButtonTextPreset.STANDARD,
+                            button -> this.exportPageCommands(page, true, true))));
             return row;
         }
 
@@ -296,14 +331,14 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private ButtonComponent headerButton(Component label, int widthPixels, Runnable action) {
-        int width = UiFactory.scaledPixels(this.denseLayout()
-                ? Math.max(22, Math.round(widthPixels * (widthPixels <= 80 ? 0.74F : 0.95F)))
-                : widthPixels);
+        int width = UiFactory.scaledPixels(
+                this.denseLayout()
+                        ? Math.max(22, Math.round(widthPixels * (widthPixels <= 80 ? 0.74F : 0.95F)))
+                        : widthPixels);
         ButtonComponent button = UiFactory.button(
                 label,
                 this.denseLayout() ? UiFactory.ButtonTextPreset.COMPACT : UiFactory.ButtonTextPreset.STANDARD,
-                ignored -> action.run()
-        );
+                ignored -> action.run());
         button.horizontalSizing(Sizing.fixed(width));
         button.verticalSizing(Sizing.fixed(UiFactory.scaledPixels(this.denseLayout() ? 15 : 18)));
         button.tooltip(List.of(label));
@@ -312,15 +347,40 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
     private FlowLayout buildPageActions(SavedItemStorageService.PageInfo page) {
         return UiFactory.packedActionButtonRow(
-                pageActionButton(ItemEditorText.tr("storage.pages.open"), UiColors.SUCCESS, true, () -> this.openStoragePage(page.pageNumber())),
-                pageActionButton(ItemEditorText.tr("storage.pages.rename"), UiColors.MUTED, true, () -> this.updatePageState(this.filter, page.id(), page.name(), "", "")),
-                pageActionButton(ItemEditorText.tr("common.duplicate"), UiColors.MUTED, !page.placeholderPage(), () -> this.duplicatePage(page)),
-                pageActionButton(ItemEditorText.tr("storage.pages.backup"), UiColors.MUTED, true, () -> this.backupPage(page)),
-                pageActionButton(ItemEditorText.tr("storage.pages.export"), UiColors.MUTED, !page.placeholderPage(), () -> this.updatePageState(this.filter, "", "", "", page.id())),
-                pageActionButton(ItemEditorText.tr("common.delete"), UiColors.DANGER, true, () -> this.deletePage(page, false)),
-                this.smallMoveButton(SYMBOL_UP, ItemEditorText.tr("common.up"), !page.placeholderPage(), () -> this.movePage(page, -1)),
-                this.smallMoveButton(SYMBOL_DOWN, ItemEditorText.tr("common.down"), !page.placeholderPage(), () -> this.movePage(page, 1))
-        );
+                pageActionButton(
+                        ItemEditorText.tr("storage.pages.open"),
+                        UiColors.SUCCESS,
+                        true,
+                        () -> this.openStoragePage(page.pageNumber())),
+                pageActionButton(
+                        ItemEditorText.tr("storage.pages.rename"),
+                        UiColors.MUTED,
+                        true,
+                        () -> this.updatePageState(this.filter, page.id(), page.name(), "", "")),
+                pageActionButton(
+                        ItemEditorText.tr("common.duplicate"),
+                        UiColors.MUTED,
+                        !page.placeholderPage(),
+                        () -> this.duplicatePage(page)),
+                pageActionButton(
+                        ItemEditorText.tr("storage.pages.backup"), UiColors.MUTED, true, () -> this.backupPage(page)),
+                pageActionButton(
+                        ItemEditorText.tr("storage.pages.export"),
+                        UiColors.MUTED,
+                        !page.placeholderPage(),
+                        () -> this.updatePageState(this.filter, "", "", "", page.id())),
+                pageActionButton(
+                        ItemEditorText.tr("common.delete"), UiColors.DANGER, true, () -> this.deletePage(page, false)),
+                this.smallMoveButton(
+                        SYMBOL_UP,
+                        ItemEditorText.tr("common.up"),
+                        !page.placeholderPage(),
+                        () -> this.movePage(page, -1)),
+                this.smallMoveButton(
+                        SYMBOL_DOWN,
+                        ItemEditorText.tr("common.down"),
+                        !page.placeholderPage(),
+                        () -> this.movePage(page, 1)));
     }
 
     private FlowLayout buildRenameEditor() {
@@ -329,8 +389,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         RichTextAreaComponent editor = new RichTextAreaComponent(
                 Sizing.fill(100),
                 Sizing.fixed(UiFactory.scaledPixels(RENAME_EDITOR_HEIGHT)),
-                RichTextDocument.fromMarkup(this.renameDraft)
-        );
+                RichTextDocument.fromMarkup(this.renameDraft));
         editor.placeholder(ItemEditorText.str("storage.pages.rename"));
         editor.displayCharCount(true);
         editor.structuredRenderMode(true);
@@ -339,7 +398,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         editor.validator(document -> document.logicalLineCount() > 1
                 ? ItemEditorText.str("text.validation.single_line", ItemEditorText.str("storage.pages.rename"))
                 : null);
-        editor.onDocumentChanged().subscribe(document -> this.renameDraft = TextComponentUtil.toMarkup(document.toComponent()));
+        editor.onDocumentChanged()
+                .subscribe(document -> this.renameDraft = TextComponentUtil.toMarkup(document.toComponent()));
         box.child(this.buildRenameToolbar(editor));
         box.child(editor);
         return box;
@@ -352,10 +412,22 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         tools.child(toolButton("I", ItemEditorText.tr("toolbar.tooltip.italic"), editor::toggleItalic));
         tools.child(toolButton("U", ItemEditorText.tr("toolbar.tooltip.underline"), editor::toggleUnderline));
         tools.child(toolButton("S", ItemEditorText.tr("toolbar.tooltip.strikethrough"), editor::toggleStrikethrough));
-        tools.child(toolButton(ItemEditorText.str("toolbar.color"), ItemEditorText.tr("toolbar.tooltip.color"), () -> this.openColorDialog(editor)));
-        tools.child(toolButton(ItemEditorText.str("toolbar.head"), ItemEditorText.tr("toolbar.tooltip.head"), () -> this.openHeadDialog(editor)));
-        tools.child(toolButton(ItemEditorText.str("toolbar.sprite"), ItemEditorText.tr("toolbar.tooltip.sprite"), () -> this.openSpriteDialog(editor)));
-        tools.child(toolButton(ItemEditorText.str("toolbar.reset"), ItemEditorText.tr("toolbar.tooltip.reset"), editor::clearFormatting));
+        tools.child(toolButton(
+                ItemEditorText.str("toolbar.color"),
+                ItemEditorText.tr("toolbar.tooltip.color"),
+                () -> this.openColorDialog(editor)));
+        tools.child(toolButton(
+                ItemEditorText.str("toolbar.head"),
+                ItemEditorText.tr("toolbar.tooltip.head"),
+                () -> this.openHeadDialog(editor)));
+        tools.child(toolButton(
+                ItemEditorText.str("toolbar.sprite"),
+                ItemEditorText.tr("toolbar.tooltip.sprite"),
+                () -> this.openSpriteDialog(editor)));
+        tools.child(toolButton(
+                ItemEditorText.str("common.reset"),
+                ItemEditorText.tr("toolbar.tooltip.reset"),
+                editor::clearFormatting));
         return tools;
     }
 
@@ -439,8 +511,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 empty,
                 placeholders,
                 items,
-                StorageSizeText.sizeLine(bytes)
-        ));
+                StorageSizeText.sizeLine(bytes)));
     }
 
     private static boolean failsNumberFilter(int value, String expression, boolean byteSize) {
@@ -500,17 +571,9 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         }
     }
 
-    private ButtonComponent smallMoveButton(
-            String label,
-            Component tooltip,
-            boolean enabled,
-            Runnable action
-    ) {
-        ButtonComponent button = UiFactory.button(
-                Component.literal(label),
-                UiFactory.ButtonTextPreset.TINY,
-                ignored -> action.run()
-        );
+    private ButtonComponent smallMoveButton(String label, Component tooltip, boolean enabled, Runnable action) {
+        ButtonComponent button =
+                UiFactory.button(Component.literal(label), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
         button.tooltip(List.of(tooltip));
         button.horizontalSizing(Sizing.fixed(UiFactory.scaledPixels(ACTION_MOVE_WIDTH)));
         button.verticalSizing(Sizing.fixed(UiFactory.scaledPixels(this.denseLayout() ? 14 : 18)));
@@ -518,33 +581,18 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         return button;
     }
 
-    private ButtonComponent pageActionButton(
-            Component label,
-            int color,
-            boolean enabled,
-            Runnable action
-    ) {
+    private ButtonComponent pageActionButton(Component label, int color, boolean enabled, Runnable action) {
         ButtonComponent button = UiFactory.button(
-                label.copy().withColor(color),
-                UiFactory.ButtonTextPreset.TINY,
-                ignored -> action.run()
-        );
+                label.copy().withColor(color), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
         button.verticalSizing(Sizing.fixed(UiFactory.scaledPixels(this.denseLayout() ? 14 : 18)));
         button.tooltip(List.of(label));
         button.active(enabled);
         return button;
     }
 
-    private static ButtonComponent toolButton(
-            String label,
-            Component tooltip,
-            Runnable action
-    ) {
-        ButtonComponent button = UiFactory.button(
-                Component.literal(label),
-                UiFactory.ButtonTextPreset.TINY,
-                ignored -> action.run()
-        );
+    private static ButtonComponent toolButton(String label, Component tooltip, Runnable action) {
+        ButtonComponent button =
+                UiFactory.button(Component.literal(label), UiFactory.ButtonTextPreset.TINY, ignored -> action.run());
         if (tooltip != null && !tooltip.getString().isBlank()) {
             button.tooltip(List.of(tooltip));
         }
@@ -566,8 +614,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                         true,
                         true,
                         0xFFFFFF,
-                        editor.selectedTextOr("")
-                ),
+                        editor.selectedTextOr(""),
+                        false),
                 result -> {
                     this.clearDialog();
                     if (result.shadow()) {
@@ -583,32 +631,29 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                     }
                     editor.resumeEditing();
                 },
-                this::clearDialog
-        ));
+                this::clearDialog));
     }
 
     private void openHeadDialog(RichTextAreaComponent editor) {
         this.attachDialog(RichTextTokenDialog.createHead(
-                ItemEditorText.str("dialog.rich_text.head.title"),
+                ItemEditorText.str("toolbar.tooltip.head"),
                 token -> {
                     this.clearDialog();
                     editor.insertTemplate(token);
                     editor.resumeEditing();
                 },
-                this::clearDialog
-        ));
+                this::clearDialog));
     }
 
     private void openSpriteDialog(RichTextAreaComponent editor) {
         this.attachDialog(RichTextTokenDialog.createSprite(
-                ItemEditorText.str("dialog.rich_text.sprite.title"),
+                ItemEditorText.str("toolbar.tooltip.sprite"),
                 token -> {
                     this.clearDialog();
                     editor.insertTemplate(token);
                     editor.resumeEditing();
                 },
-                this::clearDialog
-        ));
+                this::clearDialog));
     }
 
     private void attachDialog(FlowLayout dialog) {
@@ -636,7 +681,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void createPage() {
-        this.visiblePageLimit = Math.max(this.visiblePageLimit, this.storage.nextEmptyPageNumber(this.visiblePageLimit));
+        this.visiblePageLimit =
+                Math.max(this.visiblePageLimit, this.storage.nextEmptyPageNumber(this.visiblePageLimit));
         this.setStatus(ItemEditorText.tr("storage.pages.created", this.visiblePageLimit), UiColors.SUCCESS);
         this.refreshPageList();
     }
@@ -649,10 +695,9 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         int removedStoredPages = this.storage.enqueueRemoveEmptyPages().join();
         this.storage.flushQueuedWrites();
         this.visiblePageLimit = Math.max(1, this.storage.nextEmptyPageNumber(1) - 1);
-        this.setStatus(ItemEditorText.tr(
-                "storage.pages.removed_empty",
-                Math.max(visibleEmptyPages, removedStoredPages)
-        ), UiColors.SUCCESS);
+        this.setStatus(
+                ItemEditorText.tr("storage.pages.removed_empty", Math.max(visibleEmptyPages, removedStoredPages)),
+                UiColors.SUCCESS);
         this.updatePageState(this.filter, "", "", "", "");
     }
 
@@ -674,20 +719,20 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void backupPage(SavedItemStorageService.PageInfo page) {
-        this.storage.enqueueBackupPage(page.pageNumber()).whenComplete((backup, throwable) -> this.minecraft.execute(() -> {
-            if (throwable != null || backup == null) {
-                this.setStatus(ItemEditorText.tr("storage.pages.backup_failed"), UiColors.DANGER);
-                return;
-            }
-            Path fileName = backup.getFileName();
-            this.setStatus(
-                    ItemEditorText.tr(
-                            "storage.pages.backed_up",
-                            fileName == null ? backup.toString() : fileName.toString()
-                    ),
-                    UiColors.SUCCESS
-            );
-        }));
+        this.storage
+                .enqueueBackupPage(page.pageNumber())
+                .whenComplete((backup, throwable) -> this.minecraft.execute(() -> {
+                    if (throwable != null || backup == null) {
+                        this.setStatus(ItemEditorText.tr("storage.pages.backup_failed"), UiColors.DANGER);
+                        return;
+                    }
+                    Path fileName = backup.getFileName();
+                    this.setStatus(
+                            ItemEditorText.tr(
+                                    "storage.pages.backed_up",
+                                    fileName == null ? backup.toString() : fileName.toString()),
+                            UiColors.SUCCESS);
+                }));
     }
 
     private void deletePage(SavedItemStorageService.PageInfo page, boolean confirmed) {
@@ -701,7 +746,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             this.updatePageState(this.filter, "", "", "", "");
             return;
         }
-        boolean deleted = this.storage.enqueueDeletePageNumber(page.pageNumber()).join();
+        boolean deleted =
+                this.storage.enqueueDeletePageNumber(page.pageNumber()).join();
         this.storage.flushQueuedWrites();
         if (deleted) {
             if (this.visiblePageLimit >= page.pageNumber()) {
@@ -743,7 +789,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                         }
                     }
                     this.minecraft.keyboardHandler.setClipboard(String.join("\n", commands));
-                    this.setStatus(ItemEditorText.tr("storage.pages.commands_copied", commands.size()), UiColors.SUCCESS);
+                    this.setStatus(
+                            ItemEditorText.tr("storage.pages.commands_copied", commands.size()), UiColors.SUCCESS);
                     this.updatePageState(this.filter, "", "", "", "");
                 }));
     }
@@ -760,29 +807,25 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
 
         this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_started"), UiColors.MUTED);
         RegistryAccess access = this.registryAccess();
-        Path exportDir = this.minecraft.gameDirectory.toPath()
+        Path exportDir = this.minecraft
+                .gameDirectory
+                .toPath()
                 .resolve(EXPORT_ALL_JSON_DIRECTORY)
                 .resolve(EXPORT_TIMESTAMP_FORMAT.format(LocalDateTime.now()));
-        CompletableFuture
-                .supplyAsync(() -> this.exportAllItemsJson(pages, exportDir, access))
+        CompletableFuture.supplyAsync(() -> this.exportAllItemsJson(pages, exportDir, access))
                 .whenComplete((count, throwable) -> this.minecraft.execute(() -> {
                     if (throwable != null || count == null) {
                         this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_failed"), UiColors.DANGER);
                         return;
                     }
-                    this.setStatus(ItemEditorText.tr(
-                            "storage.pages.export_all_json_done",
-                            count,
-                            exportDir.toString()
-                    ), UiColors.SUCCESS);
+                    this.setStatus(
+                            ItemEditorText.tr("storage.pages.export_all_json_done", count, exportDir.toString()),
+                            UiColors.SUCCESS);
                 }));
     }
 
     private int exportAllItemsJson(
-            List<SavedItemStorageService.PageInfo> pages,
-            Path exportDir,
-            RegistryAccess access
-    ) {
+            List<SavedItemStorageService.PageInfo> pages, Path exportDir, RegistryAccess access) {
         try {
             Files.createDirectories(exportDir);
             int exported = 0;
@@ -802,8 +845,8 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             SavedItemStorageService.PageInfo page,
             SavedItemStorageService.PageSnapshot snapshot,
             Path exportDir,
-            RegistryAccess access
-    ) throws IOException {
+            RegistryAccess access)
+            throws IOException {
         int exported = 0;
         Map<String, ItemStack> stacks = snapshot.loadedStacks();
         for (SavedIndexItemEntry entry : snapshot.result().entries()) {
@@ -813,20 +856,14 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             }
             String fileName = itemJsonFileName(page, entry, exported);
             Files.writeString(
-                    exportDir.resolve(fileName),
-                    RawItemDataUtil.serializeJson(stack, access),
-                    StandardCharsets.UTF_8
-            );
+                    exportDir.resolve(fileName), RawItemDataUtil.serializeJson(stack, access), StandardCharsets.UTF_8);
             exported++;
         }
         return exported;
     }
 
     private static String itemJsonFileName(
-            SavedItemStorageService.PageInfo page,
-            SavedIndexItemEntry entry,
-            int pageExportIndex
-    ) {
+            SavedItemStorageService.PageInfo page, SavedIndexItemEntry entry, int pageExportIndex) {
         String itemId = Objects.requireNonNullElse(entry.itemRegistryKey, "item");
         String baseName = String.format(
                 Locale.ROOT,
@@ -834,8 +871,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 Math.max(1, page.pageNumber()),
                 Math.max(0, entry.slotInPage) + 1,
                 pageExportIndex + 1,
-                safeFilePart(itemId)
-        );
+                safeFilePart(itemId));
         return baseName + ".json";
     }
 
@@ -848,13 +884,10 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private int giveExportContainers(
-            SavedItemStorageService.PageInfo page,
-            SavedItemStorageService.PageSnapshot snapshot,
-            boolean shulker
-    ) {
+            SavedItemStorageService.PageInfo page, SavedItemStorageService.PageSnapshot snapshot, boolean shulker) {
         int added = 0;
         for (ItemStack container : this.exportContainers(page, snapshot, shulker)) {
-            if (this.giveStack(container)) {
+            if (ClientInventorySyncService.putInFreeSlot(this.minecraft, container)) {
                 added++;
             }
         }
@@ -862,10 +895,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private List<ItemStack> exportContainers(
-            SavedItemStorageService.PageInfo page,
-            SavedItemStorageService.PageSnapshot snapshot,
-            boolean shulker
-    ) {
+            SavedItemStorageService.PageInfo page, SavedItemStorageService.PageSnapshot snapshot, boolean shulker) {
         List<ItemStack> first = emptyContainerSlots();
         List<ItemStack> second = emptyContainerSlots();
         Map<String, ItemStack> stacks = snapshot.loadedStacks();
@@ -895,15 +925,12 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private ItemStack createContainer(String name, List<ItemStack> contents, boolean shulker) {
         Item item = shulker ? Items.SHULKER_BOX : Items.CHEST;
         ItemStack container = new ItemStack(item);
-        container.set(DataComponents.CUSTOM_NAME, TextComponentUtil.parseMarkup(
-                name == null || name.isBlank() ? ItemEditorText.str("storage.pages.default_name") : name
-        ));
+        container.set(
+                DataComponents.CUSTOM_NAME,
+                TextComponentUtil.parseMarkup(
+                        name == null || name.isBlank() ? ItemEditorText.str("storage.pages.default_name") : name));
         container.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
         return container;
-    }
-
-    private boolean giveStack(ItemStack stack) {
-        return ClientInventorySyncService.putInFreeSlot(this.minecraft, stack);
     }
 
     private static List<ItemStack> emptyContainerSlots() {
@@ -921,8 +948,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 this.returnSortMode,
                 this.returnMode,
                 this.returnScreen,
-                this.pickedStackConsumer
-        ));
+                this.pickedStackConsumer));
     }
 
     private void openOtherModsImport() {
@@ -932,8 +958,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 this.returnQuery,
                 this.returnSortMode,
                 this.returnMode,
-                this.returnScreen
-        ));
+                this.returnScreen));
     }
 
     private void updatePageState(
@@ -941,8 +966,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
             String nextRenamingPageId,
             String nextRenameDraft,
             String nextConfirmingDeletePageId,
-            String nextExportingPageId
-    ) {
+            String nextExportingPageId) {
         this.filter = nextFilter == null ? "" : nextFilter;
         this.renamingPageId = nextRenamingPageId == null ? "" : nextRenamingPageId;
         this.renameDraft = nextRenameDraft == null ? "" : nextRenameDraft;
@@ -990,8 +1014,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 page.placeholderPage() ? "storage.pages.meta_placeholder" : "storage.pages.meta",
                 page.itemCount(),
                 StorageSizeText.sizeLine(page.nbtBytes()),
-                page.chunkId()
-        );
+                page.chunkId());
     }
 
     private static String pageTimeLine(SavedItemStorageService.PageInfo page) {
@@ -1005,10 +1028,13 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private static Component pageTitleComponent(SavedItemStorageService.PageInfo page) {
-        Component name = TextComponentUtil.parseMarkup(page.name() == null || page.name().isBlank()
-                ? ItemEditorText.str("storage.default_page")
-                : page.name());
-        return Component.literal("#" + page.pageNumber() + " ").withColor(UiColors.MUTED).append(name);
+        Component name = TextComponentUtil.parseMarkup(
+                page.name() == null || page.name().isBlank()
+                        ? ItemEditorText.str("storage.default_page")
+                        : page.name());
+        return Component.literal("#" + page.pageNumber() + " ")
+                .withColor(UiColors.MUTED)
+                .append(name);
     }
 
     private static String relativeTime(long epochMillis) {

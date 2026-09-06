@@ -15,7 +15,7 @@ public final class RawTextDocument {
     private String text;
     private int caret;
     private int anchor;
-    private int[] lineStarts = new int[]{0};
+    private int[] lineStarts = new int[] {0};
 
     public RawTextDocument(String value, int historyLimit, int historyCharBudget) {
         this.historyLimit = Math.max(0, historyLimit);
@@ -69,19 +69,23 @@ public final class RawTextDocument {
     }
 
     public int lineIndexForOffset(int offset) {
-        int target = Math.clamp(offset, 0, this.text.length());
+        return lineIndexForOffset(this.text.length(), this.lineStarts, offset);
+    }
+
+    static int lineIndexForOffset(int textLength, int[] lineStarts, int offset) {
+        int target = Math.clamp(offset, 0, textLength);
         if (target > 0) {
-            int exactLineStart = Arrays.binarySearch(this.lineStarts, target);
+            int exactLineStart = Arrays.binarySearch(lineStarts, target);
             if (exactLineStart >= 0) {
                 return exactLineStart;
             }
         }
         int low = 0;
-        int high = this.lineStarts.length - 1;
+        int high = lineStarts.length - 1;
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            int start = this.lineStarts[mid];
-            int end = this.lineEnd(mid);
+            int start = lineStarts[mid];
+            int end = mid + 1 < lineStarts.length ? lineStarts[mid + 1] - 1 : textLength;
             if (target < start) {
                 high = mid - 1;
             } else if (target > end) {
@@ -90,7 +94,7 @@ public final class RawTextDocument {
                 return mid;
             }
         }
-        return Math.clamp(low, 0, this.lineStarts.length - 1);
+        return Math.clamp(low, 0, lineStarts.length - 1);
     }
 
     public int previousCodePoint(int offset) {
@@ -195,9 +199,8 @@ public final class RawTextDocument {
 
     public CutResult cutSelection(double scroll) {
         String selected = this.selectedText();
-        EditResult edit = selected.isEmpty()
-                ? EditResult.unchanged(this.text.length())
-                : this.replaceSelection("", scroll);
+        EditResult edit =
+                selected.isEmpty() ? EditResult.unchanged(this.text.length()) : this.replaceSelection("", scroll);
         return new CutResult(selected, edit);
     }
 
@@ -227,9 +230,7 @@ public final class RawTextDocument {
         int safeStart = Math.clamp(start, 0, this.text.length());
         int safeEnd = Math.clamp(end, safeStart, this.text.length());
         String safeReplacement = replacement == null ? "" : replacement;
-        String nextText = this.text.substring(0, safeStart)
-                + safeReplacement
-                + this.text.substring(safeEnd);
+        String nextText = this.text.substring(0, safeStart) + safeReplacement + this.text.substring(safeEnd);
         int nextCaret = safeStart + safeReplacement.length();
         return this.replaceContent(nextText, nextCaret, nextCaret, scroll, safeStart, safeEnd, safeReplacement);
     }
@@ -241,8 +242,7 @@ public final class RawTextDocument {
             double scroll,
             int editStart,
             int editEnd,
-            String replacement
-    ) {
+            String replacement) {
         String safeNextText = nextText == null ? "" : nextText;
         String previousText = this.text;
         int previousLength = previousText.length();
@@ -254,12 +254,8 @@ public final class RawTextDocument {
             safeEditStart = Math.clamp(safeEditStart, 0, previousLength);
             safeEditEnd = Math.clamp(safeEditEnd, safeEditStart, previousLength);
         }
-        String removed = changed && safeEditStart >= 0
-                ? previousText.substring(safeEditStart, safeEditEnd)
-                : "";
-        int startLineBefore = changed && safeEditStart >= 0
-                ? this.lineIndexForOffset(safeEditStart)
-                : -1;
+        String removed = changed && safeEditStart >= 0 ? previousText.substring(safeEditStart, safeEditEnd) : "";
+        int startLineBefore = changed && safeEditStart >= 0 ? this.lineIndexForOffset(safeEditStart) : -1;
 
         if (changed) {
             this.undoHistory.addLast(this.captureState(scroll));
@@ -290,8 +286,7 @@ public final class RawTextDocument {
                 startLineBefore,
                 newlineCount(safeReplacement) - newlineCount(removed),
                 changed && safeEditStart >= 0 && newlineCount(safeReplacement) != newlineCount(removed),
-                incremental
-        );
+                incremental);
     }
 
     public void reset(String value) {
@@ -326,7 +321,8 @@ public final class RawTextDocument {
         this.trimHistory(this.redoHistory);
         HistoryState restored = this.undoHistory.removeLast();
         this.restore(restored);
-        return Optional.of(new RestoredState(restored.text(), restored.caret(), restored.anchor(), restored.scroll(), previousLength));
+        return Optional.of(new RestoredState(
+                restored.text(), restored.caret(), restored.anchor(), restored.scroll(), previousLength));
     }
 
     public Optional<RestoredState> redo(double currentScroll) {
@@ -338,7 +334,8 @@ public final class RawTextDocument {
         this.trimHistory(this.undoHistory);
         HistoryState restored = this.redoHistory.removeLast();
         this.restore(restored);
-        return Optional.of(new RestoredState(restored.text(), restored.caret(), restored.anchor(), restored.scroll(), previousLength));
+        return Optional.of(new RestoredState(
+                restored.text(), restored.caret(), restored.anchor(), restored.scroll(), previousLength));
     }
 
     public List<HistorySnapshot> undoHistorySnapshot() {
@@ -350,11 +347,7 @@ public final class RawTextDocument {
     }
 
     public void restoreEditorState(
-            int caret,
-            int anchor,
-            List<HistorySnapshot> undoHistory,
-            List<HistorySnapshot> redoHistory
-    ) {
+            int caret, int anchor, List<HistorySnapshot> undoHistory, List<HistorySnapshot> redoHistory) {
         this.caret = Math.clamp(caret, 0, this.text.length());
         this.anchor = Math.clamp(anchor, 0, this.text.length());
         this.undoHistory.clear();
@@ -448,12 +441,7 @@ public final class RawTextDocument {
         return true;
     }
 
-    private boolean rebuildLineStartsIncremental(
-            int oldTextLength,
-            int editStart,
-            int editEnd,
-            String replacement
-    ) {
+    private boolean rebuildLineStartsIncremental(int oldTextLength, int editStart, int editEnd, String replacement) {
         if (this.lineStarts.length == 0) {
             return false;
         }
@@ -522,8 +510,7 @@ public final class RawTextDocument {
         }
     }
 
-    public record CutResult(String text, EditResult edit) {
-    }
+    public record CutResult(String text, EditResult edit) {}
 
     public record EditResult(
             String previousText,
@@ -536,8 +523,7 @@ public final class RawTextDocument {
             int startLineBefore,
             int lineDelta,
             boolean lineCountChanged,
-            boolean incrementalLineStarts
-    ) {
+            boolean incrementalLineStarts) {
         public EditResult {
             previousText = previousText == null ? "" : previousText;
             replacement = replacement == null ? "" : replacement;

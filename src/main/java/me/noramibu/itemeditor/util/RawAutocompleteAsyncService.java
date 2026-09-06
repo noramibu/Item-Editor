@@ -1,15 +1,15 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.core.RegistryAccess;
-
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import net.minecraft.core.RegistryAccess;
 
 public final class RawAutocompleteAsyncService {
 
-    private static final ExecutorService EXECUTOR = AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-raw-autocomplete");
+    private static final ExecutorService EXECUTOR =
+            AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-raw-autocomplete");
 
     private final AtomicLong requestVersion = new AtomicLong();
     private final Object cacheLock = new Object();
@@ -23,23 +23,20 @@ public final class RawAutocompleteAsyncService {
             String fallbackItemId,
             List<String> lootTableIds,
             EditDelta editDelta,
-            Consumer<RawAutocompleteUtil.AutocompleteResult> onResult
-    ) {
+            Consumer<RawAutocompleteUtil.AutocompleteResult> onResult) {
         String safeText = text == null ? "" : text;
         String safeFallbackItemId = fallbackItemId == null ? "" : fallbackItemId;
         List<String> safeLootTableIds = lootTableIds == null ? List.of() : List.copyOf(lootTableIds);
         Consumer<RawAutocompleteUtil.AutocompleteResult> resultConsumer = AsyncDispatchUtil.nullSafeConsumer(onResult);
-        AsyncDispatchUtil.requestLatest(this.requestVersion, EXECUTOR, () -> {
-            RawAutocompleteIndex index = this.ensureIndex(safeText, editDelta);
-            return RawAutocompleteUtil.suggest(
-                    safeText,
-                    caret,
-                    registryAccess,
-                    index,
-                    safeFallbackItemId,
-                    safeLootTableIds
-            );
-        }, resultConsumer);
+        AsyncDispatchUtil.requestLatest(
+                this.requestVersion,
+                EXECUTOR,
+                () -> {
+                    RawAutocompleteIndex index = this.ensureIndex(safeText, editDelta);
+                    return RawAutocompleteUtil.suggest(
+                            safeText, caret, registryAccess, index, safeFallbackItemId, safeLootTableIds);
+                },
+                resultConsumer);
     }
 
     private RawAutocompleteIndex ensureIndex(String text, EditDelta editDelta) {
@@ -52,8 +49,7 @@ public final class RawAutocompleteAsyncService {
                         editDelta == null ? 0 : editDelta.start(),
                         editDelta == null ? 0 : editDelta.end(),
                         editDelta == null ? "" : editDelta.replacement(),
-                        forceStructural
-                );
+                        forceStructural);
                 this.cachedText = text;
             }
             return this.cachedIndex;
@@ -61,7 +57,11 @@ public final class RawAutocompleteAsyncService {
     }
 
     private boolean shouldForceStructuralReindex(EditDelta editDelta) {
-        if (editDelta == null || editDelta.structural() || this.cachedIndex == null || this.cachedText == null || this.cachedText.isEmpty()) {
+        if (editDelta == null
+                || editDelta.structural()
+                || this.cachedIndex == null
+                || this.cachedText == null
+                || this.cachedText.isEmpty()) {
             return true;
         }
 
@@ -189,11 +189,7 @@ public final class RawAutocompleteAsyncService {
     }
 
     private static boolean isIdentifierChar(char value) {
-        return Character.isLetterOrDigit(value)
-                || value == '_'
-                || value == '-'
-                || value == '.'
-                || value == ':';
+        return Character.isLetterOrDigit(value) || value == '_' || value == '-' || value == '.' || value == ':';
     }
 
     public record EditDelta(int start, int end, String replacement, boolean structural) {

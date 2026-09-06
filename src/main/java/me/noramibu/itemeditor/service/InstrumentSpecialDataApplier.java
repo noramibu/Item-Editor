@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.InstrumentDetails;
@@ -15,8 +16,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.item.Instrument;
 import net.minecraft.world.item.component.InstrumentComponent;
-
-import java.util.Objects;
 
 final class InstrumentSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
@@ -35,49 +34,38 @@ final class InstrumentSpecialDataApplier extends AbstractPreviewApplierSupport i
 
         Holder<Instrument> registryInstrument = this.resolveRegistryInstrument(context);
         if (registryInstrument != null
-                && (details.isBlank() || details.equals(InstrumentDetails.fromInstrument(registryInstrument.value())))) {
+                && (details.isBlank()
+                        || details.equals(InstrumentDetails.fromInstrument(registryInstrument.value())))) {
             context.previewStack().set(DataComponents.INSTRUMENT, new InstrumentComponent(registryInstrument));
             return;
         }
 
         Holder<SoundEvent> soundEvent = this.resolveSoundEvent(context, details.soundEventId());
         if (soundEvent == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.misc.instrument.sound_event"),
-                    details.soundEventId()
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.misc.instrument.sound_event"),
+                            details.soundEventId())));
             return;
         }
 
         Float useDuration = ValidationUtil.parseFloat(
-                details.useDuration(),
-                ItemEditorText.str("special.misc.instrument.use_duration"),
-                context.messages()
-        );
+                details.useDuration(), ItemEditorText.str("special.misc.instrument.use_duration"), context.messages());
         Float range = ValidationUtil.parseFloat(
-                details.range(),
-                ItemEditorText.str("special.misc.instrument.range"),
-                context.messages()
-        );
+                details.range(), ItemEditorText.str("special.misc.instrument.range"), context.messages());
         if (useDuration == null || range == null) {
             return;
         }
 
-        Instrument instrument = new Instrument(
-                soundEvent,
-                useDuration,
-                range,
-                TextComponentUtil.parseMarkup(details.description())
-        );
+        Instrument instrument =
+                new Instrument(soundEvent, useDuration, range, TextComponentUtil.parseMarkup(details.description()));
         context.previewStack().set(DataComponents.INSTRUMENT, new InstrumentComponent(Holder.direct(instrument)));
     }
 
     private Holder<SoundEvent> resolveSoundEvent(SpecialDataApplyContext context, String soundEventId) {
         Holder<SoundEvent> registrySound = RegistryUtil.resolveHolder(
-                context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT),
-                soundEventId
-        );
+                context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT), soundEventId);
         if (registrySound != null) {
             return registrySound;
         }

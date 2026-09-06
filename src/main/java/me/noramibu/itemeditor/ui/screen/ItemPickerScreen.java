@@ -6,9 +6,15 @@ import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.core.CursorStyle;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
@@ -24,12 +30,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.function.Consumer;
 
 public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
     private static final int SHELL_MAX_WIDTH = 980;
@@ -69,8 +69,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                 modded.add(pickable);
             }
         }
-        Comparator<PickableItem> comparator = Comparator
-                .comparing((PickableItem item) -> item.displayName().getString().toLowerCase(Locale.ROOT))
+        Comparator<PickableItem> comparator = Comparator.comparing(
+                        (PickableItem item) -> item.displayName().getString().toLowerCase(Locale.ROOT))
                 .thenComparing(item -> item.id().toString());
         vanilla.sort(comparator);
         modded.sort(comparator);
@@ -99,7 +99,10 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(ItemEditorText.tr("item_picker.title")).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.button(ItemEditorText.tr("item_picker.back"), UiFactory.ButtonTextPreset.STANDARD, button -> this.minecraft.setScreen(this.returnScreen)));
+        header.child(UiFactory.button(
+                ItemEditorText.tr("entry.back"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.minecraft.setScreen(this.returnScreen)));
         shell.child(header);
 
         FlowLayout controls = UiFactory.row();
@@ -109,15 +112,15 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         });
         this.searchBox.setHint(ItemEditorText.tr("item_picker.search"));
         controls.child(this.searchBox.horizontalSizing(Sizing.expand(100)));
-        controls.child(UiFactory.checkbox(ItemEditorText.tr("item_picker.include_modded"), this.includeModded, checked -> {
-            this.includeModded = checked;
-            this.refreshGrid();
-        }));
+        controls.child(
+                UiFactory.checkbox(ItemEditorText.tr("item_picker.include_modded"), this.includeModded, checked -> {
+                    this.includeModded = checked;
+                    this.refreshGrid();
+                }));
         shell.child(controls);
 
-        this.itemGrid = new VirtualItemGridComponent(pickable ->
-                this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, new ItemStack(pickable.item()))))
-        );
+        this.itemGrid = new VirtualItemGridComponent(pickable -> this.minecraft.setScreen(
+                new ItemEditorScreen(new ItemEditorSession(this.minecraft, new ItemStack(pickable.item())))));
         this.itemGrid.horizontalSizing(Sizing.fill(100));
         this.itemGrid.verticalSizing(Sizing.expand(100));
         shell.child(this.itemGrid);
@@ -164,7 +167,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
             return source;
         }
         return source.stream()
-                .filter(item -> terms.stream().allMatch(term -> item.searchIndex().contains(term)))
+                .filter(item ->
+                        terms.stream().allMatch(term -> item.searchIndex().contains(term)))
                 .toList();
     }
 
@@ -177,8 +181,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                 id.getNamespace(),
                 path,
                 path.replace('_', ' '),
-                path.replace('-', ' ')
-        ));
+                path.replace('-', ' ')));
     }
 
     private static List<String> searchTerms(String rawQuery) {
@@ -219,8 +222,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         this.minecraft.setScreen(this.returnScreen);
     }
 
-    private record PickableItem(Identifier id, Item item, ItemStack previewStack, Component displayName, String searchIndex) {
-    }
+    private record PickableItem(
+            Identifier id, Item item, ItemStack previewStack, Component displayName, String searchIndex) {}
 
     private final class VirtualItemGridComponent extends BaseUIComponent {
         private static final int COLOR_CELL_HOVER = 0xCC243142;
@@ -237,7 +240,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
         private VirtualItemGridComponent(Consumer<PickableItem> onPick) {
             this.onPick = onPick;
-            this.cursorStyle(io.wispforest.owo.ui.core.CursorStyle.HAND);
+            this.cursorStyle(CursorStyle.HAND);
         }
 
         private void items(List<PickableItem> items) {
@@ -256,7 +259,12 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
             context.fill(this.x, this.y, this.x + this.width, this.y + this.height, 0x44000000);
             if (this.items.isEmpty()) {
-                context.text(Minecraft.getInstance().font, ItemEditorText.tr("item_picker.none"), this.x + 6, this.y + 6, 0xA9B5C0);
+                context.text(
+                        Minecraft.getInstance().font,
+                        ItemEditorText.tr("item_picker.none"),
+                        this.x + 6,
+                        this.y + 6,
+                        0xA9B5C0);
                 return;
             }
 
@@ -285,11 +293,11 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                                 Minecraft.getInstance().font,
                                 List.of(
                                         pickable.displayName(),
-                                        ItemEditorText.tr("item_picker.tooltip.registry_id", pickable.id().toString())
-                                ),
+                                        ItemEditorText.tr(
+                                                "item_picker.tooltip.registry_id",
+                                                pickable.id().toString())),
                                 mouseX,
-                                mouseY
-                        );
+                                mouseY);
                     }
                 }
             }
@@ -329,7 +337,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
             }
             ScrollbarGeometry geometry = this.scrollbarGeometry();
             double trackRange = Math.max(1d, geometry.trackHeight() - geometry.thumbHeight());
-            double thumbY = Math.clamp(click.y() - this.scrollbarDragOffset, geometry.trackY(), geometry.trackY() + trackRange);
+            double thumbY =
+                    Math.clamp(click.y() - this.scrollbarDragOffset, geometry.trackY(), geometry.trackY() + trackRange);
             double scrollRange = Math.max(0d, this.contentHeight() - this.height);
             this.scrollAmount = ((thumbY - geometry.trackY()) / trackRange) * scrollRange;
             this.clampScroll();
@@ -364,7 +373,10 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         private PickableItem itemAt(double mouseX, double mouseY) {
             GridMetrics metrics = this.gridMetrics();
             int usedWidth = metrics.columns() * metrics.cellSize();
-            if (mouseX < metrics.startX() || mouseX >= metrics.startX() + usedWidth || mouseY < this.y || mouseY >= this.y + this.height) {
+            if (mouseX < metrics.startX()
+                    || mouseX >= metrics.startX() + usedWidth
+                    || mouseY < this.y
+                    || mouseY >= this.y + this.height) {
                 return null;
             }
             int cell = metrics.cellSize();
@@ -391,15 +403,13 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
                     geometry.trackY(),
                     geometry.trackX() + geometry.trackWidth(),
                     geometry.trackY() + geometry.trackHeight(),
-                    COLOR_SCROLL_TRACK
-            );
+                    COLOR_SCROLL_TRACK);
             context.fill(
                     geometry.trackX(),
                     geometry.thumbY(),
                     geometry.trackX() + geometry.trackWidth(),
                     geometry.thumbY() + geometry.thumbHeight(),
-                    hovered || this.draggingScrollbar ? COLOR_SCROLL_THUMB_HOVER : COLOR_SCROLL_THUMB
-            );
+                    hovered || this.draggingScrollbar ? COLOR_SCROLL_THUMB_HOVER : COLOR_SCROLL_THUMB);
         }
 
         private boolean isOverScrollbar(double mouseX, double mouseY) {
@@ -419,7 +429,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
             int trackY = this.y;
             int trackHeight = this.height;
             int contentHeight = this.contentHeight();
-            int thumbHeight = Math.max(18, (int) Math.round((this.height / (double) Math.max(1, contentHeight)) * trackHeight));
+            int thumbHeight =
+                    Math.max(18, (int) Math.round((this.height / (double) Math.max(1, contentHeight)) * trackHeight));
             thumbHeight = Math.min(trackHeight, thumbHeight);
             int scrollRange = Math.max(1, contentHeight - this.height);
             int thumbRange = Math.max(0, trackHeight - thumbHeight);
@@ -451,7 +462,8 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
         private int cellSize() {
             int base = UiFactory.scaledPixels(CELL_SIZE);
             int sidePadding = UiFactory.scaledPixels(GRID_SIDE_PADDING);
-            int gridWidth = Math.max(1, this.width - UiFactory.scaledScrollbarThickness(SCROLLBAR_THICKNESS) - (sidePadding * 2));
+            int gridWidth = Math.max(
+                    1, this.width - UiFactory.scaledScrollbarThickness(SCROLLBAR_THICKNESS) - (sidePadding * 2));
             int viewportArea = Math.max(1, gridWidth * Math.max(1, this.height));
             int adaptive = (int) Math.ceil(Math.sqrt(viewportArea / (double) MAX_VISIBLE_ITEM_RENDERS));
             return Math.max(base, adaptive);
@@ -461,10 +473,9 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
             this.scrollAmount = Math.clamp(this.scrollAmount, 0d, Math.max(0d, this.contentHeight() - this.height));
         }
 
-        private record ScrollbarGeometry(int trackX, int trackY, int trackWidth, int trackHeight, int thumbY, int thumbHeight) {
-        }
+        private record ScrollbarGeometry(
+                int trackX, int trackY, int trackWidth, int trackHeight, int thumbY, int thumbHeight) {}
 
-        private record GridMetrics(int startX, int availableWidth, int cellSize, int columns) {
-        }
+        private record GridMetrics(int startX, int availableWidth, int cellSize, int columns) {}
     }
 }

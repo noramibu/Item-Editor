@@ -53,5 +53,4 @@ public final class ScaledLabelComponent extends LabelComponent {
         } catch (NullPointerException ignored) {
         }
     }
-
 }

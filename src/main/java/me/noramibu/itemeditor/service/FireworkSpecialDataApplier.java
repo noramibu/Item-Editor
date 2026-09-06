@@ -1,6 +1,8 @@
 package me.noramibu.itemeditor.service;
 
 import it.unimi.dsi.fastutil.ints.IntList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -10,31 +12,37 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.Fireworks;
 
-import java.util.List;
-import java.util.Objects;
-
 final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
         if (this.sameRocketData(context.state(), context.baselineState())) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.FIREWORKS);
-        } else if (context.previewStack().is(Items.FIREWORK_ROCKET) || !context.special().rocketExplosions.isEmpty()) {
-            Integer flight = ValidationUtil.parseInt(context.special().fireworkFlightDuration, ItemEditorText.str("special.firework.flight_duration"), 0, 255, context.messages());
+        } else if (context.previewStack().is(Items.FIREWORK_ROCKET)
+                || !context.special().rocketExplosions.isEmpty()) {
+            Integer flight = ValidationUtil.parseInt(
+                    context.special().fireworkFlightDuration,
+                    ItemEditorText.str("special.firework.flight_duration"),
+                    0,
+                    255,
+                    context.messages());
             List<FireworkExplosion> explosions = context.special().rocketExplosions.stream()
                     .map(draft -> this.buildExplosion(draft, context.messages()))
                     .filter(Objects::nonNull)
                     .toList();
 
             if (flight != null || !explosions.isEmpty()) {
-                context.previewStack().set(DataComponents.FIREWORKS, new Fireworks(flight == null ? 0 : flight, explosions));
+                context.previewStack()
+                        .set(DataComponents.FIREWORKS, new Fireworks(flight == null ? 0 : flight, explosions));
             } else {
                 this.clearToPrototype(context.previewStack(), DataComponents.FIREWORKS);
             }
         }
 
-        if (this.sameExplosionDraft(context.state().special.starExplosion, context.baselineState().special.starExplosion)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.FIREWORK_EXPLOSION);
+        if (this.sameExplosionDraft(
+                context.state().special.starExplosion, context.baselineState().special.starExplosion)) {
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.FIREWORK_EXPLOSION);
             return;
         }
 
@@ -48,7 +56,8 @@ final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport imp
         }
     }
 
-    private FireworkExplosion buildExplosion(ItemEditorState.FireworkExplosionDraft draft, List<ValidationMessage> messages) {
+    private FireworkExplosion buildExplosion(
+            ItemEditorState.FireworkExplosionDraft draft, List<ValidationMessage> messages) {
         if (draft.colors.isBlank()) {
             return null;
         }
@@ -58,26 +67,29 @@ final class FireworkSpecialDataApplier extends AbstractPreviewApplierSupport imp
             shape = FireworkExplosion.Shape.valueOf(draft.shape);
         } catch (IllegalArgumentException exception) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.firework.shape"),
-                    draft.shape
-            )));
+                    "validation.registry_missing", ItemEditorText.str("special.firework.shape"), draft.shape)));
             return null;
         }
 
-        IntList colors = ValidationUtil.parseColorList(draft.colors, ItemEditorText.str("special.firework.colors"), messages);
+        IntList colors =
+                ValidationUtil.parseColorList(draft.colors, ItemEditorText.str("special.firework.colors"), messages);
         IntList fadeColors = draft.fadeColors.isBlank()
                 ? IntList.of()
-                : ValidationUtil.parseColorList(draft.fadeColors, ItemEditorText.str("special.firework.fade_colors"), messages);
+                : ValidationUtil.parseColorList(
+                        draft.fadeColors, ItemEditorText.str("special.firework.fade_colors"), messages);
         return new FireworkExplosion(shape, colors, fadeColors, draft.trail, draft.twinkle);
     }
 
     private boolean sameRocketData(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.special.fireworkFlightDuration, baselineState.special.fireworkFlightDuration)
-                && this.sameList(state.special.rocketExplosions, baselineState.special.rocketExplosions, this::sameExplosionDraft);
+                && this.sameList(
+                        state.special.rocketExplosions,
+                        baselineState.special.rocketExplosions,
+                        this::sameExplosionDraft);
     }
 
-    private boolean sameExplosionDraft(ItemEditorState.FireworkExplosionDraft current, ItemEditorState.FireworkExplosionDraft baseline) {
+    private boolean sameExplosionDraft(
+            ItemEditorState.FireworkExplosionDraft current, ItemEditorState.FireworkExplosionDraft baseline) {
         return Objects.equals(current.shape, baseline.shape)
                 && Objects.equals(current.colors, baseline.colors)
                 && Objects.equals(current.fadeColors, baseline.fadeColors)

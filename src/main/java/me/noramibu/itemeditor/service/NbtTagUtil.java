@@ -6,8 +6,7 @@ import net.minecraft.network.chat.ComponentSerialization;
 
 final class NbtTagUtil {
 
-    private NbtTagUtil() {
-    }
+    private NbtTagUtil() {}
 
     static void setBooleanKey(CompoundTag tag, String key, boolean value) {
         if (value) {
@@ -17,15 +16,19 @@ final class NbtTagUtil {
         }
     }
 
+    static void setOptionalBooleanKey(CompoundTag tag, String key, String value) {
+        if (value == null || value.isBlank()) {
+            tag.remove(key);
+        } else {
+            tag.putBoolean(key, Boolean.parseBoolean(value));
+        }
+    }
+
     static void setTextComponentKey(CompoundTag tag, String key, String rawText) {
         if (rawText == null || rawText.isBlank()) {
             tag.remove(key);
             return;
         }
-        tag.store(
-                key,
-                ComponentSerialization.CODEC,
-                TextComponentUtil.parseMarkup(rawText)
-        );
+        tag.store(key, ComponentSerialization.CODEC, TextComponentUtil.parseMarkup(rawText));
     }
 }

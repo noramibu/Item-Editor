@@ -15,8 +15,9 @@ final class RawSuggestionBuilder {
 
     private static final int MAX_NEAREST_CANDIDATES = 4;
     private static final int MAX_FUZZY_DISTANCE = 3;
-    static final Comparator<RawAutocompleteUtil.Suggestion> QUALITY_COMPARATOR = Comparator
-            .comparing((RawAutocompleteUtil.Suggestion suggestion) -> suggestion.kind().priority())
+    static final Comparator<RawAutocompleteUtil.Suggestion> QUALITY_COMPARATOR = Comparator.comparing(
+                    (RawAutocompleteUtil.Suggestion suggestion) ->
+                            suggestion.kind().priority())
             .thenComparingInt(suggestion -> suggestion.source().rank())
             .thenComparingInt(suggestion -> -suggestion.confidence())
             .thenComparingInt(RawAutocompleteUtil.Suggestion::contextRank)
@@ -43,8 +44,7 @@ final class RawSuggestionBuilder {
             String prefix,
             RawAutocompleteUtil.SuggestionKind kind,
             UnaryOperator<String> insertMapper,
-            int contextRank
-    ) {
+            int contextRank) {
         addSuggestions(values, prefix, kind, insertMapper, contextRank, null, "");
     }
 
@@ -55,8 +55,7 @@ final class RawSuggestionBuilder {
             UnaryOperator<String> insertMapper,
             int contextRank,
             RawAutocompleteUtil.SuggestionSource source,
-            String reason
-    ) {
+            String reason) {
         if (values == null || values.isEmpty()) {
             return;
         }
@@ -106,8 +105,7 @@ final class RawSuggestionBuilder {
             UnaryOperator<String> insertMapper,
             int contextRank,
             RawAutocompleteUtil.SuggestionSource source,
-            String reason
-    ) {
+            String reason) {
         if (values == null || values.isEmpty() || prefix.isBlank()) {
             return;
         }
@@ -133,14 +131,7 @@ final class RawSuggestionBuilder {
         for (FuzzyCandidate candidate : nearest) {
             String insertText = insertMapper.apply(candidate.value());
             int rank = 3 + candidate.distance();
-            addSuggestion(
-                    candidate.value(),
-                    insertText,
-                    kind,
-                    rank,
-                    contextRank,
-                    source,
-                    reason);
+            addSuggestion(candidate.value(), insertText, kind, rank, contextRank, source, reason);
         }
     }
 
@@ -158,8 +149,7 @@ final class RawSuggestionBuilder {
                 rank,
                 0,
                 RawAutocompleteUtil.SuggestionSource.LITERAL,
-                "literal alias"
-        ));
+                "literal alias"));
     }
 
     private void addSuggestion(
@@ -169,16 +159,8 @@ final class RawSuggestionBuilder {
             int matchRank,
             int contextRank,
             RawAutocompleteUtil.SuggestionSource source,
-            String reason
-    ) {
-        add(new RawAutocompleteUtil.Suggestion(
-                label,
-                insertText,
-                kind,
-                matchRank,
-                contextRank,
-                source,
-                reason));
+            String reason) {
+        add(new RawAutocompleteUtil.Suggestion(label, insertText, kind, matchRank, contextRank, source, reason));
     }
 
     void suppressAlreadyPresentContainerKeys(List<String> seenKeysForContainer) {
@@ -221,8 +203,8 @@ final class RawSuggestionBuilder {
                 .filter(suggestion -> suggestion.kind() == RawAutocompleteUtil.SuggestionKind.KEY)
                 .map(RawAutocompleteUtil.Suggestion::insertText)
                 .map(RawSuggestionBuilder::normalizeSuggestedKey)
-                .anyMatch(normalized -> normalized.startsWith(normalizedTyped)
-                        && normalized.length() > normalizedTyped.length());
+                .anyMatch(normalized ->
+                        normalized.startsWith(normalizedTyped) && normalized.length() > normalizedTyped.length());
         if (!hasLongerPrefixCandidate) {
             return;
         }
@@ -390,8 +372,7 @@ final class RawSuggestionBuilder {
         }
 
         nearest.add(candidate);
-        nearest.sort(Comparator
-                .comparingInt(FuzzyCandidate::distance)
+        nearest.sort(Comparator.comparingInt(FuzzyCandidate::distance)
                 .thenComparingInt(existing -> existing.value().length())
                 .thenComparing(FuzzyCandidate::value));
         if (nearest.size() > MAX_NEAREST_CANDIDATES) {
@@ -473,6 +454,5 @@ final class RawSuggestionBuilder {
         return -1;
     }
 
-    private record FuzzyCandidate(String value, int distance) {
-    }
+    private record FuzzyCandidate(String value, int distance) {}
 }

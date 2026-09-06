@@ -9,8 +9,7 @@ public final class HeadTextureUtil {
 
     private static final Pattern HASH_PATTERN = Pattern.compile("^[0-9a-fA-F]{32,64}$");
 
-    private HeadTextureUtil() {
-    }
+    private HeadTextureUtil() {}
 
     public static String normalizeTextureInput(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -28,7 +27,8 @@ public final class HeadTextureUtil {
         }
 
         if (HASH_PATTERN.matcher(value).matches()) {
-            return encodeBase64(textureJson("https://textures.minecraft.net/texture/" + value.toLowerCase(Locale.ROOT)));
+            return encodeBase64(
+                    textureJson("https://textures.minecraft.net/texture/" + value.toLowerCase(Locale.ROOT)));
         }
 
         return value;

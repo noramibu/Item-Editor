@@ -2,17 +2,15 @@ package me.noramibu.itemeditor.ui.panel;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.UIComponent;
-import me.noramibu.itemeditor.ui.component.UiFactory;
-import net.minecraft.network.chat.Component;
-
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import me.noramibu.itemeditor.ui.component.UiFactory;
+import net.minecraft.network.chat.Component;
 
 final class SectionedEditorPanel {
 
-    private SectionedEditorPanel() {
-    }
+    private SectionedEditorPanel() {}
 
     static UIComponent build(List<Section> sections) {
         return build(sections, Component.empty(), 0);

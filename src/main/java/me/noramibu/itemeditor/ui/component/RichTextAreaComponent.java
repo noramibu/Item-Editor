@@ -3,11 +3,20 @@ package me.noramibu.itemeditor.ui.component;
 import io.wispforest.owo.mixin.ui.access.MultilineTextFieldAccessor;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
+import io.wispforest.owo.ui.core.Size;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
+import java.util.ArrayDeque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
@@ -22,15 +31,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
-
-import java.util.ArrayDeque;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
 
 public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputUIComponent {
 
@@ -61,7 +61,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     private int backgroundColor = 0xCC111722;
     private int borderColor = 0xFF445066;
     private double horizontalScrollAmount;
-    private List<RichTextLayoutUtil.LineLayout> displayLines = List.of(new RichTextLayoutUtil.LineLayout(0, 0, Component.empty(), new int[]{0}, new float[]{0f}));
+    private List<RichTextLayoutUtil.LineLayout> displayLines =
+            List.of(new RichTextLayoutUtil.LineLayout(0, 0, Component.empty(), new int[] {0}, new float[] {0f}));
     private int maxLineWidth;
     private List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges = List.of();
     private RichTextLayoutUtil.LogicalMetrics logicalMetrics = new RichTextLayoutUtil.LogicalMetrics(0, 0);
@@ -178,7 +179,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         return this;
     }
 
-    public RichTextAreaComponent palette(int defaultTextColor, int placeholderColor, int selectionColor, int caretColor) {
+    public RichTextAreaComponent palette(
+            int defaultTextColor, int placeholderColor, int selectionColor, int caretColor) {
         this.defaultTextColor = this.ensureVisibleAlpha(defaultTextColor);
         this.placeholderColor = this.ensureVisibleAlpha(placeholderColor);
         this.selectionColor = this.ensureVisibleAlpha(selectionColor);
@@ -291,31 +293,14 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     public void applyGradientSelectionOrAll(List<Integer> colors) {
-        if (this.document.isEmpty()) {
-            return;
-        }
-        HistoryState before = this.captureHistoryState();
-
-        RichTextSelectionModel selection = this.currentSelection();
-        int start = selection.hasSelection() ? selection.start() : 0;
-        int end = selection.hasSelection() ? selection.end() : this.document.length();
-
-        RichTextDocument updated = this.inputController.applyGradient(this.document, start, end, colors);
-        String rejection = this.validator.apply(updated);
-        if (rejection != null) {
-            this.rejectionHandler.accept(rejection);
-            return;
-        }
-
-        this.document = updated;
-        this.pendingStylePinned = false;
-        this.pendingStyle = this.resolveInsertionStyle(this.editBox.cursor());
-        this.refreshLayout();
-        this.recordUndo(before);
-        this.documentChangedEvents.sink().onChanged(this.document.copy());
+        this.applyGradientSelectionOrAll(colors, false);
     }
 
     public void applyShadowGradientSelectionOrAll(List<Integer> colors) {
+        this.applyGradientSelectionOrAll(colors, true);
+    }
+
+    private void applyGradientSelectionOrAll(List<Integer> colors, boolean shadow) {
         if (this.document.isEmpty()) {
             return;
         }
@@ -325,7 +310,9 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int start = selection.hasSelection() ? selection.start() : 0;
         int end = selection.hasSelection() ? selection.end() : this.document.length();
 
-        RichTextDocument updated = this.inputController.applyShadowGradient(this.document, start, end, colors);
+        RichTextDocument updated = shadow
+                ? this.inputController.applyShadowGradient(this.document, start, end, colors)
+                : this.inputController.applyGradient(this.document, start, end, colors);
         String rejection = this.validator.apply(updated);
         if (rejection != null) {
             this.rejectionHandler.accept(rejection);
@@ -414,7 +401,10 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     @Override
     public boolean mouseClicked(@NotNull MouseButtonEvent click, boolean doubled) {
-        if (!this.active || !this.visible || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.isMouseOver(click.x(), click.y())) {
+        if (!this.active
+                || !this.visible
+                || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT
+                || !this.isMouseOver(click.x(), click.y())) {
             if (!this.isMouseOver(click.x(), click.y())) {
                 this.setFocused(false);
             }
@@ -584,8 +574,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                                 this.selectionColor,
                                 sourceText,
                                 this.renderStructuredEvents,
-                                this.renderStructuredObjects
-                        );
+                                this.renderStructuredObjects);
                     }
 
                     this.renderer.renderLine(
@@ -595,12 +584,18 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                             baseX,
                             lineY,
                             this.defaultTextColor,
+                            clipLeft,
+                            clipRight,
                             this.renderStructuredEvents,
                             this.renderStructuredObjects,
-                            this.eventOverlayRanges
-                    );
+                            this.eventOverlayRanges);
                     if (this.showSoftWrapMarkers && this.isSoftWrappedLine(lineIndex)) {
-                        this.renderer.renderPlaceholder(context, "↩", baseX + Math.max(0, Math.round(line.xForPosition(line.end())) - 4), lineY, 0xA08A5E);
+                        this.renderer.renderPlaceholder(
+                                context,
+                                "↩",
+                                baseX + Math.max(0, Math.round(line.xForPosition(line.end())) - 4),
+                                lineY,
+                                0xA08A5E);
                     }
                 }
             }
@@ -620,8 +615,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                             this.caretColor,
                             this.document.plainText(),
                             this.renderStructuredEvents,
-                            this.renderStructuredObjects
-                    );
+                            this.renderStructuredObjects);
                 }
             }
         } finally {
@@ -667,11 +661,12 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int baseY = this.getInnerTop();
         int innerWidth = this.innerContentWidth();
         int visibleHeight = this.getHeight() - this.totalInnerPadding();
-        this.renderer.renderChrome(context, baseX, baseY, innerWidth, visibleHeight, this.backgroundColor, this.borderColor);
+        this.renderer.renderChrome(
+                context, baseX, baseY, innerWidth, visibleHeight, this.backgroundColor, this.borderColor);
     }
 
     @Override
-    public void inflate(@NotNull io.wispforest.owo.ui.core.Size space) {
+    public void inflate(@NotNull Size space) {
         super.inflate(space);
         this.refreshLayout();
         this.afterCursorMove();
@@ -722,12 +717,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         }
 
         RichTextDocument updated = this.inputController.applyStyle(
-                this.document,
-                selection.start(),
-                selection.end(),
-                transformer,
-                this.defaultInsertionStyle
-        );
+                this.document, selection.start(), selection.end(), transformer, this.defaultInsertionStyle);
         String rejection = this.validator.apply(updated);
         if (rejection != null) {
             this.rejectionHandler.accept(rejection);
@@ -760,23 +750,21 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         }
 
         RichTextInputController.TextChangeResult result = this.inputController.updateDocumentFromPlainTextChange(
-                beforeDocument,
-                beforeText,
-                afterText,
-                insertionStyle,
-                this.defaultInsertionStyle
-        );
+                beforeDocument, beforeText, afterText, insertionStyle, this.defaultInsertionStyle);
         RichTextDocument updated = result.document();
         String rejection = this.validator.apply(updated);
         if (rejection != null) {
-            this.restoreTextState(beforeDocument, beforeText, beforeSelection.cursor(), beforeSelection.selectionCursor());
+            this.restoreTextState(
+                    beforeDocument, beforeText, beforeSelection.cursor(), beforeSelection.selectionCursor());
             this.rejectionHandler.accept(rejection);
             return true;
         }
 
         this.document = updated;
         if (result.cursorOverride() >= 0 || !updated.plainText().equals(afterText)) {
-            int cursor = result.cursorOverride() >= 0 ? result.cursorOverride() : Math.min(this.editBox.cursor(), updated.length());
+            int cursor = result.cursorOverride() >= 0
+                    ? result.cursorOverride()
+                    : Math.min(this.editBox.cursor(), updated.length());
             this.applyPlainTextState(updated.plainText(), cursor, cursor);
         }
         if (result.pendingStyleOverride() == null) {
@@ -799,11 +787,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         }
         HistoryState before = this.captureHistoryState();
 
-        RichTextInputController.TextTransformResult result = this.inputController.transformSelectionOrAll(
-                previous,
-                this.currentSelection(),
-                transformer
-        );
+        RichTextInputController.TextTransformResult result =
+                this.inputController.transformSelectionOrAll(previous, this.currentSelection(), transformer);
         String rejection = this.validator.apply(result.document());
         if (rejection != null) {
             this.rejectionHandler.accept(rejection);
@@ -850,7 +835,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int measuredViewportHeight = this.measuredTextViewportHeight();
         if (!this.layoutDirty
                 && (measuredContentWidth != this.committedLayoutContentWidth
-                || measuredViewportHeight != this.committedLayoutViewportHeight)) {
+                        || measuredViewportHeight != this.committedLayoutViewportHeight)) {
             this.layoutDirty = true;
         }
         if (!this.layoutDirty) {
@@ -869,21 +854,17 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         String sourceText = this.document.plainText();
         int displayWrapWidth = this.lineWrap ? this.effectiveDisplayWrapWidth(measuredContentWidth) : Integer.MAX_VALUE;
 
+        this.renderer.invalidate();
         this.displayLines = RichTextLayoutUtil.layoutDocumentSource(
-                this.document,
-                this.font,
-                displayWrapWidth,
-                this.renderStructuredEvents,
-                this.renderStructuredObjects
-        );
+                this.document, this.font, displayWrapWidth, this.renderStructuredEvents, this.renderStructuredObjects);
         if (this.displayLines.isEmpty()) {
-            this.displayLines = List.of(new RichTextLayoutUtil.LineLayout(0, 0, Component.empty(), new int[]{0}, new float[]{0f}));
+            this.displayLines = List.of(
+                    new RichTextLayoutUtil.LineLayout(0, 0, Component.empty(), new int[] {0}, new float[] {0f}));
         }
 
         this.maxLineWidth = this.computeMaxLineWidth(this.displayLines);
-        this.eventOverlayRanges = this.renderStructuredEvents
-                ? RichTextLayoutUtil.eventOverlayRanges(sourceText)
-                : List.of();
+        this.eventOverlayRanges =
+                this.renderStructuredEvents ? RichTextLayoutUtil.eventOverlayRanges(sourceText) : List.of();
         this.logicalMetrics = RichTextLayoutUtil.logicalMetricsForEventPayload(sourceText);
         this.contentHeight = Math.max(this.displayLines.size() * LINE_HEIGHT, LINE_HEIGHT);
         this.layoutDirty = false;
@@ -903,18 +884,18 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 currentLine,
                 this.editBox.cursor(),
                 this.renderStructuredEvents,
-                this.renderStructuredObjects
-        );
+                this.renderStructuredObjects);
         int targetLineIndex = Math.clamp(currentIndex + offset, 0, Math.max(0, this.displayLines.size() - 1));
         RichTextLayoutUtil.LineLayout targetLine = this.displayLines.get(targetLineIndex);
         this.editBox.setSelecting(selecting);
-        this.editBox.seekCursor(Whence.ABSOLUTE, RichTextLayoutUtil.positionForVisualX(
-                this.document.plainText(),
-                targetLine,
-                desiredX,
-                this.renderStructuredEvents,
-                this.renderStructuredObjects
-        ));
+        this.editBox.seekCursor(
+                Whence.ABSOLUTE,
+                RichTextLayoutUtil.positionForVisualX(
+                        this.document.plainText(),
+                        targetLine,
+                        desiredX,
+                        this.renderStructuredEvents,
+                        this.renderStructuredObjects));
         this.afterCursorMove();
     }
 
@@ -989,8 +970,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 this.displayLines.get(lineIndex),
                 this.editBox.cursor(),
                 this.renderStructuredEvents,
-                this.renderStructuredObjects
-        );
+                this.renderStructuredObjects);
         int visibleWidth = Math.max(1, this.textViewportWidth() - 2);
         if (cursorX < this.horizontalScrollAmount) {
             this.horizontalScrollAmount = cursorX;
@@ -1001,7 +981,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     private int innerContentWidth() {
-        return Math.max(1, this.getWidth() - this.totalInnerPadding() - UiFactory.scrollContentInset(SCROLLBAR_BASE_THICKNESS));
+        return Math.max(
+                1, this.getWidth() - this.totalInnerPadding() - UiFactory.scrollContentInset(SCROLLBAR_BASE_THICKNESS));
     }
 
     private int textViewportLeft() {
@@ -1025,7 +1006,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         if (this.lineWrapWidthOverride <= 0) {
             return innerWidth;
         }
-        return Math.clamp(this.lineWrapWidthOverride, 2, innerWidth);
+        return Math.max(2, this.lineWrapWidthOverride);
     }
 
     private int measuredTextViewportHeight() {
@@ -1108,12 +1089,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int lineIndex = Math.clamp(localY / LINE_HEIGHT, 0, this.displayLines.size() - 1);
         RichTextLayoutUtil.LineLayout line = this.displayLines.get(lineIndex);
         return RichTextLayoutUtil.positionForVisualX(
-                this.document.plainText(),
-                line,
-                localX,
-                this.renderStructuredEvents,
-                this.renderStructuredObjects
-        );
+                this.document.plainText(), line, localX, this.renderStructuredEvents, this.renderStructuredObjects);
     }
 
     private boolean isInsideEditor(double mouseX, double mouseY) {
@@ -1145,13 +1121,15 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     private double currentGuiMouseX() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth() / (double) minecraft.getWindow().getScreenWidth();
+        double scaleX = (double) minecraft.getWindow().getGuiScaledWidth()
+                / (double) minecraft.getWindow().getScreenWidth();
         return minecraft.mouseHandler.xpos() * scaleX;
     }
 
     private double currentGuiMouseY() {
         Minecraft minecraft = Minecraft.getInstance();
-        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight() / (double) minecraft.getWindow().getScreenHeight();
+        double scaleY = (double) minecraft.getWindow().getGuiScaledHeight()
+                / (double) minecraft.getWindow().getScreenHeight();
         return minecraft.mouseHandler.ypos() * scaleY;
     }
 
@@ -1161,13 +1139,15 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         }
 
         String text = this.document.plainText();
-        RichTextLayoutUtil.SourceRange emptyEventPair = this.emptyEventPairDeletionBoundary(text, this.editBox.cursor(), backward);
+        RichTextLayoutUtil.SourceRange emptyEventPair =
+                this.emptyEventPairDeletionBoundary(text, this.editBox.cursor(), backward);
         if (emptyEventPair.start() < emptyEventPair.end()) {
             this.deleteSourceRange(emptyEventPair.start(), emptyEventPair.end(), emptyEventPair.start());
             return true;
         }
 
-        RichTextLayoutUtil.SourceRange range = this.renderedTokenDeletionBoundary(text, this.editBox.cursor(), backward);
+        RichTextLayoutUtil.SourceRange range =
+                this.renderedTokenDeletionBoundary(text, this.editBox.cursor(), backward);
         if (range.start() >= range.end()) {
             return false;
         }
@@ -1197,9 +1177,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             }
 
             int tokenEnd = index + tokenLength;
-            boolean matches = this.isRenderedStructuredToken(text, index) && (backward
-                    ? clamped > index && clamped <= tokenEnd
-                    : clamped >= index && clamped < tokenEnd);
+            boolean matches = this.isRenderedStructuredToken(text, index)
+                    && (backward ? clamped > index && clamped <= tokenEnd : clamped >= index && clamped < tokenEnd);
             if (matches) {
                 return new RichTextLayoutUtil.SourceRange(index, tokenEnd);
             }
@@ -1269,9 +1248,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             int closeEnd = openEnd + closeLength;
             String closeType = eventCloseType(text, openEnd, closeEnd);
             if (openType.equals(closeType)) {
-                boolean matches = backward
-                        ? clamped > index && clamped <= closeEnd
-                        : clamped >= index && clamped < closeEnd;
+                boolean matches =
+                        backward ? clamped > index && clamped <= closeEnd : clamped >= index && clamped < closeEnd;
                 if (matches) {
                     return new RichTextLayoutUtil.SourceRange(index, closeEnd);
                 }
@@ -1338,12 +1316,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         this.ensureLayoutCurrent();
         RichTextLayoutUtil.LineLayout line = this.displayLines.get(this.indexForCursor(cursor));
         return RichTextLayoutUtil.wordRangeAtVisualPosition(
-                this.document.plainText(),
-                line,
-                cursor,
-                this.renderStructuredEvents,
-                this.renderStructuredObjects
-        );
+                this.document.plainText(), line, cursor, this.renderStructuredEvents, this.renderStructuredObjects);
     }
 
     private RichTextStyle resolveInsertionStyle(int cursor) {
@@ -1436,8 +1409,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 this.selectionCursor(),
                 this.pendingStyle,
                 this.pendingStylePinned,
-                this.scrollAmount()
-        );
+                this.scrollAmount());
     }
 
     private void restoreHistoryState(HistoryState state) {
@@ -1484,12 +1456,9 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             int selectionCursor,
             RichTextStyle pendingStyle,
             boolean pendingStylePinned,
-            double scrollAmount
-    ) {
-    }
+            double scrollAmount) {}
 
-    private record ResolvedMouse(double screenX, double screenY) {
-    }
+    private record ResolvedMouse(double screenX, double screenY) {}
 
     public interface OnDocumentChanged {
         void onChanged(RichTextDocument document);

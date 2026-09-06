@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
@@ -13,16 +16,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 final class BannerSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
 
     @Override
     public void apply(SpecialDataApplyContext context) {
         if (this.sameBannerData(context.state(), context.baselineState())) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BANNER_PATTERNS);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.BANNER_PATTERNS);
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.BASE_COLOR);
             return;
         }
@@ -35,22 +35,22 @@ final class BannerSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
             Holder<BannerPattern> pattern = RegistryUtil.resolveHolder(bannerRegistry, draft.patternId);
             if (pattern == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.banner.pattern"),
-                        draft.patternId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.banner.pattern"),
+                                draft.patternId)));
                 continue;
             }
 
             try {
                 layers.add(new BannerPatternLayers.Layer(pattern, DyeColor.valueOf(draft.color)));
             } catch (IllegalArgumentException exception) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.banner.color"),
-                        draft.color
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.banner.color"),
+                                draft.color)));
             }
         }
 
@@ -71,18 +71,20 @@ final class BannerSpecialDataApplier extends AbstractPreviewApplierSupport imple
             try {
                 context.previewStack().set(DataComponents.BASE_COLOR, DyeColor.valueOf(baseColorId));
             } catch (IllegalArgumentException exception) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.banner.base_color"),
-                        baseColorId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.banner.base_color"),
+                                baseColorId)));
             }
         }
     }
 
     private boolean sameBannerData(ItemEditorState state, ItemEditorState baselineState) {
         return Objects.equals(state.special.bannerBaseColor, baselineState.special.bannerBaseColor)
-                && this.sameList(state.special.bannerLayers, baselineState.special.bannerLayers,
+                && this.sameList(
+                        state.special.bannerLayers,
+                        baselineState.special.bannerLayers,
                         (left, right) -> Objects.equals(left.patternId, right.patternId)
                                 && Objects.equals(left.color, right.color));
     }

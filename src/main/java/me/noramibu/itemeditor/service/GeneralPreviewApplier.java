@@ -1,5 +1,9 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -22,11 +26,6 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.level.block.Block;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-
 final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implements ItemPreviewApplier {
 
     @Override
@@ -44,28 +43,47 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
 
         this.applyMaxStackSize(context);
         if (!Objects.equals(state.count, baselineState.count)) {
-            Integer count = ValidationUtil.parseInt(state.count, ItemEditorText.str("general.stack_count"), 1, context.previewStack().getMaxStackSize(), context.messages());
+            Integer count = ValidationUtil.parseInt(
+                    state.count,
+                    ItemEditorText.str("general.stack_count"),
+                    1,
+                    context.previewStack().getMaxStackSize(),
+                    context.messages());
             if (count != null) {
                 context.previewStack().setCount(count);
             }
         }
 
-        if (Objects.equals(state.maxDamage, baselineState.maxDamage) && Objects.equals(state.currentDamage, baselineState.currentDamage)) {
+        if (Objects.equals(state.maxDamage, baselineState.maxDamage)
+                && Objects.equals(state.currentDamage, baselineState.currentDamage)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.MAX_DAMAGE);
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.DAMAGE);
         } else {
             Integer maxDamage = state.maxDamage.isBlank()
                     ? null
-                    : ValidationUtil.parseInt(state.maxDamage, ItemEditorText.str("general.max_damage"), 1, Integer.MAX_VALUE, context.messages());
+                    : ValidationUtil.parseInt(
+                            state.maxDamage,
+                            ItemEditorText.str("general.max_damage"),
+                            1,
+                            Integer.MAX_VALUE,
+                            context.messages());
             if (maxDamage != null) {
                 context.previewStack().set(DataComponents.MAX_DAMAGE, maxDamage);
             } else if (state.maxDamage.isBlank()) {
-                this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.MAX_DAMAGE);
+                this.restoreOriginalComponent(
+                        context.originalStack(), context.previewStack(), DataComponents.MAX_DAMAGE);
             }
 
             if (!state.currentDamage.isBlank()) {
-                int damageUpperBound = maxDamage != null ? maxDamage : Math.max(context.previewStack().getMaxDamage(), 1);
-                Integer currentDamage = ValidationUtil.parseInt(state.currentDamage, ItemEditorText.str("general.current_damage"), 0, damageUpperBound, context.messages());
+                int damageUpperBound = maxDamage != null
+                        ? maxDamage
+                        : Math.max(context.previewStack().getMaxDamage(), 1);
+                Integer currentDamage = ValidationUtil.parseInt(
+                        state.currentDamage,
+                        ItemEditorText.str("general.current_damage"),
+                        0,
+                        damageUpperBound,
+                        context.messages());
                 if (currentDamage != null) {
                     context.previewStack().set(DataComponents.DAMAGE, currentDamage);
                 }
@@ -79,7 +97,12 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         } else {
             Integer repairCost = state.repairCost.isBlank()
                     ? null
-                    : ValidationUtil.parseInt(state.repairCost, ItemEditorText.str("general.repair_cost"), 0, Integer.MAX_VALUE, context.messages());
+                    : ValidationUtil.parseInt(
+                            state.repairCost,
+                            ItemEditorText.str("general.repair_cost"),
+                            0,
+                            Integer.MAX_VALUE,
+                            context.messages());
             if (repairCost != null) {
                 context.previewStack().set(DataComponents.REPAIR_COST, repairCost);
             } else if (state.repairCost.isBlank()) {
@@ -100,7 +123,8 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         if (!Objects.equals(state.glintOverride, baselineState.glintOverride)) {
             this.applyGlintOverride(context, state.glintOverride);
         } else {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
         }
 
         if (Objects.equals(state.rarity, baselineState.rarity)) {
@@ -109,7 +133,9 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             try {
                 context.previewStack().set(DataComponents.RARITY, Rarity.valueOf(state.rarity));
             } catch (IllegalArgumentException exception) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.unknown_rarity", state.rarity)));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("preview.validation.unknown_rarity", state.rarity)));
             }
         } else {
             this.clearToPrototype(context.previewStack(), DataComponents.RARITY);
@@ -129,10 +155,14 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         }
 
         if (this.sameCustomModel(state, baselineState)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.CUSTOM_MODEL_DATA);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.CUSTOM_MODEL_DATA);
         } else {
             CustomModelData merged = this.mergeCustomModelData(state, context.messages());
-            if (merged.floats().isEmpty() && merged.flags().isEmpty() && merged.strings().isEmpty() && merged.colors().isEmpty()) {
+            if (merged.floats().isEmpty()
+                    && merged.flags().isEmpty()
+                    && merged.strings().isEmpty()
+                    && merged.colors().isEmpty()) {
                 this.clearToPrototype(context.previewStack(), DataComponents.CUSTOM_MODEL_DATA);
             } else {
                 context.previewStack().set(DataComponents.CUSTOM_MODEL_DATA, merged);
@@ -143,23 +173,26 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 context,
                 state.canBreakBlockIds,
                 baselineState.canBreakBlockIds,
+                state.canBreakAnyBlock,
+                baselineState.canBreakAnyBlock,
                 DataComponents.CAN_BREAK,
-                ItemEditorText.str("general.adventure.can_break")
-        );
+                ItemEditorText.str("general.adventure.can_break"));
         this.applyAdventurePredicate(
                 context,
                 state.canPlaceOnBlockIds,
                 baselineState.canPlaceOnBlockIds,
+                state.canPlaceOnAnyBlock,
+                baselineState.canPlaceOnAnyBlock,
                 DataComponents.CAN_PLACE_ON,
-                ItemEditorText.str("general.adventure.can_place_on")
-        );
+                ItemEditorText.str("general.adventure.can_place_on"));
     }
 
     private void applyMaxStackSize(ItemPreviewApplyContext context) {
         String current = context.state().special.maxStackSize;
         String baseline = context.baselineState().special.maxStackSize;
         if (Objects.equals(current, baseline)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.MAX_STACK_SIZE);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.MAX_STACK_SIZE);
             return;
         }
         if (current.isBlank()) {
@@ -172,8 +205,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 ItemEditorText.str("special.advanced.component_tweaks.max_stack_size"),
                 1,
                 999,
-                context.messages()
-        );
+                context.messages());
         if (maxStackSize != null) {
             context.previewStack().set(DataComponents.MAX_STACK_SIZE, maxStackSize);
         }
@@ -192,10 +224,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             this.clearToPrototype(context.previewStack(), DataComponents.ENCHANTMENT_GLINT_OVERRIDE);
             return;
         }
-        context.previewStack().set(
-                DataComponents.ENCHANTMENT_GLINT_OVERRIDE,
-                Boolean.parseBoolean(rawValue)
-        );
+        context.previewStack().set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, Boolean.parseBoolean(rawValue));
     }
 
     private boolean sameCustomModel(ItemEditorState state, ItemEditorState baselineState) {
@@ -210,8 +239,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
                 this.parseCustomModelFloats(state.customModelFloat, messages),
                 this.parseCustomModelFlags(state.customModelFlags, messages),
                 splitCommaSeparated(state.customModelString),
-                this.parseCustomModelColors(state.customModelColor, messages)
-        );
+                this.parseCustomModelColors(state.customModelColor, messages));
     }
 
     private List<Float> parseCustomModelFloats(String raw, List<ValidationMessage> messages) {
@@ -258,11 +286,7 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         return values;
     }
 
-    private Integer parseCustomModelDecimalColor(
-            String raw,
-            String fieldLabel,
-            List<ValidationMessage> messages
-    ) {
+    private Integer parseCustomModelDecimalColor(String raw, String fieldLabel, List<ValidationMessage> messages) {
         try {
             int value = Integer.parseInt(raw.trim());
             if (value < 0 || value > 0xFFFFFF) {
@@ -291,14 +315,23 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
             ItemPreviewApplyContext context,
             List<String> stateBlocks,
             List<String> baselineBlocks,
+            boolean anyBlock,
+            boolean baselineAnyBlock,
             DataComponentType<AdventureModePredicate> componentType,
-            String fieldLabel
-    ) {
-        if (Objects.equals(stateBlocks, baselineBlocks)) {
+            String fieldLabel) {
+        if (anyBlock == baselineAnyBlock && Objects.equals(stateBlocks, baselineBlocks)) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), componentType);
             return;
         }
 
+        if (anyBlock) {
+            context.previewStack()
+                    .set(
+                            componentType,
+                            new AdventureModePredicate(List.of(new BlockPredicate(
+                                    Optional.empty(), Optional.empty(), Optional.empty(), DataComponentMatchers.ANY))));
+            return;
+        }
         if (stateBlocks.isEmpty()) {
             this.clearToPrototype(context.previewStack(), componentType);
             return;
@@ -311,15 +344,14 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
     }
 
     private AdventureModePredicate buildAdventurePredicate(
-            ItemPreviewApplyContext context,
-            List<String> blockIds,
-            String fieldLabel
-    ) {
+            ItemPreviewApplyContext context, List<String> blockIds, String fieldLabel) {
         Registry<Block> blockRegistry;
         try {
             blockRegistry = context.registryAccess().lookupOrThrow(Registries.BLOCK);
         } catch (RuntimeException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
+            context.messages()
+                    .add(ValidationMessage.error(
+                            ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
             return null;
         }
 
@@ -327,15 +359,16 @@ final class GeneralPreviewApplier extends AbstractPreviewApplierSupport implemen
         for (String blockId : blockIds) {
             var blockHolder = RegistryUtil.resolveHolder(blockRegistry, blockId);
             if (blockHolder == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.registry_missing", fieldLabel, blockId)));
+                context.messages()
+                        .add(ValidationMessage.error(
+                                ItemEditorText.str("validation.registry_missing", fieldLabel, blockId)));
                 continue;
             }
             predicates.add(new BlockPredicate(
                     Optional.of(HolderSet.direct(blockHolder)),
                     Optional.empty(),
                     Optional.empty(),
-                    DataComponentMatchers.ANY
-            ));
+                    DataComponentMatchers.ANY));
         }
 
         if (predicates.isEmpty()) {

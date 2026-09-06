@@ -15,11 +15,7 @@ public final class ItemApplyService {
     }
 
     public static ApplyResult applyToSlot(
-            Minecraft minecraft,
-            int slot,
-            ItemStack stack,
-            @Nullable ItemStack expected
-    ) {
+            Minecraft minecraft, int slot, ItemStack stack, @Nullable ItemStack expected) {
         if (minecraft.player == null) {
             return ApplyResult.failure(ItemEditorText.str("apply.no_player"));
         }
@@ -37,8 +33,9 @@ public final class ItemApplyService {
         inventory.setItem(slot, copy.copy());
         if (ClientInventorySyncService.syncSlot(minecraft, slot, copy)) {
             return ApplyResult.success(ItemEditorText.str(
-                    minecraft.getSingleplayerServer() == null ? "apply.creative_success" : "apply.singleplayer_success"
-            ));
+                    minecraft.getSingleplayerServer() == null
+                            ? "apply.creative_success"
+                            : "apply.singleplayer_success"));
         }
         inventory.setItem(slot, previous);
 

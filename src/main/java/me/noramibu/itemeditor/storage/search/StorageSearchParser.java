@@ -6,8 +6,7 @@ import java.util.Locale;
 
 public final class StorageSearchParser {
 
-    private StorageSearchParser() {
-    }
+    private StorageSearchParser() {}
 
     public static StorageSearchQuery parse(String rawQuery) {
         StorageSearchQuery query = new StorageSearchQuery();
@@ -65,11 +64,7 @@ public final class StorageSearchParser {
     }
 
     private static boolean addNumericFilter(
-            String lowered,
-            String token,
-            String prefix,
-            List<StorageSearchQuery.NumericFilter> target
-    ) {
+            String lowered, String token, String prefix, List<StorageSearchQuery.NumericFilter> target) {
         if (!lowered.startsWith(prefix)) {
             return false;
         }
@@ -223,15 +218,14 @@ public final class StorageSearchParser {
         if (separator <= 0 || separator == value.length() - 1) {
             return false;
         }
-        return value.chars().allMatch(ch ->
-                Character.isLowerCase(ch)
+        return value.chars()
+                .allMatch(ch -> Character.isLowerCase(ch)
                         || Character.isDigit(ch)
                         || ch == ':'
                         || ch == '_'
                         || ch == '-'
                         || ch == '.'
                         || ch == '/'
-                        || ch == '*'
-        );
+                        || ch == '*');
     }
 }

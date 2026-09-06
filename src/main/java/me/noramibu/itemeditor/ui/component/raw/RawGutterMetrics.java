@@ -1,8 +1,7 @@
 package me.noramibu.itemeditor.ui.component.raw;
 
 public final class RawGutterMetrics {
-    private RawGutterMetrics() {
-    }
+    private RawGutterMetrics() {}
 
     public static Metrics calculate(
             RawEditorTextMeasurer measurer,
@@ -12,8 +11,7 @@ public final class RawGutterMetrics {
             int baseFoldMarkerWidth,
             int foldMarkerTextPadding,
             int foldGap,
-            int lineRightInset
-    ) {
+            int lineRightInset) {
         int markerTextWidth = Math.max(measurer.textWidth("+"), measurer.textWidth("-"));
         int foldMarkerWidth = Math.max(baseFoldMarkerWidth, markerTextWidth + (foldMarkerTextPadding * 2));
         int digits = Integer.toString(Math.max(1, lineCount)).length();
@@ -24,19 +22,10 @@ public final class RawGutterMetrics {
         return new Metrics(gutterWidth, foldMarkerWidth, numberLeftOffset, lineNumberWidth);
     }
 
-    public static int centeredMarkerTextOffset(
-            RawEditorTextMeasurer measurer,
-            String marker,
-            int foldMarkerWidth
-    ) {
+    public static int centeredMarkerTextOffset(RawEditorTextMeasurer measurer, String marker, int foldMarkerWidth) {
         int textWidth = measurer.textWidth(marker);
         return Math.max(1, (foldMarkerWidth - textWidth) / 2);
     }
 
-    public record Metrics(
-            int gutterWidth,
-            int foldMarkerWidth,
-            int numberLeftOffset,
-            int lineNumberWidth
-    ) {}
+    public record Metrics(int gutterWidth, int foldMarkerWidth, int numberLeftOffset, int lineNumberWidth) {}
 }

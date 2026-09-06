@@ -7,8 +7,17 @@ import net.minecraft.client.input.MouseButtonEvent;
 
 final class ModalOverlayLayout extends FlowLayout implements GreedyInputUIComponent {
 
-    ModalOverlayLayout() {
+    private final Runnable onRemoved;
+
+    ModalOverlayLayout(Runnable onRemoved) {
         super(Sizing.fill(100), Sizing.fill(100), FlowLayout.Algorithm.VERTICAL);
+        this.onRemoved = onRemoved;
+    }
+
+    @Override
+    public void dismount(DismountReason reason) {
+        super.dismount(reason);
+        if (reason == DismountReason.REMOVED) onRemoved.run();
     }
 
     @Override

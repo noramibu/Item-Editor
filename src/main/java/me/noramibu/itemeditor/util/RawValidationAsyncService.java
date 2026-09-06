@@ -1,13 +1,12 @@
 package me.noramibu.itemeditor.util;
 
-import me.noramibu.itemeditor.editor.ValidationMessage;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.world.item.ItemStack;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.ValidationMessage;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.world.item.ItemStack;
 
 public final class RawValidationAsyncService {
 
@@ -25,8 +24,7 @@ public final class RawValidationAsyncService {
             long parseIdleDelayMs,
             long heavyIdleDelayMs,
             Consumer<ParsePhaseResult> onParseResult,
-        Consumer<Result> onHeavyResult
-    ) {
+            Consumer<Result> onHeavyResult) {
         String safeText = rawText == null ? "" : rawText;
         long parseIdleDelay = Math.max(0L, parseIdleDelayMs);
         long idleDelay = Math.max(0L, heavyIdleDelayMs);
@@ -36,9 +34,7 @@ public final class RawValidationAsyncService {
         long requestId = this.requestVersion.incrementAndGet();
 
         CompletableFuture<ParsePhaseResult> parseFuture = CompletableFuture.supplyAsync(
-                () -> this.computeParseWithIdle(requestId, safeText, registryAccess, parseIdleDelay),
-                PARSE_EXECUTOR
-        );
+                () -> this.computeParseWithIdle(requestId, safeText, registryAccess, parseIdleDelay), PARSE_EXECUTOR);
         AsyncDispatchUtil.deliverIfLatest(parseFuture, this.requestVersion, requestId, result -> {
             if (result != null) {
                 parseConsumer.accept(result);
@@ -47,8 +43,7 @@ public final class RawValidationAsyncService {
 
         CompletableFuture<Result> heavyFuture = CompletableFuture.supplyAsync(
                 () -> this.computeHeavyWithIdle(requestId, originalStack, registryAccess, idleDelay, parseFuture),
-                HEAVY_EXECUTOR
-        );
+                HEAVY_EXECUTOR);
         AsyncDispatchUtil.deliverIfLatest(heavyFuture, this.requestVersion, requestId, result -> {
             if (result != null) {
                 heavyConsumer.accept(result);
@@ -57,11 +52,7 @@ public final class RawValidationAsyncService {
     }
 
     private ParsePhaseResult computeParseWithIdle(
-            long requestId,
-            String rawText,
-            RegistryAccess registryAccess,
-            long idleDelayMs
-    ) {
+            long requestId, String rawText, RegistryAccess registryAccess, long idleDelayMs) {
         if (this.cancelledBeforeIdle(requestId, idleDelayMs, 40L)) {
             return null;
         }
@@ -70,7 +61,12 @@ public final class RawValidationAsyncService {
         if (!parsed.success()) {
             return new ParsePhaseResult(false, parsed.error(), parsed.line(), parsed.column(), null);
         }
-        return new ParsePhaseResult(true, null, -1, -1, parsed.stack() == null ? null : parsed.stack().copy());
+        return new ParsePhaseResult(
+                true,
+                null,
+                -1,
+                -1,
+                parsed.stack() == null ? null : parsed.stack().copy());
     }
 
     private Result computeHeavyWithIdle(
@@ -78,8 +74,7 @@ public final class RawValidationAsyncService {
             ItemStack originalStack,
             RegistryAccess registryAccess,
             long idleDelayMs,
-            CompletableFuture<ParsePhaseResult> parseFuture
-    ) {
+            CompletableFuture<ParsePhaseResult> parseFuture) {
         if (this.cancelledBeforeIdle(requestId, idleDelayMs, 50L)) {
             return null;
         }
@@ -88,39 +83,18 @@ public final class RawValidationAsyncService {
             return null;
         }
         if (!parsePhase.success()) {
-            return new Result(
-                    false,
-                    parsePhase.parseError(),
-                    parsePhase.line(),
-                    parsePhase.column(),
-                    null,
-                    0
-            );
+            return new Result(false, parsePhase.parseError(), parsePhase.line(), parsePhase.column(), null, 0);
         }
 
         ItemStack parsedStack = parsePhase.parsedStack();
         if (parsedStack == null) {
-            return new Result(
-                    false,
-                    ItemEditorText.str("raw.unknown_error"),
-                    -1,
-                    -1,
-                    null,
-                    0
-            );
+            return new Result(false, ItemEditorText.str("raw.unknown_error"), -1, -1, null, 0);
         }
 
         var validationMessages = RawItemDataUtil.validatePreviewStack(parsedStack);
         for (var message : validationMessages) {
             if (message.severity() == ValidationMessage.Severity.ERROR) {
-                return new Result(
-                        false,
-                        message.message(),
-                        -1,
-                        -1,
-                        null,
-                        0
-                );
+                return new Result(false, message.message(), -1, -1, null, 0);
             }
         }
 
@@ -132,8 +106,7 @@ public final class RawValidationAsyncService {
                 -1,
                 -1,
                 diff.error(),
-                diff.error() == null ? diff.entries().size() : 0
-        );
+                diff.error() == null ? diff.entries().size() : 0);
     }
 
     private boolean cancelledBeforeIdle(long requestId, long idleDelayMs, long maxSleepMs) {
@@ -157,22 +130,7 @@ public final class RawValidationAsyncService {
         return requestId != this.requestVersion.get();
     }
 
-    public record ParsePhaseResult(
-            boolean success,
-            String parseError,
-            int line,
-            int column,
-            ItemStack parsedStack
-    ) {
-    }
+    public record ParsePhaseResult(boolean success, String parseError, int line, int column, ItemStack parsedStack) {}
 
-    public record Result(
-            boolean success,
-            String parseError,
-            int line,
-            int column,
-            String diffError,
-            int diffEntries
-    ) {
-    }
+    public record Result(boolean success, String parseError, int line, int column, String diffError, int diffEntries) {}
 }

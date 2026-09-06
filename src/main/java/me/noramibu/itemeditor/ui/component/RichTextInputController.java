@@ -1,5 +1,8 @@
 package me.noramibu.itemeditor.ui.component;
 
+import java.util.ArrayDeque;
+import java.util.List;
+import java.util.function.UnaryOperator;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -8,10 +11,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 
-import java.util.ArrayDeque;
-import java.util.List;
-import java.util.function.UnaryOperator;
-
 final class RichTextInputController {
 
     TextChangeResult updateDocumentFromPlainTextChange(
@@ -19,8 +18,7 @@ final class RichTextInputController {
             String beforeText,
             String afterText,
             RichTextStyle insertionStyle,
-            RichTextStyle defaultInsertionStyle
-    ) {
+            RichTextStyle defaultInsertionStyle) {
         int prefix = 0;
         int maxPrefix = Math.min(beforeText.length(), afterText.length());
         while (prefix < maxPrefix && beforeText.charAt(prefix) == afterText.charAt(prefix)) {
@@ -37,37 +35,38 @@ final class RichTextInputController {
         }
 
         String insertedText = afterText.substring(prefix, afterSuffix);
-        DeletionRange range = this.expandAtomicSourceDeletion(
-                beforeText,
-                new DeletionRange(prefix, beforeSuffix)
-        );
-        range = this.normalizeEventBoundaryDeletion(
-                beforeText,
-                range,
-                insertedText
-        );
+        DeletionRange range = this.expandAtomicSourceDeletion(beforeText, new DeletionRange(prefix, beforeSuffix));
+        range = this.normalizeEventBoundaryDeletion(beforeText, range, insertedText);
         if (insertedText.isEmpty()) {
             range = this.expandEmptyEventDeletion(beforeText, range.start(), range.end());
         }
         range = this.expandAtomicSourceDeletion(beforeText, range);
 
-        TextChangeResult markupResult = this.applyInsertedLegacyMarkup(
-                previousDocument,
-                afterText,
-                prefix,
-                afterSuffix,
-                range,
-                insertionStyle
-        );
+        boolean expandedRange = range.start() != prefix || range.end() != beforeSuffix;
+        boolean expandedReplacement = range.start() <= prefix && range.end() >= beforeSuffix && expandedRange;
+        if (expandedReplacement) {
+            int replacementEnd = afterSuffix + range.end() - beforeSuffix;
+            insertedText = afterText.substring(range.start(), replacementEnd);
+        }
+
+        boolean structuredReplacement = !insertedText.isEmpty()
+                && TextComponentUtil.structuredTokenLengthAt(insertedText, 0) == insertedText.length();
+        TextChangeResult markupResult = structuredReplacement
+                ? null
+                : this.applyInsertedLegacyMarkup(
+                        previousDocument, afterText, prefix, afterSuffix, range, insertionStyle);
         if (markupResult != null) {
             return markupResult;
         }
 
         RichTextDocument updated = previousDocument.copy();
-        updated.replace(range.start(), range.end(), insertedText, this.normalizedStyle(insertionStyle, defaultInsertionStyle));
-        int cursorOverride = range.start() != prefix || range.end() != beforeSuffix ? range.start() : -1;
+        updated.replace(
+                range.start(), range.end(), insertedText, this.normalizedStyle(insertionStyle, defaultInsertionStyle));
+        int cursorOverride =
+                expandedReplacement ? range.start() + insertedText.length() : expandedRange ? range.start() : -1;
         if (insertedText.isEmpty()) {
-            CleanupResult cleanup = this.removeEmptyEventPairs(updated, cursorOverride >= 0 ? cursorOverride : prefix, defaultInsertionStyle);
+            CleanupResult cleanup = this.removeEmptyEventPairs(
+                    updated, cursorOverride >= 0 ? cursorOverride : prefix, defaultInsertionStyle);
             updated = cleanup.document();
             if (cleanup.changed()) {
                 cursorOverride = cleanup.cursor();
@@ -82,8 +81,7 @@ final class RichTextInputController {
             int prefix,
             int afterSuffix,
             DeletionRange range,
-            RichTextStyle insertionStyle
-    ) {
+            RichTextStyle insertionStyle) {
         int markupStart = this.legacyMarkupStart(afterText, prefix, afterSuffix);
         if (markupStart < 0 || markupStart >= afterSuffix) {
             return null;
@@ -99,9 +97,8 @@ final class RichTextInputController {
         RichTextDocument inserted = RichTextDocument.fromMarkup(markup);
         RichTextDocument updated = previousDocument.copy();
         int insertedLength = updated.replace(replaceStart, replaceEnd, inserted);
-        RichTextStyle pendingStyleOverride = inserted.isEmpty()
-                ? this.styleAfterLegacyMarkup(markup, insertionStyle)
-                : null;
+        RichTextStyle pendingStyleOverride =
+                inserted.isEmpty() ? this.styleAfterLegacyMarkup(markup, insertionStyle) : null;
         return new TextChangeResult(updated, replaceStart + insertedLength, pendingStyleOverride);
     }
 
@@ -119,7 +116,7 @@ final class RichTextInputController {
     private RichTextStyle styleAfterLegacyMarkup(String markup, RichTextStyle baseStyle) {
         Style style = (baseStyle == null ? RichTextStyle.EMPTY : baseStyle).toStyle();
         boolean changed = false;
-        for (int cursor = 0; cursor < markup.length();) {
+        for (int cursor = 0; cursor < markup.length(); ) {
             int codeLength = TextComponentUtil.formattingCodeLengthAt(markup, cursor);
             if (codeLength <= 0) {
                 cursor += Character.charCount(markup.codePointAt(cursor));
@@ -283,6 +280,10 @@ final class RichTextInputController {
     }
 
     private EventToken eventOpenTokenEndingAt(String text, int end) {
+        return this.eventTokenEndingAt(text, end, false);
+    }
+
+    private EventToken eventTokenEndingAt(String text, int end, boolean closing) {
         if (end <= 0 || end > text.length()) {
             return null;
         }
@@ -297,7 +298,9 @@ final class RichTextInputController {
             return null;
         }
 
-        return this.eventOpenTokenFromBounds(text, tokenStart, end);
+        return closing
+                ? this.eventCloseTokenFromBounds(text, tokenStart, end)
+                : this.eventOpenTokenFromBounds(text, tokenStart, end);
     }
 
     private EventToken eventCloseTokenStartingAt(String text, int start) {
@@ -314,23 +317,11 @@ final class RichTextInputController {
     }
 
     private EventToken eventCloseTokenEndingAt(String text, int end) {
-        if (end <= 0 || end > text.length()) {
-            return null;
-        }
-
-        int tokenStart = text.lastIndexOf("[ie:", end - 1);
-        if (tokenStart < 0) {
-            return null;
-        }
-
-        int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, tokenStart);
-        if (tokenLength <= 0 || tokenStart + tokenLength != end) {
-            return null;
-        }
-        return this.eventCloseTokenFromBounds(text, tokenStart, end);
+        return this.eventTokenEndingAt(text, end, true);
     }
 
-    private CleanupResult removeEmptyEventPairs(RichTextDocument document, int cursor, RichTextStyle defaultInsertionStyle) {
+    private CleanupResult removeEmptyEventPairs(
+            RichTextDocument document, int cursor, RichTextStyle defaultInsertionStyle) {
         RichTextDocument cleaned = document;
         int safeCursor = Math.clamp(cursor, 0, cleaned.length());
         boolean changed = false;
@@ -400,26 +391,28 @@ final class RichTextInputController {
         };
     }
 
+    private static int nextStructuredTokenStart(String text, int index) {
+        while (index < text.length() && TextComponentUtil.structuredTokenLengthAt(text, index) <= 0)
+            index += Character.charCount(text.codePointAt(index));
+        return index;
+    }
+
     private EventToken matchingOpenBeforeClose(String text, EventToken close) {
         ArrayDeque<EventToken> stack = new ArrayDeque<>();
-        for (int index = 0; index < close.start(); ) {
-            int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
-            if (tokenLength <= 0) {
-                index += Character.charCount(text.codePointAt(index));
-                continue;
-            }
-
-            int tokenEnd = index + tokenLength;
+        for (int index = nextStructuredTokenStart(text, 0); index < close.start(); ) {
+            int tokenEnd = index + TextComponentUtil.structuredTokenLengthAt(text, index);
             EventToken open = this.eventOpenTokenFromBounds(text, index, tokenEnd);
             if (open != null) {
                 stack.addLast(open);
             } else {
                 EventToken nestedClose = this.eventCloseTokenFromBounds(text, index, tokenEnd);
-                if (nestedClose != null && !stack.isEmpty() && stack.getLast().type().equals(nestedClose.type())) {
+                if (nestedClose != null
+                        && !stack.isEmpty()
+                        && stack.getLast().type().equals(nestedClose.type())) {
                     stack.removeLast();
                 }
             }
-            index = tokenEnd;
+            index = nextStructuredTokenStart(text, tokenEnd);
         }
 
         while (!stack.isEmpty()) {
@@ -433,18 +426,12 @@ final class RichTextInputController {
 
     private EventToken matchingCloseAfterOpen(String text, EventToken open) {
         int depth = 0;
-        for (int index = open.end(); index < text.length(); ) {
-            int tokenLength = TextComponentUtil.structuredTokenLengthAt(text, index);
-            if (tokenLength <= 0) {
-                index += Character.charCount(text.codePointAt(index));
-                continue;
-            }
-
-            int tokenEnd = index + tokenLength;
+        for (int index = nextStructuredTokenStart(text, open.end()); index < text.length(); ) {
+            int tokenEnd = index + TextComponentUtil.structuredTokenLengthAt(text, index);
             EventToken nestedOpen = this.eventOpenTokenFromBounds(text, index, tokenEnd);
             if (nestedOpen != null && nestedOpen.type().equals(open.type())) {
                 depth++;
-                index = tokenEnd;
+                index = nextStructuredTokenStart(text, tokenEnd);
                 continue;
             }
 
@@ -455,7 +442,7 @@ final class RichTextInputController {
                 }
                 depth--;
             }
-            index = tokenEnd;
+            index = nextStructuredTokenStart(text, tokenEnd);
         }
         return null;
     }
@@ -475,43 +462,31 @@ final class RichTextInputController {
             int start,
             int end,
             UnaryOperator<RichTextStyle> transformer,
-            RichTextStyle defaultInsertionStyle
-    ) {
+            RichTextStyle defaultInsertionStyle) {
         RichTextDocument updated = source.copy();
-        updated.applyStyle(start, end, style -> this.normalizedStyle(
-                transformer.apply(style.equals(RichTextStyle.EMPTY) ? defaultInsertionStyle : style),
-                defaultInsertionStyle
-        ));
+        updated.applyStyle(
+                start,
+                end,
+                style -> this.normalizedStyle(
+                        transformer.apply(style.equals(RichTextStyle.EMPTY) ? defaultInsertionStyle : style),
+                        defaultInsertionStyle));
         return updated;
     }
 
-    RichTextDocument applyGradient(
-            RichTextDocument source,
-            int start,
-            int end,
-            List<Integer> colors
-    ) {
+    RichTextDocument applyGradient(RichTextDocument source, int start, int end, List<Integer> colors) {
         RichTextDocument updated = source.copy();
         updated.applyGradient(start, end, colors);
         return updated;
     }
 
-    RichTextDocument applyShadowGradient(
-            RichTextDocument source,
-            int start,
-            int end,
-            List<Integer> colors
-    ) {
+    RichTextDocument applyShadowGradient(RichTextDocument source, int start, int end, List<Integer> colors) {
         RichTextDocument updated = source.copy();
         updated.applyShadowGradient(start, end, colors);
         return updated;
     }
 
     TextTransformResult transformSelectionOrAll(
-            RichTextDocument source,
-            RichTextSelectionModel selection,
-            UnaryOperator<String> transformer
-    ) {
+            RichTextDocument source, RichTextSelectionModel selection, UnaryOperator<String> transformer) {
         if (source.isEmpty()) {
             return new TextTransformResult(source.copy(), selection.cursor(), selection.selectionCursor(), false, 0);
         }
@@ -553,13 +528,7 @@ final class RichTextInputController {
     }
 
     record TextTransformResult(
-            RichTextDocument document,
-            int newCursor,
-            int newSelection,
-            boolean hadSelection,
-            int transformedLength
-    ) {
-    }
+            RichTextDocument document, int newCursor, int newSelection, boolean hadSelection, int transformedLength) {}
 
     record TextChangeResult(RichTextDocument document, int cursorOverride, RichTextStyle pendingStyleOverride) {
         TextChangeResult(RichTextDocument document, int cursorOverride) {
@@ -567,12 +536,9 @@ final class RichTextInputController {
         }
     }
 
-    private record CleanupResult(RichTextDocument document, int cursor, boolean changed) {
-    }
+    private record CleanupResult(RichTextDocument document, int cursor, boolean changed) {}
 
-    private record DeletionRange(int start, int end) {
-    }
+    private record DeletionRange(int start, int end) {}
 
-    private record EventToken(String type, int start, int end) {
-    }
+    private record EventToken(String type, int start, int end) {}
 }

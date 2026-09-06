@@ -1,7 +1,5 @@
 package me.noramibu.itemeditor.util;
 
-import net.minecraft.client.Minecraft;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -9,11 +7,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.client.Minecraft;
 
 public final class AsyncDispatchUtil {
 
-    private AsyncDispatchUtil() {
-    }
+    private AsyncDispatchUtil() {}
 
     public static ExecutorService newSingleThreadExecutor(String threadName) {
         return Executors.newSingleThreadExecutor(runnable -> {
@@ -28,11 +26,7 @@ public final class AsyncDispatchUtil {
     }
 
     public static <T> void deliverIfLatest(
-            CompletableFuture<T> future,
-            AtomicLong requestVersion,
-            long requestId,
-            Consumer<T> onResult
-    ) {
+            CompletableFuture<T> future, AtomicLong requestVersion, long requestId, Consumer<T> onResult) {
         future.thenAccept(result -> {
             if (requestId != requestVersion.get()) {
                 return;
@@ -48,11 +42,7 @@ public final class AsyncDispatchUtil {
     }
 
     public static <T> void requestLatest(
-            AtomicLong requestVersion,
-            Executor executor,
-            Supplier<T> supplier,
-            Consumer<T> onResult
-    ) {
+            AtomicLong requestVersion, Executor executor, Supplier<T> supplier, Consumer<T> onResult) {
         long requestId = requestVersion.incrementAndGet();
         CompletableFuture<T> future = CompletableFuture.supplyAsync(supplier, executor);
         deliverIfLatest(future, requestVersion, requestId, onResult);

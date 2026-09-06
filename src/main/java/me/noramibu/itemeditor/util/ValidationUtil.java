@@ -2,19 +2,18 @@ package me.noramibu.itemeditor.util;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import me.noramibu.itemeditor.editor.ValidationMessage;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import me.noramibu.itemeditor.editor.ValidationMessage;
 
 public final class ValidationUtil {
 
     private static final Pattern HEX_PATTERN = Pattern.compile("^[0-9a-fA-F]{6}$");
+    private static final Pattern ARGB_HEX_PATTERN = Pattern.compile("^[0-9a-fA-F]{8}$");
 
-    private ValidationUtil() {
-    }
+    private ValidationUtil() {}
 
     public static Integer parseInt(String raw, String field, int min, int max, List<ValidationMessage> messages) {
         try {
@@ -99,9 +98,18 @@ public final class ValidationUtil {
         return String.format(Locale.ROOT, "#%06X", color & 0xFFFFFF);
     }
 
+    public static String toArgbHex(int color) {
+        return String.format(Locale.ROOT, "#%08X", color);
+    }
+
     public static Integer tryParseHexColor(String raw) {
         String normalized = normalizeHex(raw);
         return isHexColor(normalized) ? Integer.parseInt(normalized, 16) : null;
+    }
+
+    public static Integer tryParseArgbColor(String raw) {
+        String normalized = normalizeHex(raw);
+        return ARGB_HEX_PATTERN.matcher(normalized).matches() ? (int) Long.parseLong(normalized, 16) : null;
     }
 
     public static int parseHexColorOrDefault(String raw, int fallback) {
@@ -144,7 +152,8 @@ public final class ValidationUtil {
 
     private static String normalizeHex(String raw) {
         String normalized = raw.trim();
-        return normalized.startsWith("#") ? normalized.substring(1)
+        return normalized.startsWith("#")
+                ? normalized.substring(1)
                 : normalized.startsWith("0x") || normalized.startsWith("0X") ? normalized.substring(2) : normalized;
     }
 

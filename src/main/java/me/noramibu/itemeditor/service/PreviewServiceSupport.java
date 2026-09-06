@@ -1,10 +1,9 @@
 package me.noramibu.itemeditor.service;
 
-import net.minecraft.core.component.DataComponentType;
-import net.minecraft.world.item.ItemStack;
-
 import java.util.List;
 import java.util.function.BiPredicate;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.world.item.ItemStack;
 
 abstract class PreviewServiceSupport {
 
@@ -12,7 +11,8 @@ abstract class PreviewServiceSupport {
         preview.set(componentType, preview.getPrototype().get(componentType));
     }
 
-    protected final <T> void restoreOriginalComponent(ItemStack originalStack, ItemStack preview, DataComponentType<T> componentType) {
+    protected final <T> void restoreOriginalComponent(
+            ItemStack originalStack, ItemStack preview, DataComponentType<T> componentType) {
         preview.set(componentType, originalStack.get(componentType));
     }
 

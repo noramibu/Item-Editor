@@ -3,10 +3,18 @@ package me.noramibu.itemeditor.service;
 import static me.noramibu.itemeditor.util.ValidationUtil.trimTrailingZeros;
 
 import com.mojang.serialization.DataResult;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.util.InstrumentDetails;
-import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.advancements.criterion.DataComponentMatchers;
 import net.minecraft.advancements.criterion.ItemPredicate;
@@ -33,25 +41,32 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.animal.fish.Salmon;
+import net.minecraft.world.entity.animal.fish.TropicalFish;
 import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.AdventureModePredicate;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.JukeboxPlayable;
+import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.component.AttackRange;
 import net.minecraft.world.item.component.Bees;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.item.component.BlocksAttacks;
+import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ChargedProjectiles;
 import net.minecraft.world.item.component.Consumable;
-import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.DamageResistant;
 import net.minecraft.world.item.component.DeathProtection;
 import net.minecraft.world.item.component.DebugStickState;
@@ -60,7 +75,6 @@ import net.minecraft.world.item.component.FireworkExplosion;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.item.component.InstrumentComponent;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
-import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.item.component.KineticWeapon;
@@ -75,8 +89,8 @@ import net.minecraft.world.item.component.SeededContainerLoot;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.component.Tool;
-import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.item.component.TooltipDisplay;
+import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.item.component.UseCooldown;
 import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.item.component.UseRemainder;
@@ -87,18 +101,13 @@ import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.item.enchantment.Repairable;
 import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.equipment.trim.TrimMaterial;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.animal.axolotl.Axolotl;
-import net.minecraft.world.entity.animal.fish.Salmon;
-import net.minecraft.world.entity.animal.fish.TropicalFish;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
@@ -108,14 +117,6 @@ import net.minecraft.world.level.block.entity.SignText;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 public final class ItemEditorStateMapper {
 
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("([a-z0-9_.-]+:[a-z0-9_./-]+)");
@@ -123,6 +124,7 @@ public final class ItemEditorStateMapper {
 
     public ItemEditorState map(ItemStack stack, RegistryAccess registryAccess) {
         ItemEditorState state = new ItemEditorState();
+        ComponentRemovalService.read(stack, state);
 
         state.customName = Optional.ofNullable(stack.get(DataComponents.CUSTOM_NAME))
                 .map(TextComponentUtil::toMarkup)
@@ -229,8 +231,13 @@ public final class ItemEditorStateMapper {
             state.special.equippableSlot = equippable.slot().name();
             setIdFromHolder(equippable.equipSound(), id -> state.special.equippableEquipSoundId = id);
             setIdFromHolder(equippable.shearingSound(), id -> state.special.equippableShearingSoundId = id);
-            equippable.assetId().ifPresent(assetId -> state.special.equippableAssetId = assetId.identifier().toString());
-            equippable.cameraOverlay().ifPresent(cameraOverlay -> state.special.equippableCameraOverlayId = cameraOverlay.toString());
+            equippable
+                    .assetId()
+                    .ifPresent(assetId -> state.special.equippableAssetId =
+                            assetId.identifier().toString());
+            equippable
+                    .cameraOverlay()
+                    .ifPresent(cameraOverlay -> state.special.equippableCameraOverlayId = cameraOverlay.toString());
             state.special.equippableDispensable = Boolean.toString(equippable.dispensable());
             state.special.equippableSwappable = Boolean.toString(equippable.swappable());
             state.special.equippableDamageOnHurt = Boolean.toString(equippable.damageOnHurt());
@@ -252,8 +259,10 @@ public final class ItemEditorStateMapper {
             for (Tool.Rule rule : tool.rules()) {
                 ItemEditorState.ToolRuleDraft draft = new ItemEditorState.ToolRuleDraft();
                 draft.blockIds = joinHolderSetIds(rule.blocks());
-                draft.speed = rule.speed().map(ValidationUtil::trimTrailingZeros).orElse("");
-                draft.correctForDrops = rule.correctForDrops().map(String::valueOf).orElse("");
+                draft.speed =
+                        rule.speed().map(ValidationUtil::trimTrailingZeros).orElse("");
+                draft.correctForDrops =
+                        rule.correctForDrops().map(String::valueOf).orElse("");
                 state.special.toolRules.add(draft);
             }
         }
@@ -282,11 +291,10 @@ public final class ItemEditorStateMapper {
             chargedProjectiles.itemCopies().stream()
                     .filter(projectile -> !projectile.isEmpty())
                     .map(projectile -> {
-                        ItemEditorState.ChargedProjectileDraft draft = ItemEditorState.ChargedProjectileDraft.fromStack(projectile);
+                        ItemEditorState.ChargedProjectileDraft draft =
+                                ItemEditorState.ChargedProjectileDraft.fromStack(projectile);
                         draft.templateSnbt = this.encodeItemStackTemplate(
-                                ItemStackTemplate.fromNonEmptyStack(projectile),
-                                registryAccess
-                        );
+                                ItemStackTemplate.fromNonEmptyStack(projectile), registryAccess);
                         return draft;
                     })
                     .forEach(state.special.chargedProjectiles::add);
@@ -371,8 +379,7 @@ public final class ItemEditorStateMapper {
                     ", ",
                     blockStateProperties.properties().entrySet().stream()
                             .map(entry -> entry.getKey() + "=" + entry.getValue())
-                            .toList()
-            );
+                            .toList());
             state.special.uiBlockStateCollapsed = false;
         }
 
@@ -380,22 +387,32 @@ public final class ItemEditorStateMapper {
         if (blocksAttacks != null) {
             state.special.blocksAttacksBlockDelaySeconds = trimTrailingZeros(blocksAttacks.blockDelaySeconds());
             state.special.blocksAttacksDisableCooldownScale = trimTrailingZeros(blocksAttacks.disableCooldownScale());
-            state.special.blocksAttacksBypassedByTypeIds = blocksAttacks.bypassedBy()
+            state.special.blocksAttacksBypassedByTypeIds = blocksAttacks
+                    .bypassedBy()
                     .map(ItemEditorStateMapper::joinHolderSetIds)
                     .orElse("");
-            state.special.blocksAttacksItemDamageThreshold = trimTrailingZeros(blocksAttacks.itemDamage().threshold());
-            state.special.blocksAttacksItemDamageBase = trimTrailingZeros(blocksAttacks.itemDamage().base());
-            state.special.blocksAttacksItemDamageFactor = trimTrailingZeros(blocksAttacks.itemDamage().factor());
+            state.special.blocksAttacksItemDamageThreshold =
+                    trimTrailingZeros(blocksAttacks.itemDamage().threshold());
+            state.special.blocksAttacksItemDamageBase =
+                    trimTrailingZeros(blocksAttacks.itemDamage().base());
+            state.special.blocksAttacksItemDamageFactor =
+                    trimTrailingZeros(blocksAttacks.itemDamage().factor());
             for (BlocksAttacks.DamageReduction reduction : blocksAttacks.damageReductions()) {
-                ItemEditorState.BlocksAttacksDamageReductionDraft draft = new ItemEditorState.BlocksAttacksDamageReductionDraft();
-                draft.typeIds = reduction.type().map(ItemEditorStateMapper::joinHolderSetIds).orElse("");
+                ItemEditorState.BlocksAttacksDamageReductionDraft draft =
+                        new ItemEditorState.BlocksAttacksDamageReductionDraft();
+                draft.typeIds = reduction
+                        .type()
+                        .map(ItemEditorStateMapper::joinHolderSetIds)
+                        .orElse("");
                 draft.horizontalBlockingAngle = trimTrailingZeros(reduction.horizontalBlockingAngle());
                 draft.base = trimTrailingZeros(reduction.base());
                 draft.factor = trimTrailingZeros(reduction.factor());
                 state.special.blocksAttacksDamageReductions.add(draft);
             }
-            setIdFromHolder(blocksAttacks.blockSound().orElse(null), id -> state.special.blocksAttacksBlockSoundId = id);
-            setIdFromHolder(blocksAttacks.disableSound().orElse(null), id -> state.special.blocksAttacksDisableSoundId = id);
+            setIdFromHolder(
+                    blocksAttacks.blockSound().orElse(null), id -> state.special.blocksAttacksBlockSoundId = id);
+            setIdFromHolder(
+                    blocksAttacks.disableSound().orElse(null), id -> state.special.blocksAttacksDisableSoundId = id);
         }
 
         PiercingWeapon piercingWeapon = stack.get(DataComponents.PIERCING_WEAPON);
@@ -424,11 +441,13 @@ public final class ItemEditorStateMapper {
 
         AdventureModePredicate canBreak = stack.get(DataComponents.CAN_BREAK);
         if (canBreak != null) {
+            state.canBreakAnyBlock = isAnyBlock(canBreak, registryAccess);
             state.canBreakBlockIds.addAll(this.extractBlockIds(canBreak, registryAccess));
         }
 
         AdventureModePredicate canPlaceOn = stack.get(DataComponents.CAN_PLACE_ON);
         if (canPlaceOn != null) {
+            state.canPlaceOnAnyBlock = isAnyBlock(canPlaceOn, registryAccess);
             state.canPlaceOnBlockIds.addAll(this.extractBlockIds(canPlaceOn, registryAccess));
         }
 
@@ -455,25 +474,29 @@ public final class ItemEditorStateMapper {
                 .map(entry -> ItemEditorState.EnchantmentDraft.fromEntry(entry.getKey(), entry.getIntValue()))
                 .forEach(state.enchantments::add);
 
-        ItemEnchantments storedEnchantments = stack.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
+        ItemEnchantments storedEnchantments =
+                stack.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
         storedEnchantments.entrySet().stream()
                 .map(entry -> ItemEditorState.EnchantmentDraft.fromEntry(entry.getKey(), entry.getIntValue()))
                 .forEach(state.storedEnchantments::add);
 
-        ItemAttributeModifiers modifiers = stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+        ItemAttributeModifiers modifiers =
+                stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
         modifiers.modifiers().stream()
                 .map(ItemEditorState.AttributeModifierDraft::fromEntry)
                 .forEach(state.attributeModifiers::add);
 
         if (stack.is(Items.WRITTEN_BOOK)) {
             state.book.writtenBook = true;
-            WrittenBookContent content = stack.getOrDefault(DataComponents.WRITTEN_BOOK_CONTENT, WrittenBookContent.EMPTY);
+            WrittenBookContent content =
+                    stack.getOrDefault(DataComponents.WRITTEN_BOOK_CONTENT, WrittenBookContent.EMPTY);
             state.book.title = content.title().raw();
             state.book.author = content.author();
             state.book.generation = Integer.toString(content.generation());
             content.pages().stream().map(this::pageMarkup).forEach(state.book.pages::add);
         } else if (stack.is(Items.WRITABLE_BOOK)) {
-            WritableBookContent content = stack.getOrDefault(DataComponents.WRITABLE_BOOK_CONTENT, WritableBookContent.EMPTY);
+            WritableBookContent content =
+                    stack.getOrDefault(DataComponents.WRITABLE_BOOK_CONTENT, WritableBookContent.EMPTY);
             content.pages().stream().map(Filterable::raw).forEach(state.book.pages::add);
         }
 
@@ -502,7 +525,8 @@ public final class ItemEditorStateMapper {
 
         SeededContainerLoot containerLoot = stack.get(DataComponents.CONTAINER_LOOT);
         if (containerLoot != null) {
-            state.special.containerLootTableId = containerLoot.lootTable().identifier().toString();
+            state.special.containerLootTableId =
+                    containerLoot.lootTable().identifier().toString();
             state.special.containerLootSeed = Long.toString(containerLoot.seed());
         }
 
@@ -536,13 +560,8 @@ public final class ItemEditorStateMapper {
                 if (entryStack.isEmpty() || entryStack.is(Items.AIR)) {
                     continue;
                 }
-                int templateCount = Math.max(1, template.count());
-                ItemEditorState.ContainerEntryDraft draft = new ItemEditorState.ContainerEntryDraft();
-                draft.slot = Integer.toString(index);
-                draft.itemId = identifierOrEmpty(BuiltInRegistries.ITEM.getKey(entryStack.getItem()));
-                draft.count = Integer.toString(templateCount);
-                draft.templateStack = entryStack.copyWithCount(templateCount);
-                state.special.bundleEntries.add(draft);
+                state.special.bundleEntries.add(ItemEditorState.ContainerEntryDraft.fromSlot(
+                        index, entryStack.copyWithCount(Math.max(1, template.count()))));
                 index++;
             }
 
@@ -560,7 +579,8 @@ public final class ItemEditorStateMapper {
             state.special.commandBlockItemId = commandBlockItemId(stack);
         }
         if (blockEntityData != null
-                && (blockEntityData.type() == BlockEntityType.SIGN || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
+                && (blockEntityData.type() == BlockEntityType.SIGN
+                        || blockEntityData.type() == BlockEntityType.HANGING_SIGN)) {
             var blockTag = blockEntityData.copyTagWithoutId();
             SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
             SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
@@ -581,7 +601,7 @@ public final class ItemEditorStateMapper {
         }
         if (entityData != null
                 && (entityData.type() == EntityType.ITEM_FRAME || entityData.type() == EntityType.GLOW_ITEM_FRAME)) {
-            this.readItemFrameData(entityData.copyTagWithoutId(), state.special);
+            this.readItemFrameData(entityData.copyTagWithoutId(), state.special, registryAccess);
         }
         if (ItemEditorCapabilities.supportsSpawnEggData(stack)) {
             this.readSpawnEggData(stack, entityData, state.special, registryAccess);
@@ -590,7 +610,9 @@ public final class ItemEditorStateMapper {
         PotionContents potionContents = stack.get(DataComponents.POTION_CONTENTS);
         if (potionContents != null) {
             setIdFromHolder(potionContents.potion().orElse(null), id -> state.special.potionId = id);
-            potionContents.customColor().ifPresent(color -> state.special.potionCustomColor = ValidationUtil.toHex(color));
+            potionContents
+                    .customColor()
+                    .ifPresent(color -> state.special.potionCustomColor = ValidationUtil.toHex(color));
             potionContents.customName().ifPresent(name -> state.special.potionCustomName = name);
             potionContents.customEffects().forEach(effect -> {
                 ItemEditorState.PotionEffectDraft draft = new ItemEditorState.PotionEffectDraft();
@@ -628,7 +650,8 @@ public final class ItemEditorStateMapper {
 
         FireworkExplosion fireworkExplosion = stack.get(DataComponents.FIREWORK_EXPLOSION);
         if (fireworkExplosion != null) {
-            ItemEditorState.FireworkExplosionDraft draft = ItemEditorState.FireworkExplosionDraft.fromExplosion(fireworkExplosion);
+            ItemEditorState.FireworkExplosionDraft draft =
+                    ItemEditorState.FireworkExplosionDraft.fromExplosion(fireworkExplosion);
             state.special.starExplosion.shape = draft.shape;
             state.special.starExplosion.colors = draft.colors;
             state.special.starExplosion.fadeColors = draft.fadeColors;
@@ -664,10 +687,13 @@ public final class ItemEditorStateMapper {
             if (profile.partialProfile().id() != null) {
                 state.special.profileUuid = profile.partialProfile().id().toString();
             }
-            profile.partialProfile().properties().get("textures").stream().findFirst().ifPresent(property -> {
-                state.special.profileTextureValue = property.value();
-                state.special.profileTextureSignature = property.signature() == null ? "" : property.signature();
-            });
+            profile.partialProfile().properties().get("textures").stream()
+                    .findFirst()
+                    .ifPresent(property -> {
+                        state.special.profileTextureValue = property.value();
+                        state.special.profileTextureSignature =
+                                property.signature() == null ? "" : property.signature();
+                    });
         }
 
         Axolotl.Variant axolotlVariant = stack.get(DataComponents.AXOLOTL_VARIANT);
@@ -689,14 +715,16 @@ public final class ItemEditorStateMapper {
         setIdFromHolder(stack.get(DataComponents.CAT_VARIANT), id -> state.special.entityCatVariant = id);
         setIdFromHolder(stack.get(DataComponents.CAT_SOUND_VARIANT), id -> state.special.entityCatSoundVariant = id);
         setIdFromHolder(stack.get(DataComponents.CHICKEN_VARIANT), id -> state.special.entityChickenVariant = id);
-        setIdFromHolder(stack.get(DataComponents.CHICKEN_SOUND_VARIANT), id -> state.special.entityChickenSoundVariant = id);
+        setIdFromHolder(
+                stack.get(DataComponents.CHICKEN_SOUND_VARIANT), id -> state.special.entityChickenSoundVariant = id);
         setIdFromHolder(stack.get(DataComponents.COW_VARIANT), id -> state.special.entityCowVariant = id);
         setIdFromHolder(stack.get(DataComponents.COW_SOUND_VARIANT), id -> state.special.entityCowSoundVariant = id);
         setSerializedName(stack.get(DataComponents.FOX_VARIANT), name -> state.special.entityFoxVariant = name);
         setIdFromHolder(stack.get(DataComponents.FROG_VARIANT), id -> state.special.entityFrogVariant = id);
         setSerializedName(stack.get(DataComponents.HORSE_VARIANT), name -> state.special.entityHorseVariant = name);
         setSerializedName(stack.get(DataComponents.LLAMA_VARIANT), name -> state.special.entityLlamaVariant = name);
-        setSerializedName(stack.get(DataComponents.MOOSHROOM_VARIANT), name -> state.special.entityMooshroomVariant = name);
+        setSerializedName(
+                stack.get(DataComponents.MOOSHROOM_VARIANT), name -> state.special.entityMooshroomVariant = name);
         setSerializedName(stack.get(DataComponents.PARROT_VARIANT), name -> state.special.entityParrotVariant = name);
         setIdFromHolder(stack.get(DataComponents.PIG_VARIANT), id -> state.special.entityPigVariant = id);
         setIdFromHolder(stack.get(DataComponents.PIG_SOUND_VARIANT), id -> state.special.entityPigSoundVariant = id);
@@ -707,7 +735,9 @@ public final class ItemEditorStateMapper {
         setSerializedName(stack.get(DataComponents.WOLF_COLLAR), name -> state.special.entityWolfCollar = name);
         setIdFromHolder(stack.get(DataComponents.WOLF_SOUND_VARIANT), id -> state.special.entityWolfSoundVariant = id);
         setIdFromHolder(stack.get(DataComponents.WOLF_VARIANT), id -> state.special.entityWolfVariant = id);
-        setIdFromHolder(stack.get(DataComponents.ZOMBIE_NAUTILUS_VARIANT), id -> state.special.entityZombieNautilusVariant = id);
+        setIdFromHolder(
+                stack.get(DataComponents.ZOMBIE_NAUTILUS_VARIANT),
+                id -> state.special.entityZombieNautilusVariant = id);
 
         CustomData bucketEntityData = stack.get(DataComponents.BUCKET_ENTITY_DATA);
         if (bucketEntityData != null) {
@@ -722,7 +752,8 @@ public final class ItemEditorStateMapper {
             EntitySpawnDataUtil.readAttributes(tag, state.special.bucketAttributes, Set.of());
             tag.getInt("Age").ifPresent(value -> state.special.bucketAge = Integer.toString(value));
             state.special.bucketAgeLocked = tag.getBooleanOr("AgeLocked", false);
-            tag.getLong("HuntingCooldown").ifPresent(value -> state.special.bucketHuntingCooldown = Long.toString(value));
+            tag.getLong("HuntingCooldown")
+                    .ifPresent(value -> state.special.bucketHuntingCooldown = Long.toString(value));
         }
 
         InstrumentComponent instrument = stack.get(DataComponents.INSTRUMENT);
@@ -767,7 +798,8 @@ public final class ItemEditorStateMapper {
             state.special.lodestoneEnabled = true;
             state.special.lodestoneTracked = lodestoneTracker.tracked();
             lodestoneTracker.target().ifPresent(target -> {
-                state.special.lodestoneDimensionId = target.dimension().identifier().toString();
+                state.special.lodestoneDimensionId =
+                        target.dimension().identifier().toString();
                 state.special.lodestoneX = Integer.toString(target.pos().getX());
                 state.special.lodestoneY = Integer.toString(target.pos().getY());
                 state.special.lodestoneZ = Integer.toString(target.pos().getZ());
@@ -792,6 +824,17 @@ public final class ItemEditorStateMapper {
             }
         }
         return blockIds.stream().toList();
+    }
+
+    static boolean isAnyBlock(AdventureModePredicate predicate, RegistryAccess registryAccess) {
+        var encoded = AdventureModePredicate.CODEC
+                .encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), predicate)
+                .result();
+        return encoded.filter(tag -> tag instanceof CompoundTag compound && compound.isEmpty()
+                        || tag instanceof ListTag list
+                                && list.stream()
+                                        .anyMatch(entry -> entry instanceof CompoundTag compound && compound.isEmpty()))
+                .isPresent();
     }
 
     private String pageMarkup(Filterable<Component> page) {
@@ -846,7 +889,8 @@ public final class ItemEditorStateMapper {
     private String encodePredicate(AdventureModePredicate predicate, RegistryAccess registryAccess) {
         try {
             var ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-            return AdventureModePredicate.CODEC.encodeStart(ops, predicate)
+            return AdventureModePredicate.CODEC
+                    .encodeStart(ops, predicate)
                     .result()
                     .map(Tag::toString)
                     .orElseGet(predicate::toString);
@@ -858,7 +902,8 @@ public final class ItemEditorStateMapper {
     private void mapLockCode(LockCode lockCode, ItemEditorState.SpecialData special, RegistryAccess registryAccess) {
         ItemPredicate predicate = lockCode.predicate();
         if (this.isSimpleItemLockPredicate(predicate)) {
-            predicate.items()
+            predicate
+                    .items()
                     .flatMap(items -> items.stream().findFirst())
                     .ifPresent(holder -> setIdFromHolder(holder, id -> special.lockItemId = id));
             return;
@@ -877,17 +922,14 @@ public final class ItemEditorStateMapper {
         if (!DataComponentMatchers.ANY.equals(predicate.components())) {
             return false;
         }
-        return predicate.items()
-                .stream()
-                .flatMap(HolderSet::stream)
-                .limit(2)
-                .count() == 1;
+        return predicate.items().stream().flatMap(HolderSet::stream).limit(2).count() == 1;
     }
 
     private String encodeItemPredicate(ItemPredicate predicate, RegistryAccess registryAccess) {
         try {
             var ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-            return ItemPredicate.CODEC.encodeStart(ops, predicate)
+            return ItemPredicate.CODEC
+                    .encodeStart(ops, predicate)
                     .result()
                     .map(Tag::toString)
                     .orElse("");
@@ -899,7 +941,8 @@ public final class ItemEditorStateMapper {
     private String encodeItemStackTemplate(ItemStackTemplate template, RegistryAccess registryAccess) {
         try {
             var ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-            return ItemStackTemplate.CODEC.encodeStart(ops, template)
+            return ItemStackTemplate.CODEC
+                    .encodeStart(ops, template)
                     .result()
                     .map(Tag::toString)
                     .orElse("");
@@ -942,10 +985,7 @@ public final class ItemEditorStateMapper {
     }
 
     private void readSpawnerData(
-            CompoundTag blockTag,
-            ItemEditorState.SpecialData special,
-            RegistryAccess registryAccess
-    ) {
+            CompoundTag blockTag, ItemEditorState.SpecialData special, RegistryAccess registryAccess) {
         special.spawnerDelay = readOptionalInt(blockTag, "Delay");
         special.spawnerMinSpawnDelay = readOptionalInt(blockTag, "MinSpawnDelay");
         special.spawnerMaxSpawnDelay = readOptionalInt(blockTag, "MaxSpawnDelay");
@@ -999,52 +1039,50 @@ public final class ItemEditorStateMapper {
         special.commandBlockTrackOutput = blockTag.getBooleanOr("TrackOutput", true);
         special.commandBlockUpdateLastExecution = blockTag.getBooleanOr("UpdateLastExecution", true);
         special.commandBlockSuccessCount = readOptionalInt(blockTag, "SuccessCount");
-        special.commandBlockLastExecution = blockTag.getLong("LastExecution").map(String::valueOf).orElse("");
+        special.commandBlockLastExecution =
+                blockTag.getLong("LastExecution").map(String::valueOf).orElse("");
         blockTag.read("CustomName", ComponentSerialization.CODEC)
                 .ifPresent(component -> special.commandBlockCustomName = TextComponentUtil.toMarkup(component));
         blockTag.read("LastOutput", ComponentSerialization.CODEC)
                 .ifPresent(component -> special.commandBlockLastOutput = TextComponentUtil.toMarkup(component));
     }
 
-    private void readSpawnerSpawnRules(
-            CompoundTag spawnDataTag,
-            ItemEditorState.SpawnerSpawnDataDraft draft
-    ) {
+    private void readSpawnerSpawnRules(CompoundTag spawnDataTag, ItemEditorState.SpawnerSpawnDataDraft draft) {
         CompoundTag rulesTag = spawnDataTag.getCompoundOrEmpty("custom_spawn_rules");
-        this.readLightLimit(rulesTag, "block_light_limit", value -> {
-            draft.blockLightMin = value;
-            draft.blockLightMax = value;
-        }, (min, max) -> {
-            draft.blockLightMin = min;
-            draft.blockLightMax = max;
-        });
-        this.readLightLimit(rulesTag, "sky_light_limit", value -> {
-            draft.skyLightMin = value;
-            draft.skyLightMax = value;
-        }, (min, max) -> {
-            draft.skyLightMin = min;
-            draft.skyLightMax = max;
-        });
+        this.readLightLimit(
+                rulesTag,
+                "block_light_limit",
+                value -> {
+                    draft.blockLightMin = value;
+                    draft.blockLightMax = value;
+                },
+                (min, max) -> {
+                    draft.blockLightMin = min;
+                    draft.blockLightMax = max;
+                });
+        this.readLightLimit(
+                rulesTag,
+                "sky_light_limit",
+                value -> {
+                    draft.skyLightMin = value;
+                    draft.skyLightMax = value;
+                },
+                (min, max) -> {
+                    draft.skyLightMin = min;
+                    draft.skyLightMax = max;
+                });
     }
 
     private void readLightLimit(
-            CompoundTag rulesTag,
-            String key,
-            java.util.function.Consumer<String> exactSetter,
-            java.util.function.BiConsumer<String, String> rangeSetter
-    ) {
+            CompoundTag rulesTag, String key, Consumer<String> exactSetter, BiConsumer<String, String> rangeSetter) {
         rulesTag.getInt(key).ifPresent(value -> exactSetter.accept(Integer.toString(value)));
-        rulesTag.getCompound(key).ifPresent(range -> rangeSetter.accept(
-                readOptionalInt(range, "min_inclusive"),
-                readOptionalInt(range, "max_inclusive")
-        ));
+        rulesTag.getCompound(key)
+                .ifPresent(range -> rangeSetter.accept(
+                        readOptionalInt(range, "min_inclusive"), readOptionalInt(range, "max_inclusive")));
     }
 
     private void readArmorStandData(
-            CompoundTag entityTag,
-            ItemEditorState.SpecialData special,
-            RegistryAccess registryAccess
-    ) {
+            CompoundTag entityTag, ItemEditorState.SpecialData special, RegistryAccess registryAccess) {
         special.armorStandSmall = entityTag.getBooleanOr("Small", false);
         special.armorStandShowArms = entityTag.getBooleanOr("ShowArms", false);
         special.armorStandNoBasePlate = entityTag.getBooleanOr("NoBasePlate", false);
@@ -1053,64 +1091,30 @@ public final class ItemEditorStateMapper {
         special.armorStandInvulnerable = entityTag.getBooleanOr("Invulnerable", false);
         special.armorStandCustomNameVisible = entityTag.getBooleanOr("CustomNameVisible", false);
         special.armorStandMarker = entityTag.getBooleanOr("Marker", false);
-        entityTag.read("CustomName", ComponentSerialization.CODEC)
+        entityTag
+                .read("CustomName", ComponentSerialization.CODEC)
                 .ifPresent(component -> special.armorStandCustomName = TextComponentUtil.toMarkup(component));
-        entityTag.getFloat("Health")
+        entityTag
+                .getFloat("Health")
                 .ifPresent(value -> special.armorStandHealth = ValidationUtil.trimTrailingZeros(value));
         special.armorStandDisabledSlots = readOptionalInt(entityTag, "DisabledSlots");
         EntitySpawnDataUtil.readEquipment(entityTag, special.armorStandEquipment, registryAccess);
         EntitySpawnDataUtil.readAttributes(
                 entityTag,
                 special.armorStandAttributes,
-                Set.of(Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString())
-        );
+                Set.of(Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString()));
 
         CompoundTag poseTag = entityTag.getCompoundOrEmpty("Pose");
-        this.readPosePart(
-                poseTag,
-                "Head",
-                special.armorStandPose.head,
-                0.0F,
-                0.0F
-        );
-        this.readPosePart(
-                poseTag,
-                "Body",
-                special.armorStandPose.body,
-                0.0F,
-                0.0F
-        );
-        this.readPosePart(
-                poseTag,
-                "LeftArm",
-                special.armorStandPose.leftArm,
-                -10.0F,
-                -10.0F
-        );
-        this.readPosePart(
-                poseTag,
-                "RightArm",
-                special.armorStandPose.rightArm,
-                -15.0F,
-                10.0F
-        );
-        this.readPosePart(
-                poseTag,
-                "LeftLeg",
-                special.armorStandPose.leftLeg,
-                -1.0F,
-                -1.0F
-        );
-        this.readPosePart(
-                poseTag,
-                "RightLeg",
-                special.armorStandPose.rightLeg,
-                1.0F,
-                1.0F
-        );
+        this.readPosePart(poseTag, "Head", special.armorStandPose.head, 0.0F, 0.0F);
+        this.readPosePart(poseTag, "Body", special.armorStandPose.body, 0.0F, 0.0F);
+        this.readPosePart(poseTag, "LeftArm", special.armorStandPose.leftArm, -10.0F, -10.0F);
+        this.readPosePart(poseTag, "RightArm", special.armorStandPose.rightArm, -15.0F, 10.0F);
+        this.readPosePart(poseTag, "LeftLeg", special.armorStandPose.leftLeg, -1.0F, -1.0F);
+        this.readPosePart(poseTag, "RightLeg", special.armorStandPose.rightLeg, 1.0F, 1.0F);
 
         ListTag attributes = entityTag.getListOrEmpty("attributes");
-        String scaleAttributeId = Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString();
+        String scaleAttributeId =
+                Attributes.SCALE.unwrapKey().orElseThrow().identifier().toString();
         for (int index = 0; index < attributes.size(); index++) {
             CompoundTag attributeTag = attributes.getCompoundOrEmpty(index);
             String id = attributeTag.getStringOr("id", "");
@@ -1123,26 +1127,29 @@ public final class ItemEditorStateMapper {
         }
     }
 
-    private void readItemFrameData(CompoundTag entityTag, ItemEditorState.SpecialData special) {
+    private void readItemFrameData(
+            CompoundTag entityTag, ItemEditorState.SpecialData special, RegistryAccess registryAccess) {
+        special.itemFrameItem = entityTag
+                .read("Item", ItemStack.CODEC, registryAccess.createSerializationContext(NbtOps.INSTANCE))
+                .orElse(ItemStack.EMPTY);
         special.itemFrameInvisible = entityTag.getBooleanOr("Invisible", false);
         special.itemFrameFixed = entityTag.getBooleanOr("Fixed", false);
         special.itemFrameNoGravity = entityTag.getBooleanOr("NoGravity", false);
         special.itemFrameInvulnerable = entityTag.getBooleanOr("Invulnerable", false);
         special.itemFrameCustomNameVisible = entityTag.getBooleanOr("CustomNameVisible", false);
-        entityTag.read("CustomName", ComponentSerialization.CODEC)
+        entityTag
+                .read("CustomName", ComponentSerialization.CODEC)
                 .ifPresent(component -> special.itemFrameCustomName = TextComponentUtil.toMarkup(component));
         special.itemFrameRotation = readOptionalInt(entityTag, "ItemRotation");
         special.itemFrameFacing = readOptionalInt(entityTag, "Facing");
-        entityTag.getFloat("ItemDropChance")
-                .ifPresent(value -> special.itemFrameDropChance = trimTrailingZeros(value));
+        entityTag.getFloat("ItemDropChance").ifPresent(value -> special.itemFrameDropChance = trimTrailingZeros(value));
     }
 
     private void readSpawnEggData(
             ItemStack stack,
             TypedEntityData<EntityType<?>> entityData,
             ItemEditorState.SpecialData special,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (entityData != null) {
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(entityData.type());
             special.spawnEggEntity.entityId = identifierOrEmpty(key);
@@ -1165,10 +1172,7 @@ public final class ItemEditorStateMapper {
     }
 
     private void readVillagerDataAndTrades(
-            CompoundTag entityTag,
-            ItemEditorState.SpecialData special,
-            RegistryAccess registryAccess
-    ) {
+            CompoundTag entityTag, ItemEditorState.SpecialData special, RegistryAccess registryAccess) {
         CompoundTag villagerData = entityTag.getCompoundOrEmpty("VillagerData");
         special.spawnEggVillagerTypeId = villagerData.getStringOr("type", "");
         special.spawnEggVillagerProfessionId = villagerData.getStringOr("profession", "");
@@ -1186,8 +1190,7 @@ public final class ItemEditorStateMapper {
             draft.maxUses = readOptionalInt(recipeTag, "maxUses");
             draft.uses = readOptionalInt(recipeTag, "uses");
             draft.villagerXp = readOptionalInt(recipeTag, "xp");
-            recipeTag.getFloat("priceMultiplier")
-                    .ifPresent(value -> draft.priceMultiplier = trimTrailingZeros(value));
+            recipeTag.getFloat("priceMultiplier").ifPresent(value -> draft.priceMultiplier = trimTrailingZeros(value));
             draft.demand = readOptionalInt(recipeTag, "demand");
             draft.specialPrice = readOptionalInt(recipeTag, "specialPrice");
             draft.rewardExp = recipeTag.getBooleanOr("rewardExp", true);
@@ -1199,16 +1202,13 @@ public final class ItemEditorStateMapper {
             CompoundTag recipeTag,
             String key,
             ItemEditorState.TradeStackDraft stackDraft,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         CompoundTag stackTag = recipeTag.getCompoundOrEmpty(key);
         stackDraft.itemId = stackTag.getStringOr("id", "");
         stackTag.getInt("count").ifPresent(value -> stackDraft.count = Integer.toString(value));
         stackTag.getByte("count").ifPresent(value -> stackDraft.count = Integer.toString(value));
-        DataResult<ItemStack> decoded = ItemStack.CODEC.parse(
-                registryAccess.createSerializationContext(NbtOps.INSTANCE),
-                stackTag
-        );
+        DataResult<ItemStack> decoded =
+                ItemStack.CODEC.parse(registryAccess.createSerializationContext(NbtOps.INSTANCE), stackTag);
         decoded.result().ifPresent(stack -> stackDraft.templateStack = stack.copy());
     }
 
@@ -1222,7 +1222,8 @@ public final class ItemEditorStateMapper {
         return "minecraft:command_block";
     }
 
-    private void readConsumableEffects(List<ConsumeEffect> effects, List<ItemEditorState.ConsumableEffectDraft> target) {
+    private void readConsumableEffects(
+            List<ConsumeEffect> effects, List<ItemEditorState.ConsumableEffectDraft> target) {
         for (ConsumeEffect consumeEffect : effects) {
             if (consumeEffect instanceof ApplyStatusEffectsConsumeEffect(var effectInstances, var probability)) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
@@ -1230,7 +1231,11 @@ public final class ItemEditorStateMapper {
                 draft.probability = trimTrailingZeros(probability);
                 for (MobEffectInstance effectInstance : effectInstances) {
                     ItemEditorState.PotionEffectDraft effectDraft = new ItemEditorState.PotionEffectDraft();
-                    effectDraft.effectId = effectInstance.getEffect().unwrapKey().map(key -> key.identifier().toString()).orElse("");
+                    effectDraft.effectId = effectInstance
+                            .getEffect()
+                            .unwrapKey()
+                            .map(key -> key.identifier().toString())
+                            .orElse("");
                     effectDraft.duration = Integer.toString(effectInstance.getDuration());
                     effectDraft.amplifier = Integer.toString(effectInstance.getAmplifier());
                     effectDraft.ambient = effectInstance.isAmbient();
@@ -1255,16 +1260,17 @@ public final class ItemEditorStateMapper {
                 setIdFromHolder(sound, id -> draft.soundId = id);
                 target.add(draft);
             }
+            if (consumeEffect instanceof TeleportRandomlyConsumeEffect(var diameter)) {
+                ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
+                draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY;
+                draft.diameter = Float.toString(diameter);
+                target.add(draft);
+            }
         }
     }
 
     private void readPosePart(
-            CompoundTag poseTag,
-            String key,
-            ItemEditorState.RotationDraft rotation,
-            float defaultX,
-            float defaultZ
-    ) {
+            CompoundTag poseTag, String key, ItemEditorState.RotationDraft rotation, float defaultX, float defaultZ) {
         ListTag values = poseTag.getListOrEmpty(key);
         rotation.x = trimTrailingZeros(values.getFloatOr(0, defaultX));
         rotation.y = trimTrailingZeros(values.getFloatOr(1, 0.0F));
@@ -1277,29 +1283,15 @@ public final class ItemEditorStateMapper {
 
     private static String joinFloats(List<Float> values) {
         return String.join(
-                ", ",
-                values.stream()
-                        .map(ValidationUtil::trimTrailingZeros)
-                        .toList()
-        );
+                ", ", values.stream().map(ValidationUtil::trimTrailingZeros).toList());
     }
 
     private static String joinColors(List<Integer> values) {
-        return String.join(
-                ", ",
-                values.stream()
-                        .map(ValidationUtil::toHex)
-                        .toList()
-        );
+        return String.join(", ", values.stream().map(ValidationUtil::toHex).toList());
     }
 
     private static String joinValues(List<?> values) {
-        return String.join(
-                ", ",
-                values.stream()
-                        .map(String::valueOf)
-                        .toList()
-        );
+        return String.join(", ", values.stream().map(String::valueOf).toList());
     }
 
     private static void setIdFromHolder(Holder<?> holder, Consumer<String> setter) {
@@ -1341,7 +1333,8 @@ public final class ItemEditorStateMapper {
     }
 
     private static <T> String joinHolderSetIds(HolderSet<T> holderSet) {
-        return holderSet.unwrapKey()
+        return holderSet
+                .unwrapKey()
                 .map(key -> "#" + key.location())
                 .orElseGet(() -> String.join(
                         ", ",
@@ -1349,7 +1342,6 @@ public final class ItemEditorStateMapper {
                                 .map(Holder::unwrapKey)
                                 .flatMap(Optional::stream)
                                 .map(key -> key.identifier().toString())
-                                .toList()
-                ));
+                                .toList()));
     }
 }

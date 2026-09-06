@@ -7,18 +7,17 @@ import java.util.List;
 public final class RawEditorLayout {
     private static final RawEditorLayout EMPTY = new RawEditorLayout(
             "",
-            new int[]{0},
+            new int[] {0},
             List.of(new VisualRow(0, 0, 0, false)),
-            new int[]{0},
-            new int[]{0},
-            new boolean[]{false},
-            new int[]{0},
+            new int[] {0},
+            new int[] {0},
+            new boolean[] {false},
+            new int[] {0},
             1,
             0,
             false,
             1,
-            1
-    );
+            1);
 
     private final String text;
     private final int[] lineStarts;
@@ -45,8 +44,7 @@ public final class RawEditorLayout {
             int maxVisibleLineWidth,
             boolean wordWrap,
             int wrapWidth,
-            int lineHeight
-    ) {
+            int lineHeight) {
         this.text = text;
         this.lineStarts = lineStarts;
         this.rows = rows;
@@ -72,10 +70,9 @@ public final class RawEditorLayout {
             int contentWidth,
             int lineHeight,
             boolean wordWrap,
-            List<FoldSpan> folds
-    ) {
+            List<FoldSpan> folds) {
         String safeText = text == null ? "" : text;
-        int[] starts = lineStarts == null || lineStarts.length == 0 ? new int[]{0} : lineStarts;
+        int[] starts = lineStarts == null || lineStarts.length == 0 ? new int[] {0} : lineStarts;
         int lineCount = starts.length;
         int wrapWidth = Math.max(1, contentWidth);
         int rowHeight = Math.max(1, lineHeight);
@@ -122,8 +119,7 @@ public final class RawEditorLayout {
                 maxWidth,
                 wordWrap,
                 wrapWidth,
-                rowHeight
-        );
+                rowHeight);
     }
 
     public RawEditorLayout updateLine(
@@ -132,8 +128,7 @@ public final class RawEditorLayout {
             int lineIndex,
             RawEditorTextMeasurer measurer,
             int contentWidth,
-            int lineHeight
-    ) {
+            int lineHeight) {
         String safeText = text == null ? "" : text;
         int[] starts = lineStarts == null ? new int[0] : lineStarts;
         int line = Math.clamp(lineIndex, 0, Math.max(0, starts.length - 1));
@@ -162,8 +157,7 @@ public final class RawEditorLayout {
                 measurer,
                 requestedWrapWidth,
                 this.wordWrap,
-                this.rows.get(first).folded()
-        );
+                this.rows.get(first).folded());
 
         List<VisualRow> updatedRows = new ArrayList<>(this.rows.size() - (last - first + 1) + replacement.size());
         updatedRows.addAll(this.rows.subList(0, first));
@@ -203,8 +197,7 @@ public final class RawEditorLayout {
                 maxWidth,
                 this.wordWrap,
                 requestedWrapWidth,
-                requestedLineHeight
-        );
+                requestedLineHeight);
     }
 
     public int rowCount() {
@@ -304,8 +297,7 @@ public final class RawEditorLayout {
             int horizontalOffset,
             int lineHeight,
             int endOfLineTolerance,
-            boolean expandWrappedLineEnd
-    ) {
+            boolean expandWrappedLineEnd) {
         if (this.rows.isEmpty()) {
             return 0;
         }
@@ -321,7 +313,8 @@ public final class RawEditorLayout {
             int nearestRow = (int) Math.floor((localY + (lineHeight / 2.0d)) / lineHeight);
             rowIndex = Math.clamp(nearestRow, 0, this.rows.size() - 1);
         }
-        return this.offsetAtRow(mouseX, rowIndex, measurer, contentLeft, horizontalOffset, endOfLineTolerance, expandWrappedLineEnd);
+        return this.offsetAtRow(
+                mouseX, rowIndex, measurer, contentLeft, horizontalOffset, endOfLineTolerance, expandWrappedLineEnd);
     }
 
     public int offsetAtRow(
@@ -331,8 +324,7 @@ public final class RawEditorLayout {
             int contentLeft,
             int horizontalOffset,
             int endOfLineTolerance,
-            boolean expandWrappedLineEnd
-    ) {
+            boolean expandWrappedLineEnd) {
         VisualRow row = this.row(rowIndex);
         String segment = this.segmentText(row);
         int lineStart = this.lineStarts[row.lineIndex()];
@@ -408,28 +400,7 @@ public final class RawEditorLayout {
     }
 
     private int lineIndexForOffset(int offset) {
-        int target = Math.clamp(offset, 0, this.text.length());
-        if (target > 0) {
-            int exactLineStart = Arrays.binarySearch(this.lineStarts, target);
-            if (exactLineStart >= 0) {
-                return exactLineStart;
-            }
-        }
-        int low = 0;
-        int high = this.lineStarts.length - 1;
-        while (low <= high) {
-            int mid = (low + high) >>> 1;
-            int start = this.lineStarts[mid];
-            int end = lineEnd(this.text, this.lineStarts, mid);
-            if (target < start) {
-                high = mid - 1;
-            } else if (target > end) {
-                low = mid + 1;
-            } else {
-                return mid;
-            }
-        }
-        return Math.clamp(low, 0, this.lineStarts.length - 1);
+        return RawTextDocument.lineIndexForOffset(this.text.length(), this.lineStarts, offset);
     }
 
     private static boolean[] hiddenLines(int lineCount, List<FoldSpan> folds) {
@@ -480,8 +451,7 @@ public final class RawEditorLayout {
             RawEditorTextMeasurer measurer,
             int wrapWidth,
             boolean wordWrap,
-            boolean folded
-    ) {
+            boolean folded) {
         if (folded || !wordWrap || lineText.isEmpty()) {
             rows.add(new VisualRow(line, 0, lineText.length(), folded));
             return;
@@ -499,11 +469,7 @@ public final class RawEditorLayout {
     }
 
     private static int wrapSegmentEnd(
-            String lineText,
-            int segmentStart,
-            int wrapWidth,
-            RawEditorTextMeasurer measurer
-    ) {
+            String lineText, int segmentStart, int wrapWidth, RawEditorTextMeasurer measurer) {
         if (segmentStart >= lineText.length()) {
             return segmentStart;
         }
@@ -546,14 +512,7 @@ public final class RawEditorLayout {
         return text.length();
     }
 
-    public record FoldSpan(int startLine, int endLine, boolean collapsed) {
-    }
+    public record FoldSpan(int startLine, int endLine, boolean collapsed) {}
 
-    public record VisualRow(
-            int lineIndex,
-            int localStart,
-            int localEnd,
-            boolean folded
-    ) {
-    }
+    public record VisualRow(int lineIndex, int localStart, int localEnd, boolean folded) {}
 }

@@ -1,27 +1,24 @@
 package me.noramibu.itemeditor.storage.search;
 
-import me.noramibu.itemeditor.storage.StorageSortMode;
-import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
-import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.ToIntFunction;
+import me.noramibu.itemeditor.storage.StorageSortMode;
+import me.noramibu.itemeditor.storage.model.SavedIndexEntryUtil;
+import me.noramibu.itemeditor.storage.model.SavedIndexItemEntry;
 
 public final class StorageSearchEngine {
 
-    private StorageSearchEngine() {
-    }
+    private StorageSearchEngine() {}
 
     public static List<SavedIndexItemEntry> filterAndSort(
             List<SavedIndexItemEntry> source,
             StorageSearchQuery query,
             StorageSortMode sortMode,
             boolean reverseSort,
-            long now
-    ) {
+            long now) {
         List<SavedIndexItemEntry> matches = new ArrayList<>();
         for (SavedIndexItemEntry entry : source) {
             if (entry == null) {
@@ -37,19 +34,20 @@ public final class StorageSearchEngine {
 
     public static Comparator<SavedIndexItemEntry> bySortMode(StorageSortMode mode, boolean reverseSort) {
         StorageSortMode sortMode = mode == null ? StorageSortMode.SAVED_AT_DESC : mode;
-        Comparator<SavedIndexItemEntry> comparator = switch (sortMode) {
-            case REGULAR -> Comparator
-                    .comparingInt((SavedIndexItemEntry entry) -> Math.max(1, entry.page))
-                    .thenComparingInt(entry -> Math.max(0, entry.slotInPage));
-            case NAME_ASC -> Comparator
-                    .comparing((SavedIndexItemEntry entry) -> safeLower(entry.customNamePlain))
-                    .thenComparingLong(entry -> -entry.savedAt);
-            case AMOUNT_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.stackCount));
-            case NBT_SIZE_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.nbtBytes));
-            case SAVED_AT_DESC -> Comparator
-                    .comparingLong((SavedIndexItemEntry entry) -> -entry.savedAt)
-                    .thenComparing(entry -> safeLower(entry.customNamePlain));
-        };
+        Comparator<SavedIndexItemEntry> comparator =
+                switch (sortMode) {
+                    case REGULAR ->
+                        Comparator.comparingInt((SavedIndexItemEntry entry) -> Math.max(1, entry.page))
+                                .thenComparingInt(entry -> Math.max(0, entry.slotInPage));
+                    case NAME_ASC ->
+                        Comparator.comparing((SavedIndexItemEntry entry) -> safeLower(entry.customNamePlain))
+                                .thenComparingLong(entry -> -entry.savedAt);
+                    case AMOUNT_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.stackCount));
+                    case NBT_SIZE_DESC -> byDescendingNumber(entry -> Math.max(1, entry == null ? 1 : entry.nbtBytes));
+                    case SAVED_AT_DESC ->
+                        Comparator.comparingLong((SavedIndexItemEntry entry) -> -entry.savedAt)
+                                .thenComparing(entry -> safeLower(entry.customNamePlain));
+                };
         return reverseSort && sortMode != StorageSortMode.REGULAR ? comparator.reversed() : comparator;
     }
 
@@ -98,9 +96,7 @@ public final class StorageSearchEngine {
             return false;
         }
         for (String free : query.freeTokens) {
-            boolean matched = matchesItemToken(itemKey, free)
-                    || name.contains(free)
-                    || loreJoined.contains(free);
+            boolean matched = matchesItemToken(itemKey, free) || name.contains(free) || loreJoined.contains(free);
             if (!matched) {
                 return false;
             }
@@ -127,9 +123,7 @@ public final class StorageSearchEngine {
             return "";
         }
         int separator = itemKey.indexOf(':');
-        return separator < 0 || separator == itemKey.length() - 1
-                ? itemKey
-                : itemKey.substring(separator + 1);
+        return separator < 0 || separator == itemKey.length() - 1 ? itemKey : itemKey.substring(separator + 1);
     }
 
     private static boolean wildcardMatch(String value, String pattern) {
@@ -139,8 +133,7 @@ public final class StorageSearchEngine {
         int resumeValueIndex = -1;
 
         while (valueIndex < value.length()) {
-            if (patternIndex < pattern.length()
-                    && pattern.charAt(patternIndex) == value.charAt(valueIndex)) {
+            if (patternIndex < pattern.length() && pattern.charAt(patternIndex) == value.charAt(valueIndex)) {
                 valueIndex++;
                 patternIndex++;
                 continue;
@@ -165,8 +158,7 @@ public final class StorageSearchEngine {
     }
 
     private static Comparator<SavedIndexItemEntry> byDescendingNumber(ToIntFunction<SavedIndexItemEntry> value) {
-        return Comparator
-                .comparingInt((SavedIndexItemEntry entry) -> -value.applyAsInt(entry))
+        return Comparator.comparingInt((SavedIndexItemEntry entry) -> -value.applyAsInt(entry))
                 .thenComparingLong(entry -> -entry.savedAt)
                 .thenComparing(entry -> safeLower(entry.customNamePlain));
     }

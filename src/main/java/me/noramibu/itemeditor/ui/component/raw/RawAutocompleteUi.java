@@ -1,16 +1,14 @@
 package me.noramibu.itemeditor.ui.component.raw;
 
+import java.util.List;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.util.RawAutocompleteIndex;
 import me.noramibu.itemeditor.util.RawAutocompleteUtil;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.core.RegistryAccess;
 
-import java.util.List;
-
 public final class RawAutocompleteUi {
-    private RawAutocompleteUi() {
-    }
+    private RawAutocompleteUi() {}
 
     public static boolean applySelected(
             RawTextAreaComponent editor,
@@ -18,15 +16,9 @@ public final class RawAutocompleteUi {
             int selectedIndex,
             RegistryAccess registryAccess,
             String fallbackItemId,
-            List<String> lootTableIds
-    ) {
-        RawAutocompleteUtil.AutocompleteResult effective = resolve(
-                editor,
-                result,
-                registryAccess,
-                fallbackItemId,
-                lootTableIds
-        );
+            List<String> lootTableIds) {
+        RawAutocompleteUtil.AutocompleteResult effective =
+                resolve(editor, result, registryAccess, fallbackItemId, lootTableIds);
         if (effective.suggestions().isEmpty()) {
             return false;
         }
@@ -39,8 +31,7 @@ public final class RawAutocompleteUi {
             RawAutocompleteUtil.AutocompleteResult result,
             int selected,
             boolean forced,
-            boolean suppressed
-    ) {
+            boolean suppressed) {
         if (result.suggestions().isEmpty() || suppressed || (!forced && !shouldAutoShow(editor, result))) {
             hide(editor);
             return 0;
@@ -54,13 +45,14 @@ public final class RawAutocompleteUi {
             return 0;
         }
 
-        int selectedSuggestion = selected < 0 || selected >= result.suggestions().size()
-                ? Math.max(predictive, 0)
-                : selected;
-        String ghost = ghostSuffix(editor, result, result.suggestions().get(selectedSuggestion).insertText());
+        int selectedSuggestion =
+                selected < 0 || selected >= result.suggestions().size() ? Math.max(predictive, 0) : selected;
+        String ghost = ghostSuffix(
+                editor, result, result.suggestions().get(selectedSuggestion).insertText());
         if (ghost.isEmpty() && predictive >= 0 && predictive != selectedSuggestion) {
             selectedSuggestion = predictive;
-            ghost = ghostSuffix(editor, result, result.suggestions().get(selectedSuggestion).insertText());
+            ghost = ghostSuffix(
+                    editor, result, result.suggestions().get(selectedSuggestion).insertText());
         }
 
         editor.ghostSuggestion(correctionMode ? "" : ghost);
@@ -73,8 +65,7 @@ public final class RawAutocompleteUi {
             RawAutocompleteUtil.AutocompleteResult result,
             RegistryAccess registryAccess,
             String fallbackItemId,
-            List<String> lootTableIds
-    ) {
+            List<String> lootTableIds) {
         if (editor.hasVirtualCaret() && !editor.hasSelection()) {
             return RawAutocompleteUtil.AutocompleteResult.empty(editor.caretIndex());
         }
@@ -83,21 +74,14 @@ public final class RawAutocompleteUi {
         }
         RawAutocompleteIndex index = RawAutocompleteIndex.create(editor.getValue());
         return RawAutocompleteUtil.suggest(
-                editor.getValue(),
-                editor.caretIndex(),
-                registryAccess,
-                index,
-                fallbackItemId,
-                lootTableIds
-        );
+                editor.getValue(), editor.caretIndex(), registryAccess, index, fallbackItemId, lootTableIds);
     }
 
     private static boolean apply(
             RawTextAreaComponent editor,
             RawAutocompleteUtil.AutocompleteResult result,
             String insertText,
-            RegistryAccess registryAccess
-    ) {
+            RegistryAccess registryAccess) {
         if (insertText == null || insertText.isEmpty()) {
             return false;
         }
@@ -107,8 +91,10 @@ public final class RawAutocompleteUi {
             editor.replaceRange(start, end, insertText);
             return true;
         }
-        int replaceStart = Math.clamp(result.replaceStart(), 0, editor.getValue().length());
-        int replaceEnd = Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
+        int replaceStart =
+                Math.clamp(result.replaceStart(), 0, editor.getValue().length());
+        int replaceEnd =
+                Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
         String insert = repairedInsert(editor.getValue(), replaceStart, replaceEnd, insertText, registryAccess);
         int caretOffset = snippetCaretOffset(insert);
         editor.replaceRange(replaceStart, replaceEnd, insert);
@@ -138,12 +124,7 @@ public final class RawAutocompleteUi {
     }
 
     private static String repairedInsert(
-            String text,
-            int replaceStart,
-            int replaceEnd,
-            String insertText,
-            RegistryAccess registryAccess
-    ) {
+            String text, int replaceStart, int replaceEnd, String insertText, RegistryAccess registryAccess) {
         if (registryAccess == null || !text.substring(replaceEnd).isBlank()) {
             return insertText;
         }
@@ -155,7 +136,8 @@ public final class RawAutocompleteUi {
 
         String closingSuffix = RawAutocompleteUtil.closingSuffix(candidate);
         if (!closingSuffix.isBlank()
-                && RawItemDataUtil.parse(candidate + closingSuffix, registryAccess).success()) {
+                && RawItemDataUtil.parse(candidate + closingSuffix, registryAccess)
+                        .success()) {
             return insertText + closingSuffix;
         }
         return insertText;
@@ -166,16 +148,14 @@ public final class RawAutocompleteUi {
     }
 
     private static String ghostSuffix(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult result,
-            String insertText
-    ) {
+            RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result, String insertText) {
         if (insertText == null || insertText.isEmpty() || editor.hasSelection()) {
             return "";
         }
         int caret = editor.caretIndex();
         int replaceStart = Math.clamp(result.replaceStart(), 0, caret);
-        int replaceEnd = Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
+        int replaceEnd =
+                Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
         if (replaceEnd < caret) {
             return "";
         }
@@ -203,18 +183,16 @@ public final class RawAutocompleteUi {
         String localTyped = typedSeparator >= 0 && typedSeparator + 1 < typed.length()
                 ? typed.substring(typedSeparator + 1)
                 : typed;
-        return local.length() > localTyped.length()
-                && local.regionMatches(true, 0, localTyped, 0, localTyped.length())
+        return local.length() > localTyped.length() && local.regionMatches(true, 0, localTyped, 0, localTyped.length())
                 ? local.substring(localTyped.length())
                 : "";
     }
 
     private static int firstGhostSuggestion(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult result
-    ) {
+            RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result) {
         for (int index = 0; index < result.suggestions().size(); index++) {
-            if (!ghostSuffix(editor, result, result.suggestions().get(index).insertText()).isEmpty()) {
+            if (!ghostSuffix(editor, result, result.suggestions().get(index).insertText())
+                    .isEmpty()) {
                 return index;
             }
         }
@@ -222,13 +200,10 @@ public final class RawAutocompleteUi {
     }
 
     private static List<RawTextAreaComponent.AutocompletePopupEntry> popupEntries(
-            List<RawAutocompleteUtil.Suggestion> suggestions
-    ) {
+            List<RawAutocompleteUtil.Suggestion> suggestions) {
         return suggestions.stream()
                 .map(suggestion -> new RawTextAreaComponent.AutocompletePopupEntry(
-                        suggestion.label(),
-                        popupDescription(suggestion)
-                ))
+                        suggestion.label(), popupDescription(suggestion)))
                 .toList();
     }
 
@@ -250,10 +225,7 @@ public final class RawAutocompleteUi {
         return newline < 0 ? value : value.substring(0, newline).trim();
     }
 
-    private static boolean shouldAutoShow(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult result
-    ) {
+    private static boolean shouldAutoShow(RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result) {
         if (result.suggestions().isEmpty()) {
             return false;
         }
@@ -263,15 +235,17 @@ public final class RawAutocompleteUi {
 
         int caret = editor.caretIndex();
         int replaceStart = Math.clamp(result.replaceStart(), 0, caret);
-        int replaceEnd = Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
+        int replaceEnd =
+                Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
         String typed = editor.getValue().substring(replaceStart, caret);
         if (replaceEnd < caret) {
             return true;
         }
-        if (!typed.isBlank() && (shouldSuppressCompletedKeyEcho(editor, result, typed)
-                || isCursorAtCompletedToken(editor, result)
-                || (!hasPredictive(result, typed) && !hasStructural(result))
-                || onlyEchoesTypedToken(result, typed))) {
+        if (!typed.isBlank()
+                && (shouldSuppressCompletedKeyEcho(editor, result, typed)
+                        || isCursorAtCompletedToken(editor, result)
+                        || (!hasPredictive(result, typed) && !hasStructural(result))
+                        || onlyEchoesTypedToken(result, typed))) {
             return false;
         }
         return replaceStart < caret || isTriggerAfterWhitespace(editor.getValue(), caret);
@@ -282,7 +256,12 @@ public final class RawAutocompleteUi {
             return false;
         }
         char previous = previousTriggerChar(text, caret);
-        return previous == ':' || previous == '"' || previous == '\'' || previous == '[' || previous == '{' || previous == ',';
+        return previous == ':'
+                || previous == '"'
+                || previous == '\''
+                || previous == '['
+                || previous == '{'
+                || previous == ',';
     }
 
     private static char previousTriggerChar(String text, int caret) {
@@ -299,9 +278,7 @@ public final class RawAutocompleteUi {
     }
 
     private static boolean isCursorAtCompletedToken(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult result
-    ) {
+            RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result) {
         int caret = editor.caretIndex();
         String text = editor.getValue();
         if (caret == 0 || caret > text.length() || Math.clamp(result.replaceStart(), 0, caret) == caret) {
@@ -315,12 +292,18 @@ public final class RawAutocompleteUi {
     }
 
     private static boolean isTokenChar(char value) {
-        return Character.isLetterOrDigit(value) || value == '_' || value == ':' || value == '.' || value == '-' || value == '/';
+        return Character.isLetterOrDigit(value)
+                || value == '_'
+                || value == ':'
+                || value == '.'
+                || value == '-'
+                || value == '/';
     }
 
     private static boolean hasPredictive(RawAutocompleteUtil.AutocompleteResult result, String typed) {
-        return result.suggestions().stream().anyMatch(suggestion ->
-                isPredictiveMatch(suggestion.insertText(), typed) || isPredictiveMatch(suggestion.label(), typed));
+        return result.suggestions().stream()
+                .anyMatch(suggestion -> isPredictiveMatch(suggestion.insertText(), typed)
+                        || isPredictiveMatch(suggestion.label(), typed));
     }
 
     private static boolean isPredictiveMatch(String candidate, String typed) {
@@ -345,8 +328,9 @@ public final class RawAutocompleteUi {
 
     private static boolean onlyEchoesTypedToken(RawAutocompleteUtil.AutocompleteResult result, String typed) {
         return !result.suggestions().isEmpty()
-                && result.suggestions().stream().allMatch(suggestion ->
-                suggestion.insertText() != null && suggestion.insertText().equalsIgnoreCase(typed));
+                && result.suggestions().stream()
+                        .allMatch(suggestion -> suggestion.insertText() != null
+                                && suggestion.insertText().equalsIgnoreCase(typed));
     }
 
     private static boolean hasStructural(RawAutocompleteUtil.AutocompleteResult result) {
@@ -355,11 +339,9 @@ public final class RawAutocompleteUi {
     }
 
     private static boolean shouldSuppressCompletedKeyEcho(
-            RawTextAreaComponent editor,
-            RawAutocompleteUtil.AutocompleteResult result,
-            String typed
-    ) {
-        if ((typed != null && typed.contains(":")) || !hasColonAheadOnSameLine(editor.getValue(), editor.caretIndex())) {
+            RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result, String typed) {
+        if ((typed != null && typed.contains(":"))
+                || !hasColonAheadOnSameLine(editor.getValue(), editor.caretIndex())) {
             return false;
         }
 
@@ -446,9 +428,10 @@ public final class RawAutocompleteUi {
 
     private static boolean isCorrection(RawTextAreaComponent editor, RawAutocompleteUtil.AutocompleteResult result) {
         int caret = editor.caretIndex();
-        int replaceStart = Math.clamp(result.replaceStart(), 0, editor.getValue().length());
-        int replaceEnd = Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
+        int replaceStart =
+                Math.clamp(result.replaceStart(), 0, editor.getValue().length());
+        int replaceEnd =
+                Math.clamp(result.replaceEnd(), replaceStart, editor.getValue().length());
         return replaceStart < caret && replaceEnd < caret;
     }
-
 }

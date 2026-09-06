@@ -10,6 +10,5 @@ public final class StorageConstants {
     public static final int PAGE_SIZE = 54;
     public static final int CHUNK_SIZE = 54;
 
-    private StorageConstants() {
-    }
+    private StorageConstants() {}
 }

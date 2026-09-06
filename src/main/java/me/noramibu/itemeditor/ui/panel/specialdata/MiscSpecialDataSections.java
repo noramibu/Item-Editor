@@ -1,11 +1,21 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.withCurrentId;
+
+import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.component.ButtonComponent;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
+import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -27,14 +37,77 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.MapPostProcessing;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Consumer;
-
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.withCurrentId;
-import java.util.function.Supplier;
-
 public final class MiscSpecialDataSections {
+    public static List<EditorSearchDialog.Target> searchDyedColorTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsDyed(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context, category, "special.misc.dyed.title", "misc-dyedcolor", () -> {}, DyedField.values());
+    }
+
+    public static List<EditorSearchDialog.Target> searchDyeTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsDye(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context,
+                category,
+                "special.dye.title",
+                "misc-dye",
+                () -> {
+                    context.special().uiDyeCollapsed = false;
+                },
+                DyeField.values());
+    }
+
+    public static List<EditorSearchDialog.Target> searchTrimTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsTrim(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context, category, "special.misc.trim.title", "misc-trim", () -> {}, TrimField.values());
+    }
+
+    public static List<EditorSearchDialog.Target> searchProfileTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsProfile(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context, category, "special.misc.profile.title", "misc-profile", () -> {}, ProfileField.values());
+    }
+
+    public static List<EditorSearchDialog.Target> searchProfileTargets(SpecialDataPanelContext context) {
+        return searchProfileTargets(context, EditorCategory.SPECIAL_DATA);
+    }
+
+    public static List<EditorSearchDialog.Target> searchInstrumentTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsInstrument(context.originalStack())) return List.of();
+        var result = new ArrayList<>(SpecialDataSearch.targets(
+                context,
+                category,
+                "special.misc.instrument.title",
+                "misc-instrument",
+                () -> {},
+                InstrumentField.values()));
+        return result;
+    }
+
+    public static List<EditorSearchDialog.Target> searchInstrumentTargets(SpecialDataPanelContext context) {
+        return searchInstrumentTargets(context, EditorCategory.SPECIAL_DATA);
+    }
+
+    public static List<EditorSearchDialog.Target> searchMapTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsMap(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context,
+                category,
+                "special.misc.map.title",
+                "misc-map",
+                () -> {
+                    context.special().uiMapBasicCollapsed = false;
+                },
+                MapField.values());
+    }
+
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
     private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 36;
     private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 42;
@@ -49,8 +122,7 @@ public final class MiscSpecialDataSections {
     private static final int INSTRUMENT_NUMBER_FIELD_WIDTH = 150;
     private static final int INSTRUMENT_DESCRIPTION_EDITOR_HEIGHT = 54;
 
-    private MiscSpecialDataSections() {
-    }
+    private MiscSpecialDataSections() {}
 
     public static boolean supportsDyed(ItemStack stack) {
         return stack.has(DataComponents.DYED_COLOR)
@@ -79,23 +151,25 @@ public final class MiscSpecialDataSections {
     }
 
     public static boolean supportsMap(ItemStack stack) {
-        return stack.has(DataComponents.MAP_COLOR) || stack.has(DataComponents.MAP_POST_PROCESSING) || stack.is(Items.FILLED_MAP);
+        return stack.has(DataComponents.MAP_COLOR)
+                || stack.has(DataComponents.MAP_POST_PROCESSING)
+                || stack.is(Items.FILLED_MAP);
     }
 
     public static FlowLayout buildDyedColor(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.dyed.title"), Component.empty());
+        section.id("misc-dyedcolor");
         section.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.dyed.hex_color"),
+                DyedField.HEX_COLOR.text(),
                 Component.empty(),
                 context.colorInputWithPicker(
-                        special.dyedColor,
-                        value -> special.dyedColor = value,
-                        () -> special.dyedColor,
-                        ItemEditorText.str("special.misc.dyed.title"),
-                        0xA06540
-                ).horizontalSizing(Sizing.fill(100))
-        ));
+                                special.dyedColor,
+                                value -> special.dyedColor = value,
+                                () -> special.dyedColor,
+                                ItemEditorText.str("special.misc.dyed.title"),
+                                0xA06540)
+                        .horizontalSizing(Sizing.fill(100))));
         return section;
     }
 
@@ -110,25 +184,22 @@ public final class MiscSpecialDataSections {
                     FlowLayout content = UiFactory.column();
                     content.child(DyeColorSelectorSection.build(
                             context,
-                            ItemEditorText.tr("special.dye.color"),
+                            DyeField.COLOR.text(),
                             Component.empty(),
-                            ItemEditorText.tr("special.dye.unset").copy().withColor(UiColors.PICKER),
+                            ItemEditorText.tr("common.unset").copy().withColor(UiColors.PICKER),
                             special.dyeColor,
                             Math.clamp(context.panelWidthHint() / 2, 120, 240),
-                            ItemEditorText.tr("special.dye.quick_pick"),
-                            color -> special.dyeColor = color.name()
-                    ));
+                            DyeField.QUICK_PICK.text(),
+                            color -> special.dyeColor = color.name()));
                     ButtonComponent clear = UiFactory.negativeButton(
-                            ItemEditorText.tr("common.reset"),
+                            DyeField.RESET.text(),
                             UiFactory.ButtonTextPreset.STANDARD,
-                            button -> context.mutateRefresh(() -> special.dyeColor = "")
-                    );
+                            button -> context.mutateRefresh(() -> special.dyeColor = ""));
                     clear.active(!special.dyeColor.isBlank());
                     clear.horizontalSizing(Sizing.fill(100));
                     content.child(clear);
                     return content;
-                }
-        );
+                });
     }
 
     public static FlowLayout buildTrim(SpecialDataPanelContext context) {
@@ -137,36 +208,34 @@ public final class MiscSpecialDataSections {
         List<String> patternIds = context.registryIds(Registries.TRIM_PATTERN);
 
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.trim.title"), Component.empty());
+        section.id("misc-trim");
 
         section.child(trimPickerField(
                 context,
-                "material_id",
+                TrimField.MATERIAL_ID,
                 "select_material",
                 special.trimMaterialId,
                 materialIds,
-                id -> special.trimMaterialId = id
-        ));
+                id -> special.trimMaterialId = id));
 
         section.child(trimPickerField(
                 context,
-                "pattern_id",
+                TrimField.PATTERN_ID,
                 "select_pattern",
                 special.trimPatternId,
                 patternIds,
-                id -> special.trimPatternId = id
-        ));
+                id -> special.trimPatternId = id));
         return section;
     }
 
     private static FlowLayout trimPickerField(
             SpecialDataPanelContext context,
-            String fieldKey,
+            TrimField field,
             String emptyKey,
             String value,
             List<String> ids,
-            Consumer<String> setter
-    ) {
-        String labelKey = "special.misc.trim." + fieldKey;
+            Consumer<String> setter) {
+        String labelKey = field.key();
         return PickerFieldFactory.searchableField(
                 context,
                 ItemEditorText.tr(labelKey),
@@ -177,13 +246,13 @@ public final class MiscSpecialDataSections {
                 "",
                 ids,
                 id -> id,
-                id -> context.mutateRefresh(() -> setter.accept(id))
-        );
+                id -> context.mutateRefresh(() -> setter.accept(id)));
     }
 
     public static FlowLayout buildProfile(SpecialDataPanelContext context) {
         ItemEditorState.SpecialData special = context.special();
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.profile.title"), Component.empty());
+        section.id("misc-profile");
         boolean compactLayout = isCompactLayout(context);
 
         FlowLayout identityRow = compactLayout ? UiFactory.column() : UiFactory.row();
@@ -191,54 +260,74 @@ public final class MiscSpecialDataSections {
         int profileNameWidth = Math.min(identityWidth, PROFILE_NAME_FIELD_WIDTH);
         int profileUuidWidth = Math.min(identityWidth, PROFILE_UUID_FIELD_WIDTH);
         identityRow.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.profile.name"),
-                Component.empty(),
-                UiFactory.textBox(special.profileName, context.bindText(value -> special.profileName = value)).horizontalSizing(Sizing.fill(100))
-        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileNameWidth)));
+                        ProfileField.NAME.text(),
+                        Component.empty(),
+                        UiFactory.textBox(special.profileName, context.bindText(value -> special.profileName = value))
+                                .horizontalSizing(Sizing.fill(100)))
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileNameWidth)));
         identityRow.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.profile.uuid"),
-                Component.empty(),
-                UiFactory.textBox(special.profileUuid, context.bindText(value -> special.profileUuid = value)).horizontalSizing(Sizing.fill(100))
-        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileUuidWidth)));
+                        ProfileField.UUID.text(),
+                        Component.empty(),
+                        UiFactory.textBox(special.profileUuid, context.bindText(value -> special.profileUuid = value))
+                                .horizontalSizing(Sizing.fill(100)))
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileUuidWidth)));
         section.child(identityRow);
+        section.child(UiFactory.actionButtonRow(
+                UiFactory.button(ProfileField.PICK_PLAYER.text(), UiFactory.ButtonTextPreset.STANDARD, button -> {
+                    var players = new LinkedHashMap<>(EntitySpawnDataUi.onlinePlayers(context));
+                    context.screen()
+                            .openPlayerUuidPicker(
+                                    ProfileField.PICK_PLAYER.text().getString(),
+                                    players,
+                                    uuid -> context.mutateRefresh(() -> {
+                                        special.profileName = players.get(uuid);
+                                        special.profileUuid = uuid;
+                                    }));
+                })));
 
         section.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.profile.texture_value"),
+                ProfileField.TEXTURE_VALUE.text(),
                 Component.empty(),
-                UiFactory.textArea(special.profileTextureValue, 54, context.bindText(value -> special.profileTextureValue = value))
-        ));
+                UiFactory.textArea(
+                        special.profileTextureValue,
+                        54,
+                        context.bindText(value -> special.profileTextureValue = value))));
         section.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.profile.texture_signature"),
+                ProfileField.TEXTURE_SIGNATURE.text(),
                 Component.empty(),
-                UiFactory.textBox(special.profileTextureSignature, context.bindText(value -> special.profileTextureSignature = value))
-        ));
+                UiFactory.textBox(
+                        special.profileTextureSignature,
+                        context.bindText(value -> special.profileTextureSignature = value))));
 
         FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
         int contentWidth = context.panelWidthHint();
-        int profileActionButtonWidth = Math.clamp(Math.clamp(
-                (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2,
-                PROFILE_ACTION_BUTTON_WIDTH_MIN,
-                PROFILE_ACTION_BUTTON_WIDTH_MAX
-        ), 1, Math.max(1, contentWidth));
-        Component useLocalSkinText = ItemEditorText.tr("special.misc.profile.use_local_skin");
+        int profileActionButtonWidth = Math.clamp(
+                Math.clamp(
+                        (contentWidth - UiFactory.scaledPixels(PROFILE_ACTION_BUTTON_ROW_RESERVE)) / 2,
+                        PROFILE_ACTION_BUTTON_WIDTH_MIN,
+                        PROFILE_ACTION_BUTTON_WIDTH_MAX),
+                1,
+                Math.max(1, contentWidth));
+        Component useLocalSkinText = ProfileField.USE_LOCAL_SKIN.text();
         var useLocalSkinButton = UiFactory.fixedWidthButton(
-                useLocalSkinText,
-                UiFactory.ButtonTextPreset.STANDARD,
-                profileActionButtonWidth,
-                button -> {
+                useLocalSkinText, UiFactory.ButtonTextPreset.STANDARD, profileActionButtonWidth, button -> {
                     var player = context.screen().session().minecraft().player;
                     if (player == null) {
                         return;
                     }
 
-                    var textures = player.getGameProfile().properties().get("textures").stream().findFirst().orElse(null);
+                    var textures = player.getGameProfile().properties().get("textures").stream()
+                            .findFirst()
+                            .orElse(null);
                     if (textures == null) {
                         return;
                     }
 
                     context.mutateRefresh(() -> {
                         special.profileName = player.getGameProfile().name();
-                        special.profileUuid = player.getGameProfile().id() == null ? "" : player.getGameProfile().id().toString();
+                        special.profileUuid = player.getGameProfile().id() == null
+                                ? ""
+                                : player.getGameProfile().id().toString();
                         special.profileTextureValue = textures.value();
                         special.profileTextureSignature = textures.signature() == null ? "" : textures.signature();
                     });
@@ -246,7 +335,7 @@ public final class MiscSpecialDataSections {
         useLocalSkinButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(profileActionButtonWidth));
         actions.child(useLocalSkinButton);
 
-        Component clearSkinText = ItemEditorText.tr("special.misc.profile.clear_skin");
+        Component clearSkinText = ProfileField.CLEAR_SKIN.text();
         var clearSkinButton = UiFactory.fixedWidthButton(
                 clearSkinText,
                 UiFactory.ButtonTextPreset.STANDARD,
@@ -254,8 +343,7 @@ public final class MiscSpecialDataSections {
                 button -> context.mutateRefresh(() -> {
                     special.profileTextureValue = "";
                     special.profileTextureSignature = "";
-                })
-        );
+                }));
         clearSkinButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(profileActionButtonWidth));
         actions.child(clearSkinButton);
 
@@ -268,14 +356,15 @@ public final class MiscSpecialDataSections {
         Registry<Instrument> instrumentRegistry = instrumentRegistry(context);
         boolean compactLayout = isCompactLayout(context);
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.instrument.title"), Component.empty());
+        section.id("misc-instrument");
 
         section.child(PickerFieldFactory.searchableTextField(
                 context,
-                ItemEditorText.tr("special.misc.instrument.id"),
+                InstrumentField.ID.text(),
                 special.instrumentId,
                 value -> special.instrumentId = value,
                 INSTRUMENT_PICK_BUTTON_WIDTH,
-                ItemEditorText.str("special.misc.instrument.id"),
+                InstrumentField.ID.text().getString(),
                 "",
                 instrumentIds(instrumentRegistry, special.instrumentId),
                 id -> id,
@@ -285,53 +374,49 @@ public final class MiscSpecialDataSections {
                     if (holder != null) {
                         InstrumentDetails.fromInstrument(holder.value()).applyTo(special);
                     }
-                })
-        ));
+                })));
         section.child(PickerFieldFactory.searchableTextField(
                 context,
-                ItemEditorText.tr("special.misc.instrument.sound_event"),
+                InstrumentField.SOUND_EVENT.text(),
                 special.instrumentSoundEventId,
                 value -> special.instrumentSoundEventId = value,
                 INSTRUMENT_PICK_BUTTON_WIDTH,
-                ItemEditorText.str("special.misc.instrument.sound_event"),
+                InstrumentField.SOUND_EVENT.text().getString(),
                 "",
                 goatHornSoundEventIds(context, special.instrumentSoundEventId),
                 id -> id,
-                id -> context.mutateRefresh(() -> special.instrumentSoundEventId = id)
-        ));
+                id -> context.mutateRefresh(() -> special.instrumentSoundEventId = id)));
         section.child(instrumentDescriptionEditor(context, special));
 
         FlowLayout values = compactLayout ? UiFactory.column() : UiFactory.row();
         values.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.instrument.use_duration"),
-                Component.empty(),
-                UiFactory.textBox(
-                        special.instrumentUseDuration,
-                        context.bindText(value -> special.instrumentUseDuration = value)
-                ).horizontalSizing(Sizing.fill(100))
-        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
+                        InstrumentField.USE_DURATION.text(),
+                        Component.empty(),
+                        UiFactory.textBox(
+                                        special.instrumentUseDuration,
+                                        context.bindText(value -> special.instrumentUseDuration = value))
+                                .horizontalSizing(Sizing.fill(100)))
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
         values.child(UiFactory.field(
-                ItemEditorText.tr("special.misc.instrument.range"),
-                Component.empty(),
-                UiFactory.textBox(
-                        special.instrumentRange,
-                        context.bindText(value -> special.instrumentRange = value)
-                ).horizontalSizing(Sizing.fill(100))
-        ).horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
+                        InstrumentField.RANGE.text(),
+                        Component.empty(),
+                        UiFactory.textBox(
+                                        special.instrumentRange,
+                                        context.bindText(value -> special.instrumentRange = value))
+                                .horizontalSizing(Sizing.fill(100)))
+                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
         section.child(values);
         return section;
     }
 
     private static FlowLayout instrumentDescriptionEditor(
-            SpecialDataPanelContext context,
-            ItemEditorState.SpecialData special
-    ) {
+            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         StyledTextFieldSection.BoundEditor editor = StyledTextFieldSection.create(
                 context.screen(),
                 RichTextDocument.fromMarkup(special.instrumentDescription),
                 Sizing.fill(100),
                 UiFactory.fixed(INSTRUMENT_DESCRIPTION_EDITOR_HEIGHT),
-                ItemEditorText.str("special.misc.instrument.description"),
+                InstrumentField.DESCRIPTION.text().getString(),
                 StyledTextFieldSection.StylePreset.name(),
                 ItemEditorText.str("special.misc.instrument.description_color"),
                 ItemEditorText.str("special.misc.instrument.description_gradient"),
@@ -341,17 +426,16 @@ public final class MiscSpecialDataSections {
                 document -> document.logicalLineCount() > 1
                         ? ItemEditorText.str("special.misc.instrument.description_single_line")
                         : null,
-                document -> context.mutate(() ->
-                        special.instrumentDescription = TextComponentUtil.serializeEditorDocument(document)),
+                document -> context.mutate(
+                        () -> special.instrumentDescription = TextComponentUtil.serializeEditorDocument(document)),
                 true,
-                context.panelWidthHint()
-        );
+                context.panelWidthHint());
 
         FlowLayout frame = UiFactory.framedEditorCard();
         frame.child(editor.toolbar());
         frame.child(editor.editor());
         frame.child(editor.validation());
-        return UiFactory.field(ItemEditorText.tr("special.misc.instrument.description"), Component.empty(), frame);
+        return UiFactory.field(InstrumentField.DESCRIPTION.text(), Component.empty(), frame);
     }
 
     private static Registry<Instrument> instrumentRegistry(SpecialDataPanelContext context) {
@@ -368,9 +452,8 @@ public final class MiscSpecialDataSections {
 
     private static List<String> goatHornSoundEventIds(SpecialDataPanelContext context, String currentId) {
         List<String> soundEventIds = context.optionalRegistryIds(Registries.SOUND_EVENT);
-        List<String> goatHornIds = soundEventIds.stream()
-                .filter(id -> id.contains("goat_horn"))
-                .toList();
+        List<String> goatHornIds =
+                soundEventIds.stream().filter(id -> id.contains("goat_horn")).toList();
         return withCurrentId(goatHornIds.isEmpty() ? soundEventIds : goatHornIds, currentId);
     }
 
@@ -385,30 +468,28 @@ public final class MiscSpecialDataSections {
                     FlowLayout content = UiFactory.column();
                     FlowLayout row = isCompactLayout(context) ? UiFactory.column() : UiFactory.row();
                     row.child(UiFactory.field(
-                            ItemEditorText.tr("special.misc.map.color"),
+                            MapField.COLOR.text(),
                             Component.empty(),
                             context.colorInputWithPicker(
-                                    special.mapColor,
-                                    value -> special.mapColor = value,
-                                    () -> special.mapColor,
-                                    ItemEditorText.str("special.misc.map.color"),
-                                    0x7FB238
-                            ).horizontalSizing(Sizing.fill(100))
-                    ));
+                                            special.mapColor,
+                                            value -> special.mapColor = value,
+                                            () -> special.mapColor,
+                                            MapField.COLOR.text().getString(),
+                                            0x7FB238)
+                                    .horizontalSizing(Sizing.fill(100))));
                     row.child(PickerFieldFactory.dropdownField(
                             context,
-                            ItemEditorText.tr("special.misc.map.post"),
+                            MapField.POST.text(),
                             Component.empty(),
-                            PickerFieldFactory.selectedOrFallback(special.mapPostProcessing, ItemEditorText.tr("special.misc.map.post.none")),
+                            PickerFieldFactory.selectedOrFallback(
+                                    special.mapPostProcessing, ItemEditorText.tr("special.misc.map.post.none")),
                             isCompactLayout(context) ? -1 : MAP_POST_PICKER_WIDTH,
                             Arrays.asList(MapPostProcessing.values()),
                             MapPostProcessing::name,
-                            mode -> context.mutate(() -> special.mapPostProcessing = mode.name())
-                    ));
+                            mode -> context.mutate(() -> special.mapPostProcessing = mode.name())));
                     content.child(row);
                     return content;
-                }
-        );
+                });
     }
 
     private static FlowLayout collapsibleCard(
@@ -416,15 +497,16 @@ public final class MiscSpecialDataSections {
             Component title,
             boolean collapsed,
             Consumer<Boolean> setter,
-            Supplier<FlowLayout> contentBuilder
-    ) {
+            Supplier<FlowLayout> contentBuilder) {
         FlowLayout card = UiFactory.subCard();
+        card.id(title.equals(ItemEditorText.tr("special.dye.title")) ? "misc-dye" : "misc-map");
         FlowLayout header = UiFactory.row();
         header.child(UiFactory.title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
-        ButtonComponent toggle = UiFactory.button(LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.STANDARD,  button -> {
-            setter.accept(!collapsed);
-            context.screen().refreshCurrentPanel();
-        });
+        ButtonComponent toggle = UiFactory.button(
+                LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.STANDARD, button -> {
+                    setter.accept(!collapsed);
+                    context.screen().refreshCurrentPanel();
+                });
         int toggleWidth = Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, COLLAPSE_TOGGLE_WIDTH_BASE);
         toggle.horizontalSizing(Sizing.fixed(toggleWidth));
         header.child(toggle);
@@ -445,4 +527,101 @@ public final class MiscSpecialDataSections {
         return path.endsWith("_head");
     }
 
+    private enum DyedField implements SpecialDataSearch.Field {
+        HEX_COLOR("special.misc.dyed.hex_color");
+
+        private final String key;
+
+        DyedField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum DyeField implements SpecialDataSearch.Field {
+        COLOR("special.dye.color"),
+        QUICK_PICK("special.dye.quick_pick"),
+        RESET("common.reset");
+
+        private final String key;
+
+        DyeField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum TrimField implements SpecialDataSearch.Field {
+        MATERIAL_ID("special.misc.trim.material_id"),
+        PATTERN_ID("special.misc.trim.pattern_id");
+
+        private final String key;
+
+        TrimField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum ProfileField implements SpecialDataSearch.Field {
+        NAME("special.misc.profile.name"),
+        UUID("special.misc.profile.uuid"),
+        PICK_PLAYER("special.misc.profile.pick_player"),
+        TEXTURE_VALUE("special.misc.profile.texture_value"),
+        TEXTURE_SIGNATURE("special.misc.profile.texture_signature"),
+        USE_LOCAL_SKIN("special.misc.profile.use_local_skin"),
+        CLEAR_SKIN("special.misc.profile.clear_skin");
+
+        private final String key;
+
+        ProfileField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum InstrumentField implements SpecialDataSearch.Field {
+        ID("special.misc.instrument.id"),
+        SOUND_EVENT("special.misc.instrument.sound_event"),
+        DESCRIPTION("special.misc.instrument.description"),
+        USE_DURATION("special.misc.instrument.use_duration"),
+        RANGE("special.misc.instrument.range");
+
+        private final String key;
+
+        InstrumentField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private enum MapField implements SpecialDataSearch.Field {
+        COLOR("special.misc.map.color"),
+        POST("special.misc.map.post");
+
+        private final String key;
+
+        MapField(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
 }

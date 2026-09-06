@@ -1,18 +1,17 @@
 package me.noramibu.itemeditor.ui.component;
 
-import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.component.LabelComponent;
+import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Surface;
-import me.noramibu.itemeditor.util.ItemEditorText;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class RawItemDataDialog {
 
@@ -39,7 +38,8 @@ public final class RawItemDataDialog {
     private static final int COLOR_PUNCT = 0xC4B5FD;
     private static final int COLOR_OPERATOR = 0x9CA3AF;
     private static final int COLOR_ROW_TEXT = 0xA9B5C0;
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[bBsSlLfFdD]?");
+    private static final Pattern NUMBER_PATTERN =
+            Pattern.compile("[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[bBsSlLfFdD]?");
     private static final String PUNCTUATION = "{}[]()";
     private static final String OPERATORS = ":,;=";
     private static final int COMPACT_BUTTON_WIDTH_THRESHOLD = 540;
@@ -59,8 +59,7 @@ public final class RawItemDataDialog {
     private static final String EMPTY_TEXT = "";
     private static final String BLANK_RENDERED_TEXT = " ";
 
-    private RawItemDataDialog() {
-    }
+    private RawItemDataDialog() {}
 
     public static FlowLayout create(
             String title,
@@ -72,8 +71,7 @@ public final class RawItemDataDialog {
             Consumer<Feedback> onExportJson,
             Consumer<Feedback> onCopyGiveCommand,
             Consumer<Feedback> onCopyItemCommand,
-            Runnable onClose
-    ) {
+            Runnable onClose) {
         Feedback actualFeedback = feedback == null ? new Feedback() : feedback;
         return create(
                 title,
@@ -82,13 +80,20 @@ public final class RawItemDataDialog {
                 actualFeedback,
                 COMPACT_BUTTON_ROWS,
                 FOOTER_BUTTON_COUNT,
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.copy"), button -> onCopy.accept(actualFeedback)),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_nbt"), button -> onExportNbt.accept(actualFeedback)),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.export_json"), button -> onExportJson.accept(actualFeedback)),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.copy_give_command"), button -> onCopyGiveCommand.accept(actualFeedback)),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.raw_data.copy_item_command"), button -> onCopyItemCommand.accept(actualFeedback)),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.close"), button -> onClose.run())
-        );
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("common.copy"), button -> onCopy.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("dialog.raw_data.export_nbt"), button -> onExportNbt.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("dialog.raw_data.export_json"),
+                        button -> onExportJson.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("dialog.raw_data.copy_give_command"),
+                        button -> onCopyGiveCommand.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("dialog.raw_data.copy_item_command"),
+                        button -> onCopyItemCommand.accept(actualFeedback)),
+                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.close"), button -> onClose.run()));
     }
 
     public static FlowLayout createConfirmation(
@@ -98,8 +103,7 @@ public final class RawItemDataDialog {
             Component confirmText,
             Runnable onConfirm,
             Component cancelText,
-            Runnable onCancel
-    ) {
+            Runnable onCancel) {
         return create(
                 title,
                 body,
@@ -108,8 +112,7 @@ public final class RawItemDataDialog {
                 2,
                 2,
                 new DialogUiUtil.FooterAction(cancelText, button -> onCancel.run()),
-                new DialogUiUtil.FooterAction(confirmText, button -> onConfirm.run())
-        );
+                new DialogUiUtil.FooterAction(confirmText, button -> onConfirm.run()));
     }
 
     private static FlowLayout create(
@@ -119,8 +122,7 @@ public final class RawItemDataDialog {
             Feedback feedback,
             int compactButtonRows,
             int footerButtonCount,
-            DialogUiUtil.FooterAction... footerActions
-    ) {
+            DialogUiUtil.FooterAction... footerActions) {
         String safeTitle = safeText(title);
         String safeBody = safeText(body);
         FlowLayout overlay = DialogUiUtil.overlay();
@@ -132,32 +134,29 @@ public final class RawItemDataDialog {
                 ? DialogUiUtil.compactFooterRowCount(dialogWidth, FOOTER_BUTTON_MIN_WIDTH, footerButtonCount)
                 : compactButtonRows;
         int buttonReserve = DialogUiUtil.buttonRowReserve(
-                compactButtons,
-                actualCompactButtonRows,
-                COMPACT_BUTTON_EXTRA,
-                REGULAR_BUTTON_EXTRA
-        );
-        int headerReserve = UiFactory.scaledPixels(safeBody.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY);
+                compactButtons, actualCompactButtonRows, COMPACT_BUTTON_EXTRA, REGULAR_BUTTON_EXTRA);
+        int headerReserve =
+                UiFactory.scaledPixels(safeBody.isBlank() ? HEADER_RESERVE_EMPTY_BODY : HEADER_RESERVE_WITH_BODY);
         int statusReserve = feedback == null ? 0 : UiFactory.scaledPixels(STATUS_RESERVE);
         DialogUiUtil.ScrollDialogSizing sizing = DialogUiUtil.scrollDialogSizing(
-                DATA_HEIGHT,
-                headerReserve + statusReserve + buttonReserve,
-                DATA_MIN_HEIGHT,
-                DIALOG_MIN_HEIGHT
-        );
+                DATA_HEIGHT, headerReserve + statusReserve + buttonReserve, DATA_MIN_HEIGHT, DIALOG_MIN_HEIGHT);
 
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, sizing.dialogHeight(), DIALOG_GAP);
         dialog.child(UiFactory.title(safeTitle));
         dialog.child(UiFactory.muted(safeBody, bodyTextWidth));
 
         FlowLayout lines = UiFactory.column();
-        int lineNumberDigits = Math.max(LINE_NUMBER_MIN_DIGITS, String.valueOf(Math.max(1, rawLines.size())).length());
+        int lineNumberDigits = Math.max(
+                LINE_NUMBER_MIN_DIGITS,
+                String.valueOf(Math.max(1, rawLines.size())).length());
         int lineIndex = 1;
         for (Line line : rawLines) {
             FlowLayout row = UiFactory.row();
-            row.padding(Insets.of(ROW_PADDING_TOP_BOTTOM, ROW_PADDING_TOP_BOTTOM, ROW_PADDING_LEFT_RIGHT, ROW_PADDING_LEFT_RIGHT));
+            row.padding(Insets.of(
+                    ROW_PADDING_TOP_BOTTOM, ROW_PADDING_TOP_BOTTOM, ROW_PADDING_LEFT_RIGHT, ROW_PADDING_LEFT_RIGHT));
             row.surface(Surface.flat(line.backgroundColor()));
-            row.child(UiFactory.message(renderLine(line, lineIndex, lineNumberDigits), COLOR_ROW_TEXT).maxWidth(lineTextWidth));
+            row.child(UiFactory.message(renderLine(line, lineIndex, lineNumberDigits), COLOR_ROW_TEXT)
+                    .maxWidth(lineTextWidth));
             lines.child(row);
             lineIndex++;
         }
@@ -165,7 +164,8 @@ public final class RawItemDataDialog {
         dialog.child(DialogUiUtil.scrollCard(lines, sizing.contentHeight()));
 
         if (feedback != null) {
-            LabelComponent statusLabel = UiFactory.message(Component.literal(BLANK_RENDERED_TEXT), COLOR_STATUS_EMPTY).maxWidth(bodyTextWidth);
+            LabelComponent statusLabel = UiFactory.message(Component.literal(BLANK_RENDERED_TEXT), COLOR_STATUS_EMPTY)
+                    .maxWidth(bodyTextWidth);
             feedback.attach(statusLabel, bodyTextWidth);
             dialog.child(statusLabel);
         }
@@ -177,8 +177,7 @@ public final class RawItemDataDialog {
                 FOOTER_BUTTON_MAX_WIDTH,
                 Math.max(1, footerButtonCount),
                 FOOTER_BUTTON_ROW_RESERVE,
-                footerActions
-        );
+                footerActions);
 
         dialog.child(buttonRow);
         overlay.child(dialog);
@@ -221,7 +220,8 @@ public final class RawItemDataDialog {
                 while (next < line.length() && Character.isWhitespace(line.charAt(next))) {
                     next++;
                 }
-                output.append(Component.literal(line.substring(index, next)).withStyle(style -> style.withColor(COLOR_TEXT)));
+                output.append(
+                        Component.literal(line.substring(index, next)).withStyle(style -> style.withColor(COLOR_TEXT)));
                 index = next;
                 continue;
             }
@@ -247,12 +247,14 @@ public final class RawItemDataDialog {
             }
 
             if (PUNCTUATION.indexOf(current) >= 0) {
-                output.append(Component.literal(String.valueOf(current)).withStyle(style -> style.withColor(COLOR_PUNCT)));
+                output.append(
+                        Component.literal(String.valueOf(current)).withStyle(style -> style.withColor(COLOR_PUNCT)));
                 index++;
                 continue;
             }
             if (OPERATORS.indexOf(current) >= 0) {
-                output.append(Component.literal(String.valueOf(current)).withStyle(style -> style.withColor(COLOR_OPERATOR)));
+                output.append(
+                        Component.literal(String.valueOf(current)).withStyle(style -> style.withColor(COLOR_OPERATOR)));
                 index++;
                 continue;
             }
@@ -356,7 +358,12 @@ public final class RawItemDataDialog {
         }
         for (int i = 0; i < token.length(); i++) {
             char value = token.charAt(i);
-            if (Character.isLetterOrDigit(value) || value == ':' || value == '_' || value == '/' || value == '.' || value == '-') {
+            if (Character.isLetterOrDigit(value)
+                    || value == ':'
+                    || value == '_'
+                    || value == '/'
+                    || value == '.'
+                    || value == '-') {
                 continue;
             }
             return false;
@@ -376,8 +383,7 @@ public final class RawItemDataDialog {
                 && value != '\'';
     }
 
-    public record Line(String text, int backgroundColor) {
-    }
+    public record Line(String text, int backgroundColor) {}
 
     public static final class Feedback {
         private LabelComponent statusLabel;
@@ -432,5 +438,4 @@ public final class RawItemDataDialog {
     private static String safeText(String value) {
         return value == null ? EMPTY_TEXT : value;
     }
-
 }

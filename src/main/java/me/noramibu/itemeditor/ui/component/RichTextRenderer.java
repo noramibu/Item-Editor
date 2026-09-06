@@ -1,13 +1,17 @@
 package me.noramibu.itemeditor.ui.component;
 
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
-
-import java.util.List;
-import java.util.Locale;
+import net.minecraft.util.FormattedCharSequence;
 
 final class RichTextRenderer {
     private static final String TOKEN_CLICK_OPEN = "[ie:click:";
@@ -25,16 +29,29 @@ final class RichTextRenderer {
 
     private final Font font;
     private final int lineHeight;
+    private final Map<RichTextLayoutUtil.LineLayout, List<TextRun>> cachedLines = new IdentityHashMap<>();
+
+    void invalidate() {
+        this.cachedLines.clear();
+    }
 
     RichTextRenderer(Font font, int lineHeight) {
         this.font = font;
         this.lineHeight = lineHeight;
     }
 
-    void renderChrome(GuiGraphicsExtractor context, int baseX, int baseY, int innerWidth, int visibleHeight, int backgroundColor, int borderColor) {
+    void renderChrome(
+            GuiGraphicsExtractor context,
+            int baseX,
+            int baseY,
+            int innerWidth,
+            int visibleHeight,
+            int backgroundColor,
+            int borderColor) {
         context.fill(baseX - 2, baseY - 2, baseX + innerWidth + 2, baseY + visibleHeight + 2, backgroundColor);
         context.fill(baseX - 2, baseY - 2, baseX + innerWidth + 2, baseY - 1, borderColor);
-        context.fill(baseX - 2, baseY + visibleHeight + 1, baseX + innerWidth + 2, baseY + visibleHeight + 2, borderColor);
+        context.fill(
+                baseX - 2, baseY + visibleHeight + 1, baseX + innerWidth + 2, baseY + visibleHeight + 2, borderColor);
         context.fill(baseX - 2, baseY - 2, baseX - 1, baseY + visibleHeight + 2, borderColor);
         context.fill(baseX + innerWidth + 1, baseY - 2, baseX + innerWidth + 2, baseY + visibleHeight + 2, borderColor);
     }
@@ -50,27 +67,80 @@ final class RichTextRenderer {
             int baseX,
             int lineY,
             int color,
+            int clipLeft,
+            int clipRight,
             boolean renderStructuredEvents,
             boolean renderStructuredObjects,
-            List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges
-    ) {
+            List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges) {
         if (renderStructuredEvents) {
             this.renderEventAttachmentOverlay(context, line, baseX, lineY, eventOverlayRanges);
         }
+        List<TextRun> runs = this.cachedLines.computeIfAbsent(
+                line,
+                ignored -> buildRuns(
+                        document, line, renderStructuredEvents, renderStructuredObjects, component -> this.font
+                                .getSplitter()
+                                .stringWidth(component)));
+        for (TextRun run : runs) {
+            if (baseX + run.end() < clipLeft - 16 || baseX + run.start() > clipRight + 16) continue;
+            context.pose().pushMatrix();
+            try {
+                context.pose().translate(run.start(), 0);
+                context.text(this.font, run.text(), baseX, lineY, color, run.shadow());
+            } finally {
+                context.pose().popMatrix();
+            }
+        }
+    }
+
+    static List<TextRun> buildRuns(
+            RichTextDocument document,
+            RichTextLayoutUtil.LineLayout line,
+            boolean renderStructuredEvents,
+            boolean renderStructuredObjects,
+            ToDoubleFunction<Component> measure) {
+        List<TextRun> runs = new ArrayList<>();
+        List<FormattedCharSequence> text = new ArrayList<>();
         int[] positions = line.positions();
         float[] boundaries = line.boundaries();
+        float start = 0, end = 0;
+        boolean shadow = false;
         for (int index = 0; index + 1 < positions.length; index++) {
-            if (boundaries[index + 1] <= boundaries[index]) {
-                continue;
-            }
+            if (boundaries[index + 1] <= boundaries[index]) continue;
             Component component = RichTextLayoutUtil.renderedDocumentComponentForRange(
-                    document,
-                    positions[index],
-                    positions[index + 1],
-                    renderStructuredEvents,
-                    renderStructuredObjects
-            );
-            context.text(this.font, component, baseX + Math.round(boundaries[index]), lineY, color, hasShadowColor(component));
+                    document, positions[index], positions[index + 1], renderStructuredEvents, renderStructuredObjects);
+            boolean nextShadow = hasShadowColor(component);
+            boolean exactWidth =
+                    Math.abs(measure.applyAsDouble(component) - (boundaries[index + 1] - boundaries[index])) < .001f;
+            if (!text.isEmpty()
+                    && (text.size() >= 32
+                            || shadow != nextShadow
+                            || !exactWidth
+                            || Math.abs(end - boundaries[index]) > .001f)) {
+                runs.add(new TextRun(start, end, text, shadow));
+                text.clear();
+            }
+            if (text.isEmpty()) {
+                start = boundaries[index];
+                shadow = nextShadow;
+            }
+            component.getVisualOrderText().accept((position, style, codePoint) -> {
+                text.add(FormattedCharSequence.codepoint(codePoint, style));
+                return true;
+            });
+            end = boundaries[index + 1];
+            if (!exactWidth) {
+                runs.add(new TextRun(start, end, text, shadow));
+                text.clear();
+            }
+        }
+        if (!text.isEmpty()) runs.add(new TextRun(start, end, text, shadow));
+        return List.copyOf(runs);
+    }
+
+    record TextRun(float start, float end, FormattedCharSequence text, boolean shadow) {
+        TextRun(float start, float end, List<FormattedCharSequence> text, boolean shadow) {
+            this(start, end, FormattedCharSequence.composite(List.copyOf(text)), shadow);
         }
     }
 
@@ -96,16 +166,9 @@ final class RichTextRenderer {
             int selectionColor,
             String sourceText,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
+            boolean renderStructuredObjects) {
         for (RichTextLayoutUtil.VisualSpan span : RichTextLayoutUtil.selectionVisualSpans(
-                sourceText,
-                line,
-                selectionStart,
-                selectionEnd,
-                renderStructuredEvents,
-                renderStructuredObjects
-        )) {
+                sourceText, line, selectionStart, selectionEnd, renderStructuredEvents, renderStructuredObjects)) {
             int left = baseX + Math.round(span.startX());
             int right = baseX + Math.round(span.endX());
             if (right <= left) {
@@ -124,15 +187,10 @@ final class RichTextRenderer {
             int caretColor,
             String sourceText,
             boolean renderStructuredEvents,
-            boolean renderStructuredObjects
-    ) {
-        int caretX = baseX + Math.round(RichTextLayoutUtil.caretVisualX(
-                sourceText,
-                line,
-                cursor,
-                renderStructuredEvents,
-                renderStructuredObjects
-        ));
+            boolean renderStructuredObjects) {
+        int caretX = baseX
+                + Math.round(RichTextLayoutUtil.caretVisualX(
+                        sourceText, line, cursor, renderStructuredEvents, renderStructuredObjects));
         context.fill(caretX, lineY - 1, caretX + 1, lineY + this.lineHeight + 1, caretColor);
     }
 
@@ -145,8 +203,7 @@ final class RichTextRenderer {
             RichTextLayoutUtil.LineLayout line,
             int baseX,
             int lineY,
-            List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges
-    ) {
+            List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges) {
         if (eventOverlayRanges == null || eventOverlayRanges.isEmpty()) {
             return;
         }
@@ -168,8 +225,7 @@ final class RichTextRenderer {
                     lineY,
                     overlapStart,
                     overlapEnd,
-                    this.eventOverlayColorForToken(range.openToken())
-            );
+                    this.eventOverlayColorForToken(range.openToken()));
         }
     }
 
@@ -180,8 +236,7 @@ final class RichTextRenderer {
             int lineY,
             int absoluteStart,
             int absoluteEnd,
-            int color
-    ) {
+            int color) {
         if (absoluteEnd <= absoluteStart) {
             return;
         }

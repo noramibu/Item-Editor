@@ -1,5 +1,13 @@
 package me.noramibu.itemeditor.service;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
@@ -31,11 +39,11 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.util.Unit;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.damagesource.DamageType;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
@@ -46,10 +54,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.SwingAnimationType;
-import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
-import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
-import net.minecraft.world.item.consume_effects.ConsumeEffect;
-import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
 import net.minecraft.world.item.component.AttackRange;
 import net.minecraft.world.item.component.Bees;
 import net.minecraft.world.item.component.BlockItemStateProperties;
@@ -73,11 +77,16 @@ import net.minecraft.world.item.component.UseCooldown;
 import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.item.component.UseRemainder;
 import net.minecraft.world.item.component.Weapon;
+import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
+import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
+import net.minecraft.world.item.consume_effects.ConsumeEffect;
+import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.Repairable;
-import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.item.equipment.EquipmentAsset;
 import net.minecraft.world.item.equipment.EquipmentAssets;
+import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.item.equipment.trim.TrimMaterial;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -85,25 +94,16 @@ import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
 import net.minecraft.world.level.block.entity.PotDecorations;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.saveddata.maps.MapDecorationType;
 import net.minecraft.world.level.saveddata.maps.MapId;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.minecraft.world.level.storage.loot.LootTable;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
 
 final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport implements SpecialDataApplier {
     private static final String DYE_COMPONENT_ID_STRING = "minecraft:dye";
     private static final Identifier DYE_COMPONENT_ID = Identifier.parse(DYE_COMPONENT_ID_STRING);
-    private static final List<BlocksAttacks.DamageReduction> DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS = List.of(
-            new BlocksAttacks.DamageReduction(90.0F, Optional.empty(), 0.0F, 1.0F)
-    );
+    private static final List<BlocksAttacks.DamageReduction> DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS =
+            List.of(new BlocksAttacks.DamageReduction(90.0F, Optional.empty(), 0.0F, 1.0F));
 
     @Override
     public void apply(SpecialDataApplyContext context) {
@@ -163,51 +163,73 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 Objects.equals(context.special().foodNutrition, context.baselineSpecial().foodNutrition)
                         && Objects.equals(context.special().foodSaturation, context.baselineSpecial().foodSaturation)
                         && context.special().foodCanAlwaysEat == context.baselineSpecial().foodCanAlwaysEat,
-                context.special().foodNutrition.isBlank() && context.special().foodSaturation.isBlank() && !context.special().foodCanAlwaysEat
-        )) {
+                context.special().foodNutrition.isBlank()
+                        && context.special().foodSaturation.isBlank()
+                        && !context.special().foodCanAlwaysEat)) {
             return;
         }
 
         FoodProperties original = context.originalStack().get(DataComponents.FOOD);
         Integer nutrition = context.special().foodNutrition.isBlank()
                 ? this.valueFromOriginal(original, FoodProperties::nutrition, 0)
-                : ValidationUtil.parseInt(context.special().foodNutrition, ItemEditorText.str("special.advanced.food.nutrition"), 0, 4096, context.messages());
+                : ValidationUtil.parseInt(
+                        context.special().foodNutrition,
+                        ItemEditorText.str("special.advanced.food.nutrition"),
+                        0,
+                        4096,
+                        context.messages());
         if (nutrition == null) {
             return;
         }
 
         Float saturation = context.special().foodSaturation.isBlank()
                 ? this.valueFromOriginal(original, FoodProperties::saturation, 0.0F)
-                : ValidationUtil.parseFloat(context.special().foodSaturation, ItemEditorText.str("special.advanced.food.saturation"), context.messages());
+                : ValidationUtil.parseFloat(
+                        context.special().foodSaturation,
+                        ItemEditorText.str("special.advanced.food.saturation"),
+                        context.messages());
         if (saturation == null) {
             return;
         }
 
-        context.previewStack().set(DataComponents.FOOD, new FoodProperties(nutrition, saturation, context.special().foodCanAlwaysEat));
+        context.previewStack()
+                .set(
+                        DataComponents.FOOD,
+                        new FoodProperties(nutrition, saturation, context.special().foodCanAlwaysEat));
     }
 
     private void applyConsumable(SpecialDataApplyContext context) {
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.CONSUMABLE,
-                Objects.equals(context.special().consumableConsumeSeconds, context.baselineSpecial().consumableConsumeSeconds)
-                        && Objects.equals(context.special().consumableAnimation, context.baselineSpecial().consumableAnimation)
-                        && Objects.equals(context.special().consumableSoundId, context.baselineSpecial().consumableSoundId)
-                        && Objects.equals(context.special().consumableHasParticles, context.baselineSpecial().consumableHasParticles)
-                        && this.sameConsumableEffects(context.special().consumableOnConsumeEffects, context.baselineSpecial().consumableOnConsumeEffects),
+                Objects.equals(
+                                context.special().consumableConsumeSeconds,
+                                context.baselineSpecial().consumableConsumeSeconds)
+                        && Objects.equals(
+                                context.special().consumableAnimation, context.baselineSpecial().consumableAnimation)
+                        && Objects.equals(
+                                context.special().consumableSoundId, context.baselineSpecial().consumableSoundId)
+                        && Objects.equals(
+                                context.special().consumableHasParticles,
+                                context.baselineSpecial().consumableHasParticles)
+                        && this.sameConsumableEffects(
+                                context.special().consumableOnConsumeEffects,
+                                context.baselineSpecial().consumableOnConsumeEffects),
                 context.special().consumableConsumeSeconds.isBlank()
                         && context.special().consumableAnimation.isBlank()
                         && context.special().consumableSoundId.isBlank()
                         && context.special().consumableHasParticles.isBlank()
-                        && context.special().consumableOnConsumeEffects.isEmpty()
-        )) {
+                        && context.special().consumableOnConsumeEffects.isEmpty())) {
             return;
         }
 
         Consumable original = context.originalStack().get(DataComponents.CONSUMABLE);
         Float consumeSeconds = context.special().consumableConsumeSeconds.isBlank()
                 ? this.valueFromOriginal(original, Consumable::consumeSeconds, Consumable.DEFAULT_CONSUME_SECONDS)
-                : ValidationUtil.parseFloat(context.special().consumableConsumeSeconds, ItemEditorText.str("special.advanced.consumable.consume_seconds"), context.messages());
+                : ValidationUtil.parseFloat(
+                        context.special().consumableConsumeSeconds,
+                        ItemEditorText.str("special.advanced.consumable.consume_seconds"),
+                        context.messages());
         if (consumeSeconds == null || consumeSeconds < 0.0F) {
             return;
         }
@@ -215,30 +237,28 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         ItemUseAnimation animation = this.parseAnimation(
                 context.special().consumableAnimation,
                 this.valueFromOriginal(original, Consumable::animation, ItemUseAnimation.EAT),
-                context.messages()
-        );
+                context.messages());
         if (animation == null) {
             return;
         }
 
         Registry<SoundEvent> soundRegistry = context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT);
-        Holder<SoundEvent> defaultSound = animation == ItemUseAnimation.DRINK
-                ? SoundEvents.GENERIC_DRINK
-                : SoundEvents.GENERIC_EAT;
+        Holder<SoundEvent> defaultSound =
+                animation == ItemUseAnimation.DRINK ? SoundEvents.GENERIC_DRINK : SoundEvents.GENERIC_EAT;
         Holder<SoundEvent> sound = this.resolveSoundHolder(
                 soundRegistry,
                 context.special().consumableSoundId,
                 this.valueFromOriginal(original, Consumable::sound, defaultSound),
                 ItemEditorText.str("special.advanced.consumable.sound"),
-                context.messages()
-        );
+                context.messages());
         if (sound == null) {
             return;
         }
         boolean hasParticles = this.parseConsumableHasParticles(context.special().consumableHasParticles, original);
 
         List<ConsumeEffect> effects;
-        if (this.sameConsumableEffects(context.special().consumableOnConsumeEffects, context.baselineSpecial().consumableOnConsumeEffects)) {
+        if (this.sameConsumableEffects(
+                context.special().consumableOnConsumeEffects, context.baselineSpecial().consumableOnConsumeEffects)) {
             effects = this.valueFromOriginal(original, Consumable::onConsumeEffects, List.of());
         } else {
             effects = this.parseConsumableEffects(context);
@@ -246,10 +266,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 return;
             }
         }
-        context.previewStack().set(
-                DataComponents.CONSUMABLE,
-                new Consumable(consumeSeconds, animation, sound, hasParticles, effects)
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.CONSUMABLE,
+                        new Consumable(consumeSeconds, animation, sound, hasParticles, effects));
     }
 
     private boolean parseConsumableHasParticles(String raw, Consumable original) {
@@ -264,34 +284,39 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.USE_EFFECTS,
                 context.special().useEffectsCanSprint == context.baselineSpecial().useEffectsCanSprint
-                        && context.special().useEffectsInteractVibrations == context.baselineSpecial().useEffectsInteractVibrations
-                        && Objects.equals(context.special().useEffectsSpeedMultiplier, context.baselineSpecial().useEffectsSpeedMultiplier),
+                        && context.special().useEffectsInteractVibrations
+                                == context.baselineSpecial().useEffectsInteractVibrations
+                        && Objects.equals(
+                                context.special().useEffectsSpeedMultiplier,
+                                context.baselineSpecial().useEffectsSpeedMultiplier),
                 context.special().useEffectsSpeedMultiplier.isBlank()
                         && !context.special().useEffectsCanSprint
-                        && !context.special().useEffectsInteractVibrations
-        )) {
+                        && !context.special().useEffectsInteractVibrations)) {
             return;
         }
 
         UseEffects original = context.originalStack().get(DataComponents.USE_EFFECTS);
         Float speed = context.special().useEffectsSpeedMultiplier.isBlank()
                 ? this.valueFromOriginal(original, UseEffects::speedMultiplier, 1.0F)
-                : ValidationUtil.parseFloat(context.special().useEffectsSpeedMultiplier, ItemEditorText.str("special.advanced.use_effects.speed_multiplier"), context.messages());
+                : ValidationUtil.parseFloat(
+                        context.special().useEffectsSpeedMultiplier,
+                        ItemEditorText.str("special.advanced.use_effects.speed_multiplier"),
+                        context.messages());
         if (speed == null) {
             return;
         }
 
-        context.previewStack().set(
-                DataComponents.USE_EFFECTS,
-                new UseEffects(
-                        context.special().useEffectsCanSprint,
-                        context.special().useEffectsInteractVibrations,
-                        speed
-                )
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.USE_EFFECTS,
+                        new UseEffects(
+                                context.special().useEffectsCanSprint,
+                                context.special().useEffectsInteractVibrations,
+                                speed));
     }
 
     private void applyUseRemainder(SpecialDataApplyContext context) {
+        if (context.state().removedComponents.contains(DataComponents.USE_REMAINDER)) return;
         String templateSnbt = context.special().useRemainderTemplateSnbt == null
                 ? ""
                 : context.special().useRemainderTemplateSnbt.trim();
@@ -302,19 +327,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.USE_REMAINDER,
                 Objects.equals(context.special().useRemainderItemId, context.baselineSpecial().useRemainderItemId)
-                        && Objects.equals(context.special().useRemainderCount, context.baselineSpecial().useRemainderCount)
+                        && Objects.equals(
+                                context.special().useRemainderCount, context.baselineSpecial().useRemainderCount)
                         && Objects.equals(templateSnbt, baselineTemplateSnbt),
-                context.special().useRemainderItemId.isBlank() && templateSnbt.isBlank()
-        )) {
+                context.special().useRemainderItemId.isBlank() && templateSnbt.isBlank())) {
             return;
         }
 
         if (!templateSnbt.isBlank()) {
             ItemStackTemplate template = this.parseItemStackTemplate(
-                    templateSnbt,
-                    context,
-                    ItemEditorText.str("special.advanced.use_remainder.item_id")
-            );
+                    templateSnbt, context, ItemEditorText.str("special.advanced.use_remainder.item_id"));
             if (template == null) {
                 return;
             }
@@ -329,8 +351,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         Item item = this.resolveItem(
                 context.special().useRemainderItemId,
                 ItemEditorText.str("special.advanced.use_remainder.item_id"),
-                context.messages()
-        );
+                context.messages());
         if (item == null) {
             return;
         }
@@ -343,8 +364,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         ItemEditorText.str("special.advanced.use_remainder.count"),
                         1,
                         maxCount,
-                        context.messages()
-                );
+                        context.messages());
         if (count == null) {
             return;
         }
@@ -352,11 +372,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack().set(DataComponents.USE_REMAINDER, new UseRemainder(new ItemStackTemplate(item, count)));
     }
 
-    private Integer parseUseRemainderCount(
-            SpecialDataApplyContext context,
-            int defaultCount,
-            int maxCount
-    ) {
+    private Integer parseUseRemainderCount(SpecialDataApplyContext context, int defaultCount, int maxCount) {
         return context.special().useRemainderCount.isBlank()
                 ? Integer.valueOf(Math.max(1, defaultCount))
                 : ValidationUtil.parseInt(
@@ -364,31 +380,23 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         ItemEditorText.str("special.advanced.use_remainder.count"),
                         1,
                         Math.max(1, maxCount),
-                        context.messages()
-                );
+                        context.messages());
     }
 
-    private ItemStackTemplate parseItemStackTemplate(
-            String raw,
-            SpecialDataApplyContext context,
-            String label
-    ) {
+    private ItemStackTemplate parseItemStackTemplate(String raw, SpecialDataApplyContext context, String label) {
         try {
             var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             Tag parsedTag = TagParser.create(ops).parseFully(raw);
-            return ItemStackTemplate.CODEC.parse(ops, parsedTag)
-                    .resultOrPartial(error -> context.messages().add(
-                            ValidationMessage.error(ItemEditorText.str(
-                                    "preview.validation.component_failed",
-                                    label + ": " + error
-                            ))
-                    ))
+            return ItemStackTemplate.CODEC
+                    .parse(ops, parsedTag)
+                    .resultOrPartial(error -> context.messages()
+                            .add(ValidationMessage.error(
+                                    ItemEditorText.str("preview.validation.component_failed", label + ": " + error))))
                     .orElse(null);
         } catch (CommandSyntaxException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    label + ": " + exception.getMessage()
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed", label + ": " + exception.getMessage())));
             return null;
         }
     }
@@ -398,13 +406,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.USE_COOLDOWN,
                 Objects.equals(context.special().useCooldownSeconds, context.baselineSpecial().useCooldownSeconds)
-                        && Objects.equals(context.special().useCooldownGroup, context.baselineSpecial().useCooldownGroup),
-                context.special().useCooldownSeconds.isBlank()
-        )) {
+                        && Objects.equals(
+                                context.special().useCooldownGroup, context.baselineSpecial().useCooldownGroup),
+                context.special().useCooldownSeconds.isBlank())) {
             return;
         }
 
-        Float seconds = ValidationUtil.parseFloat(context.special().useCooldownSeconds, ItemEditorText.str("special.advanced.use_cooldown.seconds"), context.messages());
+        Float seconds = ValidationUtil.parseFloat(
+                context.special().useCooldownSeconds,
+                ItemEditorText.str("special.advanced.use_cooldown.seconds"),
+                context.messages());
         if (seconds == null || seconds < 0.0F) {
             return;
         }
@@ -416,7 +427,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         Identifier groupId = IdFieldNormalizer.parse(context.special().useCooldownGroup);
         if (groupId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.use_cooldown.group"))));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.use_cooldown.group"))));
             return;
         }
 
@@ -424,14 +438,17 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private void applyCustomData(SpecialDataApplyContext context) {
-        String customDataSnbt = context.special().customDataSnbt == null ? "" : context.special().customDataSnbt.trim();
-        String baselineCustomDataSnbt = context.baselineSpecial().customDataSnbt == null ? "" : context.baselineSpecial().customDataSnbt.trim();
+        String customDataSnbt = context.special().customDataSnbt == null
+                ? ""
+                : context.special().customDataSnbt.trim();
+        String baselineCustomDataSnbt = context.baselineSpecial().customDataSnbt == null
+                ? ""
+                : context.baselineSpecial().customDataSnbt.trim();
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.CUSTOM_DATA,
                 Objects.equals(customDataSnbt, baselineCustomDataSnbt),
-                customDataSnbt.isBlank()
-        )) {
+                customDataSnbt.isBlank())) {
             return;
         }
 
@@ -453,16 +470,17 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             if (parsedTag instanceof CompoundTag compoundTag) {
                 return compoundTag;
             }
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.custom_data.editor")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.custom_data.editor"))));
             return null;
         } catch (CommandSyntaxException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.custom_data.editor") + ": " + exception.getMessage()
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.custom_data.editor") + ": "
+                                    + exception.getMessage())));
             return null;
         }
     }
@@ -472,8 +490,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.DEBUG_STICK_STATE,
                 Objects.equals(context.special().debugStickStates, context.baselineSpecial().debugStickStates),
-                context.special().debugStickStates.isEmpty()
-        )) {
+                context.special().debugStickStates.isEmpty())) {
             return;
         }
 
@@ -490,20 +507,17 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             Holder<Block> block = RegistryUtil.resolveHolder(blockRegistry, draft.blockId);
             if (block == null) {
                 this.reportMissingRegistry(
-                        ItemEditorText.str("special.debug_stick.block"),
-                        draft.blockId,
-                        context.messages()
-                );
+                        ItemEditorText.str("special.debug_stick.block"), draft.blockId, context.messages());
                 continue;
             }
 
             Property<?> property = this.findBlockProperty(block.value(), draft.propertyName);
             if (property == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "special.debug_stick.validation.property_missing",
-                        draft.propertyName == null ? "" : draft.propertyName,
-                        draft.blockId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "special.debug_stick.validation.property_missing",
+                                draft.propertyName == null ? "" : draft.propertyName,
+                                draft.blockId)));
                 continue;
             }
             properties.put(block, property);
@@ -530,7 +544,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
     private void applyDye(SpecialDataApplyContext context) {
         DataComponentType<DyeColor> dyeComponentType = this.dyeComponentType();
-        String dyeColor = context.special().dyeColor == null ? "" : context.special().dyeColor.trim();
+        String dyeColor = context.special().dyeColor == null
+                ? ""
+                : context.special().dyeColor.trim();
         String baselineDyeColor = context.baselineSpecial().dyeColor == null
                 ? ""
                 : context.baselineSpecial().dyeColor.trim();
@@ -549,19 +565,17 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         if (dyeComponentType == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "special.dye.validation.unavailable",
-                    DYE_COMPONENT_ID_STRING
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(
+                            ItemEditorText.str("special.dye.validation.unavailable", DYE_COMPONENT_ID_STRING)));
             return;
         }
 
-        DyeColor parsed = DyeColor.byName(dyeColor.trim().toLowerCase(java.util.Locale.ROOT), null);
+        DyeColor parsed = DyeColor.byName(dyeColor.trim().toLowerCase(Locale.ROOT), null);
         if (parsed == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.dye.color")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed", ItemEditorText.str("special.dye.color"))));
             return;
         }
         context.previewStack().set(dyeComponentType, parsed);
@@ -576,18 +590,25 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private void applyLock(SpecialDataApplyContext context) {
-        String lockItemId = context.special().lockItemId == null ? "" : context.special().lockItemId.trim();
-        String lockPredicateSnbt = context.special().lockPredicateSnbt == null ? "" : context.special().lockPredicateSnbt.trim();
-        String baselineLockItemId = context.baselineSpecial().lockItemId == null ? "" : context.baselineSpecial().lockItemId.trim();
-        String baselineLockPredicateSnbt = context.baselineSpecial().lockPredicateSnbt == null ? "" : context.baselineSpecial().lockPredicateSnbt.trim();
+        String lockItemId = context.special().lockItemId == null
+                ? ""
+                : context.special().lockItemId.trim();
+        String lockPredicateSnbt = context.special().lockPredicateSnbt == null
+                ? ""
+                : context.special().lockPredicateSnbt.trim();
+        String baselineLockItemId = context.baselineSpecial().lockItemId == null
+                ? ""
+                : context.baselineSpecial().lockItemId.trim();
+        String baselineLockPredicateSnbt = context.baselineSpecial().lockPredicateSnbt == null
+                ? ""
+                : context.baselineSpecial().lockPredicateSnbt.trim();
 
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.LOCK,
                 Objects.equals(lockItemId, baselineLockItemId)
                         && Objects.equals(lockPredicateSnbt, baselineLockPredicateSnbt),
-                lockItemId.isBlank() && lockPredicateSnbt.isBlank()
-        )) {
+                lockItemId.isBlank() && lockPredicateSnbt.isBlank())) {
             return;
         }
 
@@ -600,20 +621,19 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        Holder<Item> itemHolder = RegistryUtil.resolveHolder(
-                context.registryAccess().lookupOrThrow(Registries.ITEM),
-                lockItemId
-        );
+        Holder<Item> itemHolder =
+                RegistryUtil.resolveHolder(context.registryAccess().lookupOrThrow(Registries.ITEM), lockItemId);
         if (itemHolder == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.advanced.container_meta.lock_item"),
-                    lockItemId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.advanced.container_meta.lock_item"),
+                            lockItemId)));
             return;
         }
 
-        ItemPredicate predicate = new ItemPredicate(Optional.of(HolderSet.direct(itemHolder)), MinMaxBounds.Ints.ANY, DataComponentMatchers.ANY);
+        ItemPredicate predicate = new ItemPredicate(
+                Optional.of(HolderSet.direct(itemHolder)), MinMaxBounds.Ints.ANY, DataComponentMatchers.ANY);
         context.previewStack().set(DataComponents.LOCK, new LockCode(predicate));
     }
 
@@ -621,19 +641,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         try {
             var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             var parsedTag = TagParser.create(ops).parseFully(raw);
-            return ItemPredicate.CODEC.parse(ops, parsedTag)
-                    .resultOrPartial(error -> context.messages().add(
-                            ValidationMessage.error(ItemEditorText.str(
+            return ItemPredicate.CODEC
+                    .parse(ops, parsedTag)
+                    .resultOrPartial(error -> context.messages()
+                            .add(ValidationMessage.error(ItemEditorText.str(
                                     "preview.validation.component_failed",
-                                    ItemEditorText.str("special.advanced.container_meta.lock_predicate") + ": " + error
-                            ))
-                    ))
+                                    ItemEditorText.str("special.advanced.container_meta.lock_predicate") + ": "
+                                            + error))))
                     .orElse(null);
         } catch (CommandSyntaxException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.container_meta.lock_predicate") + ": " + exception.getMessage()
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.container_meta.lock_predicate") + ": "
+                                    + exception.getMessage())));
             return null;
         }
     }
@@ -643,15 +664,18 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.CONTAINER_LOOT,
                 Objects.equals(context.special().containerLootTableId, context.baselineSpecial().containerLootTableId)
-                        && Objects.equals(context.special().containerLootSeed, context.baselineSpecial().containerLootSeed),
-                context.special().containerLootTableId.isBlank()
-        )) {
+                        && Objects.equals(
+                                context.special().containerLootSeed, context.baselineSpecial().containerLootSeed),
+                context.special().containerLootTableId.isBlank())) {
             return;
         }
 
         Identifier lootId = IdFieldNormalizer.parse(context.special().containerLootTableId);
         if (lootId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.container_meta.loot_table"))));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.container_meta.loot_table"))));
             return;
         }
 
@@ -660,7 +684,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             try {
                 seed = Long.parseLong(context.special().containerLootSeed.trim());
             } catch (NumberFormatException exception) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("validation.whole_number", ItemEditorText.str("special.advanced.container_meta.loot_seed"))));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.whole_number",
+                                ItemEditorText.str("special.advanced.container_meta.loot_seed"))));
                 return;
             }
         }
@@ -674,8 +701,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.BEES,
                 this.sameBeeOccupants(context.special().beesOccupants, context.baselineSpecial().beesOccupants),
-                context.special().beesOccupants.isEmpty()
-        )) {
+                context.special().beesOccupants.isEmpty())) {
             return;
         }
 
@@ -686,47 +712,48 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
         List<BeehiveBlockEntity.Occupant> occupants = new ArrayList<>();
         for (int index = 0; index < context.special().beesOccupants.size(); index++) {
-            ItemEditorState.BeeOccupantDraft draft = context.special().beesOccupants.get(index);
+            ItemEditorState.BeeOccupantDraft draft =
+                    context.special().beesOccupants.get(index);
 
             String normalizedEntityId = draft.entityId == null || draft.entityId.isBlank()
                     ? "minecraft:bee"
                     : IdFieldNormalizer.normalize(draft.entityId);
             Identifier entityId = IdFieldNormalizer.parse(normalizedEntityId);
             if (entityId == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(entityId)) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.advanced.container_meta.bees_entity"),
-                        normalizedEntityId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("common.entity_id"),
+                                normalizedEntityId)));
                 return;
             }
-            EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
+            EntityType<?> entityType =
+                    BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
             if (entityType == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.advanced.container_meta.bees_entity"),
-                        normalizedEntityId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("common.entity_id"),
+                                normalizedEntityId)));
                 return;
             }
 
             String ticksRaw = draft.ticksInHive == null || draft.ticksInHive.isBlank() ? "0" : draft.ticksInHive;
-            String minTicksRaw = draft.minTicksInHive == null || draft.minTicksInHive.isBlank() ? "0" : draft.minTicksInHive;
+            String minTicksRaw =
+                    draft.minTicksInHive == null || draft.minTicksInHive.isBlank() ? "0" : draft.minTicksInHive;
 
             Integer ticks = ValidationUtil.parseInt(
                     ticksRaw,
                     ItemEditorText.str("special.advanced.container_meta.bees_ticks"),
                     0,
                     72000,
-                    context.messages()
-            );
+                    context.messages());
             Integer minTicks = ValidationUtil.parseInt(
                     minTicksRaw,
                     ItemEditorText.str("special.advanced.container_meta.bees_min_ticks"),
                     0,
                     72000,
-                    context.messages()
-            );
+                    context.messages());
             if (ticks == null || minTicks == null) {
                 return;
             }
@@ -742,14 +769,27 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 && Objects.equals(context.special().potLeftItemId, context.baselineSpecial().potLeftItemId)
                 && Objects.equals(context.special().potRightItemId, context.baselineSpecial().potRightItemId)
                 && Objects.equals(context.special().potFrontItemId, context.baselineSpecial().potFrontItemId)) {
-            this.restoreOriginalComponent(context.originalStack(), context.previewStack(), DataComponents.POT_DECORATIONS);
+            this.restoreOriginalComponent(
+                    context.originalStack(), context.previewStack(), DataComponents.POT_DECORATIONS);
             return;
         }
 
-        Optional<Item> back = this.resolveOptionalItem(context.special().potBackItemId, ItemEditorText.str("special.advanced.container_meta.pot_back"), context.messages());
-        Optional<Item> left = this.resolveOptionalItem(context.special().potLeftItemId, ItemEditorText.str("special.advanced.container_meta.pot_left"), context.messages());
-        Optional<Item> right = this.resolveOptionalItem(context.special().potRightItemId, ItemEditorText.str("special.advanced.container_meta.pot_right"), context.messages());
-        Optional<Item> front = this.resolveOptionalItem(context.special().potFrontItemId, ItemEditorText.str("special.advanced.container_meta.pot_front"), context.messages());
+        Optional<Item> back = this.resolveOptionalItem(
+                context.special().potBackItemId,
+                ItemEditorText.str("special.advanced.container_meta.pot_back"),
+                context.messages());
+        Optional<Item> left = this.resolveOptionalItem(
+                context.special().potLeftItemId,
+                ItemEditorText.str("special.advanced.container_meta.pot_left"),
+                context.messages());
+        Optional<Item> right = this.resolveOptionalItem(
+                context.special().potRightItemId,
+                ItemEditorText.str("special.advanced.container_meta.pot_right"),
+                context.messages());
+        Optional<Item> front = this.resolveOptionalItem(
+                context.special().potFrontItemId,
+                ItemEditorText.str("special.advanced.container_meta.pot_front"),
+                context.messages());
         if (this.hasInvalidOptionalInput(context.special().potBackItemId, back.isPresent())
                 || this.hasInvalidOptionalInput(context.special().potLeftItemId, left.isPresent())
                 || this.hasInvalidOptionalInput(context.special().potRightItemId, right.isPresent())
@@ -769,9 +809,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.CHARGED_PROJECTILES,
-                this.sameChargedProjectiles(context.special().chargedProjectiles, context.baselineSpecial().chargedProjectiles),
-                context.special().chargedProjectiles.isEmpty()
-        )) {
+                this.sameChargedProjectiles(
+                        context.special().chargedProjectiles, context.baselineSpecial().chargedProjectiles),
+                context.special().chargedProjectiles.isEmpty())) {
             return;
         }
 
@@ -780,22 +820,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             String templateSnbt = draft.templateSnbt == null ? "" : draft.templateSnbt.trim();
             if (!templateSnbt.isBlank()) {
                 ItemStackTemplate template = this.parseItemStackTemplate(
-                        templateSnbt,
-                        context,
-                        ItemEditorText.str("special.advanced.crossbow.item")
-                );
+                        templateSnbt, context, ItemEditorText.str("special.advanced.crossbow.item"));
                 if (template == null) {
                     continue;
                 }
                 ItemStack templateStack = template.create();
                 int max = Math.max(1, templateStack.getMaxStackSize());
                 Integer count = ValidationUtil.parseInt(
-                        draft.count,
-                        ItemEditorText.str("special.advanced.crossbow.count"),
-                        1,
-                        max,
-                        context.messages()
-                );
+                        draft.count, ItemEditorText.str("common.count"), 1, max, context.messages());
                 if (count == null) {
                     continue;
                 }
@@ -807,13 +839,15 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 continue;
             }
 
-            Item item = this.resolveItem(draft.itemId, ItemEditorText.str("special.advanced.crossbow.item"), context.messages());
+            Item item = this.resolveItem(
+                    draft.itemId, ItemEditorText.str("special.advanced.crossbow.item"), context.messages());
             if (item == null) {
                 continue;
             }
 
             int max = Math.max(1, new ItemStack(item).getMaxStackSize());
-            Integer count = ValidationUtil.parseInt(draft.count, ItemEditorText.str("special.advanced.crossbow.count"), 1, max, context.messages());
+            Integer count = ValidationUtil.parseInt(
+                    draft.count, ItemEditorText.str("common.count"), 1, max, context.messages());
             if (count == null) {
                 continue;
             }
@@ -833,12 +867,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.MAP_ID,
                 Objects.equals(context.special().mapId, context.baselineSpecial().mapId),
-                context.special().mapId.isBlank()
-        )) {
+                context.special().mapId.isBlank())) {
             return;
         }
 
-        Integer id = ValidationUtil.parseInt(context.special().mapId, ItemEditorText.str("special.advanced.map.map_id"), 0, Integer.MAX_VALUE, context.messages());
+        Integer id = ValidationUtil.parseInt(
+                context.special().mapId,
+                ItemEditorText.str("special.advanced.map.map_id"),
+                0,
+                Integer.MAX_VALUE,
+                context.messages());
         if (id == null) {
             return;
         }
@@ -851,30 +889,34 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.MAP_DECORATIONS,
                 this.sameMapDecorations(context.special().mapDecorations, context.baselineSpecial().mapDecorations),
-                context.special().mapDecorations.isEmpty()
-        )) {
+                context.special().mapDecorations.isEmpty())) {
             return;
         }
 
-        Registry<MapDecorationType> typeRegistry = context.registryAccess().lookupOrThrow(Registries.MAP_DECORATION_TYPE);
+        Registry<MapDecorationType> typeRegistry =
+                context.registryAccess().lookupOrThrow(Registries.MAP_DECORATION_TYPE);
         LinkedHashMap<String, MapDecorations.Entry> entries = new LinkedHashMap<>();
         for (int index = 0; index < context.special().mapDecorations.size(); index++) {
-            ItemEditorState.MapDecorationDraft draft = context.special().mapDecorations.get(index);
+            ItemEditorState.MapDecorationDraft draft =
+                    context.special().mapDecorations.get(index);
             String key = draft.key.isBlank() ? "decoration_" + index : draft.key.trim();
 
             Holder<MapDecorationType> type = RegistryUtil.resolveHolder(typeRegistry, draft.typeId);
             if (type == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.advanced.map.decoration_type"),
-                        draft.typeId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.advanced.map.decoration_type"),
+                                draft.typeId)));
                 continue;
             }
 
-            Double x = ValidationUtil.parseDouble(draft.x, ItemEditorText.str("special.advanced.map.decoration_x"), context.messages());
-            Double z = ValidationUtil.parseDouble(draft.z, ItemEditorText.str("special.advanced.map.decoration_z"), context.messages());
-            Float rotation = ValidationUtil.parseFloat(draft.rotation, ItemEditorText.str("special.advanced.map.decoration_rotation"), context.messages());
+            Double x = ValidationUtil.parseDouble(
+                    draft.x, ItemEditorText.str("special.advanced.map.decoration_x"), context.messages());
+            Double z = ValidationUtil.parseDouble(
+                    draft.z, ItemEditorText.str("special.advanced.map.decoration_z"), context.messages());
+            Float rotation = ValidationUtil.parseFloat(
+                    draft.rotation, ItemEditorText.str("special.advanced.map.decoration_rotation"), context.messages());
             if (x == null || z == null || rotation == null) {
                 continue;
             }
@@ -896,31 +938,52 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 DataComponents.LODESTONE_TRACKER,
                 context.special().lodestoneEnabled == context.baselineSpecial().lodestoneEnabled
                         && context.special().lodestoneTracked == context.baselineSpecial().lodestoneTracked
-                        && Objects.equals(context.special().lodestoneDimensionId, context.baselineSpecial().lodestoneDimensionId)
+                        && Objects.equals(
+                                context.special().lodestoneDimensionId, context.baselineSpecial().lodestoneDimensionId)
                         && Objects.equals(context.special().lodestoneX, context.baselineSpecial().lodestoneX)
                         && Objects.equals(context.special().lodestoneY, context.baselineSpecial().lodestoneY)
                         && Objects.equals(context.special().lodestoneZ, context.baselineSpecial().lodestoneZ),
-                !context.special().lodestoneEnabled
-        )) {
+                !context.special().lodestoneEnabled)) {
             return;
         }
 
         Identifier dimensionId = IdFieldNormalizer.parse(context.special().lodestoneDimensionId);
         if (dimensionId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.map.lodestone_dimension"))));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.map.lodestone_dimension"))));
             return;
         }
 
-        Integer x = ValidationUtil.parseInt(context.special().lodestoneX, ItemEditorText.str("special.advanced.map.lodestone_x"), -30000000, 30000000, context.messages());
-        Integer y = ValidationUtil.parseInt(context.special().lodestoneY, ItemEditorText.str("special.advanced.map.lodestone_y"), -2048, 4096, context.messages());
-        Integer z = ValidationUtil.parseInt(context.special().lodestoneZ, ItemEditorText.str("special.advanced.map.lodestone_z"), -30000000, 30000000, context.messages());
+        Integer x = ValidationUtil.parseInt(
+                context.special().lodestoneX,
+                ItemEditorText.str("special.advanced.map.lodestone_x"),
+                -30000000,
+                30000000,
+                context.messages());
+        Integer y = ValidationUtil.parseInt(
+                context.special().lodestoneY,
+                ItemEditorText.str("special.advanced.map.lodestone_y"),
+                -2048,
+                4096,
+                context.messages());
+        Integer z = ValidationUtil.parseInt(
+                context.special().lodestoneZ,
+                ItemEditorText.str("special.advanced.map.lodestone_z"),
+                -30000000,
+                30000000,
+                context.messages());
         if (x == null || y == null || z == null) {
             return;
         }
 
         ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, dimensionId);
         GlobalPos target = GlobalPos.of(dimensionKey, new BlockPos(x, y, z));
-        context.previewStack().set(DataComponents.LODESTONE_TRACKER, new LodestoneTracker(Optional.of(target), context.special().lodestoneTracked));
+        context.previewStack()
+                .set(
+                        DataComponents.LODESTONE_TRACKER,
+                        new LodestoneTracker(Optional.of(target), context.special().lodestoneTracked));
     }
 
     private void applyEquippable(SpecialDataApplyContext context) {
@@ -928,17 +991,29 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.EQUIPPABLE,
                 Objects.equals(context.special().equippableSlot, context.baselineSpecial().equippableSlot)
-                        && Objects.equals(context.special().equippableEquipSoundId, context.baselineSpecial().equippableEquipSoundId)
-                        && Objects.equals(context.special().equippableShearingSoundId, context.baselineSpecial().equippableShearingSoundId)
-                        && Objects.equals(context.special().equippableAssetId, context.baselineSpecial().equippableAssetId)
-                        && Objects.equals(context.special().equippableCameraOverlayId, context.baselineSpecial().equippableCameraOverlayId)
-                        && Objects.equals(context.special().equippableDispensable, context.baselineSpecial().equippableDispensable)
-                        && Objects.equals(context.special().equippableSwappable, context.baselineSpecial().equippableSwappable)
-                        && Objects.equals(context.special().equippableDamageOnHurt, context.baselineSpecial().equippableDamageOnHurt)
-                        && context.special().equippableEquipOnInteract == context.baselineSpecial().equippableEquipOnInteract
+                        && Objects.equals(
+                                context.special().equippableEquipSoundId,
+                                context.baselineSpecial().equippableEquipSoundId)
+                        && Objects.equals(
+                                context.special().equippableShearingSoundId,
+                                context.baselineSpecial().equippableShearingSoundId)
+                        && Objects.equals(
+                                context.special().equippableAssetId, context.baselineSpecial().equippableAssetId)
+                        && Objects.equals(
+                                context.special().equippableCameraOverlayId,
+                                context.baselineSpecial().equippableCameraOverlayId)
+                        && Objects.equals(
+                                context.special().equippableDispensable,
+                                context.baselineSpecial().equippableDispensable)
+                        && Objects.equals(
+                                context.special().equippableSwappable, context.baselineSpecial().equippableSwappable)
+                        && Objects.equals(
+                                context.special().equippableDamageOnHurt,
+                                context.baselineSpecial().equippableDamageOnHurt)
+                        && context.special().equippableEquipOnInteract
+                                == context.baselineSpecial().equippableEquipOnInteract
                         && context.special().equippableCanBeSheared == context.baselineSpecial().equippableCanBeSheared,
-                context.special().equippableSlot.isBlank()
-        )) {
+                context.special().equippableSlot.isBlank())) {
             return;
         }
 
@@ -946,7 +1021,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         try {
             slot = EquipmentSlot.valueOf(context.special().equippableSlot);
         } catch (IllegalArgumentException exception) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.component_tweaks.equippable_slot"))));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.component_tweaks.equippable_slot"))));
             return;
         }
 
@@ -957,8 +1035,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().equippableEquipSoundId,
                 this.valueFromOriginal(original, Equippable::equipSound, SoundEvents.ARMOR_EQUIP_GENERIC),
                 ItemEditorText.str("special.advanced.component_tweaks.equippable_sound"),
-                context.messages()
-        );
+                context.messages());
         if (equipSound == null) {
             return;
         }
@@ -968,8 +1045,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().equippableShearingSoundId,
                 this.valueFromOriginal(original, Equippable::shearingSound, equipSound),
                 ItemEditorText.str("special.advanced.component_tweaks.equippable_shearing_sound"),
-                context.messages()
-        );
+                context.messages());
         if (shearingSound == null) {
             return;
         }
@@ -977,20 +1053,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         Equippable.Builder builder = Equippable.builder(slot)
                 .setEquipSound(equipSound)
                 .setDispensable(this.parseEquippableBoolean(
-                        context.special().equippableDispensable,
-                        original,
-                        Equippable::dispensable
-                ))
+                        context.special().equippableDispensable, original, Equippable::dispensable))
                 .setSwappable(this.parseEquippableBoolean(
-                        context.special().equippableSwappable,
-                        original,
-                        Equippable::swappable
-                ))
+                        context.special().equippableSwappable, original, Equippable::swappable))
                 .setDamageOnHurt(this.parseEquippableBoolean(
-                        context.special().equippableDamageOnHurt,
-                        original,
-                        Equippable::damageOnHurt
-                ))
+                        context.special().equippableDamageOnHurt, original, Equippable::damageOnHurt))
                 .setEquipOnInteract(context.special().equippableEquipOnInteract)
                 .setCanBeSheared(context.special().equippableCanBeSheared)
                 .setShearingSound(shearingSound);
@@ -1006,9 +1073,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         Identifier cameraOverlay = this.parseOptionalIdentifier(
                 context.special().equippableCameraOverlayId,
                 ItemEditorText.str("special.advanced.component_tweaks.equippable_camera_overlay"),
-                context
-        );
-        if (cameraOverlay == null && !context.special().equippableCameraOverlayId.isBlank()) {
+                context);
+        if (cameraOverlay == null
+                && !context.special().equippableCameraOverlayId.isBlank()) {
             return;
         }
         if (cameraOverlay != null) {
@@ -1022,11 +1089,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack().set(DataComponents.EQUIPPABLE, builder.build());
     }
 
-    private boolean parseEquippableBoolean(
-            String raw,
-            Equippable original,
-            Function<Equippable, Boolean> extractor
-    ) {
+    private boolean parseEquippableBoolean(String raw, Equippable original, Function<Equippable, Boolean> extractor) {
         if (raw == null || raw.isBlank()) {
             return this.valueFromOriginal(original, extractor, true);
         }
@@ -1035,10 +1098,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
     private ResourceKey<EquipmentAsset> parseEquippableAssetId(String rawId, SpecialDataApplyContext context) {
         Identifier identifier = this.parseOptionalIdentifier(
-                rawId,
-                ItemEditorText.str("special.advanced.component_tweaks.equippable_asset_id"),
-                context
-        );
+                rawId, ItemEditorText.str("special.advanced.component_tweaks.equippable_asset_id"), context);
         return identifier == null ? null : ResourceKey.create(EquipmentAssets.ROOT_ID, identifier);
     }
 
@@ -1048,7 +1108,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
         Identifier identifier = IdFieldNormalizer.parse(rawId);
         if (identifier == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
+            context.messages()
+                    .add(ValidationMessage.error(
+                            ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
         }
         return identifier;
     }
@@ -1057,20 +1119,32 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.WEAPON,
-                Objects.equals(context.special().weaponItemDamagePerAttack, context.baselineSpecial().weaponItemDamagePerAttack)
-                        && Objects.equals(context.special().weaponDisableBlockingForSeconds, context.baselineSpecial().weaponDisableBlockingForSeconds),
-                context.special().weaponItemDamagePerAttack.isBlank() && context.special().weaponDisableBlockingForSeconds.isBlank()
-        )) {
+                Objects.equals(
+                                context.special().weaponItemDamagePerAttack,
+                                context.baselineSpecial().weaponItemDamagePerAttack)
+                        && Objects.equals(
+                                context.special().weaponDisableBlockingForSeconds,
+                                context.baselineSpecial().weaponDisableBlockingForSeconds),
+                context.special().weaponItemDamagePerAttack.isBlank()
+                        && context.special().weaponDisableBlockingForSeconds.isBlank())) {
             return;
         }
 
         Weapon original = context.originalStack().get(DataComponents.WEAPON);
         Integer damage = context.special().weaponItemDamagePerAttack.isBlank()
                 ? this.valueFromOriginal(original, Weapon::itemDamagePerAttack, 1)
-                : ValidationUtil.parseInt(context.special().weaponItemDamagePerAttack, ItemEditorText.str("special.advanced.combat.weapon_damage"), 0, 4096, context.messages());
+                : ValidationUtil.parseInt(
+                        context.special().weaponItemDamagePerAttack,
+                        ItemEditorText.str("special.advanced.combat.weapon_damage"),
+                        0,
+                        4096,
+                        context.messages());
         Float disable = context.special().weaponDisableBlockingForSeconds.isBlank()
                 ? this.valueFromOriginal(original, Weapon::disableBlockingForSeconds, 0.0F)
-                : ValidationUtil.parseFloat(context.special().weaponDisableBlockingForSeconds, ItemEditorText.str("special.advanced.combat.weapon_disable"), context.messages());
+                : ValidationUtil.parseFloat(
+                        context.special().weaponDisableBlockingForSeconds,
+                        ItemEditorText.str("special.advanced.combat.weapon_disable"),
+                        context.messages());
         if (damage == null || disable == null || disable < 0.0F) {
             return;
         }
@@ -1082,25 +1156,36 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.TOOL,
-                Objects.equals(context.special().toolDefaultMiningSpeed, context.baselineSpecial().toolDefaultMiningSpeed)
-                        && Objects.equals(context.special().toolDamagePerBlock, context.baselineSpecial().toolDamagePerBlock)
-                        && context.special().toolCanDestroyBlocksInCreative == context.baselineSpecial().toolCanDestroyBlocksInCreative
+                Objects.equals(
+                                context.special().toolDefaultMiningSpeed,
+                                context.baselineSpecial().toolDefaultMiningSpeed)
+                        && Objects.equals(
+                                context.special().toolDamagePerBlock, context.baselineSpecial().toolDamagePerBlock)
+                        && context.special().toolCanDestroyBlocksInCreative
+                                == context.baselineSpecial().toolCanDestroyBlocksInCreative
                         && Objects.equals(context.special().toolRules, context.baselineSpecial().toolRules),
                 context.special().toolDefaultMiningSpeed.isBlank()
                         && context.special().toolDamagePerBlock.isBlank()
                         && !context.special().toolCanDestroyBlocksInCreative
-                        && context.special().toolRules.isEmpty()
-        )) {
+                        && context.special().toolRules.isEmpty())) {
             return;
         }
 
         Tool original = context.originalStack().get(DataComponents.TOOL);
         Float speed = context.special().toolDefaultMiningSpeed.isBlank()
                 ? this.valueFromOriginal(original, Tool::defaultMiningSpeed, 1.0F)
-                : ValidationUtil.parseFloat(context.special().toolDefaultMiningSpeed, ItemEditorText.str("special.advanced.combat.tool_speed"), context.messages());
+                : ValidationUtil.parseFloat(
+                        context.special().toolDefaultMiningSpeed,
+                        ItemEditorText.str("special.advanced.combat.tool_speed"),
+                        context.messages());
         Integer damage = context.special().toolDamagePerBlock.isBlank()
                 ? this.valueFromOriginal(original, Tool::damagePerBlock, 1)
-                : ValidationUtil.parseInt(context.special().toolDamagePerBlock, ItemEditorText.str("special.advanced.combat.tool_damage"), 0, 4096, context.messages());
+                : ValidationUtil.parseInt(
+                        context.special().toolDamagePerBlock,
+                        ItemEditorText.str("special.advanced.combat.tool_damage"),
+                        0,
+                        4096,
+                        context.messages());
         if (speed == null || damage == null) {
             return;
         }
@@ -1109,10 +1194,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (rules == null) {
             return;
         }
-        context.previewStack().set(
-                DataComponents.TOOL,
-                new Tool(rules, speed, damage, context.special().toolCanDestroyBlocksInCreative)
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.TOOL,
+                        new Tool(rules, speed, damage, context.special().toolCanDestroyBlocksInCreative));
     }
 
     private List<Tool.Rule> parseToolRules(SpecialDataApplyContext context) {
@@ -1121,12 +1206,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         for (ItemEditorState.ToolRuleDraft draft : context.special().toolRules) {
             String label = ItemEditorText.str("special.advanced.combat.tool_rule_blocks");
             HolderSetResult<Block> blocks = this.parseBlockHolderSet(
-                    blockRegistry,
-                    draft.blockIds,
-                    label,
-                    draft.allowTagExpansion,
-                    context.messages()
-            );
+                    blockRegistry, draft.blockIds, label, draft.allowTagExpansion, context.messages());
             HolderSet<Block> blockSet = blocks.holderSet();
             if (!blocks.valid() || blockSet == null) {
                 return null;
@@ -1135,15 +1215,12 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             Optional<Float> speed = Optional.empty();
             if (draft.speed != null && !draft.speed.isBlank()) {
                 Float parsedSpeed = ValidationUtil.parseFloat(
-                        draft.speed,
-                        ItemEditorText.str("special.advanced.combat.tool_rule_speed"),
-                        context.messages()
-                );
+                        draft.speed, ItemEditorText.str("special.advanced.combat.tool_rule_speed"), context.messages());
                 if (parsedSpeed == null || parsedSpeed < 0.0F) {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                            "preview.validation.component_failed",
-                            ItemEditorText.str("special.advanced.combat.tool_rule_speed")
-                    )));
+                    context.messages()
+                            .add(ValidationMessage.error(ItemEditorText.str(
+                                    "preview.validation.component_failed",
+                                    ItemEditorText.str("special.advanced.combat.tool_rule_speed"))));
                     return null;
                 }
                 speed = Optional.of(parsedSpeed);
@@ -1157,10 +1234,10 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 } else if (normalized.equalsIgnoreCase("false")) {
                     correctForDrops = Optional.of(false);
                 } else {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                            "preview.validation.component_failed",
-                            ItemEditorText.str("special.advanced.combat.tool_rule_correct_for_drops")
-                    )));
+                    context.messages()
+                            .add(ValidationMessage.error(ItemEditorText.str(
+                                    "preview.validation.component_failed",
+                                    ItemEditorText.str("special.advanced.combat.tool_rule_correct_for_drops"))));
                     return null;
                 }
             }
@@ -1175,8 +1252,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.REPAIRABLE,
                 Objects.equals(context.special().repairableItemIds, context.baselineSpecial().repairableItemIds),
-                context.special().repairableItemIds.isEmpty()
-        )) {
+                context.special().repairableItemIds.isEmpty())) {
             return;
         }
 
@@ -1185,11 +1261,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         for (String rawId : context.special().repairableItemIds) {
             Holder<Item> holder = RegistryUtil.resolveHolder(itemRegistry, rawId);
             if (holder == null) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                        "validation.registry_missing",
-                        ItemEditorText.str("special.advanced.combat.repair_item"),
-                        rawId
-                )));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str(
+                                "validation.registry_missing",
+                                ItemEditorText.str("special.advanced.combat.repair_item"),
+                                rawId)));
                 continue;
             }
             items.add(holder);
@@ -1208,33 +1284,72 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.ATTACK_RANGE,
                 Objects.equals(context.special().attackRangeMinReach, context.baselineSpecial().attackRangeMinReach)
-                        && Objects.equals(context.special().attackRangeMaxReach, context.baselineSpecial().attackRangeMaxReach)
-                        && Objects.equals(context.special().attackRangeMinCreativeReach, context.baselineSpecial().attackRangeMinCreativeReach)
-                        && Objects.equals(context.special().attackRangeMaxCreativeReach, context.baselineSpecial().attackRangeMaxCreativeReach)
-                        && Objects.equals(context.special().attackRangeHitboxMargin, context.baselineSpecial().attackRangeHitboxMargin)
-                        && Objects.equals(context.special().attackRangeMobFactor, context.baselineSpecial().attackRangeMobFactor),
+                        && Objects.equals(
+                                context.special().attackRangeMaxReach, context.baselineSpecial().attackRangeMaxReach)
+                        && Objects.equals(
+                                context.special().attackRangeMinCreativeReach,
+                                context.baselineSpecial().attackRangeMinCreativeReach)
+                        && Objects.equals(
+                                context.special().attackRangeMaxCreativeReach,
+                                context.baselineSpecial().attackRangeMaxCreativeReach)
+                        && Objects.equals(
+                                context.special().attackRangeHitboxMargin,
+                                context.baselineSpecial().attackRangeHitboxMargin)
+                        && Objects.equals(
+                                context.special().attackRangeMobFactor, context.baselineSpecial().attackRangeMobFactor),
                 context.special().attackRangeMinReach.isBlank()
                         && context.special().attackRangeMaxReach.isBlank()
                         && context.special().attackRangeMinCreativeReach.isBlank()
                         && context.special().attackRangeMaxCreativeReach.isBlank()
                         && context.special().attackRangeHitboxMargin.isBlank()
-                        && context.special().attackRangeMobFactor.isBlank()
-        )) {
+                        && context.special().attackRangeMobFactor.isBlank())) {
             return;
         }
 
         AttackRange original = context.originalStack().get(DataComponents.ATTACK_RANGE);
-        Float minReach = this.readRangeField(context.special().attackRangeMinReach, original == null ? 0.0F : original.minReach(), ItemEditorText.str("special.advanced.combat.range_min_reach"), context.messages());
-        Float maxReach = this.readRangeField(context.special().attackRangeMaxReach, original == null ? 0.0F : original.maxReach(), ItemEditorText.str("special.advanced.combat.range_max_reach"), context.messages());
-        Float minCreative = this.readRangeField(context.special().attackRangeMinCreativeReach, original == null ? 0.0F : original.minCreativeReach(), ItemEditorText.str("special.advanced.combat.range_min_creative"), context.messages());
-        Float maxCreative = this.readRangeField(context.special().attackRangeMaxCreativeReach, original == null ? 0.0F : original.maxCreativeReach(), ItemEditorText.str("special.advanced.combat.range_max_creative"), context.messages());
-        Float hitboxMargin = this.readRangeField(context.special().attackRangeHitboxMargin, original == null ? 0.0F : original.hitboxMargin(), ItemEditorText.str("special.advanced.combat.range_hitbox"), context.messages());
-        Float mobFactor = this.readRangeField(context.special().attackRangeMobFactor, original == null ? 0.0F : original.mobFactor(), ItemEditorText.str("special.advanced.combat.range_mob_factor"), context.messages());
-        if (minReach == null || maxReach == null || minCreative == null || maxCreative == null || hitboxMargin == null || mobFactor == null) {
+        Float minReach = this.readRangeField(
+                context.special().attackRangeMinReach,
+                original == null ? 0.0F : original.minReach(),
+                ItemEditorText.str("special.advanced.combat.range_min_reach"),
+                context.messages());
+        Float maxReach = this.readRangeField(
+                context.special().attackRangeMaxReach,
+                original == null ? 0.0F : original.maxReach(),
+                ItemEditorText.str("special.advanced.combat.range_max_reach"),
+                context.messages());
+        Float minCreative = this.readRangeField(
+                context.special().attackRangeMinCreativeReach,
+                original == null ? 0.0F : original.minCreativeReach(),
+                ItemEditorText.str("special.advanced.combat.range_min_creative"),
+                context.messages());
+        Float maxCreative = this.readRangeField(
+                context.special().attackRangeMaxCreativeReach,
+                original == null ? 0.0F : original.maxCreativeReach(),
+                ItemEditorText.str("special.advanced.combat.range_max_creative"),
+                context.messages());
+        Float hitboxMargin = this.readRangeField(
+                context.special().attackRangeHitboxMargin,
+                original == null ? 0.0F : original.hitboxMargin(),
+                ItemEditorText.str("special.advanced.combat.range_hitbox"),
+                context.messages());
+        Float mobFactor = this.readRangeField(
+                context.special().attackRangeMobFactor,
+                original == null ? 0.0F : original.mobFactor(),
+                ItemEditorText.str("special.advanced.combat.range_mob_factor"),
+                context.messages());
+        if (minReach == null
+                || maxReach == null
+                || minCreative == null
+                || maxCreative == null
+                || hitboxMargin == null
+                || mobFactor == null) {
             return;
         }
 
-        context.previewStack().set(DataComponents.ATTACK_RANGE, new AttackRange(minReach, maxReach, minCreative, maxCreative, hitboxMargin, mobFactor));
+        context.previewStack()
+                .set(
+                        DataComponents.ATTACK_RANGE,
+                        new AttackRange(minReach, maxReach, minCreative, maxCreative, hitboxMargin, mobFactor));
     }
 
     private void applyItemName(SpecialDataApplyContext context) {
@@ -1242,8 +1357,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.ITEM_NAME,
                 Objects.equals(context.special().itemName, context.baselineSpecial().itemName),
-                context.special().itemName.isBlank()
-        )) {
+                context.special().itemName.isBlank())) {
             return;
         }
 
@@ -1255,16 +1369,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.MINIMUM_ATTACK_CHARGE,
                 Objects.equals(context.special().minimumAttackCharge, context.baselineSpecial().minimumAttackCharge),
-                context.special().minimumAttackCharge.isBlank()
-        )) {
+                context.special().minimumAttackCharge.isBlank())) {
             return;
         }
 
         Float value = ValidationUtil.parseFloat(
                 context.special().minimumAttackCharge,
                 ItemEditorText.str("special.advanced.component_tweaks.min_attack_charge"),
-                context.messages()
-        );
+                context.messages());
         if (value == null || value < 0.0F) {
             return;
         }
@@ -1277,8 +1389,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.ENCHANTABLE,
                 Objects.equals(context.special().enchantableValue, context.baselineSpecial().enchantableValue),
-                context.special().enchantableValue.isBlank()
-        )) {
+                context.special().enchantableValue.isBlank())) {
             return;
         }
 
@@ -1287,8 +1398,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ItemEditorText.str("special.advanced.component_tweaks.enchantable"),
                 0,
                 1024,
-                context.messages()
-        );
+                context.messages());
         if (value == null) {
             return;
         }
@@ -1300,9 +1410,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.OMINOUS_BOTTLE_AMPLIFIER,
-                Objects.equals(context.special().ominousBottleAmplifier, context.baselineSpecial().ominousBottleAmplifier),
-                context.special().ominousBottleAmplifier.isBlank()
-        )) {
+                Objects.equals(
+                        context.special().ominousBottleAmplifier, context.baselineSpecial().ominousBottleAmplifier),
+                context.special().ominousBottleAmplifier.isBlank())) {
             return;
         }
 
@@ -1311,8 +1421,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 ItemEditorText.str("special.advanced.component_tweaks.ominous_amplifier"),
                 OminousBottleAmplifier.MIN_AMPLIFIER,
                 OminousBottleAmplifier.MAX_AMPLIFIER,
-                context.messages()
-        );
+                context.messages());
         if (value == null) {
             return;
         }
@@ -1325,17 +1434,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.TOOLTIP_STYLE,
                 Objects.equals(context.special().tooltipStyleId, context.baselineSpecial().tooltipStyleId),
-                context.special().tooltipStyleId.isBlank()
-        )) {
+                context.special().tooltipStyleId.isBlank())) {
             return;
         }
 
         Identifier styleId = IdFieldNormalizer.parse(context.special().tooltipStyleId);
         if (styleId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.component_tweaks.tooltip_style")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.component_tweaks.tooltip_style"))));
             return;
         }
 
@@ -1347,19 +1455,18 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.DAMAGE_TYPE,
                 Objects.equals(context.special().damageTypeId, context.baselineSpecial().damageTypeId),
-                context.special().damageTypeId.isBlank()
-        )) {
+                context.special().damageTypeId.isBlank())) {
             return;
         }
 
         Registry<DamageType> damageTypeRegistry = context.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
         Holder<DamageType> damageType = RegistryUtil.resolveHolder(damageTypeRegistry, context.special().damageTypeId);
         if (damageType == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.advanced.component_tweaks.damage_type"),
-                    context.special().damageTypeId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.advanced.component_tweaks.damage_type"),
+                            context.special().damageTypeId)));
             return;
         }
 
@@ -1370,9 +1477,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.DAMAGE_RESISTANT,
-                Objects.equals(context.special().damageResistantTypeIds, context.baselineSpecial().damageResistantTypeIds),
-                context.special().damageResistantTypeIds.isBlank()
-        )) {
+                Objects.equals(
+                        context.special().damageResistantTypeIds, context.baselineSpecial().damageResistantTypeIds),
+                context.special().damageResistantTypeIds.isBlank())) {
             return;
         }
 
@@ -1381,8 +1488,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().damageResistantTypeIds,
                 ItemEditorText.str("special.advanced.combat.damage_resistant_types"),
                 context.special().allowDamageResistantTagExpansion,
-                context.messages()
-        );
+                context.messages());
         if (!parsed.valid()) {
             return;
         }
@@ -1401,17 +1507,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.NOTE_BLOCK_SOUND,
                 Objects.equals(context.special().noteBlockSoundId, context.baselineSpecial().noteBlockSoundId),
-                context.special().noteBlockSoundId.isBlank()
-        )) {
+                context.special().noteBlockSoundId.isBlank())) {
             return;
         }
 
         Identifier soundId = IdFieldNormalizer.parse(context.special().noteBlockSoundId);
         if (soundId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.component_tweaks.note_block_sound")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.component_tweaks.note_block_sound"))));
             return;
         }
 
@@ -1423,22 +1528,19 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.PROVIDES_TRIM_MATERIAL,
                 Objects.equals(
-                        context.special().providesTrimMaterialId,
-                        context.baselineSpecial().providesTrimMaterialId
-                ),
-                context.special().providesTrimMaterialId.isBlank()
-        )) {
+                        context.special().providesTrimMaterialId, context.baselineSpecial().providesTrimMaterialId),
+                context.special().providesTrimMaterialId.isBlank())) {
             return;
         }
 
         Registry<TrimMaterial> registry = context.registryAccess().lookupOrThrow(Registries.TRIM_MATERIAL);
         Holder<TrimMaterial> material = RegistryUtil.resolveHolder(registry, context.special().providesTrimMaterialId);
         if (material == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.advanced.component_tweaks.provides_trim_material"),
-                    context.special().providesTrimMaterialId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.advanced.component_tweaks.provides_trim_material"),
+                            context.special().providesTrimMaterialId)));
             return;
         }
 
@@ -1451,18 +1553,15 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 DataComponents.PROVIDES_BANNER_PATTERNS,
                 Objects.equals(
                         context.special().providesBannerPatternsTagId,
-                        context.baselineSpecial().providesBannerPatternsTagId
-                ),
-                context.special().providesBannerPatternsTagId.isBlank()
-        )) {
+                        context.baselineSpecial().providesBannerPatternsTagId),
+                context.special().providesBannerPatternsTagId.isBlank())) {
             return;
         }
 
         Identifier tagId = this.parseRequiredTagId(
                 context.special().providesBannerPatternsTagId,
                 ItemEditorText.str("special.advanced.component_tweaks.provides_banner_patterns"),
-                context
-        );
+                context);
         if (tagId == null) {
             return;
         }
@@ -1471,11 +1570,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         TagKey<BannerPattern> tag = TagKey.create(Registries.BANNER_PATTERN, tagId);
         Optional<HolderSet.Named<BannerPattern>> holderSet = registry.get(tag);
         if (holderSet.isEmpty()) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.advanced.component_tweaks.provides_banner_patterns"),
-                    "#" + tagId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.advanced.component_tweaks.provides_banner_patterns"),
+                            "#" + tagId)));
             return;
         }
 
@@ -1485,18 +1584,15 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     private Identifier parseRequiredTagId(String rawTagId, String fieldLabel, SpecialDataApplyContext context) {
         String normalized = IdFieldNormalizer.normalize(rawTagId);
         if (!normalized.startsWith("#")) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.tag_id_required",
-                    fieldLabel
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str("validation.tag_id_required", fieldLabel)));
             return null;
         }
         Identifier tagId = Identifier.tryParse(normalized.substring(1));
         if (tagId == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    fieldLabel
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(
+                            ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
         }
         return tagId;
     }
@@ -1506,8 +1602,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.JUKEBOX_PLAYABLE,
                 Objects.equals(context.special().jukeboxSongId, context.baselineSpecial().jukeboxSongId),
-                context.special().jukeboxSongId.isBlank()
-        )) {
+                context.special().jukeboxSongId.isBlank())) {
             return;
         }
 
@@ -1518,11 +1613,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
 
         ResourceKey<JukeboxSong> songKey = ResourceKey.create(Registries.JUKEBOX_SONG, songId);
-        context.registryAccess().lookupOrThrow(Registries.JUKEBOX_SONG).get(songKey)
+        context.registryAccess()
+                .lookupOrThrow(Registries.JUKEBOX_SONG)
+                .get(songKey)
                 .ifPresentOrElse(
-                        songHolder -> context.previewStack().set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(songHolder)),
-                        () -> context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id")))
-                );
+                        songHolder -> context.previewStack()
+                                .set(DataComponents.JUKEBOX_PLAYABLE, new JukeboxPlayable(songHolder)),
+                        () -> context.messages()
+                                .add(ValidationMessage.error(ItemEditorText.str("preview.validation.jukebox_id"))));
     }
 
     private void applyBreakSound(SpecialDataApplyContext context) {
@@ -1530,8 +1628,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.BREAK_SOUND,
                 Objects.equals(context.special().breakSoundId, context.baselineSpecial().breakSoundId),
-                context.special().breakSoundId.isBlank()
-        )) {
+                context.special().breakSoundId.isBlank())) {
             return;
         }
 
@@ -1541,8 +1638,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().breakSoundId,
                 null,
                 ItemEditorText.str("special.advanced.component_tweaks.break_sound"),
-                context.messages()
-        );
+                context.messages());
         if (breakSound == null) {
             return;
         }
@@ -1555,19 +1651,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.PAINTING_VARIANT,
                 Objects.equals(context.special().paintingVariantId, context.baselineSpecial().paintingVariantId),
-                context.special().paintingVariantId.isBlank()
-        )) {
+                context.special().paintingVariantId.isBlank())) {
             return;
         }
 
-        Registry<PaintingVariant> paintingRegistry = context.registryAccess().lookupOrThrow(Registries.PAINTING_VARIANT);
-        Holder<PaintingVariant> variant = RegistryUtil.resolveHolder(paintingRegistry, context.special().paintingVariantId);
+        Registry<PaintingVariant> paintingRegistry =
+                context.registryAccess().lookupOrThrow(Registries.PAINTING_VARIANT);
+        Holder<PaintingVariant> variant =
+                RegistryUtil.resolveHolder(paintingRegistry, context.special().paintingVariantId);
         if (variant == null) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "validation.registry_missing",
-                    ItemEditorText.str("special.advanced.component_tweaks.painting_variant"),
-                    context.special().paintingVariantId
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "validation.registry_missing",
+                            ItemEditorText.str("special.advanced.component_tweaks.painting_variant"),
+                            context.special().paintingVariantId)));
             return;
         }
 
@@ -1579,16 +1676,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.BLOCK_STATE,
                 Objects.equals(context.special().blockStateProperties, context.baselineSpecial().blockStateProperties),
-                context.special().blockStateProperties.isBlank()
-        )) {
+                context.special().blockStateProperties.isBlank())) {
             return;
         }
 
         LinkedHashMap<String, String> properties = this.parseBlockStateProperties(
                 context.special().blockStateProperties,
                 ItemEditorText.str("special.advanced.component_tweaks.block_state"),
-                context.messages()
-        );
+                context.messages());
         if (properties == null) {
             return;
         }
@@ -1603,15 +1698,12 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
     private void applyDeathProtection(SpecialDataApplyContext context) {
         boolean effectsUnchanged = this.sameConsumableEffects(
-                context.special().deathProtectionEffects,
-                context.baselineSpecial().deathProtectionEffects
-        );
+                context.special().deathProtectionEffects, context.baselineSpecial().deathProtectionEffects);
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.DEATH_PROTECTION,
                 context.special().deathProtection == context.baselineSpecial().deathProtection && effectsUnchanged,
-                !context.special().deathProtection
-        )) {
+                !context.special().deathProtection)) {
             return;
         }
 
@@ -1623,17 +1715,13 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             deathEffects = this.parseConsumableEffects(
                     context,
                     context.special().deathProtectionEffects,
-                    ItemEditorText.str("special.advanced.component_tweaks.death_effects")
-            );
+                    ItemEditorText.str("special.advanced.component_tweaks.death_effects"));
             if (deathEffects == null) {
                 return;
             }
         }
 
-        context.previewStack().set(
-                DataComponents.DEATH_PROTECTION,
-                new DeathProtection(deathEffects)
-        );
+        context.previewStack().set(DataComponents.DEATH_PROTECTION, new DeathProtection(deathEffects));
     }
 
     private void applyGlider(SpecialDataApplyContext context) {
@@ -1641,8 +1729,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.GLIDER,
                 context.special().glider == context.baselineSpecial().glider,
-                !context.special().glider
-        )) {
+                !context.special().glider)) {
             return;
         }
 
@@ -1654,8 +1741,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.INTANGIBLE_PROJECTILE,
                 context.special().intangibleProjectile == context.baselineSpecial().intangibleProjectile,
-                !context.special().intangibleProjectile
-        )) {
+                !context.special().intangibleProjectile)) {
             return;
         }
 
@@ -1665,30 +1751,35 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     private void applyBlocksAttacks(SpecialDataApplyContext context) {
         boolean damageReductionsUnchanged = this.sameBlocksAttacksDamageReductions(
                 context.special().blocksAttacksDamageReductions,
-                context.baselineSpecial().blocksAttacksDamageReductions
-        );
+                context.baselineSpecial().blocksAttacksDamageReductions);
         boolean itemDamageUnchanged = Objects.equals(
-                context.special().blocksAttacksItemDamageThreshold,
-                context.baselineSpecial().blocksAttacksItemDamageThreshold
-        ) && Objects.equals(
-                context.special().blocksAttacksItemDamageBase,
-                context.baselineSpecial().blocksAttacksItemDamageBase
-        ) && Objects.equals(
-                context.special().blocksAttacksItemDamageFactor,
-                context.baselineSpecial().blocksAttacksItemDamageFactor
-        );
+                        context.special().blocksAttacksItemDamageThreshold,
+                        context.baselineSpecial().blocksAttacksItemDamageThreshold)
+                && Objects.equals(
+                        context.special().blocksAttacksItemDamageBase,
+                        context.baselineSpecial().blocksAttacksItemDamageBase)
+                && Objects.equals(
+                        context.special().blocksAttacksItemDamageFactor,
+                        context.baselineSpecial().blocksAttacksItemDamageFactor);
         boolean bypassedByUnchanged = Objects.equals(
                 context.special().blocksAttacksBypassedByTypeIds,
-                context.baselineSpecial().blocksAttacksBypassedByTypeIds
-        );
+                context.baselineSpecial().blocksAttacksBypassedByTypeIds);
 
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.BLOCKS_ATTACKS,
-                Objects.equals(context.special().blocksAttacksBlockDelaySeconds, context.baselineSpecial().blocksAttacksBlockDelaySeconds)
-                        && Objects.equals(context.special().blocksAttacksDisableCooldownScale, context.baselineSpecial().blocksAttacksDisableCooldownScale)
-                        && Objects.equals(context.special().blocksAttacksBlockSoundId, context.baselineSpecial().blocksAttacksBlockSoundId)
-                        && Objects.equals(context.special().blocksAttacksDisableSoundId, context.baselineSpecial().blocksAttacksDisableSoundId)
+                Objects.equals(
+                                context.special().blocksAttacksBlockDelaySeconds,
+                                context.baselineSpecial().blocksAttacksBlockDelaySeconds)
+                        && Objects.equals(
+                                context.special().blocksAttacksDisableCooldownScale,
+                                context.baselineSpecial().blocksAttacksDisableCooldownScale)
+                        && Objects.equals(
+                                context.special().blocksAttacksBlockSoundId,
+                                context.baselineSpecial().blocksAttacksBlockSoundId)
+                        && Objects.equals(
+                                context.special().blocksAttacksDisableSoundId,
+                                context.baselineSpecial().blocksAttacksDisableSoundId)
                         && damageReductionsUnchanged
                         && itemDamageUnchanged
                         && bypassedByUnchanged,
@@ -1700,8 +1791,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         && context.special().blocksAttacksItemDamageFactor.isBlank()
                         && context.special().blocksAttacksBlockSoundId.isBlank()
                         && context.special().blocksAttacksDisableSoundId.isBlank()
-                        && context.special().blocksAttacksDamageReductions.isEmpty()
-        )) {
+                        && context.special().blocksAttacksDamageReductions.isEmpty())) {
             return;
         }
 
@@ -1711,15 +1801,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 : ValidationUtil.parseFloat(
                         context.special().blocksAttacksBlockDelaySeconds,
                         ItemEditorText.str("special.advanced.combat.blocks_attacks_delay"),
-                        context.messages()
-                );
-        Float disableCooldownScale = context.special().blocksAttacksDisableCooldownScale.isBlank()
-                ? this.valueFromOriginal(original, BlocksAttacks::disableCooldownScale, 1.0F)
-                : ValidationUtil.parseFloat(
-                        context.special().blocksAttacksDisableCooldownScale,
-                        ItemEditorText.str("special.advanced.combat.blocks_attacks_disable_scale"),
-                        context.messages()
-                );
+                        context.messages());
+        Float disableCooldownScale =
+                context.special().blocksAttacksDisableCooldownScale.isBlank()
+                        ? this.valueFromOriginal(original, BlocksAttacks::disableCooldownScale, 1.0F)
+                        : ValidationUtil.parseFloat(
+                                context.special().blocksAttacksDisableCooldownScale,
+                                ItemEditorText.str("special.advanced.combat.blocks_attacks_disable_scale"),
+                                context.messages());
         if (blockDelay == null || disableCooldownScale == null || blockDelay < 0.0F || disableCooldownScale < 0.0F) {
             return;
         }
@@ -1730,27 +1819,23 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().blocksAttacksBlockSoundId,
                 this.valueFromOriginal(original, value -> value.blockSound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.blocks_attacks_block_sound"),
-                context.messages()
-        );
+                context.messages());
         Optional<Holder<SoundEvent>> disableSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().blocksAttacksDisableSoundId,
                 this.valueFromOriginal(original, value -> value.disableSound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.blocks_attacks_disable_sound"),
-                context.messages()
-        );
+                context.messages());
         if (this.hasInvalidOptionalInput(context.special().blocksAttacksBlockSoundId, blockSound.isPresent())
-                || this.hasInvalidOptionalInput(context.special().blocksAttacksDisableSoundId, disableSound.isPresent())) {
+                || this.hasInvalidOptionalInput(
+                        context.special().blocksAttacksDisableSoundId, disableSound.isPresent())) {
             return;
         }
 
         List<BlocksAttacks.DamageReduction> damageReductions;
         if (damageReductionsUnchanged) {
             damageReductions = this.valueFromOriginal(
-                    original,
-                    BlocksAttacks::damageReductions,
-                    DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS
-            );
+                    original, BlocksAttacks::damageReductions, DEFAULT_BLOCKS_ATTACKS_DAMAGE_REDUCTIONS);
         } else {
             damageReductions = this.parseBlocksAttacksDamageReductions(context);
             if (damageReductions == null) {
@@ -1774,33 +1859,41 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                     context.special().blocksAttacksBypassedByTypeIds,
                     ItemEditorText.str("special.advanced.combat.blocks_attacks_bypassed_by"),
                     context.special().allowBlocksAttacksBypassedByTagExpansion,
-                    context.messages()
-            );
+                    context.messages());
             if (!parsedBypassedBy.valid()) {
                 return;
             }
             bypassedBy = parsedBypassedBy.value();
         }
 
-        context.previewStack().set(
-                DataComponents.BLOCKS_ATTACKS,
-                new BlocksAttacks(blockDelay, disableCooldownScale, damageReductions, itemDamage, bypassedBy, blockSound, disableSound)
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.BLOCKS_ATTACKS,
+                        new BlocksAttacks(
+                                blockDelay,
+                                disableCooldownScale,
+                                damageReductions,
+                                itemDamage,
+                                bypassedBy,
+                                blockSound,
+                                disableSound));
     }
 
     private void applyPiercingWeapon(SpecialDataApplyContext context) {
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.PIERCING_WEAPON,
-                Objects.equals(context.special().piercingDealsKnockback, context.baselineSpecial().piercingDealsKnockback)
+                Objects.equals(
+                                context.special().piercingDealsKnockback,
+                                context.baselineSpecial().piercingDealsKnockback)
                         && context.special().piercingDismounts == context.baselineSpecial().piercingDismounts
                         && Objects.equals(context.special().piercingSoundId, context.baselineSpecial().piercingSoundId)
-                        && Objects.equals(context.special().piercingHitSoundId, context.baselineSpecial().piercingHitSoundId),
+                        && Objects.equals(
+                                context.special().piercingHitSoundId, context.baselineSpecial().piercingHitSoundId),
                 context.special().piercingDealsKnockback.isBlank()
                         && !context.special().piercingDismounts
                         && context.special().piercingSoundId.isBlank()
-                        && context.special().piercingHitSoundId.isBlank()
-        )) {
+                        && context.special().piercingHitSoundId.isBlank())) {
             return;
         }
 
@@ -1811,29 +1904,26 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().piercingSoundId,
                 this.valueFromOriginal(original, value -> value.sound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.piercing_sound"),
-                context.messages()
-        );
+                context.messages());
         Optional<Holder<SoundEvent>> hitSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().piercingHitSoundId,
                 this.valueFromOriginal(original, value -> value.hitSound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.piercing_hit_sound"),
-                context.messages()
-        );
+                context.messages());
         if (this.hasInvalidOptionalInput(context.special().piercingSoundId, sound.isPresent())
                 || this.hasInvalidOptionalInput(context.special().piercingHitSoundId, hitSound.isPresent())) {
             return;
         }
 
-        context.previewStack().set(
-                DataComponents.PIERCING_WEAPON,
-                new PiercingWeapon(
-                        this.parsePiercingDealsKnockback(context.special().piercingDealsKnockback, original),
-                        context.special().piercingDismounts,
-                        sound,
-                        hitSound
-                )
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.PIERCING_WEAPON,
+                        new PiercingWeapon(
+                                this.parsePiercingDealsKnockback(context.special().piercingDealsKnockback, original),
+                                context.special().piercingDismounts,
+                                sound,
+                                hitSound));
     }
 
     private boolean parsePiercingDealsKnockback(String raw, PiercingWeapon original) {
@@ -1847,32 +1937,39 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         if (this.handleUnchangedOrCleared(
                 context,
                 DataComponents.KINETIC_WEAPON,
-                Objects.equals(context.special().kineticContactCooldownTicks, context.baselineSpecial().kineticContactCooldownTicks)
-                        && Objects.equals(context.special().kineticDelayTicks, context.baselineSpecial().kineticDelayTicks)
-                        && Objects.equals(context.special().kineticForwardMovement, context.baselineSpecial().kineticForwardMovement)
-                        && Objects.equals(context.special().kineticDamageMultiplier, context.baselineSpecial().kineticDamageMultiplier)
+                Objects.equals(
+                                context.special().kineticContactCooldownTicks,
+                                context.baselineSpecial().kineticContactCooldownTicks)
+                        && Objects.equals(
+                                context.special().kineticDelayTicks, context.baselineSpecial().kineticDelayTicks)
+                        && Objects.equals(
+                                context.special().kineticForwardMovement,
+                                context.baselineSpecial().kineticForwardMovement)
+                        && Objects.equals(
+                                context.special().kineticDamageMultiplier,
+                                context.baselineSpecial().kineticDamageMultiplier)
                         && Objects.equals(context.special().kineticSoundId, context.baselineSpecial().kineticSoundId)
-                        && Objects.equals(context.special().kineticHitSoundId, context.baselineSpecial().kineticHitSoundId),
+                        && Objects.equals(
+                                context.special().kineticHitSoundId, context.baselineSpecial().kineticHitSoundId),
                 context.special().kineticContactCooldownTicks.isBlank()
                         && context.special().kineticDelayTicks.isBlank()
                         && context.special().kineticForwardMovement.isBlank()
                         && context.special().kineticDamageMultiplier.isBlank()
                         && context.special().kineticSoundId.isBlank()
-                        && context.special().kineticHitSoundId.isBlank()
-        )) {
+                        && context.special().kineticHitSoundId.isBlank())) {
             return;
         }
 
         KineticWeapon original = context.originalStack().get(DataComponents.KINETIC_WEAPON);
-        Integer contactCooldownTicks = context.special().kineticContactCooldownTicks.isBlank()
-                ? this.valueFromOriginal(original, KineticWeapon::contactCooldownTicks, 0)
-                : ValidationUtil.parseInt(
-                        context.special().kineticContactCooldownTicks,
-                        ItemEditorText.str("special.advanced.combat.kinetic_contact_cooldown"),
-                        0,
-                        72000,
-                        context.messages()
-                );
+        Integer contactCooldownTicks =
+                context.special().kineticContactCooldownTicks.isBlank()
+                        ? this.valueFromOriginal(original, KineticWeapon::contactCooldownTicks, 0)
+                        : ValidationUtil.parseInt(
+                                context.special().kineticContactCooldownTicks,
+                                ItemEditorText.str("special.advanced.combat.kinetic_contact_cooldown"),
+                                0,
+                                72000,
+                                context.messages());
         Integer delayTicks = context.special().kineticDelayTicks.isBlank()
                 ? this.valueFromOriginal(original, KineticWeapon::delayTicks, 0)
                 : ValidationUtil.parseInt(
@@ -1880,22 +1977,19 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         ItemEditorText.str("special.advanced.combat.kinetic_delay_ticks"),
                         0,
                         72000,
-                        context.messages()
-                );
+                        context.messages());
         Float forwardMovement = context.special().kineticForwardMovement.isBlank()
                 ? this.valueFromOriginal(original, KineticWeapon::forwardMovement, 0.0F)
                 : ValidationUtil.parseFloat(
                         context.special().kineticForwardMovement,
                         ItemEditorText.str("special.advanced.combat.kinetic_forward_movement"),
-                        context.messages()
-                );
+                        context.messages());
         Float damageMultiplier = context.special().kineticDamageMultiplier.isBlank()
                 ? this.valueFromOriginal(original, KineticWeapon::damageMultiplier, 1.0F)
                 : ValidationUtil.parseFloat(
                         context.special().kineticDamageMultiplier,
                         ItemEditorText.str("special.advanced.combat.kinetic_damage_multiplier"),
-                        context.messages()
-                );
+                        context.messages());
         if (contactCooldownTicks == null
                 || delayTicks == null
                 || forwardMovement == null
@@ -1911,34 +2005,31 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context.special().kineticSoundId,
                 this.valueFromOriginal(original, value -> value.sound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.kinetic_sound"),
-                context.messages()
-        );
+                context.messages());
         Optional<Holder<SoundEvent>> hitSound = this.resolveOptionalSoundHolder(
                 soundRegistry,
                 context.special().kineticHitSoundId,
                 this.valueFromOriginal(original, value -> value.hitSound().orElse(null), null),
                 ItemEditorText.str("special.advanced.combat.kinetic_hit_sound"),
-                context.messages()
-        );
+                context.messages());
         if (this.hasInvalidOptionalInput(context.special().kineticSoundId, sound.isPresent())
                 || this.hasInvalidOptionalInput(context.special().kineticHitSoundId, hitSound.isPresent())) {
             return;
         }
 
-        context.previewStack().set(
-                DataComponents.KINETIC_WEAPON,
-                new KineticWeapon(
-                        contactCooldownTicks,
-                        delayTicks,
-                        this.optionalFromOriginal(original, KineticWeapon::dismountConditions),
-                        this.optionalFromOriginal(original, KineticWeapon::knockbackConditions),
-                        this.optionalFromOriginal(original, KineticWeapon::damageConditions),
-                        forwardMovement,
-                        damageMultiplier,
-                        sound,
-                        hitSound
-                )
-        );
+        context.previewStack()
+                .set(
+                        DataComponents.KINETIC_WEAPON,
+                        new KineticWeapon(
+                                contactCooldownTicks,
+                                delayTicks,
+                                this.optionalFromOriginal(original, KineticWeapon::dismountConditions),
+                                this.optionalFromOriginal(original, KineticWeapon::knockbackConditions),
+                                this.optionalFromOriginal(original, KineticWeapon::damageConditions),
+                                forwardMovement,
+                                damageMultiplier,
+                                sound,
+                                hitSound));
     }
 
     private void applySwingAnimation(SpecialDataApplyContext context) {
@@ -1946,9 +2037,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 context,
                 DataComponents.SWING_ANIMATION,
                 Objects.equals(context.special().swingAnimationType, context.baselineSpecial().swingAnimationType)
-                        && Objects.equals(context.special().swingAnimationDuration, context.baselineSpecial().swingAnimationDuration),
-                context.special().swingAnimationType.isBlank() && context.special().swingAnimationDuration.isBlank()
-        )) {
+                        && Objects.equals(
+                                context.special().swingAnimationDuration,
+                                context.baselineSpecial().swingAnimationDuration),
+                context.special().swingAnimationType.isBlank()
+                        && context.special().swingAnimationDuration.isBlank())) {
             return;
         }
 
@@ -1956,8 +2049,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         SwingAnimationType type = this.parseSwingAnimationType(
                 context.special().swingAnimationType,
                 this.valueFromOriginal(original, SwingAnimation::type, SwingAnimation.DEFAULT.type()),
-                context.messages()
-        );
+                context.messages());
         Integer duration = context.special().swingAnimationDuration.isBlank()
                 ? this.valueFromOriginal(original, SwingAnimation::duration, SwingAnimation.DEFAULT.duration())
                 : ValidationUtil.parseInt(
@@ -1965,8 +2057,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         ItemEditorText.str("special.advanced.combat.swing_animation_duration"),
                         0,
                         72000,
-                        context.messages()
-                );
+                        context.messages());
         if (type == null || duration == null) {
             return;
         }
@@ -1975,11 +2066,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private <T> boolean handleUnchangedOrCleared(
-            SpecialDataApplyContext context,
-            DataComponentType<T> componentType,
-            boolean unchanged,
-            boolean cleared
-    ) {
+            SpecialDataApplyContext context, DataComponentType<T> componentType, boolean unchanged, boolean cleared) {
         if (unchanged) {
             this.restoreOriginalComponent(context.originalStack(), context.previewStack(), componentType);
             return true;
@@ -1992,10 +2079,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private SwingAnimationType parseSwingAnimationType(
-            String rawType,
-            SwingAnimationType fallback,
-            List<ValidationMessage> messages
-    ) {
+            String rawType, SwingAnimationType fallback, List<ValidationMessage> messages) {
         if (rawType == null || rawType.isBlank()) {
             return fallback;
         }
@@ -2004,8 +2088,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         } catch (IllegalArgumentException exception) {
             messages.add(ValidationMessage.error(ItemEditorText.str(
                     "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.combat.swing_animation_type")
-            )));
+                    ItemEditorText.str("special.advanced.combat.swing_animation_type"))));
             return null;
         }
     }
@@ -2015,8 +2098,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             String rawId,
             Holder<SoundEvent> fallback,
             String label,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         if (rawId == null || rawId.isBlank()) {
             return Optional.ofNullable(fallback);
         }
@@ -2044,10 +2126,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private LinkedHashMap<String, String> parseBlockStateProperties(
-            String raw,
-            String label,
-            List<ValidationMessage> messages
-    ) {
+            String raw, String label, List<ValidationMessage> messages) {
         LinkedHashMap<String, String> properties = new LinkedHashMap<>();
         for (String part : raw.split("[,\\r\\n]+")) {
             String token = part.trim();
@@ -2115,17 +2194,16 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private ItemUseAnimation parseAnimation(
-            String rawAnimation,
-            ItemUseAnimation fallback,
-            List<ValidationMessage> messages
-    ) {
+            String rawAnimation, ItemUseAnimation fallback, List<ValidationMessage> messages) {
         if (rawAnimation == null || rawAnimation.isBlank()) {
             return fallback;
         }
         try {
             return ItemUseAnimation.valueOf(rawAnimation);
         } catch (IllegalArgumentException exception) {
-            messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", ItemEditorText.str("special.advanced.consumable.animation"))));
+            messages.add(ValidationMessage.error(ItemEditorText.str(
+                    "preview.validation.component_failed",
+                    ItemEditorText.str("special.advanced.consumable.animation"))));
             return null;
         }
     }
@@ -2135,8 +2213,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             String rawId,
             Holder<SoundEvent> fallback,
             String label,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         if (rawId == null || rawId.isBlank()) {
             return fallback;
         }
@@ -2154,8 +2231,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             String raw,
             String label,
             boolean allowTagExpansion,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         if (raw == null || raw.isBlank()) {
             return OptionalDamageTypeHolderSetResult.valid(null);
         }
@@ -2166,11 +2242,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
         if (!allowTagExpansion && values.size() > 1) {
             for (String value : values) {
-                if (this.isDamageTypeTagReference(registry, value)) {
-                    messages.add(ValidationMessage.error(ItemEditorText.str(
-                            "special.advanced.component_tweaks.tag_expansion_required",
-                            label
-                    )));
+                if (this.isTagReference(registry, Registries.DAMAGE_TYPE, value)) {
+                    messages.add(ValidationMessage.error(
+                            ItemEditorText.str("special.advanced.component_tweaks.tag_expansion_required", label)));
                     return OptionalDamageTypeHolderSetResult.invalid();
                 }
             }
@@ -2178,7 +2252,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         List<Holder<DamageType>> holders = new ArrayList<>();
         for (String value : values) {
             if (value.startsWith("#")) {
-                Optional<HolderSet.Named<DamageType>> tag = this.resolveDamageTypeTag(registry, value.substring(1), label, messages);
+                Optional<HolderSet.Named<DamageType>> tag =
+                        this.resolveTag(registry, Registries.DAMAGE_TYPE, value.substring(1), label, messages);
                 if (tag.isEmpty()) {
                     return OptionalDamageTypeHolderSetResult.invalid();
                 }
@@ -2191,7 +2266,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
             Holder<DamageType> holder = RegistryUtil.resolveHolder(registry, value);
             if (holder == null) {
-                Optional<HolderSet.Named<DamageType>> tag = this.resolveDamageTypeTag(registry, value, label, messages);
+                Optional<HolderSet.Named<DamageType>> tag =
+                        this.resolveTag(registry, Registries.DAMAGE_TYPE, value, label, messages);
                 if (tag.isEmpty()) {
                     return OptionalDamageTypeHolderSetResult.invalid();
                 }
@@ -2206,48 +2282,12 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return OptionalDamageTypeHolderSetResult.valid(HolderSet.direct(holders));
     }
 
-    private Optional<HolderSet.Named<DamageType>> resolveDamageTypeTag(
-            Registry<DamageType> registry,
-            String rawId,
-            String label,
-            List<ValidationMessage> messages
-    ) {
-        Identifier tagId = IdFieldNormalizer.parse(rawId);
-        if (tagId == null) {
-            this.reportMissingRegistry(label, rawId, messages);
-            return Optional.empty();
-        }
-
-        Optional<HolderSet.Named<DamageType>> tag = registry.get(
-                TagKey.create(Registries.DAMAGE_TYPE, tagId)
-        );
-        if (tag.isEmpty()) {
-            this.reportMissingRegistry(label, rawId, messages);
-        }
-        return tag;
-    }
-
-    private boolean isDamageTypeTagReference(Registry<DamageType> registry, String value) {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-        if (value.startsWith("#")) {
-            return true;
-        }
-        if (RegistryUtil.resolveHolder(registry, value) != null) {
-            return false;
-        }
-        Identifier tagId = IdFieldNormalizer.parse(value);
-        return tagId != null && registry.get(TagKey.create(Registries.DAMAGE_TYPE, tagId)).isPresent();
-    }
-
     private HolderSetResult<Block> parseBlockHolderSet(
             Registry<Block> registry,
             String raw,
             String label,
             boolean allowTagExpansion,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         List<String> values = this.splitIdentifierList(raw);
         if (values.isEmpty()) {
             messages.add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
@@ -2255,11 +2295,9 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
         if (!allowTagExpansion && values.size() > 1) {
             for (String value : values) {
-                if (this.isBlockTagReference(registry, value)) {
-                    messages.add(ValidationMessage.error(ItemEditorText.str(
-                            "special.advanced.component_tweaks.tag_expansion_required",
-                            label
-                    )));
+                if (this.isTagReference(registry, Registries.BLOCK, value)) {
+                    messages.add(ValidationMessage.error(
+                            ItemEditorText.str("special.advanced.component_tweaks.tag_expansion_required", label)));
                     return HolderSetResult.invalid();
                 }
             }
@@ -2268,7 +2306,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         List<Holder<Block>> holders = new ArrayList<>();
         for (String value : values) {
             if (value.startsWith("#")) {
-                Optional<HolderSet.Named<Block>> tag = this.resolveBlockTag(registry, value.substring(1), label, messages);
+                Optional<HolderSet.Named<Block>> tag =
+                        this.resolveTag(registry, Registries.BLOCK, value.substring(1), label, messages);
                 if (tag.isEmpty()) {
                     return HolderSetResult.invalid();
                 }
@@ -2281,7 +2320,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
             Holder<Block> holder = RegistryUtil.resolveHolder(registry, value);
             if (holder == null) {
-                Optional<HolderSet.Named<Block>> tag = this.resolveBlockTag(registry, value, label, messages);
+                Optional<HolderSet.Named<Block>> tag =
+                        this.resolveTag(registry, Registries.BLOCK, value, label, messages);
                 if (tag.isEmpty()) {
                     return HolderSetResult.invalid();
                 }
@@ -2296,26 +2336,27 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         return HolderSetResult.valid(HolderSet.direct(holders));
     }
 
-    private Optional<HolderSet.Named<Block>> resolveBlockTag(
-            Registry<Block> registry,
+    private <T> Optional<HolderSet.Named<T>> resolveTag(
+            Registry<T> registry,
+            ResourceKey<? extends Registry<T>> registryKey,
             String rawId,
             String label,
-            List<ValidationMessage> messages
-    ) {
+            List<ValidationMessage> messages) {
         Identifier tagId = IdFieldNormalizer.parse(rawId);
         if (tagId == null) {
             this.reportMissingRegistry(label, rawId, messages);
             return Optional.empty();
         }
 
-        Optional<HolderSet.Named<Block>> tag = registry.get(TagKey.create(Registries.BLOCK, tagId));
+        Optional<HolderSet.Named<T>> tag = registry.get(TagKey.create(registryKey, tagId));
         if (tag.isEmpty()) {
             this.reportMissingRegistry(label, rawId, messages);
         }
         return tag;
     }
 
-    private boolean isBlockTagReference(Registry<Block> registry, String value) {
+    private <T> boolean isTagReference(
+            Registry<T> registry, ResourceKey<? extends Registry<T>> registryKey, String value) {
         if (value == null || value.isBlank()) {
             return false;
         }
@@ -2326,46 +2367,42 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return false;
         }
         Identifier tagId = IdFieldNormalizer.parse(value);
-        return tagId != null && registry.get(TagKey.create(Registries.BLOCK, tagId)).isPresent();
+        return tagId != null && registry.get(TagKey.create(registryKey, tagId)).isPresent();
     }
 
-    private List<BlocksAttacks.DamageReduction> parseBlocksAttacksDamageReductions(
-            SpecialDataApplyContext context
-    ) {
+    private List<BlocksAttacks.DamageReduction> parseBlocksAttacksDamageReductions(SpecialDataApplyContext context) {
         Registry<DamageType> damageTypeRegistry = context.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
         List<BlocksAttacks.DamageReduction> reductions = new ArrayList<>();
-        for (ItemEditorState.BlocksAttacksDamageReductionDraft draft : context.special().blocksAttacksDamageReductions) {
+        for (ItemEditorState.BlocksAttacksDamageReductionDraft draft :
+                context.special().blocksAttacksDamageReductions) {
             String label = ItemEditorText.str("special.advanced.combat.blocks_attacks_damage_reductions");
             Float angle = this.parseFloatField(
                     draft.horizontalBlockingAngle,
                     90.0F,
                     ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_angle"),
-                    context.messages()
-            );
+                    context.messages());
             Float base = this.parseFloatField(
                     draft.base,
                     0.0F,
                     ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_base"),
-                    context.messages()
-            );
+                    context.messages());
             Float factor = this.parseFloatField(
                     draft.factor,
                     1.0F,
                     ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_factor"),
-                    context.messages()
-            );
+                    context.messages());
             OptionalDamageTypeHolderSetResult type = this.parseOptionalDamageTypeHolderSet(
                     damageTypeRegistry,
                     draft.typeIds,
                     ItemEditorText.str("special.advanced.combat.blocks_attacks_reduction_types"),
                     draft.allowTagExpansion,
-                    context.messages()
-            );
+                    context.messages());
             if (angle == null || base == null || factor == null || !type.valid()) {
                 return null;
             }
             if (angle <= 0.0F) {
-                context.messages().add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
+                context.messages()
+                        .add(ValidationMessage.error(ItemEditorText.str("preview.validation.component_failed", label)));
                 return null;
             }
             reductions.add(new BlocksAttacks.DamageReduction(angle, type.value(), base, factor));
@@ -2374,49 +2411,39 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     }
 
     private BlocksAttacks.ItemDamageFunction parseBlocksAttacksItemDamage(
-            SpecialDataApplyContext context,
-            BlocksAttacks original
-    ) {
-        BlocksAttacks.ItemDamageFunction fallback = this.valueFromOriginal(
-                original,
-                BlocksAttacks::itemDamage,
-                BlocksAttacks.ItemDamageFunction.DEFAULT
-        );
+            SpecialDataApplyContext context, BlocksAttacks original) {
+        BlocksAttacks.ItemDamageFunction fallback =
+                this.valueFromOriginal(original, BlocksAttacks::itemDamage, BlocksAttacks.ItemDamageFunction.DEFAULT);
         Float threshold = this.parseFloatField(
                 context.special().blocksAttacksItemDamageThreshold,
                 fallback.threshold(),
                 ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_threshold"),
-                context.messages()
-        );
+                context.messages());
         Float base = this.parseFloatField(
                 context.special().blocksAttacksItemDamageBase,
                 fallback.base(),
                 ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_base"),
-                context.messages()
-        );
+                context.messages());
         Float factor = this.parseFloatField(
                 context.special().blocksAttacksItemDamageFactor,
                 fallback.factor(),
                 ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_factor"),
-                context.messages()
-        );
+                context.messages());
         if (threshold == null || base == null || factor == null) {
             return null;
         }
         if (threshold < 0.0F) {
-            context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                    "preview.validation.component_failed",
-                    ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_threshold")
-            )));
+            context.messages()
+                    .add(ValidationMessage.error(ItemEditorText.str(
+                            "preview.validation.component_failed",
+                            ItemEditorText.str("special.advanced.combat.blocks_attacks_item_damage_threshold"))));
             return null;
         }
         return new BlocksAttacks.ItemDamageFunction(threshold, base, factor);
     }
 
     private record OptionalDamageTypeHolderSetResult(
-            @Nullable HolderSet<DamageType> holderSet,
-            boolean valid
-    ) {
+            @Nullable HolderSet<DamageType> holderSet, boolean valid) {
         private Optional<HolderSet<DamageType>> value() {
             return Optional.ofNullable(this.holderSet);
         }
@@ -2430,10 +2457,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         }
     }
 
-    private record HolderSetResult<T>(
-            @Nullable HolderSet<T> holderSet,
-            boolean valid
-    ) {
+    private record HolderSetResult<T>(@Nullable HolderSet<T> holderSet, boolean valid) {
         private static <T> HolderSetResult<T> valid(HolderSet<T> value) {
             return new HolderSetResult<>(value, true);
         }
@@ -2452,83 +2476,71 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
 
     private boolean sameChargedProjectiles(
             List<ItemEditorState.ChargedProjectileDraft> current,
-            List<ItemEditorState.ChargedProjectileDraft> baseline
-    ) {
-        return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.itemId, right.itemId)
+            List<ItemEditorState.ChargedProjectileDraft> baseline) {
+        return this.sameList(
+                current,
+                baseline,
+                (left, right) -> Objects.equals(left.itemId, right.itemId)
                         && Objects.equals(left.count, right.count)
-                        && Objects.equals(left.templateSnbt, right.templateSnbt)
-        );
+                        && Objects.equals(left.templateSnbt, right.templateSnbt));
     }
 
     private boolean sameBeeOccupants(
-            List<ItemEditorState.BeeOccupantDraft> current,
-            List<ItemEditorState.BeeOccupantDraft> baseline
-    ) {
-        return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.entityId, right.entityId)
+            List<ItemEditorState.BeeOccupantDraft> current, List<ItemEditorState.BeeOccupantDraft> baseline) {
+        return this.sameList(
+                current,
+                baseline,
+                (left, right) -> Objects.equals(left.entityId, right.entityId)
                         && Objects.equals(left.ticksInHive, right.ticksInHive)
-                        && Objects.equals(left.minTicksInHive, right.minTicksInHive)
-        );
+                        && Objects.equals(left.minTicksInHive, right.minTicksInHive));
     }
 
     private boolean sameMapDecorations(
-            List<ItemEditorState.MapDecorationDraft> current,
-            List<ItemEditorState.MapDecorationDraft> baseline
-    ) {
-        return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.key, right.key)
+            List<ItemEditorState.MapDecorationDraft> current, List<ItemEditorState.MapDecorationDraft> baseline) {
+        return this.sameList(
+                current,
+                baseline,
+                (left, right) -> Objects.equals(left.key, right.key)
                         && Objects.equals(left.typeId, right.typeId)
                         && Objects.equals(left.x, right.x)
                         && Objects.equals(left.z, right.z)
-                        && Objects.equals(left.rotation, right.rotation)
-        );
+                        && Objects.equals(left.rotation, right.rotation));
     }
 
     private boolean sameBlocksAttacksDamageReductions(
             List<ItemEditorState.BlocksAttacksDamageReductionDraft> current,
-            List<ItemEditorState.BlocksAttacksDamageReductionDraft> baseline
-    ) {
-        return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.typeIds, right.typeIds)
+            List<ItemEditorState.BlocksAttacksDamageReductionDraft> baseline) {
+        return this.sameList(
+                current,
+                baseline,
+                (left, right) -> Objects.equals(left.typeIds, right.typeIds)
                         && Objects.equals(left.horizontalBlockingAngle, right.horizontalBlockingAngle)
                         && Objects.equals(left.base, right.base)
-                        && Objects.equals(left.factor, right.factor)
-        );
+                        && Objects.equals(left.factor, right.factor));
     }
 
     private boolean sameConsumableEffects(
-            List<ItemEditorState.ConsumableEffectDraft> current,
-            List<ItemEditorState.ConsumableEffectDraft> baseline
-    ) {
-        return this.sameList(current, baseline, (left, right) ->
-                Objects.equals(left.type, right.type)
+            List<ItemEditorState.ConsumableEffectDraft> current, List<ItemEditorState.ConsumableEffectDraft> baseline) {
+        return this.sameList(
+                current,
+                baseline,
+                (left, right) -> Objects.equals(left.type, right.type)
                         && Objects.equals(left.probability, right.probability)
+                        && Objects.equals(left.diameter, right.diameter)
                         && Objects.equals(left.soundId, right.soundId)
-                        && this.sameList(left.effects, right.effects, (leftEffect, rightEffect) ->
-                                Objects.equals(leftEffect.effectId, rightEffect.effectId)
-                                        && Objects.equals(leftEffect.duration, rightEffect.duration)
-                                        && Objects.equals(leftEffect.amplifier, rightEffect.amplifier)
-                                        && leftEffect.ambient == rightEffect.ambient
-                                        && Objects.equals(leftEffect.visible, rightEffect.visible)
-                                        && Objects.equals(leftEffect.showIcon, rightEffect.showIcon)
-                        )
-        );
+                        && this.sameList(
+                                left.effects, right.effects, ItemEditorState.PotionEffectDraft::hasSameValues));
     }
 
     private List<ConsumeEffect> parseConsumableEffects(SpecialDataApplyContext context) {
         return this.parseConsumableEffects(
                 context,
                 context.special().consumableOnConsumeEffects,
-                ItemEditorText.str("special.advanced.consumable.on_consume_effects")
-        );
+                ItemEditorText.str("special.advanced.consumable.on_consume_effects"));
     }
 
     private List<ConsumeEffect> parseConsumableEffects(
-            SpecialDataApplyContext context,
-            List<ItemEditorState.ConsumableEffectDraft> drafts,
-            String effectsLabel
-    ) {
+            SpecialDataApplyContext context, List<ItemEditorState.ConsumableEffectDraft> drafts, String effectsLabel) {
         List<ConsumeEffect> effects = new ArrayList<>();
         Registry<MobEffect> effectRegistry = context.registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
         Registry<SoundEvent> soundRegistry = context.registryAccess().lookupOrThrow(Registries.SOUND_EVENT);
@@ -2540,37 +2552,50 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             }
 
             switch (normalizedType) {
-                case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS -> effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
+                case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS ->
+                    effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
+                case ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY -> {
+                    Float diameter = draft.diameter.isBlank()
+                            ? Float.valueOf(new TeleportRandomlyConsumeEffect().diameter())
+                            : ValidationUtil.parseFloat(
+                                    draft.diameter,
+                                    ItemEditorText.str("special.advanced.consumable.diameter"),
+                                    context.messages());
+                    if (diameter == null) return null;
+                    if (!Float.isFinite(diameter) || diameter <= 0) {
+                        context.messages()
+                                .add(ValidationMessage.error(ItemEditorText.str(
+                                        "preview.validation.component_failed",
+                                        ItemEditorText.str("special.advanced.consumable.diameter"))));
+                        return null;
+                    }
+                    effects.add(new TeleportRandomlyConsumeEffect(diameter));
+                }
                 case ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS -> {
                     Float probability = draft.probability.isBlank()
                             ? Float.valueOf(1.0F)
                             : ValidationUtil.parseFloat(
                                     draft.probability,
                                     ItemEditorText.str("special.advanced.consumable.effect_probability"),
-                                    context.messages()
-                            );
+                                    context.messages());
                     if (probability == null) {
                         return null;
                     }
                     if (probability < 0.0F || probability > 1.0F) {
-                        context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                                "preview.validation.component_failed",
-                                ItemEditorText.str("special.advanced.consumable.effect_probability")
-                        )));
+                        context.messages()
+                                .add(ValidationMessage.error(ItemEditorText.str(
+                                        "preview.validation.component_failed",
+                                        ItemEditorText.str("special.advanced.consumable.effect_probability"))));
                         return null;
                     }
 
-                    List<MobEffectInstance> mobEffects = this.parsePotionEffectInstances(
-                            draft.effects,
-                            effectRegistry,
-                            context.messages()
-                    );
+                    List<MobEffectInstance> mobEffects =
+                            this.parsePotionEffectInstances(draft.effects, effectRegistry, context.messages());
 
                     if (mobEffects.isEmpty()) {
-                        context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                                "preview.validation.component_failed",
-                                effectsLabel
-                        )));
+                        context.messages()
+                                .add(ValidationMessage.error(
+                                        ItemEditorText.str("preview.validation.component_failed", effectsLabel)));
                         return null;
                     }
 
@@ -2582,18 +2607,17 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                             draft.soundId,
                             null,
                             ItemEditorText.str("special.advanced.consumable.effect_sound"),
-                            context.messages()
-                    );
+                            context.messages());
                     if (effectSound == null) {
                         return null;
                     }
                     effects.add(new PlaySoundConsumeEffect(effectSound));
                 }
                 default -> {
-                    context.messages().add(ValidationMessage.error(ItemEditorText.str(
-                            "preview.validation.component_failed",
-                            ItemEditorText.str("special.advanced.consumable.effect_type")
-                    )));
+                    context.messages()
+                            .add(ValidationMessage.error(ItemEditorText.str(
+                                    "preview.validation.component_failed",
+                                    ItemEditorText.str("special.advanced.consumable.effect_type"))));
                     return null;
                 }
             }

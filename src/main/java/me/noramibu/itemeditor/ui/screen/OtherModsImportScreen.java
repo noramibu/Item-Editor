@@ -43,20 +43,29 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
     private LabelComponent librarianLabel;
     private LabelComponent statusLabel;
 
+    public OtherModsImportScreen(Minecraft minecraft, Screen returnScreen) {
+        this(
+                minecraft,
+                StorageScreen.lastRuntimePage(),
+                StorageScreen.lastRuntimeQuery(),
+                StorageScreen.lastRuntimeSortMode(),
+                StorageScreen.rememberedMode(),
+                returnScreen);
+    }
+
     public OtherModsImportScreen(
             Minecraft minecraft,
             int returnPage,
             String returnQuery,
             StorageSortMode returnSortMode,
             StorageScreenMode returnMode,
-            Screen returnScreen
-    ) {
-        super(ItemEditorText.tr("storage.import_other_mods.title"));
+            Screen returnScreen) {
+        super(ItemEditorText.tr("storage.import_other_mods"));
         this.minecraft = minecraft;
         this.returnPage = Math.max(1, returnPage);
         this.returnQuery = returnQuery == null ? "" : returnQuery;
         this.returnSortMode = returnSortMode == null ? StorageSortMode.REGULAR : returnSortMode;
-        this.returnMode = returnMode == null ? StorageScreenMode.MANAGE : returnMode;
+        this.returnMode = returnMode == null ? StorageScreenMode.COPY_IMPORT : returnMode;
         this.returnScreen = returnScreen;
     }
 
@@ -71,14 +80,13 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
         root.surface(MenuBackgroundSurface.standard());
 
         FlowLayout card = UiFactory.centeredCard(CARD_WIDTH);
-        card.child(UiFactory.title(ItemEditorText.tr("storage.import_other_mods.title")));
+        card.child(UiFactory.title(ItemEditorText.tr("storage.import_other_mods")));
         card.child(UiFactory.muted(ItemEditorText.tr("storage.import_other_mods.help"), UiFactory.scaledPixels(280)));
 
         CheckboxComponent nbtEditor = UiFactory.checkbox(
                 ItemEditorText.tr("storage.import_other_mods.nbt_editor"),
                 this.importNbtEditor,
-                checked -> this.importNbtEditor = checked
-        );
+                checked -> this.importNbtEditor = checked);
         card.child(nbtEditor);
         this.nbtEditorLabel = UiFactory.muted(Component.literal(" "), UiFactory.scaledPixels(280));
         card.child(this.nbtEditorLabel);
@@ -86,18 +94,23 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
         CheckboxComponent librarian = UiFactory.checkbox(
                 ItemEditorText.tr("storage.import_other_mods.librarian"),
                 this.importLibrarian,
-                checked -> this.importLibrarian = checked
-        );
+                checked -> this.importLibrarian = checked);
         card.child(librarian);
         this.librarianLabel = UiFactory.muted(Component.literal(" "), UiFactory.scaledPixels(280));
         card.child(this.librarianLabel);
 
         card.child(UiFactory.actionButtonRow(
-                UiFactory.positiveButton(ItemEditorText.tr("storage.import_other_mods.import_selected"), UiFactory.ButtonTextPreset.STANDARD, button -> this.importSelected()),
-                UiFactory.button(ItemEditorText.tr("common.cancel"), UiFactory.ButtonTextPreset.STANDARD, button -> this.openPages())
-        ));
+                UiFactory.positiveButton(
+                        ItemEditorText.tr("storage.import_other_mods.import_selected"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> this.importSelected()),
+                UiFactory.button(
+                        ItemEditorText.tr("common.cancel"),
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        button -> this.openPages())));
 
-        this.statusLabel = UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(UiFactory.scaledPixels(280));
+        this.statusLabel =
+                UiFactory.message(Component.literal(" "), UiColors.MUTED).maxWidth(UiFactory.scaledPixels(280));
         card.child(this.statusLabel);
 
         UiFactory.centerInRoot(root, card, 8);
@@ -106,30 +119,26 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void refreshScan() {
         this.setStatus(ItemEditorText.tr("storage.import_other_mods.scanning"), UiColors.MUTED);
-        this.importService.scan(this.minecraft).whenComplete((result, throwable) -> this.minecraft.execute(() -> {
-            if (throwable != null || result == null) {
-                this.setStatus(ItemEditorText.tr("storage.import_other_mods.scan_failed"), UiColors.DANGER);
-                return;
-            }
-            this.nbtEditorPages = result.nbtEditorPages();
-            this.librarianPages = result.librarianPages();
-            this.updateSourceLabels();
-            this.setStatus(Component.literal(" "), UiColors.MUTED);
-        }));
+        this.importService
+                .scan(this.minecraft)
+                .whenComplete((result, throwable) -> this.minecraft.execute(() -> {
+                    if (throwable != null || result == null) {
+                        this.setStatus(ItemEditorText.tr("storage.import_other_mods.scan_failed"), UiColors.DANGER);
+                        return;
+                    }
+                    this.nbtEditorPages = result.nbtEditorPages();
+                    this.librarianPages = result.librarianPages();
+                    this.updateSourceLabels();
+                    this.setStatus(Component.literal(" "), UiColors.MUTED);
+                }));
     }
 
     private void updateSourceLabels() {
         if (this.nbtEditorLabel != null) {
-            this.nbtEditorLabel.text(ItemEditorText.tr(
-                    "storage.import_other_mods.source_count",
-                    this.nbtEditorPages
-            ));
+            this.nbtEditorLabel.text(ItemEditorText.tr("storage.import_other_mods.source_count", this.nbtEditorPages));
         }
         if (this.librarianLabel != null) {
-            this.librarianLabel.text(ItemEditorText.tr(
-                    "storage.import_other_mods.source_count",
-                    this.librarianPages
-            ));
+            this.librarianLabel.text(ItemEditorText.tr("storage.import_other_mods.source_count", this.librarianPages));
         }
     }
 
@@ -146,33 +155,32 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                         this.registryAccess(),
                         this.importNbtEditor,
                         this.importLibrarian,
-                        this::showReadProgress
-                )
-                .thenCompose(read -> this.storage.enqueueImportPages(
-                                read.pages(),
-                                this.registryAccess(),
-                                this::showSaveProgress
-                        )
+                        this::showReadProgress)
+                .thenCompose(read -> this.storage
+                        .enqueueImportPages(read.pages(), this.registryAccess(), this::showSaveProgress)
                         .thenApply(saved -> new ImportUiResult(read, saved)))
-                .whenComplete((result, throwable) -> this.minecraft.execute(() -> this.handleImportResult(result, throwable)));
+                .whenComplete((result, throwable) ->
+                        this.minecraft.execute(() -> this.handleImportResult(result, throwable)));
     }
 
     private void handleImportResult(ImportUiResult result, Throwable throwable) {
         this.importRunning = false;
         if (throwable != null || result == null) {
-            this.setStatus(ItemEditorText.tr(
-                    "storage.import_other_mods.failed",
-                    throwable == null ? ItemEditorText.str("raw.unknown_error") : throwable.getMessage()
-            ), UiColors.DANGER);
+            this.setStatus(
+                    ItemEditorText.tr(
+                            "storage.import_other_mods.failed",
+                            throwable == null ? ItemEditorText.str("raw.unknown_error") : throwable.getMessage()),
+                    UiColors.DANGER);
             return;
         }
         this.storage.flushQueuedWrites();
-        this.setStatus(ItemEditorText.tr(
-                "storage.import_other_mods.imported",
-                result.saved().pages(),
-                result.saved().items(),
-                result.read().warnings().size()
-        ), result.saved().pages() > 0 ? UiColors.SUCCESS : UiColors.DANGER);
+        this.setStatus(
+                ItemEditorText.tr(
+                        "storage.import_other_mods.imported",
+                        result.saved().pages(),
+                        result.saved().items(),
+                        result.read().warnings().size()),
+                result.saved().pages() > 0 ? UiColors.SUCCESS : UiColors.DANGER);
     }
 
     private void showReadProgress(ExternalStorageImportService.ProgressUpdate progress) {
@@ -183,14 +191,17 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
             if (!this.importRunning) {
                 return;
             }
-            String message = switch (progress.phase()) {
-                case "read_items" -> "Reading " + progress.source() + " page "
-                        + progress.current() + "/" + Math.max(1, progress.total())
-                        + " (" + progress.items() + " slots checked)";
-                case "read_done" -> "Decoded " + progress.current() + " page(s), saving...";
-                default -> "Reading " + progress.source() + " page "
-                        + progress.current() + "/" + Math.max(1, progress.total());
-            };
+            String message =
+                    switch (progress.phase()) {
+                        case "read_items" ->
+                            "Reading " + progress.source() + " page "
+                                    + progress.current() + "/" + Math.max(1, progress.total())
+                                    + " (" + progress.items() + " slots checked)";
+                        case "read_done" -> "Decoded " + progress.current() + " page(s), saving...";
+                        default ->
+                            "Reading " + progress.source() + " page " + progress.current() + "/"
+                                    + Math.max(1, progress.total());
+                    };
             this.setStatus(Component.literal(message), UiColors.MUTED);
         });
     }
@@ -203,13 +214,15 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
             if (!this.importRunning) {
                 return;
             }
-            String message = switch (progress.phase()) {
-                case "save_items" -> "Saving imported page " + progress.current()
-                        + "/" + Math.max(1, progress.total())
-                        + " (" + progress.items() + " items saved)";
-                case "finalize" -> "Finalizing storage index...";
-                default -> "Saving imported page " + progress.current() + "/" + Math.max(1, progress.total());
-            };
+            String message =
+                    switch (progress.phase()) {
+                        case "save_items" ->
+                            "Saving imported page " + progress.current()
+                                    + "/" + Math.max(1, progress.total())
+                                    + " (" + progress.items() + " items saved)";
+                        case "finalize" -> "Finalizing storage index...";
+                        default -> "Saving imported page " + progress.current() + "/" + Math.max(1, progress.total());
+                    };
             this.setStatus(Component.literal(message), UiColors.MUTED);
         });
     }
@@ -233,8 +246,7 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
                 this.returnQuery,
                 this.returnSortMode,
                 this.returnMode,
-                this.returnScreen
-        ));
+                this.returnScreen));
     }
 
     @Override
@@ -243,8 +255,5 @@ public final class OtherModsImportScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private record ImportUiResult(
-            ExternalStorageImportService.ImportReadResult read,
-            SavedItemStorageService.StorageImportResult saved
-    ) {
-    }
+            ExternalStorageImportService.ImportReadResult read, SavedItemStorageService.StorageImportResult saved) {}
 }
