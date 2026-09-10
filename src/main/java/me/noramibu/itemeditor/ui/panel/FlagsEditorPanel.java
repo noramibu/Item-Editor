@@ -197,17 +197,20 @@ public final class FlagsEditorPanel implements EditorPanel {
 
     public static List<EditorSearchDialog.Target> searchTargets(ItemEditorScreen screen, String category) {
         return OPTIONS.stream()
-                .map(option -> new EditorSearchDialog.Target(
-                        List.of(
-                                category,
-                                HiddenField.TITLE.text(),
-                                option.label().getString()),
-                        option.id() + " " + option.fallback() + " "
-                                + EditorSearchDialog.english(option.labelPath()) + " "
-                                + EditorSearchDialog.english(HiddenField.TITLE.path()),
-                        () -> screen.revealSearchTarget(
-                                EditorCategory.FLAGS,
-                                new EditorSearchDialog.Location(option.scope(), option.scope() + ":label"))))
+                .map(option -> {
+                    EditorSearchDialog.Location location =
+                            new EditorSearchDialog.Location(option.scope(), option.scope() + ":label");
+                    return new EditorSearchDialog.Target(
+                            List.of(
+                                    category,
+                                    HiddenField.TITLE.text(),
+                                    option.label().getString()),
+                            option.id() + " " + option.fallback() + " "
+                                    + EditorSearchDialog.english(option.labelPath()) + " "
+                                    + EditorSearchDialog.english(HiddenField.TITLE.path()),
+                            location,
+                            () -> screen.revealSearchTarget(EditorCategory.FLAGS, location));
+                })
                 .toList();
     }
 

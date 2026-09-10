@@ -42,10 +42,15 @@ final class DisplayPreviewApplier extends AbstractPreviewApplierSupport implemen
     }
 
     private boolean sameLoreAsOriginal(List<ItemEditorState.LoreLineDraft> lines, ItemLore originalLore) {
+        if (lines.isEmpty() && (originalLore == null || originalLore.lines().isEmpty())) {
+            return true;
+        }
         if (originalLore == null || lines.size() != originalLore.lines().size()) {
             return false;
         }
         for (int index = 0; index < lines.size(); index++) {
+            Component retained = lines.get(index).originalComponent;
+            if (retained != null && !retained.equals(originalLore.lines().get(index))) return false;
             if (!this.sameDraftAsComponent(
                     lines.get(index), originalLore.lines().get(index))) {
                 return false;

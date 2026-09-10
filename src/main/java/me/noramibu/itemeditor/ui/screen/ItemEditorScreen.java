@@ -22,6 +22,7 @@ import java.util.function.Function;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.EditorModule;
 import me.noramibu.itemeditor.editor.EditorModuleRegistry;
+import me.noramibu.itemeditor.editor.ItemEditorChangeSet;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.editor.ValidationMessage;
@@ -106,12 +107,14 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private ItemComponent previewItem;
     private ButtonComponent applyButton;
     private ButtonComponent resetButton;
+    private ButtonComponent changedOnlyButton;
     private int previewTextWidthHint = PREVIEW_TEXT_WIDTH_HINT_DEFAULT;
     private boolean sessionListenerRegistered;
     private boolean previewTooltipCollapsed;
     private boolean previewValidationCollapsed;
     private boolean categoriesRailCollapsed;
     private boolean previewRailCollapsed;
+    private boolean changedOnly;
     private CompletableFuture<?> rawPanelPreparation;
     private boolean pendingInitialResponsiveRefresh;
     private int initialRelayoutPassBudget;
@@ -298,10 +301,44 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         if (this.resetButton != null) {
             this.resetButton.active(this.session.dirty());
         }
+        ItemEditorChangeSet changes = this.session.changes();
+        this.categoryController.refreshTabs(changes);
+        this.categoryController.refreshChangedMarkers(changes);
     }
 
     public void refreshCurrentPanel() {
         this.categoryController.refreshCurrentPanel(true);
+    }
+
+    boolean changedOnly() {
+        return this.changedOnly;
+    }
+
+    void toggleChangedOnly() {
+        this.changedOnly = !this.changedOnly;
+        this.updateChangedOnlyButton();
+        this.categoryController.refreshCurrentPanel(true);
+        this.requestResponsiveRelayout();
+    }
+
+    void showAllFields() {
+        this.changedOnly = false;
+        this.updateChangedOnlyButton();
+    }
+
+    Component changedOnlyButtonText() {
+        Component text = ItemEditorText.tr(this.changedOnly ? "changes.show_all" : "changes.show_only");
+        return this.changedOnly ? text.copy().withStyle(ChatFormatting.YELLOW) : text;
+    }
+
+    void bindChangedOnlyButton(ButtonComponent button) {
+        this.changedOnlyButton = button;
+    }
+
+    private void updateChangedOnlyButton() {
+        if (this.changedOnlyButton != null) {
+            this.changedOnlyButton.setMessage(this.changedOnlyButtonText());
+        }
     }
 
     public void refreshRawPanelWhenReady(CompletableFuture<?> preparation) {

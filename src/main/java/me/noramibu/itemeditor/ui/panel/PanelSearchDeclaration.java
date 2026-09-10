@@ -41,9 +41,10 @@ interface PanelSearchDeclaration {
         List<String> labels = new ArrayList<>(parents);
         labels.add(text(args));
         String terms = path() + " " + EditorSearchDialog.english(path()) + " " + aliases;
-        return new EditorSearchDialog.Target(labels, terms, () -> {
+        EditorSearchDialog.Location location = new EditorSearchDialog.Location(scope, ItemEditorText.key(path()));
+        return new EditorSearchDialog.Target(labels, terms, location, () -> {
             expand.run();
-            reveal.accept(new EditorSearchDialog.Location(scope, ItemEditorText.key(path())));
+            reveal.accept(location);
         });
     }
 

@@ -169,6 +169,14 @@ public final class ItemEditorSession {
         return this.dirty;
     }
 
+    public ItemEditorChangeSet changes() {
+        return ItemEditorChangeSet.detect(this.originalStack, this.previewStack, this.registryAccess());
+    }
+
+    public ItemEditorChangeSet changesWithValues() {
+        return ItemEditorChangeSet.between(this.originalStack, this.previewStack, this.registryAccess());
+    }
+
     public void rebuildPreview() {
         this.rebuildPreview(null);
     }

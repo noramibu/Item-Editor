@@ -506,7 +506,7 @@ public final class ItemEditorState {
         public final Map<String, String> displayValues = new LinkedHashMap<>();
         public ItemStack displayItemStack = ItemStack.EMPTY;
         public boolean uiDisplayTransformCollapsed = true;
-        public boolean uiDisplayRenderingCollapsed;
+        public boolean uiDisplayRenderingCollapsed = true;
         public final List<EntityAttributeDraft> attributes = new ArrayList<>();
         public boolean uiAttributesCollapsed = true;
         public final List<PotionEffectDraft> effects = new ArrayList<>();

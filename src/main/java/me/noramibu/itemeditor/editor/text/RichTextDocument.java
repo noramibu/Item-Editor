@@ -76,7 +76,10 @@ public final class RichTextDocument {
         for (int index = 0; index < lines.size(); index++) {
             document.segments.addAll(fromComponent(lines.get(index)).segments);
             if (index < lines.size() - 1) {
-                document.segments.add(new Segment("\n", RichTextStyle.EMPTY));
+                document.segments.add(new Segment(
+                        "\n",
+                        RichTextStyle.fromStyle(
+                                Style.EMPTY.withFont(lines.get(index).getStyle().getFont()))));
             }
         }
         document.normalize();

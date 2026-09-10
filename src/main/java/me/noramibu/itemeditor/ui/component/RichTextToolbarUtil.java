@@ -6,6 +6,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -17,6 +18,9 @@ import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.resources.FileToIdConverter;
+import net.minecraft.resources.Identifier;
 
 public final class RichTextToolbarUtil {
     private static final int TOOLBAR_BUTTON_MAX_WIDTH = 132;
@@ -30,13 +34,14 @@ public final class RichTextToolbarUtil {
     private static final int TOOLBAR_COMPACT_BUTTON_CHROME_PADDING = 10;
     private static final int TOOLBAR_CONTENT_WIDTH_MIN = 140;
     private static final int DEFAULT_SHADOW_COLOR = 0xFF000000;
-    private static final int BASIC_TOKEN_ACTION_COUNT = 3;
+    private static final int BASIC_RICH_CONTENT_ACTION_COUNT = 4;
     private static final String TOKEN_PLACEHOLDER = "text";
 
     public static final List<ToolAction> BASIC_ACTIONS = List.of(
             deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
             deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
             deferredAction("toolbar.translation", RichTextToolbarUtil::openTranslationTokenDialog),
+            deferredAction("toolbar.font", RichTextToolbarUtil::openFontDialog),
             formatAction("toolbar.short.bold", ChatFormatting.BOLD, RichTextAreaComponent::toggleBold, false),
             formatAction("toolbar.short.italic", ChatFormatting.ITALIC, RichTextAreaComponent::toggleItalic, false),
             formatAction(
@@ -54,7 +59,7 @@ public final class RichTextToolbarUtil {
     public static final List<ToolAction> EXTENDED_ACTIONS = BASIC_ACTIONS;
 
     public static final List<ToolAction> BOOK_METADATA_ACTIONS =
-            BASIC_ACTIONS.subList(BASIC_TOKEN_ACTION_COUNT, BASIC_ACTIONS.size());
+            BASIC_ACTIONS.subList(BASIC_RICH_CONTENT_ACTION_COUNT, BASIC_ACTIONS.size());
 
     public static final List<ToolAction> BOOK_OUTPUT_ACTIONS = outputActions(true, false);
 
@@ -65,6 +70,7 @@ public final class RichTextToolbarUtil {
                 deferredAction("toolbar.head", RichTextToolbarUtil::openHeadTokenDialog),
                 deferredAction("toolbar.sprite", RichTextToolbarUtil::openSpriteTokenDialog),
                 deferredAction("toolbar.translation", RichTextToolbarUtil::openTranslationTokenDialog),
+                deferredAction("toolbar.font", RichTextToolbarUtil::openFontDialog),
                 deferredAction(
                         "toolbar.event",
                         (screen, editor) ->
@@ -459,6 +465,36 @@ public final class RichTextToolbarUtil {
 
     private static void openHeadTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
         screen.openRichTextHeadDialog(ItemEditorText.str("toolbar.tooltip.head"), tokenInserter(editor));
+    }
+
+    private static void openFontDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {
+        FileToIdConverter converter = FileToIdConverter.json("font");
+        TreeSet<String> fonts = new TreeSet<>();
+        converter.listMatchingResources(Minecraft.getInstance().getResourceManager()).keySet().stream()
+                .map(converter::fileToId)
+                .filter(id ->
+                        !id.getNamespace().equals("minecraft") || !id.getPath().startsWith("include/"))
+                .map(Identifier::toString)
+                .forEach(fonts::add);
+        String current = editor.currentFont() instanceof FontDescription.Resource resource
+                ? resource.id().toString()
+                : FontDescription.DEFAULT.id().toString();
+        fonts.add(current);
+        fonts.remove(FontDescription.DEFAULT.id().toString());
+        List<String> choices = new ArrayList<>();
+        choices.add(FontDescription.DEFAULT.id().toString());
+        choices.addAll(fonts);
+        boolean hadSelection = editor.hasSelection();
+        screen.openSearchablePickerDialog(
+                ItemEditorText.str("toolbar.font"),
+                ItemEditorText.str("dialog.font.current", current),
+                choices,
+                value -> value,
+                value -> {
+                    editor.applyFont(new FontDescription.Resource(Identifier.parse(value)));
+                    editor.resumeEditing();
+                    editor.collapseUnexpectedSelection(hadSelection);
+                });
     }
 
     private static void openSpriteTokenDialog(ItemEditorScreen screen, RichTextAreaComponent editor) {

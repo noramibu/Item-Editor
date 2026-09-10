@@ -27,6 +27,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentCompactor;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
@@ -38,7 +39,7 @@ public final class DisplayEditorPanel implements EditorPanel {
     private static final int EDITOR_FRAME_OUTLINE_COLOR = 0xFF4C3F63;
     private static final int FOOTER_COUNT_WIDTH_MIN = 100;
     private static final int FOOTER_COUNT_WIDTH_COMPACT_RESERVE = 12;
-    private static final int FOOTER_COUNT_WIDTH_REGULAR_RESERVE = 170;
+    private static final int FOOTER_COUNT_WIDTH_REGULAR_RESERVE = 300;
     private static final int CLEAR_BUTTON_WIDTH_MIN = 72;
     private static final int CLEAR_BUTTON_WIDTH_MAX = 140;
     private static final int CLEAR_BUTTON_WIDTH_BASE = 116;
@@ -93,7 +94,7 @@ public final class DisplayEditorPanel implements EditorPanel {
                 path.add(category);
             }
             path.addAll(target.path());
-            targets.add(new EditorSearchDialog.Target(path, target.terms(), target.open()));
+            targets.add(new EditorSearchDialog.Target(path, target.terms(), target.location(), target.open()));
         }
     }
 
@@ -210,12 +211,32 @@ public final class DisplayEditorPanel implements EditorPanel {
         int preferredClearWidth = Math.clamp(
                 UiFactory.scaledPixels(CLEAR_BUTTON_WIDTH_BASE), CLEAR_BUTTON_WIDTH_MIN, CLEAR_BUTTON_WIDTH_MAX);
         int clearWidth = Math.min(contentWidth, preferredClearWidth);
+        ButtonComponent optimize = UiFactory.button(
+                ItemEditorText.tr("display.lore.optimize"),
+                UiFactory.ButtonTextPreset.STANDARD,
+                button -> this.optimizeLore());
+        optimize.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
+        row.child(optimize);
         clearLore.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
         if (!compactLayout) {
             clearLore.tooltip(List.of(clearLabel));
         }
         row.child(clearLore);
         return row;
+    }
+
+    private void optimizeLore() {
+        var session = this.screen.session();
+        List<Component> lines = session.previewStack()
+                .getOrDefault(DataComponents.LORE, ItemLore.EMPTY)
+                .lines();
+        if (lines.size() != session.state().loreLines.size()) return;
+        PanelBindings.mutate(this.screen, () -> {
+            for (int index = 0; index < lines.size(); index++) {
+                session.state().loreLines.get(index).originalComponent =
+                        TextComponentCompactor.compactIfSmaller(lines.get(index));
+            }
+        });
     }
 
     private RichTextDocument documentFromState(ItemEditorState state) {
