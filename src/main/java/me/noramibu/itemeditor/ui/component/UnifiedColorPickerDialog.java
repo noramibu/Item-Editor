@@ -1007,6 +1007,10 @@ public final class UnifiedColorPickerDialog {
                 : "dialog.unified_color_picker.stops_title";
     }
 
+    static int resultColor(boolean allowAlpha, int color) {
+        return allowAlpha ? color : color & 0xFFFFFF;
+    }
+
     public enum PaintMode {
         COLOR,
         GRADIENT
@@ -1235,7 +1239,7 @@ public final class UnifiedColorPickerDialog {
         private List<Integer> resultColors() {
             return this.mode == PaintMode.GRADIENT
                     ? TextColorPresets.normalizeGradientStops(this.colors)
-                    : List.of(this.selectedRgb());
+                    : List.of(resultColor(this.options.allowAlpha(), this.selectedColor()));
         }
 
         private int selectedIndex() {

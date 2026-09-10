@@ -6,6 +6,7 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
+import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
@@ -48,7 +49,8 @@ public final class LoreImageArtDialog {
     private final FlowLayout previewArea = UiFactory.column();
     private final ScrollContainer<FlowLayout> previewScroll = DialogUiUtil.scrollContentExpand(preview);
     private final LabelComponent fileLabel = UiFactory.muted(ItemEditorText.tr("display.lore.image_art.no_file"));
-    private final LabelComponent status = UiFactory.message("", 0xF2C26B);
+    private final LabelComponent status = new ScaledLabelComponent(Component.empty()).color(Color.ofRgb(0xF2C26B));
+    private SettingsScroll settings;
     private final TextBoxComponent widthBox = UiFactory.textBox(String.valueOf(DEFAULT_WIDTH), ignored -> {});
     private String widthText = String.valueOf(DEFAULT_WIDTH);
     private ColorMode colorMode = ColorMode.FULL_COLOR;
@@ -128,12 +130,12 @@ public final class LoreImageArtDialog {
         content.child(options);
 
         updatePreviewSurface();
-        content.child(status.horizontalSizing(Sizing.fill(100)));
         preview.padding(Insets.right(UiFactory.scaledScrollbarThickness(8) + 2));
         previewScroll.verticalSizing(Sizing.fill(100));
         previewArea.child(DialogUiUtil.vanillaScroll(
                 InputSafeScrollContainer.horizontal(Sizing.fill(100), Sizing.expand(100), previewScroll), 16));
-        var settings = DialogUiUtil.scrollContentExpand(content);
+        settings = new SettingsScroll(content);
+        DialogUiUtil.vanillaScroll(settings, 16);
         FlowLayout body = new FlowLayout(Sizing.fill(100), Sizing.expand(100), container -> {
             boolean wide = container.width() >= UiFactory.scaledPixels(560);
             settings.horizontalSizing(
@@ -149,6 +151,7 @@ public final class LoreImageArtDialog {
         body.child(settings);
         body.child(previewArea);
         dialog.child(body);
+        dialog.child(status.horizontalSizing(Sizing.fill(100)));
 
         replaceButton = modeButton(targetKey("replace"), () -> {
             append = false;
@@ -181,6 +184,14 @@ public final class LoreImageArtDialog {
     }
 
     private void rebuildOptions() {
+        if (settings == null) {
+            rebuildOptionControls();
+        } else {
+            settings.preserveScroll(this::rebuildOptionControls);
+        }
+    }
+
+    private void rebuildOptionControls() {
         options.clearChildren();
         if (colorMode == ColorMode.FULL_COLOR) {
             options.child(hexField("display.lore.image_art.background", backgroundColor, value -> {
@@ -373,7 +384,7 @@ public final class LoreImageArtDialog {
             showError(ItemEditorText.str("display.lore.image_art.invalid_width"));
             return;
         }
-        status.text(ItemEditorText.tr("display.lore.image_art.processing"));
+        if (result == null) setStatus(ItemEditorText.tr("display.lore.image_art.processing"));
         generation.request(
                 generator,
                 width,
@@ -406,7 +417,7 @@ public final class LoreImageArtDialog {
         applyButton.active(error == null);
         String generated =
                 ItemEditorText.str(targetKey("generated"), result.width(), result.height(), serializedLength);
-        status.text(Component.literal(error == null ? generated : generated + "\n" + error));
+        setStatus(Component.literal(error == null ? generated : generated + "\n" + error));
         updatePreviewSurface();
         preview.clearChildren();
         int previewWidth =
@@ -424,7 +435,7 @@ public final class LoreImageArtDialog {
 
     private void showError(String message) {
         if (closed) return;
-        status.text(Component.literal(
+        setStatus(Component.literal(
                 message == null || message.isBlank() ? ItemEditorText.str("raw.unknown_error") : message));
         if (applyButton != null) applyButton.active(false);
     }
@@ -435,5 +446,22 @@ public final class LoreImageArtDialog {
 
     private String targetKey(String suffix) {
         return keyPrefix + suffix;
+    }
+
+    private void setStatus(Component text) {
+        if (settings == null) status.text(text);
+        else settings.preserveScroll(() -> status.text(text));
+    }
+
+    private static final class SettingsScroll extends InputSafeScrollContainer<FlowLayout> {
+        private SettingsScroll(FlowLayout content) {
+            super(ScrollDirection.VERTICAL, Sizing.fill(100), Sizing.expand(100), content);
+        }
+
+        private void preserveScroll(Runnable update) {
+            double offset = this.scrollOffset;
+            update.run();
+            this.scrollBy(offset - this.scrollOffset, true, false);
+        }
     }
 }

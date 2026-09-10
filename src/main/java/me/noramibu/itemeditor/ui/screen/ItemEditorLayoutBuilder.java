@@ -307,6 +307,13 @@ final class ItemEditorLayoutBuilder {
 
         FlowLayout header = UiFactory.row();
         header.child(this.selectedCategoryLabel.horizontalSizing(Sizing.expand(100)));
+        ButtonComponent changesButton = UiFactory.button(
+                this.screen.changedOnlyButtonText(),
+                UiFactory.ButtonTextPreset.COMPACT,
+                button -> this.screen.toggleChangedOnly());
+        changesButton.tooltip(List.of(ItemEditorText.tr("changes.tooltip")));
+        this.screen.bindChangedOnlyButton(changesButton);
+        header.child(changesButton.horizontalSizing(UiFactory.fixed(72)));
         var searchButton = UiFactory.positiveButton(
                 ItemEditorText.tr("dialog.searchable_picker.search"),
                 UiFactory.ButtonTextPreset.COMPACT,
