@@ -29,6 +29,7 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
@@ -286,6 +287,14 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     public void applyColor(int color) {
         this.applyStyle(style -> style.withColor(color));
+    }
+
+    public FontDescription currentFont() {
+        return this.pendingStyle.font();
+    }
+
+    public void applyFont(FontDescription font) {
+        this.applyStyle(style -> style.withFont(font));
     }
 
     public void applyShadowColor(int color) {

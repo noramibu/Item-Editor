@@ -42,9 +42,10 @@ final class DocumentPanelSearch {
         path.add(category.title().getString());
         path.addAll(parents);
         if (!path.getLast().equals(label)) path.add(label);
-        return new EditorSearchDialog.Target(path, terms, () -> {
+        EditorSearchDialog.Location location = new EditorSearchDialog.Location(scope, anchor);
+        return new EditorSearchDialog.Target(path, terms, location, () -> {
             expand.run();
-            screen.revealSearchTarget(category, new EditorSearchDialog.Location(scope, anchor));
+            screen.revealSearchTarget(category, location);
         });
     }
 }

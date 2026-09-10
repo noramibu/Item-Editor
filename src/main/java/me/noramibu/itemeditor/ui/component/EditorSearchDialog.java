@@ -33,13 +33,17 @@ import org.lwjgl.glfw.GLFW;
 public final class EditorSearchDialog {
     private static final JsonObject ENGLISH = loadEnglish();
 
-    public record Target(List<String> path, String terms, Runnable open) {
+    public record Target(List<String> path, String terms, Location location, Runnable open) {
         public Target {
             path = List.copyOf(path);
         }
 
+        public Target(List<String> path, String terms, Runnable open) {
+            this(path, terms, null, open);
+        }
+
         public Target(String label, String terms, Runnable open) {
-            this(List.of(label), terms, open);
+            this(List.of(label), terms, null, open);
         }
 
         public String label() {

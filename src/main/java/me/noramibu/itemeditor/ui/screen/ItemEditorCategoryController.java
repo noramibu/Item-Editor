@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.screen;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
+import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.Color;
@@ -9,12 +10,17 @@ import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.ParentUIComponent;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.EditorModule;
+import me.noramibu.itemeditor.editor.ItemEditorChangeSet;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog.Target;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -28,6 +34,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 final class ItemEditorCategoryController {
     private static final int PANEL_SCROLL_STEP_BASE = 14;
     private static final int CATEGORY_HEADER_HORIZONTAL_RESERVE_BASE = 16;
+    private static final int CATEGORY_HEADER_ACTIONS_WIDTH = 136;
     private static final int CATEGORY_HEADER_FALLBACK_MIN = 120;
     private static final int CATEGORY_BUTTON_VERTICAL_GAP_BASE = 5;
     private static final int TABS_MIN_WIDTH = 54;
@@ -45,12 +52,15 @@ final class ItemEditorCategoryController {
     private FlowLayout panelHost;
     private ScrollContainer<FlowLayout> panelScroll;
     private LabelComponent selectedCategoryLabel;
+    private List<Target> currentPanelTargets = List.of();
     private EditorSearchDialog.Location searchLocation;
     private int searchTicks;
     private int highlightTicks;
     private UIComponent highlighted;
     private Component highlightMessage;
     private Color highlightColor;
+    private final Map<LabelComponent, Component> changedLabels = new IdentityHashMap<>();
+    private final Map<AbstractWidget, Component> changedWidgets = new IdentityHashMap<>();
 
     ItemEditorCategoryController(ItemEditorScreen screen, List<EditorModule> modules) {
         this.screen = screen;
@@ -79,23 +89,40 @@ final class ItemEditorCategoryController {
         Component fullCategoryTitle = this.screen.categoryTitle(selectedModule);
         this.selectedCategoryLabel.text(UiFactory.fitToWidth(fullCategoryTitle, this.categoryHeaderTextWidthHint()));
         this.selectedCategoryLabel.tooltip(List.of(fullCategoryTitle));
+        this.clearChangedMarkers();
         this.panelHost.clearChildren();
 
-        EditorPanel panel = selectedModule.panelFactory().apply(this.screen);
-        UIComponent panelComponent = panel.build();
+        UIComponent panelComponent;
+        if (this.screen.changedOnly()) {
+            this.currentPanelTargets = List.of();
+            panelComponent = ItemEditorChangesPanel.build(this.screen, selectedModule.category());
+        } else {
+            EditorPanel panel = selectedModule.panelFactory().apply(this.screen);
+            panelComponent = panel.build();
+            this.currentPanelTargets = panel.searchTargets();
+        }
         UiFactory.appendFillChild(this.panelHost, panelComponent);
+        ItemEditorChangeSet changes = this.screen.session().changes();
+        this.refreshChangedMarkers(changes);
         this.screen.restorePanelScroll(scrollAmount);
-        this.refreshTabs();
+        this.refreshTabs(changes);
     }
 
     void refreshTabs() {
+        this.refreshTabs(this.screen.session().changes());
+    }
+
+    void refreshTabs(ItemEditorChangeSet changes) {
         if (this.tabs == null) return;
 
         EditorModule selected = this.screen.selectedModule();
         List<UIComponent> children = this.tabs.children();
         if (children.size() == this.modules.size() && children.stream().allMatch(ButtonComponent.class::isInstance)) {
             for (int index = 0; index < children.size(); index++) {
-                ((ButtonComponent) children.get(index)).active(this.modules.get(index) != selected);
+                EditorModule module = this.modules.get(index);
+                ButtonComponent button = (ButtonComponent) children.get(index);
+                button.active(module != selected);
+                button.setMessage(this.categoryButtonTitle(module, changes));
             }
             return;
         }
@@ -108,7 +135,7 @@ final class ItemEditorCategoryController {
         for (EditorModule module : this.modules) {
             Component fullTitle = this.screen.categoryTitle(module);
             ButtonComponent button = UiFactory.scaledTextButton(
-                    fullTitle,
+                    this.categoryButtonTitle(module, changes),
                     BUTTON_TEXT_SCALE_DEFAULT,
                     UiFactory.ButtonTextPreset.STANDARD,
                     component -> this.switchModule(module));
@@ -119,6 +146,15 @@ final class ItemEditorCategoryController {
             button.margins(Insets.of(0, 0, horizontalInset, horizontalInset));
             this.tabs.child(button);
         }
+    }
+
+    private Component categoryButtonTitle(EditorModule module, ItemEditorChangeSet changes) {
+        Component title = this.screen.categoryTitle(module);
+        int count = changes.count(module.category());
+        if (count == 0) {
+            return title;
+        }
+        return title.copy().append(Component.literal(" (" + count + ")").withStyle(ChatFormatting.GRAY));
     }
 
     void selectAdjacentCategory(int direction) {
@@ -166,7 +202,7 @@ final class ItemEditorCategoryController {
 
     static Target guardSearchTarget(
             Target target, BooleanSupplier guard, Supplier<List<Target>> currentTargets, Runnable missingTarget) {
-        return new Target(target.path(), target.terms(), () -> {
+        return new Target(target.path(), target.terms(), target.location(), () -> {
             if (!guard.getAsBoolean()) return;
             currentTargets.get().stream()
                     .filter(current -> current.path().equals(target.path()))
@@ -186,8 +222,17 @@ final class ItemEditorCategoryController {
                 .findFirst()
                 .ifPresent(module -> {
                     boolean currentPage = this.screen.selectedModule() == module;
+                    boolean changesVisible = this.screen.changedOnly();
+                    if (changesVisible) {
+                        this.screen.showAllFields();
+                    }
                     if (!currentPage && !this.switchModule(module)) return;
-                    if (currentPage) this.clearHighlight();
+                    if (currentPage) {
+                        this.clearHighlight();
+                        if (changesVisible) {
+                            this.refreshCurrentPanel(true);
+                        }
+                    }
                     this.searchLocation = location;
                     if (currentPage && !location.field().isEmpty()) {
                         UIComponent control = this.panelHost == null ? null : this.findLabel(this.panelHost);
@@ -226,12 +271,100 @@ final class ItemEditorCategoryController {
         }
     }
 
+    void refreshChangedMarkers(ItemEditorChangeSet changes) {
+        this.clearChangedMarkers();
+        if (this.currentPanelTargets.isEmpty() || this.panelHost == null || this.screen.changedOnly()) {
+            return;
+        }
+
+        Set<String> changedTerms = new HashSet<>();
+        for (ItemEditorChangeSet.Change change :
+                changes.forCategory(this.screen.selectedModule().category())) {
+            changedTerms.add(change.id().equals("itemeditor:count") ? "count" : change.id());
+        }
+        if (changedTerms.isEmpty()) {
+            return;
+        }
+
+        for (Target target : this.currentPanelTargets) {
+            if (target.location() == null || !matchesChangedTerm(target.terms(), changedTerms)) {
+                continue;
+            }
+            UIComponent control = this.findLabel(this.panelHost, target.location());
+            if (control == null) {
+                continue;
+            }
+            this.markChanged(control);
+            this.markSiblingControls(this.panelHost, control);
+        }
+    }
+
+    private static boolean matchesChangedTerm(String terms, Set<String> changedTerms) {
+        for (String term : terms.split("\\s+")) {
+            if (changedTerms.contains(term)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean markSiblingControls(UIComponent component, UIComponent target) {
+        if (!(component instanceof ParentUIComponent parent)) {
+            return false;
+        }
+        if (parent.children().contains(target)) {
+            for (UIComponent child : parent.children()) {
+                if (child instanceof AbstractWidget) {
+                    this.markChanged(child);
+                }
+            }
+            return true;
+        }
+        for (UIComponent child : parent.children()) {
+            if (this.markSiblingControls(child, target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void markChanged(UIComponent component) {
+        if (component instanceof TextBoxComponent) {
+            return;
+        }
+        if (component instanceof LabelComponent label) {
+            Component original = this.changedLabels.computeIfAbsent(label, ignored -> label.text());
+            label.text(withChangedMarker(original));
+        } else if (component instanceof AbstractWidget widget) {
+            Component original = this.changedWidgets.computeIfAbsent(widget, ignored -> widget.getMessage());
+            widget.setMessage(withChangedMarker(original));
+        }
+    }
+
+    private static Component withChangedMarker(Component original) {
+        return original.copy()
+                .withStyle(ChatFormatting.ITALIC)
+                .append(Component.literal(" (*)").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
+                        .withItalic(false)));
+    }
+
+    private void clearChangedMarkers() {
+        this.changedLabels.forEach(LabelComponent::text);
+        this.changedWidgets.forEach(AbstractWidget::setMessage);
+        this.changedLabels.clear();
+        this.changedWidgets.clear();
+    }
+
     private UIComponent findLabel(UIComponent component) {
-        if (!this.searchLocation.scope().isEmpty()) {
-            component = findScope(component, this.searchLocation.scope());
+        return this.findLabel(component, this.searchLocation);
+    }
+
+    private UIComponent findLabel(UIComponent component, EditorSearchDialog.Location location) {
+        if (!location.scope().isEmpty()) {
+            component = findScope(component, location.scope());
             if (component == null) return null;
         }
-        return this.findLabel(component, false);
+        return this.findLabel(component, false, location.field());
     }
 
     private static UIComponent findScope(UIComponent component, String id) {
@@ -245,8 +378,7 @@ final class ItemEditorCategoryController {
         return null;
     }
 
-    private UIComponent findLabel(UIComponent component, boolean anchor) {
-        String key = this.searchLocation.field();
+    private UIComponent findLabel(UIComponent component, boolean anchor, String key) {
         anchor |= key.equals(component.id());
         if (component instanceof LabelComponent label
                 && (anchor
@@ -258,7 +390,7 @@ final class ItemEditorCategoryController {
                                 && text.getKey().equals(key))) return component;
         if (component instanceof ParentUIComponent parent) {
             for (UIComponent child : parent.children()) {
-                UIComponent found = this.findLabel(child, anchor);
+                UIComponent found = this.findLabel(child, anchor, key);
                 if (found != null) return found;
             }
         }
@@ -303,7 +435,8 @@ final class ItemEditorCategoryController {
     }
 
     private int categoryHeaderTextWidthHint() {
-        int headerReserve = Math.max(8, UiFactory.scaledPixels(CATEGORY_HEADER_HORIZONTAL_RESERVE_BASE + 64));
+        int headerReserve = Math.max(
+                8, UiFactory.scaledPixels(CATEGORY_HEADER_HORIZONTAL_RESERVE_BASE + CATEGORY_HEADER_ACTIONS_WIDTH));
         int panelWidth = this.panelScroll == null ? 0 : this.panelScroll.width();
         if (panelWidth > 0) {
             return Math.max(CATEGORY_TEXT_WIDTH_MIN, panelWidth - headerReserve);

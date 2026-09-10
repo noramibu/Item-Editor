@@ -16,9 +16,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.component.ItemLore;
 
 public final class LoreImageArtUtil {
@@ -28,10 +30,11 @@ public final class LoreImageArtUtil {
     private static final int CELL_HEIGHT = 4;
     private static final int MIN_WIDTH = 4;
     private static final int MAX_WIDTH = 256;
-    private static final String NARROW_PUSH_CHARACTER = new String(Character.toChars(0x10100));
+    private static final FontDescription UNIFORM_FONT =
+            new FontDescription.Resource(Identifier.withDefaultNamespace("uniform"));
     private static final int[] CELL_CODEPOINTS = {
         8194, 118432, 118435, 9602, 118040, 9623, 118097, 118219, 118025, 118144, 9622, 118203, 118055, 118172, 118113,
-                129862,
+                9604,
         118019, 118136, 118077, 118195, 130023, 118166, 118105, 118227, 118032, 118152, 118091, 118211, 118063, 118180,
                 118121, 118241,
         118016, 118132, 118073, 118191, 118044, 118163, 118101, 118223, 130022, 118148, 118088, 118207, 118059, 118176,
@@ -40,7 +43,7 @@ public final class LoreImageArtUtil {
                 118125, 9606,
         118443, 118130, 118071, 118189, 118042, 118161, 118099, 118221, 118027, 118146, 118086, 118205, 118057, 118174,
                 118115, 118236,
-        9629, 118138, 118079, 118197, 118049, 129929, 118107, 118229, 118034, 118154, 9630, 118213, 118065, 118182,
+        9629, 118138, 118079, 118197, 118049, 9616, 118107, 118229, 118034, 118154, 9630, 118213, 118065, 118182,
                 118123, 9631,
         118017, 118134, 118075, 118193, 118046, 118164, 118103, 118225, 118030, 118150, 118089, 118209, 118061, 118178,
                 118119, 118239,
@@ -50,7 +53,7 @@ public final class LoreImageArtUtil {
                 118114, 118235,
         118020, 118137, 118078, 118196, 118048, 118167, 118106, 118228, 118033, 118153, 118092, 118212, 118064, 118181,
                 118122, 118242,
-        9624, 118133, 118074, 118192, 118045, 9626, 118102, 118224, 118029, 118149, 9611, 118208, 118060, 118177,
+        9624, 118133, 118074, 118192, 118045, 9626, 118102, 118224, 118029, 118149, 9612, 118208, 118060, 118177,
                 118118, 9625,
         118023, 118141, 118082, 118200, 118052, 118170, 118110, 118232, 118037, 118157, 118095, 118216, 118068, 118185,
                 118126, 118244,
@@ -60,10 +63,10 @@ public final class LoreImageArtUtil {
                 118124, 118243,
         118018, 118135, 118076, 118194, 118047, 118165, 118104, 118226, 118031, 118151, 118090, 118210, 118062, 118179,
                 118120, 118240,
-        129884, 118143, 118084, 118202, 118054, 9628, 118112, 118234, 118039, 118159, 9627, 118218, 129925, 118187,
-                118128, 129885
+        9600, 118143, 118084, 118202, 118054, 9628, 118112, 118234, 118039, 118159, 9627, 118218, 129925, 118187,
+                118128, 9608
     };
-    private static final byte[] CELL_DOTS = {
+    private static final byte[] CELL_PADDING_SIDE = {
         0, 1, 2, 0, 1, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         2, 0, 2, 0, 0, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -93,6 +96,20 @@ public final class LoreImageArtUtil {
         }
 
         public Result generate(int requestedWidth, Options options) {
+            Result result = generatePixels(requestedWidth, options);
+            Result optimized = new Result(
+                    result.lines().stream()
+                            .map(TextComponentCompactor::compactGeneratedArt)
+                            .toList(),
+                    result.width(),
+                    result.height());
+            if (optimized.lines().equals(result.lines())) return result;
+            long originalUsage = result.textDisplayNbtUsage();
+            long optimizedUsage = optimized.textDisplayNbtUsage();
+            return optimizedUsage >= 0 && originalUsage >= optimizedUsage ? optimized : result;
+        }
+
+        private Result generatePixels(int requestedWidth, Options options) {
             checkCancelled();
             int clampedWidth = Math.clamp(requestedWidth, MIN_WIDTH, MAX_WIDTH);
             if (pixels == null || cachedWidth != clampedWidth) {
@@ -144,7 +161,7 @@ public final class LoreImageArtUtil {
             }
         }
         List<Component> lines = new ArrayList<>();
-        for (String text : gridToChars(grid)) {
+        for (String text : gridToChars(grid, false)) {
             lines.add(appendSegment(null, text, options.textColor()));
         }
         return new Result(lines, width, (pixels.length + CELL_HEIGHT - 1) / CELL_HEIGHT);
@@ -182,7 +199,7 @@ public final class LoreImageArtUtil {
             int lastColor = -1;
             StringBuilder text = new StringBuilder();
             for (ProcessedCell cell : row) {
-                String glyphs = gridToChars(cell.active()).getFirst();
+                String glyphs = gridToChars(cell.active(), compression > 0).getFirst();
                 if (lastColor != -1 && lastColor != cell.color()) {
                     line = appendSegment(line, text.toString(), lastColor);
                     text.setLength(0);
@@ -340,9 +357,6 @@ public final class LoreImageArtUtil {
         }
         Comparator<LinearPixel> order = comparator(totalLumaDelta);
         pixels.sort(order);
-        if (ditherMode == FullColorDither.SERPENTINE) {
-            pixels.sort(Comparator.comparingInt(LinearPixel::serpIndex).reversed());
-        }
 
         double foregroundDelta = totalLumaDelta > 0
                 ? Math.min(totalLumaDelta, pixels.getFirst().delta())
@@ -372,6 +386,9 @@ public final class LoreImageArtUtil {
         }
 
         if (ditherMode != FullColorDither.DISABLED) {
+            if (ditherMode == FullColorDither.SERPENTINE) {
+                pixels.sort(Comparator.comparingInt(LinearPixel::serpIndex).reversed());
+            }
             diffuseLuma(pixels, realLuma, backgroundYuv.y());
             pixels.sort(order);
         }
@@ -466,7 +483,7 @@ public final class LoreImageArtUtil {
         return (value & 0x7FFFFFFF) / (double) Integer.MAX_VALUE;
     }
 
-    private static List<String> gridToChars(boolean[][] grid) {
+    private static List<String> gridToChars(boolean[][] grid, boolean visiblePadding) {
         List<String> output = new ArrayList<>();
         for (int y = 0; y < grid.length; y += CELL_HEIGHT) {
             StringBuilder line = new StringBuilder();
@@ -481,17 +498,21 @@ public final class LoreImageArtUtil {
                     }
                     bit /= 4;
                 }
-                line.append(mapping(mask));
+                line.append(mapping(mask, visiblePadding));
             }
             output.add(line.toString());
         }
         return output;
     }
 
-    private static String mapping(int mask) {
+    private static String mapping(int mask, boolean visiblePadding) {
         String glyph = new String(Character.toChars(CELL_CODEPOINTS[mask]));
-        String push = mask == 85 || mask == 170 ? NARROW_PUSH_CHARACTER : ".";
-        return CELL_DOTS[mask] == 1 ? push + glyph : CELL_DOTS[mask] == 2 ? glyph + push : glyph;
+        String padding = visiblePadding ? "." : "\u200c\u200c";
+        return switch (CELL_PADDING_SIDE[mask]) {
+            case 1 -> padding + glyph;
+            case 2 -> glyph + padding;
+            default -> glyph;
+        };
     }
 
     private static Yuv rgbToYuv(Rgb rgb) {
@@ -596,17 +617,18 @@ public final class LoreImageArtUtil {
     private static MutableComponent appendSegment(MutableComponent line, String text, int color) {
         int start = 0;
         while (start < text.length()) {
-            int blank = text.indexOf('\u2002', start);
-            int end = blank < 0 ? text.length() : blank;
-            if (end > start) {
-                line = append(line, text.substring(start, end), color, false);
+            char first = text.charAt(start);
+            boolean spacer = first == '\u2002' || first == '\u200c';
+            int end = start + 1;
+            while (end < text.length()) {
+                char next = text.charAt(end);
+                if (spacer ? next != first : next == '\u2002' || next == '\u200c') break;
+                end++;
             }
-            if (blank < 0) break;
-            int blankEnd = blank + 1;
-            while (blankEnd < text.length() && text.charAt(blankEnd) == '\u2002') blankEnd++;
-            line = append(line, " ".repeat(blankEnd - blank), color, true);
-            line = append(line, "\u200c", color, false);
-            start = blankEnd;
+            String run = text.substring(start, end);
+            line = append(line, first == '\u2002' ? " ".repeat(end - start) : run, color, spacer);
+            if (first == '\u2002') line = append(line, "\u200c", color, false);
+            start = end;
         }
         return line;
     }
@@ -615,7 +637,9 @@ public final class LoreImageArtUtil {
         Style style = colorStyle(color)
                 .withBold(bold || line != null && line.getStyle().isBold() ? bold : null);
         MutableComponent segment = Component.literal(text).withStyle(style);
-        return line == null ? segment.withStyle(value -> value.withItalic(false)) : line.append(segment);
+        return line == null
+                ? segment.withStyle(value -> value.withItalic(false).withFont(UNIFORM_FONT))
+                : line.append(segment);
     }
 
     public record Result(List<Component> lines, int width, int height) {

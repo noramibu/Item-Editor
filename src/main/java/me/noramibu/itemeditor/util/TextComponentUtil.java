@@ -27,6 +27,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -54,6 +55,7 @@ public final class TextComponentUtil {
     private static final String TOKEN_HEAD_OPEN = "[ie:head:";
     private static final String TOKEN_SPRITE_OPEN = "[ie:sprite:";
     private static final String TOKEN_TRANSLATE_OPEN = "[ie:translate:";
+    private static final String TOKEN_FONT_OPEN = "[ie:font:";
 
     private TextComponentUtil() {}
 
@@ -77,6 +79,17 @@ public final class TextComponentUtil {
         ArrayDeque<HoverEvent> hoverStack = new ArrayDeque<>();
 
         for (int index = 0; index < input.length(); index++) {
+            if (input.startsWith(TOKEN_FONT_OPEN, index)) {
+                int end = input.indexOf(TOKEN_SUFFIX, index + TOKEN_FONT_OPEN.length());
+                Identifier font =
+                        end < 0 ? null : Identifier.tryParse(input.substring(index + TOKEN_FONT_OPEN.length(), end));
+                if (font != null) {
+                    flushWithEvents(root, buffer, style, clickStack, hoverStack);
+                    style = style.withFont(new FontDescription.Resource(font));
+                    index = end;
+                    continue;
+                }
+            }
             int tokenEnd = tryConsumeToken(
                     input, index, root, buffer, style, clickStack, hoverStack, parseEventTokens, parseObjectTokens);
             if (tokenEnd >= 0) {
@@ -383,6 +396,7 @@ public final class TextComponentUtil {
 
     private static Style styleMetadata(Style style) {
         Style compact = Style.EMPTY;
+        if (!FontDescription.DEFAULT.equals(style.getFont())) compact = compact.withFont(style.getFont());
         if (style.getShadowColor() != null) {
             compact = compact.withShadowColor(style.getShadowColor());
         }
@@ -1247,6 +1261,12 @@ public final class TextComponentUtil {
         if (style.isUnderlined()) builder.append(prefix).append('n');
         if (style.isStrikethrough()) builder.append(prefix).append('m');
         if (style.isObfuscated()) builder.append(prefix).append('k');
+        if (!legacyPaletteOnly
+                && style.getFont() instanceof FontDescription.Resource font
+                && (!font.equals(previousStyle.getFont())
+                        || requiresStyleReset(previousStyle, style) && !font.equals(FontDescription.DEFAULT))) {
+            builder.append(TOKEN_FONT_OPEN).append(font.id()).append(TOKEN_SUFFIX);
+        }
     }
 
     private static boolean requiresStyleReset(Style previousStyle, Style nextStyle) {
@@ -1422,6 +1442,7 @@ public final class TextComponentUtil {
                 style.isUnderlined(),
                 style.isStrikethrough(),
                 style.isObfuscated(),
+                style.getFont(),
                 serializableClickEvent(style.getClickEvent()),
                 serializableHoverEvent(style.getHoverEvent(), '&', false));
     }
@@ -1434,6 +1455,7 @@ public final class TextComponentUtil {
             boolean underlined,
             boolean strikethrough,
             boolean obfuscated,
+            FontDescription font,
             ClickEvent clickEvent,
             HoverEvent hoverEvent) {}
 
