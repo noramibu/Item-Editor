@@ -12,7 +12,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.HangingSignItem;
-import net.minecraft.world.item.SignItem;
+import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.SignText;
@@ -45,13 +45,9 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         }
 
         blockEntityTag.store(
-                "front_text",
-                SignText.DIRECT_CODEC,
-                this.buildSignText(context.special().sign.front, context.messages()));
+                "front_text", SignText.CODEC, this.buildSignText(context.special().sign.front, context.messages()));
         blockEntityTag.store(
-                "back_text",
-                SignText.DIRECT_CODEC,
-                this.buildSignText(context.special().sign.back, context.messages()));
+                "back_text", SignText.CODEC, this.buildSignText(context.special().sign.back, context.messages()));
 
         context.previewStack().set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(signType, blockEntityTag));
     }
@@ -60,7 +56,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
         if (context.previewStack().getItem() instanceof HangingSignItem) {
             return HANGING_SIGN;
         }
-        if (context.previewStack().getItem() instanceof SignItem) {
+        if (context.previewStack().getItem() instanceof StandingAndWallBlockItem) {
             return SIGN;
         }
 
@@ -83,7 +79,7 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
     }
 
     private SignText buildSignText(ItemEditorState.SignSideDraft sideDraft, List<ValidationMessage> messages) {
-        SignText signText = new SignText();
+        SignText.Mutable signText = SignText.EMPTY.asMutable();
         DyeColor color = DyeColor.BLACK;
 
         if (!sideDraft.color.isBlank()) {
@@ -95,12 +91,12 @@ final class SignSpecialDataApplier extends AbstractPreviewApplierSupport impleme
             }
         }
 
-        signText = signText.setColor(color).setHasGlowingText(sideDraft.glowing);
+        signText.setColor(color).setTextGlowing(sideDraft.glowing);
         for (int index = 0; index < 4; index++) {
             String line = index < sideDraft.lines.size() ? Objects.toString(sideDraft.lines.get(index), "") : "";
-            signText = signText.setMessage(index, TextComponentUtil.parseMarkup(line));
+            signText.setLine(index, TextComponentUtil.parseMarkup(line));
         }
-        return signText;
+        return signText.asImmutable();
     }
 
     private boolean isSignDataDefault(ItemEditorState.SignData signData) {

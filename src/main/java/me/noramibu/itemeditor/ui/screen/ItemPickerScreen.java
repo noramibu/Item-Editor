@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.base.BaseUIComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -29,7 +30,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
     private static final int SHELL_MAX_WIDTH = 980;
@@ -150,7 +150,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubleClick) {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && this.itemGrid != null) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.itemGrid != null) {
             PickableItem pickable = this.itemGrid.itemAt(click.x(), click.y());
             if (pickable != null) {
                 this.itemGrid.pick(pickable);
@@ -307,7 +307,7 @@ public final class ItemPickerScreen extends BaseOwoScreen<StackLayout> {
 
         @Override
         public boolean onMouseDown(MouseButtonEvent click, boolean doubled) {
-            if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.isInBoundingBox(click.x(), click.y())) {
+            if (click.button() != InputConstants.MOUSE_BUTTON_LEFT || !this.isInBoundingBox(click.x(), click.y())) {
                 return super.onMouseDown(click, doubled);
             }
             if (this.isOverScrollbar(click.x(), click.y())) {

@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -22,7 +23,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private final Minecraft minecraft;
@@ -89,7 +89,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public boolean keyPressed(KeyEvent input) {
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_S) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_S) {
             this.importText();
             return true;
         }

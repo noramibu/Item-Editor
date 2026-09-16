@@ -9,7 +9,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 public final class ItemEditorKeybinds {
 
@@ -17,11 +16,11 @@ public final class ItemEditorKeybinds {
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(ItemEditorClient.MOD_ID, "controls"));
 
     private static final KeyMapping OPEN_EDITOR = KeyMappingHelper.registerKeyMapping(
-            new KeyMapping("key.itemeditor.open_editor", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, CATEGORY));
+            new KeyMapping("key.itemeditor.open_editor", InputConstants.Type.KEYBOARD, InputConstants.KEY_I, CATEGORY));
     private static final KeyMapping OPEN_STORAGE = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-            "key.itemeditor.open_storage", InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY));
-    private static final KeyMapping OPEN_STORAGE_PAGES = KeyMappingHelper.registerKeyMapping(
-            new KeyMapping("key.itemeditor.open_storage_pages", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_U, CATEGORY));
+            "key.itemeditor.open_storage", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY));
+    private static final KeyMapping OPEN_STORAGE_PAGES = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.itemeditor.open_storage_pages", InputConstants.Type.KEYBOARD, InputConstants.KEY_U, CATEGORY));
 
     private ItemEditorKeybinds() {}
 

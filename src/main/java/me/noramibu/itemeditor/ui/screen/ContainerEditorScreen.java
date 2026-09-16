@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,7 +30,6 @@ import net.minecraft.world.level.block.DispenserBlock;
 import net.minecraft.world.level.block.HopperBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 public final class ContainerEditorScreen extends ContainerScreen {
     private static final int COLUMNS = 9;
@@ -174,7 +174,7 @@ public final class ContainerEditorScreen extends ContainerScreen {
 
     @Override
     public boolean keyPressed(@NotNull KeyEvent input) {
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE || this.minecraft.options.keyInventory.matches(input)) {
+        if (input.key() == InputConstants.KEY_ESCAPE || this.minecraft.options.keyInventory.matches(input)) {
             this.cancel();
             return true;
         }

@@ -8,9 +8,7 @@ public final class ComponentRemovalService {
     private ComponentRemovalService() {}
 
     public static void read(ItemStack stack, ItemEditorState state) {
-        stack.getComponentsPatch().entrySet().forEach(entry -> {
-            if (entry.getValue().isEmpty()) state.removedComponents.add(entry.getKey());
-        });
+        state.removedComponents.addAll(stack.getComponentsPatch().split().removed());
     }
 
     public static boolean hasDefault(ItemStack stack, DataComponentType<?> type) {

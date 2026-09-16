@@ -151,9 +151,7 @@ public final class MiscSpecialDataSections {
     }
 
     public static boolean supportsMap(ItemStack stack) {
-        return stack.has(DataComponents.MAP_COLOR)
-                || stack.has(DataComponents.MAP_POST_PROCESSING)
-                || stack.is(Items.FILLED_MAP);
+        return stack.has(DataComponents.MAP_POST_PROCESSING) || stack.is(Items.FILLED_MAP);
     }
 
     public static FlowLayout buildDyedColor(SpecialDataPanelContext context) {
@@ -467,16 +465,6 @@ public final class MiscSpecialDataSections {
                 () -> {
                     FlowLayout content = UiFactory.column();
                     FlowLayout row = isCompactLayout(context) ? UiFactory.column() : UiFactory.row();
-                    row.child(UiFactory.field(
-                            MapField.COLOR.text(),
-                            Component.empty(),
-                            context.colorInputWithPicker(
-                                            special.mapColor,
-                                            value -> special.mapColor = value,
-                                            () -> special.mapColor,
-                                            MapField.COLOR.text().getString(),
-                                            0x7FB238)
-                                    .horizontalSizing(Sizing.fill(100))));
                     row.child(PickerFieldFactory.dropdownField(
                             context,
                             MapField.POST.text(),

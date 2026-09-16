@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.DropdownComponent;
@@ -43,7 +44,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final float PREVIEW_UI_SCALE = 0.70F;
@@ -591,7 +591,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             this.uiAdapter.globalInspector = false;
         }
 
-        if (input.key() == GLFW.GLFW_KEY_LEFT_SHIFT && input.hasControlDownWithQuirk()) {
+        if (input.key() == InputConstants.KEY_LSHIFT && input.hasControlDownWithQuirk()) {
             return true;
         }
 
@@ -600,19 +600,19 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         }
 
         if (input.hasControlDownWithQuirk()) {
-            if (input.key() == GLFW.GLFW_KEY_F && this.isDialogClosed()) {
+            if (input.key() == InputConstants.KEY_F && this.isDialogClosed()) {
                 this.openEditorSearch();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_S) {
+            if (input.key() == InputConstants.KEY_S) {
                 this.requestApply();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_R) {
+            if (input.key() == InputConstants.KEY_R) {
                 this.requestReset();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_TAB) {
+            if (input.key() == InputConstants.KEY_TAB) {
                 this.categoryController.selectAdjacentCategory(input.hasShiftDown() ? -1 : 1);
                 return true;
             }

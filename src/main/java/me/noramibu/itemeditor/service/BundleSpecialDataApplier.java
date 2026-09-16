@@ -61,7 +61,7 @@ final class BundleSpecialDataApplier extends AbstractPreviewApplierSupport imple
 
         BundleContents contents;
         try {
-            BundleContents.Mutable mutable = new BundleContents.Mutable(new BundleContents(bundleStacks));
+            BundleContents.Mutable mutable = new BundleContents(bundleStacks).asMutable();
             int selected = Math.clamp(context.special().selectedBundleIndex, 0, bundleStacks.size() - 1);
             mutable.toggleSelectedItem(selected);
             contents = mutable.toImmutable();

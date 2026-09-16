@@ -81,7 +81,6 @@ import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.item.component.KineticWeapon;
 import net.minecraft.world.item.component.LodestoneTracker;
 import net.minecraft.world.item.component.MapDecorations;
-import net.minecraft.world.item.component.MapItemColor;
 import net.minecraft.world.item.component.MapPostProcessing;
 import net.minecraft.world.item.component.OminousBottleAmplifier;
 import net.minecraft.world.item.component.PiercingWeapon;
@@ -289,7 +288,8 @@ public final class ItemEditorStateMapper {
 
         ChargedProjectiles chargedProjectiles = stack.get(DataComponents.CHARGED_PROJECTILES);
         if (chargedProjectiles != null) {
-            chargedProjectiles.itemCopies().stream()
+            chargedProjectiles
+                    .itemCopies()
                     .filter(projectile -> !projectile.isEmpty())
                     .map(projectile -> {
                         ItemEditorState.ChargedProjectileDraft draft =
@@ -434,7 +434,7 @@ public final class ItemEditorStateMapper {
             setIdFromHolder(kineticWeapon.hitSound().orElse(null), id -> state.special.kineticHitSoundId = id);
         }
 
-        SwingAnimation swingAnimation = stack.get(DataComponents.SWING_ANIMATION);
+        SwingAnimation swingAnimation = stack.get(DataComponents.ATTACK_ANIMATION);
         if (swingAnimation != null) {
             state.special.swingAnimationType = swingAnimation.type().name();
             state.special.swingAnimationDuration = Integer.toString(swingAnimation.duration());
@@ -503,7 +503,7 @@ public final class ItemEditorStateMapper {
 
         ItemContainerContents containerContents = stack.get(DataComponents.CONTAINER);
         if (containerContents != null) {
-            var containerStacks = containerContents.allItemsCopyStream().toList();
+            var containerStacks = containerContents.itemCopies().toList();
             for (int slot = 0; slot < containerStacks.size(); slot++) {
                 ItemStack entryStack = containerStacks.get(slot);
                 if (!entryStack.isEmpty()) {
@@ -547,10 +547,18 @@ public final class ItemEditorStateMapper {
 
         PotDecorations potDecorations = stack.get(DataComponents.POT_DECORATIONS);
         if (potDecorations != null) {
-            setItemId(potDecorations.back().orElse(null), id -> state.special.potBackItemId = id);
-            setItemId(potDecorations.left().orElse(null), id -> state.special.potLeftItemId = id);
-            setItemId(potDecorations.right().orElse(null), id -> state.special.potRightItemId = id);
-            setItemId(potDecorations.front().orElse(null), id -> state.special.potFrontItemId = id);
+            setItemId(
+                    potDecorations.back().map(value -> value.item().value()).orElse(null),
+                    id -> state.special.potBackItemId = id);
+            setItemId(
+                    potDecorations.left().map(value -> value.item().value()).orElse(null),
+                    id -> state.special.potLeftItemId = id);
+            setItemId(
+                    potDecorations.right().map(value -> value.item().value()).orElse(null),
+                    id -> state.special.potRightItemId = id);
+            setItemId(
+                    potDecorations.front().map(value -> value.item().value()).orElse(null),
+                    id -> state.special.potFrontItemId = id);
         }
 
         BundleContents bundleContents = stack.get(DataComponents.BUNDLE_CONTENTS);
@@ -581,8 +589,8 @@ public final class ItemEditorStateMapper {
         }
         if (blockEntityData != null && (blockEntityData.type() == SIGN || blockEntityData.type() == HANGING_SIGN)) {
             var blockTag = blockEntityData.copyTagWithoutId();
-            SignText front = blockTag.read("front_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
-            SignText back = blockTag.read("back_text", SignText.DIRECT_CODEC).orElseGet(SignText::new);
+            SignText front = blockTag.read("front_text", SignText.CODEC).orElse(SignText.EMPTY);
+            SignText back = blockTag.read("back_text", SignText.CODEC).orElse(SignText.EMPTY);
 
             this.readSignSide(front, state.special.sign.front);
             this.readSignSide(back, state.special.sign.back);
@@ -763,11 +771,6 @@ public final class ItemEditorStateMapper {
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
             setIdFromHolder(jukeboxPlayable.song(), id -> state.special.jukeboxSongId = id);
-        }
-
-        MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);
-        if (mapColor != null) {
-            state.special.mapColor = ValidationUtil.toHex(mapColor.rgb());
         }
 
         MapPostProcessing mapPostProcessing = stack.get(DataComponents.MAP_POST_PROCESSING);
@@ -961,7 +964,7 @@ public final class ItemEditorStateMapper {
         sideDraft.lines.clear();
         int baseColor = signText.getColor().getTextColor();
         for (int index = 0; index < 4; index++) {
-            Component line = signText.getMessage(index, false);
+            Component line = signText.getMessages(false).get(index);
             sideDraft.lines.add(TextComponentUtil.toMarkup(this.stripBaseSignColor(line, baseColor)));
         }
         sideDraft.color = signText.getColor().name();
@@ -1258,7 +1261,7 @@ public final class ItemEditorStateMapper {
                 setIdFromHolder(sound, id -> draft.soundId = id);
                 target.add(draft);
             }
-            if (consumeEffect instanceof TeleportRandomlyConsumeEffect(var diameter)) {
+            if (consumeEffect instanceof TeleportRandomlyConsumeEffect(var diameter, var directionalParticles)) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
                 draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY;
                 draft.diameter = Float.toString(diameter);

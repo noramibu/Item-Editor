@@ -330,19 +330,21 @@ public final class SignSpecialDataSection {
         }
         SignText text = buildSignText(sideDraft);
         CompoundTag tag = new CompoundTag();
-        tag.store("front_text", SignText.DIRECT_CODEC, text);
-        tag.store("back_text", SignText.DIRECT_CODEC, text);
+        tag.store("front_text", SignText.CODEC, text);
+        tag.store("back_text", SignText.CODEC, text);
         entity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag));
     }
 
     private static SignText buildSignText(ItemEditorState.SignSideDraft sideDraft) {
-        SignText signText =
-                new SignText().setColor(resolveSignColor(sideDraft.color)).setHasGlowingText(sideDraft.glowing);
+        SignText.Mutable signText = SignText.EMPTY
+                .asMutable()
+                .setColor(resolveSignColor(sideDraft.color))
+                .setTextGlowing(sideDraft.glowing);
         for (int index = 0; index < SIGN_LINE_COUNT; index++) {
             String raw = Objects.toString(sideDraft.lines.get(index), "");
-            signText = signText.setMessage(index, TextComponentUtil.parseMarkup(raw));
+            signText.setLine(index, TextComponentUtil.parseMarkup(raw));
         }
-        return signText;
+        return signText.asImmutable();
     }
 
     private static DyeColor resolveSignColor(String colorName) {

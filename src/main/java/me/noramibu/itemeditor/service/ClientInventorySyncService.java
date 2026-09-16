@@ -6,6 +6,7 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
@@ -70,7 +71,7 @@ public final class ClientInventorySyncService {
             singleplayerServer.execute(() -> {
                 ServerPlayer serverPlayer = singleplayerServer.getPlayerList().getPlayer(playerId);
                 if (serverPlayer != null) {
-                    serverPlayer.drop(copy, false, true);
+                    serverPlayer.drop(copy, true, Prediction.SERVER_ONLY);
                 }
             });
             return true;

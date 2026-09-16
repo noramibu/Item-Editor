@@ -12,6 +12,7 @@ base {
 }
 
 repositories {
+	mavenLocal()
 	maven { url 'https://maven.wispforest.io' }
 	maven { url 'https://maven.shedaniel.me' }
 	maven { url 'https://jitpack.io' }
@@ -42,7 +43,7 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	implementation "io.wispforest:owo-lib:${project.owo_version}"
+	include implementation("io.wispforest:owo-lib:${project.owo_version}")
 	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
 	compileOnly "me.shedaniel:RoughlyEnoughItems-api:${project.rei_version}"
 }

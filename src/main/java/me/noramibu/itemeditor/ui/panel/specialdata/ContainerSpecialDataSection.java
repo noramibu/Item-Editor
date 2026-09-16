@@ -96,7 +96,7 @@ public final class ContainerSpecialDataSection {
             return;
         }
 
-        List<ItemStack> stackList = contents.allItemsCopyStream().toList();
+        List<ItemStack> stackList = contents.itemCopies().toList();
         for (int slot = 0; slot < stackList.size(); slot++) {
             ItemStack stack = stackList.get(slot);
             if (!stack.isEmpty()) {

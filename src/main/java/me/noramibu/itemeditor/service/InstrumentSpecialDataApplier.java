@@ -59,7 +59,7 @@ final class InstrumentSpecialDataApplier extends AbstractPreviewApplierSupport i
         }
 
         Instrument instrument =
-                new Instrument(soundEvent, useDuration, range, TextComponentUtil.parseMarkup(details.description()));
+                new Instrument(soundEvent, useDuration, range, 0, TextComponentUtil.parseMarkup(details.description()));
         context.previewStack().set(DataComponents.INSTRUMENT, new InstrumentComponent(Holder.direct(instrument)));
     }
 

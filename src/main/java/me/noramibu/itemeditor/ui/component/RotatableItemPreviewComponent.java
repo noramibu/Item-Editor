@@ -1,12 +1,12 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2fStack;
-import org.lwjgl.glfw.GLFW;
 
 public final class RotatableItemPreviewComponent extends ItemComponent {
 
@@ -35,7 +35,7 @@ public final class RotatableItemPreviewComponent extends ItemComponent {
     @Override
     public boolean onMouseDrag(MouseButtonEvent click, double deltaX, double deltaY) {
         boolean handled = super.onMouseDrag(click, deltaX, deltaY);
-        if (this.allowMouseRotation && click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (this.allowMouseRotation && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             this.rotationDegrees += (float) (deltaX * 0.75D);
             return true;
         }

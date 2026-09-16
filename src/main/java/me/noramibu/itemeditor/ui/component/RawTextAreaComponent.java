@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseUIComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
@@ -27,7 +28,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.util.Util;
 import org.joml.Matrix3x2fStack;
-import org.lwjgl.glfw.GLFW;
 
 public final class RawTextAreaComponent extends BaseUIComponent implements GreedyInputUIComponent {
     private static final int HISTORY_LIMIT = 128;
@@ -444,12 +444,14 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
     @Override
     public void onFocusGained(UIComponent.FocusSource source) {
         this.focused = true;
+        Minecraft.getInstance().textInputManager().onTextInputFocusChange(this, true);
         super.onFocusGained(source);
     }
 
     @Override
     public void onFocusLost() {
         this.focused = false;
+        Minecraft.getInstance().textInputManager().onTextInputFocusChange(this, false);
         this.draggingScrollbar = false;
         this.draggingHorizontalScrollbar = false;
         this.draggingSelection = false;
@@ -461,7 +463,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         double screenX = this.currentGuiMouseX();
         double screenY = this.currentGuiMouseY();
         boolean inside = this.isInsideEditor(screenX, screenY);
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !inside) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT || !inside) {
             return super.onMouseDown(click, doubled);
         }
 
@@ -474,6 +476,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             this.focusHandler().focus(this, UIComponent.FocusSource.MOUSE_CLICK);
         } else {
             this.focused = true;
+            Minecraft.getInstance().textInputManager().onTextInputFocusChange(this, true);
         }
 
         if (!wasFocused) {
@@ -540,7 +543,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     @Override
     public boolean onMouseUp(MouseButtonEvent click) {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             this.draggingSelection = false;
             this.draggingScrollbar = false;
             this.draggingHorizontalScrollbar = false;
@@ -552,7 +555,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
     @Override
     public boolean onMouseDrag(MouseButtonEvent click, double deltaX, double deltaY) {
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.focused) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT || !this.focused) {
             return super.onMouseDrag(click, deltaX, deltaY);
         }
 
@@ -622,7 +625,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
             return super.onKeyPress(input);
         }
 
-        boolean ctrl = input.hasControlDownWithQuirk() || (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
+        boolean ctrl = input.hasControlDownWithQuirk() || (input.modifiers() & InputConstants.MOD_CONTROL) != 0;
         boolean shift = input.hasShiftDown();
         int keyCode = input.key();
         boolean hasAutocompletePopup = !this.autocompleteEntries.isEmpty()
@@ -631,7 +634,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
 
         if (ctrl) {
             switch (keyCode) {
-                case GLFW.GLFW_KEY_Z -> {
+                case InputConstants.KEY_Z -> {
                     if (shift) {
                         this.redo();
                     } else {
@@ -639,33 +642,33 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                     }
                     return true;
                 }
-                case GLFW.GLFW_KEY_Y -> {
+                case InputConstants.KEY_Y -> {
                     this.redo();
                     return true;
                 }
-                case GLFW.GLFW_KEY_C -> {
+                case InputConstants.KEY_C -> {
                     this.copySelectionToClipboard(false);
                     return true;
                 }
-                case GLFW.GLFW_KEY_X -> {
+                case InputConstants.KEY_X -> {
                     this.copySelectionToClipboard(true);
                     return true;
                 }
-                case GLFW.GLFW_KEY_V -> {
+                case InputConstants.KEY_V -> {
                     this.pasteClipboard();
                     return true;
                 }
-                case GLFW.GLFW_KEY_A -> {
+                case InputConstants.KEY_A -> {
                     this.document.selectAll();
                     this.syncFromDocument();
                     this.ensureCursorVisible();
                     this.notifyViewportChanged();
                     return true;
                 }
-                case GLFW.GLFW_KEY_R -> {
+                case InputConstants.KEY_R -> {
                     return true;
                 }
-                case GLFW.GLFW_KEY_SPACE -> {
+                case InputConstants.KEY_SPACE -> {
                     if (this.autocompleteRefreshRequested.getAsBoolean()) {
                         return true;
                     }
@@ -675,7 +678,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
         }
 
         switch (keyCode) {
-            case GLFW.GLFW_KEY_ESCAPE -> {
+            case InputConstants.KEY_ESCAPE -> {
                 if (hasAutocompletePopup || !this.ghostSuggestion.isBlank()) {
                     this.clearAutocompleteOverlay();
                     this.autocompleteDismissed.run();
@@ -683,7 +686,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 }
                 return super.onKeyPress(input);
             }
-            case GLFW.GLFW_KEY_TAB -> {
+            case InputConstants.KEY_TAB -> {
                 if (!shift && hasAutocompletePopup && this.autocompleteRequested.getAsBoolean()) {
                     return true;
                 } else if (shift && hasAutocompletePopup) {
@@ -696,7 +699,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 }
                 return true;
             }
-            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
                 if (shift) {
                     if (hasAutocompletePopup || !this.ghostSuggestion.isBlank()) {
                         this.clearAutocompleteOverlay();
@@ -711,7 +714,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 this.insertNewlineWithAutoIndent();
                 return true;
             }
-            case GLFW.GLFW_KEY_UP -> {
+            case InputConstants.KEY_UP -> {
                 if (hasAutocompletePopup && !shift && !ctrl) {
                     this.autocompletePreviousRequested.getAsBoolean();
                 } else {
@@ -719,7 +722,7 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 }
                 return true;
             }
-            case GLFW.GLFW_KEY_DOWN -> {
+            case InputConstants.KEY_DOWN -> {
                 if (hasAutocompletePopup && !shift && !ctrl) {
                     this.autocompleteNextRequested.getAsBoolean();
                 } else {
@@ -727,40 +730,40 @@ public final class RawTextAreaComponent extends BaseUIComponent implements Greed
                 }
                 return true;
             }
-            case GLFW.GLFW_KEY_LEFT -> {
+            case InputConstants.KEY_LEFT -> {
                 this.moveHorizontal(
                         ctrl ? this.document.previousWordBoundary(this.cursor) : this.previousCodePoint(this.cursor),
                         shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_RIGHT -> {
+            case InputConstants.KEY_RIGHT -> {
                 this.moveHorizontal(
                         ctrl ? this.document.nextWordBoundary(this.cursor) : this.nextCodePoint(this.cursor), shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_HOME -> {
+            case InputConstants.KEY_HOME -> {
                 int target = ctrl ? 0 : this.lineStarts[this.lineIndexForCursor(this.cursor)];
                 this.moveHorizontal(target, shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_END -> {
+            case InputConstants.KEY_END -> {
                 int target = ctrl ? this.text.length() : this.lineEnd(this.lineIndexForCursor(this.cursor));
                 this.moveHorizontal(target, shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_PAGE_UP -> {
+            case InputConstants.KEY_PAGEUP -> {
                 this.moveVertical(-this.visibleLineCount(), shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_PAGE_DOWN -> {
+            case InputConstants.KEY_PAGEDOWN -> {
                 this.moveVertical(this.visibleLineCount(), shift);
                 return true;
             }
-            case GLFW.GLFW_KEY_BACKSPACE -> {
+            case InputConstants.KEY_BACKSPACE -> {
                 this.deleteBackward(ctrl);
                 return true;
             }
-            case GLFW.GLFW_KEY_DELETE -> {
+            case InputConstants.KEY_DELETE -> {
                 this.deleteForward(ctrl);
                 return true;
             }

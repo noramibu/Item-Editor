@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.mixin.ui.access.MultilineTextFieldAccessor;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
@@ -31,7 +32,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputUIComponent {
 
@@ -412,7 +412,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     public boolean mouseClicked(@NotNull MouseButtonEvent click, boolean doubled) {
         if (!this.active
                 || !this.visible
-                || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT
+                || click.button() != InputConstants.MOUSE_BUTTON_LEFT
                 || !this.isMouseOver(click.x(), click.y())) {
             if (!this.isMouseOver(click.x(), click.y())) {
                 this.setFocused(false);
@@ -464,7 +464,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     @Override
     public boolean mouseDragged(@NotNull MouseButtonEvent click, double deltaX, double deltaY) {
-        if (!this.visible || !this.isFocused() || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (!this.visible || !this.isFocused() || click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
         this.editBox.setSelecting(true);
@@ -486,7 +486,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             });
         }
         if (input.hasControlDownWithQuirk()) {
-            if (input.key() == GLFW.GLFW_KEY_Z) {
+            if (input.key() == InputConstants.KEY_Z) {
                 if (input.hasShiftDown()) {
                     this.redo();
                 } else {
@@ -494,17 +494,17 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 }
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_Y) {
+            if (input.key() == InputConstants.KEY_Y) {
                 this.redo();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_C) {
+            if (input.key() == InputConstants.KEY_C) {
                 return this.copySelectionToClipboard(false);
             }
-            if (input.key() == GLFW.GLFW_KEY_X) {
+            if (input.key() == InputConstants.KEY_X) {
                 return this.copySelectionToClipboard(true);
             }
-            if (input.key() == GLFW.GLFW_KEY_V) {
+            if (input.key() == InputConstants.KEY_V) {
                 return this.pasteClipboardContents();
             }
         }
@@ -516,18 +516,18 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             this.moveCursorVertical(1, input.hasShiftDown());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_HOME) {
+        if (input.key() == InputConstants.KEY_HOME) {
             this.moveCursorToLineEdge(false, input.hasShiftDown(), input.hasControlDownWithQuirk());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_END) {
+        if (input.key() == InputConstants.KEY_END) {
             this.moveCursorToLineEdge(true, input.hasShiftDown(), input.hasControlDownWithQuirk());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_BACKSPACE && this.deleteRenderedTokenAtCursor(true)) {
+        if (input.key() == InputConstants.KEY_BACKSPACE && this.deleteRenderedTokenAtCursor(true)) {
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_DELETE && this.deleteRenderedTokenAtCursor(false)) {
+        if (input.key() == InputConstants.KEY_DELETE && this.deleteRenderedTokenAtCursor(false)) {
             return true;
         }
 

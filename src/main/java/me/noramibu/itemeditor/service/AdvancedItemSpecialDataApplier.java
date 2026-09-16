@@ -802,7 +802,14 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        context.previewStack().set(DataComponents.POT_DECORATIONS, new PotDecorations(back, left, right, front));
+        context.previewStack()
+                .set(
+                        DataComponents.POT_DECORATIONS,
+                        new PotDecorations(
+                                back.map(ItemStackTemplate::new),
+                                left.map(ItemStackTemplate::new),
+                                right.map(ItemStackTemplate::new),
+                                front.map(ItemStackTemplate::new)));
     }
 
     private void applyChargedProjectiles(SpecialDataApplyContext context) {
@@ -2035,7 +2042,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
     private void applySwingAnimation(SpecialDataApplyContext context) {
         if (this.handleUnchangedOrCleared(
                 context,
-                DataComponents.SWING_ANIMATION,
+                DataComponents.ATTACK_ANIMATION,
                 Objects.equals(context.special().swingAnimationType, context.baselineSpecial().swingAnimationType)
                         && Objects.equals(
                                 context.special().swingAnimationDuration,
@@ -2045,7 +2052,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        SwingAnimation original = context.originalStack().get(DataComponents.SWING_ANIMATION);
+        SwingAnimation original = context.originalStack().get(DataComponents.ATTACK_ANIMATION);
         SwingAnimationType type = this.parseSwingAnimationType(
                 context.special().swingAnimationType,
                 this.valueFromOriginal(original, SwingAnimation::type, SwingAnimation.DEFAULT.type()),
@@ -2062,7 +2069,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             return;
         }
 
-        context.previewStack().set(DataComponents.SWING_ANIMATION, new SwingAnimation(type, duration));
+        context.previewStack().set(DataComponents.ATTACK_ANIMATION, new SwingAnimation(type, duration));
     }
 
     private <T> boolean handleUnchangedOrCleared(
@@ -2569,7 +2576,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                                         ItemEditorText.str("special.advanced.consumable.diameter"))));
                         return null;
                     }
-                    effects.add(new TeleportRandomlyConsumeEffect(diameter));
+                    effects.add(new TeleportRandomlyConsumeEffect(diameter, true));
                 }
                 case ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS -> {
                     Float probability = draft.probability.isBlank()

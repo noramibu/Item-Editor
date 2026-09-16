@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
@@ -114,10 +115,12 @@ public final class RawItemDataUtil {
 
     private static String serializeCommandComponents(ItemStack stack, RegistryAccess registryAccess) {
         DynamicOps<Tag> ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-        return stack.getComponentsPatch().entrySet().stream()
-                .flatMap(entry -> entry.getValue()
-                        .map(value -> serializePresentCommandComponent(entry.getKey(), value, ops))
-                        .orElseGet(() -> serializeRemovedCommandComponent(entry.getKey())))
+        DataComponentPatch.SplitResult patch = stack.getComponentsPatch().split();
+        return Stream.concat(
+                        patch.added().stream()
+                                .flatMap(component ->
+                                        serializePresentCommandComponent(component.type(), component.value(), ops)),
+                        patch.removed().stream().flatMap(RawItemDataUtil::serializeRemovedCommandComponent))
                 .collect(Collectors.joining(","));
     }
 

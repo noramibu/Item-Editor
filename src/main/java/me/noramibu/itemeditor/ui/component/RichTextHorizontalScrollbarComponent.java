@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseUIComponent;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
@@ -8,7 +9,6 @@ import io.wispforest.owo.ui.inject.GreedyInputUIComponent;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
-import org.lwjgl.glfw.GLFW;
 
 public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent implements GreedyInputUIComponent {
     private static final int HEIGHT = 8;
@@ -97,7 +97,7 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
     }
 
     private boolean handleMouseDown(double mouseX, double mouseY, int button) {
-        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT
+        if (button != InputConstants.MOUSE_BUTTON_LEFT
                 || this.eventOutside(mouseX, mouseY)
                 || this.editor.horizontalScrollMaximum() <= 0) {
             return false;
@@ -109,7 +109,7 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
     }
 
     private boolean handleMouseDrag(int button) {
-        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !this.dragging) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT || !this.dragging) {
             return false;
         }
 
@@ -118,7 +118,7 @@ public final class RichTextHorizontalScrollbarComponent extends BaseUIComponent 
     }
 
     private boolean handleMouseUp(int button) {
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && this.dragging) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && this.dragging) {
             this.dragging = false;
             return true;
         }

@@ -8,23 +8,19 @@ import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
-import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
 import me.noramibu.itemeditor.service.ItemImportService;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.NativeFileDialog;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 public final class ImportScreen extends BaseOwoScreen<StackLayout> {
     private static final int CARD_WIDTH = 270;
@@ -94,35 +90,26 @@ public final class ImportScreen extends BaseOwoScreen<StackLayout> {
 
     private void openFileDialog() {
         this.setStatus(ItemEditorText.tr("import.file_picker_opening"), UiColors.MUTED);
-        CompletableFuture.runAsync(() -> {
-            String path;
-            try {
-                try (MemoryStack stack = MemoryStack.stackPush()) {
-                    PointerBuffer patterns = stack.mallocPointer(3);
-                    patterns.put(stack.UTF8("*.nbt"));
-                    patterns.put(stack.UTF8("*.snbt"));
-                    patterns.put(stack.UTF8("*.json"));
-                    patterns.flip();
-                    path = TinyFileDialogs.tinyfd_openFileDialog(
-                            ItemEditorText.str("import.file_dialog_title"),
-                            this.minecraft.gameDirectory.toPath().toString(),
-                            patterns,
-                            ItemEditorText.str("import.file_dialog_filter"),
-                            false);
-                }
-            } catch (RuntimeException | LinkageError failure) {
-                this.minecraft.execute(() -> this.showFilePickerFailure(failure));
-                return;
-            }
-            if (path == null || path.isBlank()) {
-                this.minecraft.execute(() -> this.setStatus(ItemEditorText.tr("import.cancelled"), UiColors.MUTED));
-                return;
-            }
-            this.importService
-                    .importFile(Path.of(path), this.registryAccess(), this.minecraft.getFixerUpper())
-                    .whenComplete((result, throwable) ->
-                            this.minecraft.execute(() -> this.handleImportResult(result, throwable)));
-        });
+        NativeFileDialog.open(
+                        ItemEditorText.str("import.file_dialog_title"),
+                        this.minecraft.gameDirectory.toPath(),
+                        ItemEditorText.str("import.file_dialog_filter"),
+                        "nbt;snbt;json")
+                .thenAccept(path -> {
+                    if (path == null) {
+                        this.minecraft.execute(
+                                () -> this.setStatus(ItemEditorText.tr("import.cancelled"), UiColors.MUTED));
+                        return;
+                    }
+                    this.importService
+                            .importFile(path, this.registryAccess(), this.minecraft.getFixerUpper())
+                            .whenComplete((result, throwable) ->
+                                    this.minecraft.execute(() -> this.handleImportResult(result, throwable)));
+                })
+                .exceptionally(failure -> {
+                    this.minecraft.execute(() -> this.showFilePickerFailure(failure));
+                    return null;
+                });
     }
 
     private void handleImportResult(ItemImportService.ImportResult result, Throwable throwable) {

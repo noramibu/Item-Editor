@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.component;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.CursorStyle;
@@ -28,7 +29,6 @@ import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 public final class EditorSearchDialog {
     private static final JsonObject ENGLISH = loadEnglish();
@@ -239,27 +239,27 @@ public final class EditorSearchDialog {
                 updateHighlight.run();
             });
             row.keyPress().subscribe(input -> {
-                if (input.key() == GLFW.GLFW_KEY_ENTER
-                        || input.key() == GLFW.GLFW_KEY_KP_ENTER
-                        || input.key() == GLFW.GLFW_KEY_SPACE) {
+                if (input.key() == InputConstants.KEY_RETURN
+                        || input.key() == InputConstants.KEY_NUMPADENTER
+                        || input.key() == InputConstants.KEY_SPACE) {
                     activate.run();
                     return true;
                 }
-                if (input.key() == GLFW.GLFW_KEY_RIGHT && branch) {
+                if (input.key() == InputConstants.KEY_RIGHT && branch) {
                     collapsed.remove(node.path);
                     render();
                     focus(node.path);
                     return true;
                 }
-                if (input.key() == GLFW.GLFW_KEY_LEFT) {
+                if (input.key() == InputConstants.KEY_LEFT) {
                     if (branch && !collapsed.contains(node.path)) toggle(node);
                     else if (node.path.size() > 1) focus(node.path.subList(0, node.path.size() - 1));
                     return true;
                 }
-                if (input.key() == GLFW.GLFW_KEY_UP || input.key() == GLFW.GLFW_KEY_DOWN) {
+                if (input.key() == InputConstants.KEY_UP || input.key() == InputConstants.KEY_DOWN) {
                     var paths = new ArrayList<>(focusableRows.keySet());
                     int index = paths.indexOf(node.path);
-                    int next = index + (input.key() == GLFW.GLFW_KEY_UP ? -1 : 1);
+                    int next = index + (input.key() == InputConstants.KEY_UP ? -1 : 1);
                     focus(paths.get(Math.clamp(next, 0, paths.size() - 1)));
                     return true;
                 }
@@ -329,11 +329,11 @@ public final class EditorSearchDialog {
         };
         search.keyPress().subscribe(input -> {
             if (shown.isEmpty()) return false;
-            if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+            if (input.key() == InputConstants.KEY_RETURN || input.key() == InputConstants.KEY_NUMPADENTER) {
                 select.accept(shown.getFirst());
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_DOWN && !tree.focusableRows.isEmpty()) {
+            if (input.key() == InputConstants.KEY_DOWN && !tree.focusableRows.isEmpty()) {
                 tree.focus(tree.focusableRows.keySet().iterator().next());
                 return true;
             }

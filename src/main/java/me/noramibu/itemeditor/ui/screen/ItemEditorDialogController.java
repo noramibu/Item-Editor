@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.UIComponent.FocusSource;
@@ -37,7 +38,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 
 final class ItemEditorDialogController {
     private static final Pattern INVALID_EXPORT_NAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
@@ -189,20 +189,20 @@ final class ItemEditorDialogController {
             return false;
         }
         if (this.editorSearchOpen) {
-            if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_F) {
+            if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_F) {
                 this.editorSearchFocus = this.editorSearchInput;
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
+            if (input.key() == InputConstants.KEY_ESCAPE) {
                 this.clearDialog();
                 return true;
             }
             if (input.hasControlDownWithQuirk()
-                    && (input.key() == GLFW.GLFW_KEY_S
-                            || input.key() == GLFW.GLFW_KEY_R
-                            || input.key() == GLFW.GLFW_KEY_TAB)) return true;
+                    && (input.key() == InputConstants.KEY_S
+                            || input.key() == InputConstants.KEY_R
+                            || input.key() == InputConstants.KEY_TAB)) return true;
         }
-        if (!input.hasControlDownWithQuirk() || input.key() != GLFW.GLFW_KEY_S) {
+        if (!input.hasControlDownWithQuirk() || input.key() != InputConstants.KEY_S) {
             return false;
         }
         if (this.dialogConfirmShortcut == null) {

@@ -16,8 +16,8 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.SignItem;
 import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.item.component.TypedEntityData;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.ChestBlock;
@@ -67,7 +67,7 @@ public final class ItemEditorCapabilities {
     }
 
     public static boolean supportsSignData(ItemStack stack) {
-        return stack.getItem() instanceof SignItem || hasSignBlockEntityData(stack);
+        return stack.getItem() instanceof StandingAndWallBlockItem || hasSignBlockEntityData(stack);
     }
 
     public static boolean supportsSpawnerData(ItemStack stack) {

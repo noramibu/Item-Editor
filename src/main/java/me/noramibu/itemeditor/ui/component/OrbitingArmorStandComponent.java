@@ -2,13 +2,13 @@ package me.noramibu.itemeditor.ui.component;
 
 import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.EntityComponent;
 import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class OrbitingArmorStandComponent extends EntityComponent<@NotNull ArmorStand> {
 
@@ -22,7 +22,7 @@ public final class OrbitingArmorStandComponent extends EntityComponent<@NotNull 
     @Override
     public boolean onMouseDrag(@NotNull MouseButtonEvent click, double deltaX, double deltaY) {
         boolean handled = super.onMouseDrag(click, deltaX, deltaY);
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && this.allowMouseRotation()) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.allowMouseRotation()) {
             this.pitchDegrees = clampPitch(this.pitchDegrees - (float) (deltaY * 0.75D));
             return true;
         }

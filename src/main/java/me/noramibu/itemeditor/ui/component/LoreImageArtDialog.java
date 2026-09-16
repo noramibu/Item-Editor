@@ -14,7 +14,6 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
@@ -25,13 +24,11 @@ import me.noramibu.itemeditor.util.LoreImageArtUtil;
 import me.noramibu.itemeditor.util.LoreImageArtUtil.ColorMode;
 import me.noramibu.itemeditor.util.LoreImageArtUtil.FullColorDither;
 import me.noramibu.itemeditor.util.LoreImageArtUtil.MaskMode;
+import me.noramibu.itemeditor.util.NativeFileDialog;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 public final class LoreImageArtDialog {
     private static final int DIALOG_GAP = 8;
@@ -334,31 +331,27 @@ public final class LoreImageArtDialog {
     }
 
     private void openFile() {
-        CompletableFuture.runAsync(() -> {
-            String path;
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                PointerBuffer patterns = stack.mallocPointer(2);
-                patterns.put(stack.UTF8("*.png"));
-                patterns.put(stack.UTF8("*.jpg;*.jpeg"));
-                patterns.flip();
-                path = TinyFileDialogs.tinyfd_openFileDialog(
+        NativeFileDialog.open(
                         ItemEditorText.str(targetKey("file_title")),
-                        minecraft.gameDirectory.toPath().toString(),
-                        patterns,
+                        minecraft.gameDirectory.toPath(),
                         ItemEditorText.str("display.lore.image_art.file_filter"),
-                        false);
-            } catch (RuntimeException | LinkageError failure) {
-                minecraft.execute(() -> showError(failure.getMessage()));
-                return;
-            }
-            if (path == null || path.isBlank()) return;
-            try {
-                BufferedImage loaded = ImageIO.read(Path.of(path).toFile());
-                minecraft.execute(() -> setImage(path, loaded));
-            } catch (Exception failure) {
-                minecraft.execute(() -> showError(failure.getMessage()));
-            }
-        });
+                        "png;jpg;jpeg")
+                .thenAcceptAsync(
+                        path -> {
+                            if (path == null) return;
+                            String pathText = path.toString();
+                            try {
+                                BufferedImage loaded = ImageIO.read(path.toFile());
+                                setImage(pathText, loaded);
+                            } catch (Exception failure) {
+                                showError(failure.getMessage());
+                            }
+                        },
+                        minecraft)
+                .exceptionally(failure -> {
+                    minecraft.execute(() -> showError(failure.getMessage()));
+                    return null;
+                });
     }
 
     private void setImage(String path, BufferedImage loaded) {

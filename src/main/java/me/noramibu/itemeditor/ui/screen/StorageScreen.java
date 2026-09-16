@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.serialization.DataResult;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -53,7 +54,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 public final class StorageScreen extends ContainerScreen {
 
@@ -319,7 +319,7 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     public boolean keyPressed(@NotNull KeyEvent input) {
-        if (input.key() == GLFW.GLFW_KEY_I) {
+        if (input.key() == InputConstants.KEY_I) {
             Slot hovered = this.hoveredSlot;
             if (hovered != null && hovered.hasItem()) {
                 if (!this.isManageMode()) {
@@ -338,7 +338,7 @@ public final class StorageScreen extends ContainerScreen {
         if (this.handleSearchShortcuts(input)) {
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+        if (input.key() == InputConstants.KEY_RETURN || input.key() == InputConstants.KEY_NUMPADENTER) {
             if (this.searchInput != null && this.searchInput.isFocused()) {
                 this.applySearch();
                 return true;
@@ -365,7 +365,7 @@ public final class StorageScreen extends ContainerScreen {
                 return true;
             }
         }
-        if (!this.isManageMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
+        if (!this.isManageMode() && input.key() == InputConstants.KEY_ESCAPE && !typingInInputs) {
             this.returnToPreviousScreen();
             return true;
         }
@@ -880,24 +880,24 @@ public final class StorageScreen extends ContainerScreen {
         if (this.searchInput == null) {
             return false;
         }
-        if (input.key() == GLFW.GLFW_KEY_TAB && (this.jumpInput == null || !this.jumpInput.isFocused())) {
+        if (input.key() == InputConstants.KEY_TAB && (this.jumpInput == null || !this.jumpInput.isFocused())) {
             if (!this.searchInput.isFocused()) {
                 this.focusPanelInput(this.searchInput);
                 this.searchInput.setCursorPosition(this.searchInput.getValue().length());
             }
             return this.applyAutocomplete(input.hasShiftDown());
         }
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_F) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_F) {
             this.focusPanelInput(this.searchInput);
             this.searchInput.setCursorPosition(this.searchInput.getValue().length());
             return true;
         }
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_L) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_L) {
             this.clearSearch();
             this.focusPanelInput(this.searchInput);
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE && this.searchInput.isFocused()) {
+        if (input.key() == InputConstants.KEY_ESCAPE && this.searchInput.isFocused()) {
             this.setFocused(null);
             return true;
         }
