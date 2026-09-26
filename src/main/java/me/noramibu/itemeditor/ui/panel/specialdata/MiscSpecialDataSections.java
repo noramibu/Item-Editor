@@ -14,12 +14,14 @@ import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.ui.component.DyeColorSelectorSection;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
+import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.InstrumentDetails;
+import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
@@ -28,18 +30,34 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Instrument;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.MapPostProcessing;
 
 public final class MiscSpecialDataSections {
+    private static final SpecialDataSearch.Field DYED_HEX_COLOR = () -> "special.misc.dyed.hex_color";
+
     public static List<EditorSearchDialog.Target> searchDyedColorTargets(
             SpecialDataPanelContext context, EditorCategory category) {
         if (!supportsDyed(context.originalStack())) return List.of();
         return SpecialDataSearch.targets(
-                context, category, "special.misc.dyed.title", "misc-dyedcolor", () -> {}, DyedField.values());
+                context, category, "special.misc.dyed.title", "misc-dyedcolor", () -> {}, DYED_HEX_COLOR);
+    }
+
+    public static List<EditorSearchDialog.Target> searchDyeTargets(
+            SpecialDataPanelContext context, EditorCategory category) {
+        if (!supportsDye(context.originalStack())) return List.of();
+        return SpecialDataSearch.targets(
+                context,
+                category,
+                "special.dye.title",
+                "misc-dye",
+                () -> context.special().uiDyeCollapsed = false,
+                DyeField.values());
     }
 
     public static List<EditorSearchDialog.Target> searchTrimTargets(
@@ -63,14 +81,13 @@ public final class MiscSpecialDataSections {
     public static List<EditorSearchDialog.Target> searchInstrumentTargets(
             SpecialDataPanelContext context, EditorCategory category) {
         if (!supportsInstrument(context.originalStack())) return List.of();
-        var result = new ArrayList<>(SpecialDataSearch.targets(
+        return new ArrayList<>(SpecialDataSearch.targets(
                 context,
                 category,
                 "special.misc.instrument.title",
                 "misc-instrument",
                 () -> {},
                 InstrumentField.values()));
-        return result;
     }
 
     public static List<EditorSearchDialog.Target> searchInstrumentTargets(SpecialDataPanelContext context) {
@@ -85,15 +102,11 @@ public final class MiscSpecialDataSections {
                 category,
                 "special.misc.map.title",
                 "misc-map",
-                () -> {
-                    context.special().uiMapBasicCollapsed = false;
-                },
+                () -> context.special().uiMapBasicCollapsed = false,
                 MapField.values());
     }
 
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int COLLAPSE_TOGGLE_WIDTH_MIN = 36;
-    private static final int COLLAPSE_TOGGLE_WIDTH_BASE = 42;
     private static final int PROFILE_NAME_FIELD_WIDTH = 220;
     private static final int PROFILE_UUID_FIELD_WIDTH = 260;
     private static final int MAP_POST_PICKER_WIDTH = 190;
@@ -117,6 +130,10 @@ public final class MiscSpecialDataSections {
                 || stack.is(Items.WOLF_ARMOR);
     }
 
+    public static boolean supportsDye(ItemStack stack) {
+        return ItemEditorCapabilities.supportsDyeData(stack);
+    }
+
     public static boolean supportsTrim(ItemStack stack) {
         return stack.has(DataComponents.TRIM) || stack.is(ItemTags.TRIMMABLE_ARMOR);
     }
@@ -130,9 +147,7 @@ public final class MiscSpecialDataSections {
     }
 
     public static boolean supportsMap(ItemStack stack) {
-        return stack.has(DataComponents.MAP_COLOR)
-                || stack.has(DataComponents.MAP_POST_PROCESSING)
-                || stack.is(Items.FILLED_MAP);
+        return stack.has(DataComponents.MAP_POST_PROCESSING) || stack.is(Items.FILLED_MAP);
     }
 
     public static FlowLayout buildDyedColor(SpecialDataPanelContext context) {
@@ -140,7 +155,7 @@ public final class MiscSpecialDataSections {
         FlowLayout section = UiFactory.section(ItemEditorText.tr("special.misc.dyed.title"), Component.empty());
         section.id("misc-dyedcolor");
         section.child(UiFactory.field(
-                DyedField.HEX_COLOR.text(),
+                DYED_HEX_COLOR.text(),
                 Component.empty(),
                 context.colorInputWithPicker(
                                 special.dyedColor,
@@ -150,6 +165,43 @@ public final class MiscSpecialDataSections {
                                 0xA06540)
                         .horizontalSizing(Sizing.fill(100))));
         return section;
+    }
+
+    public static FlowLayout buildDye(SpecialDataPanelContext context) {
+        ItemEditorState.SpecialData special = context.special();
+        var dyeType = BuiltInRegistries.DATA_COMPONENT_TYPE
+                .getOptional(Identifier.parse("minecraft:dye"))
+                .orElse(null);
+        String defaultColor =
+                dyeType != null && context.originalStack().getPrototype().get(dyeType) instanceof DyeColor color
+                        ? color.name()
+                        : "";
+        return collapsibleCard(
+                context,
+                ItemEditorText.tr("special.dye.title"),
+                special.uiDyeCollapsed,
+                value -> special.uiDyeCollapsed = value,
+                () -> {
+                    FlowLayout content = UiFactory.column();
+                    content.child(DyeColorSelectorSection.build(
+                            context,
+                            DyeField.COLOR.text(),
+                            Component.empty(),
+                            ItemEditorText.tr("common.unset").copy().withColor(UiColors.PICKER),
+                            special.dyeColor,
+                            Math.clamp(context.panelWidthHint() / 2, 120, 240),
+                            DyeField.QUICK_PICK.text(),
+                            color -> special.dyeColor = color.name()));
+                    if (!special.dyeColor.isBlank() && !special.dyeColor.trim().equalsIgnoreCase(defaultColor)) {
+                        ButtonComponent clear = UiFactory.negativeButton(
+                                DyeField.RESET.text(),
+                                UiFactory.ButtonTextPreset.STANDARD,
+                                button -> context.mutateRefresh(() -> special.dyeColor = defaultColor));
+                        clear.horizontalSizing(Sizing.fill(100));
+                        content.child(clear);
+                    }
+                    return content;
+                });
     }
 
     public static FlowLayout buildTrim(SpecialDataPanelContext context) {
@@ -163,39 +215,31 @@ public final class MiscSpecialDataSections {
         section.child(trimPickerField(
                 context,
                 TrimField.MATERIAL_ID,
-                "select_material",
                 special.trimMaterialId,
                 materialIds,
                 id -> special.trimMaterialId = id));
 
         section.child(trimPickerField(
-                context,
-                TrimField.PATTERN_ID,
-                "select_pattern",
-                special.trimPatternId,
-                patternIds,
-                id -> special.trimPatternId = id));
+                context, TrimField.PATTERN_ID, special.trimPatternId, patternIds, id -> special.trimPatternId = id));
         return section;
     }
 
     private static FlowLayout trimPickerField(
-            SpecialDataPanelContext context,
-            TrimField field,
-            String emptyKey,
-            String value,
-            List<String> ids,
-            Consumer<String> setter) {
+            SpecialDataPanelContext context, TrimField field, String value, List<String> ids, Consumer<String> setter) {
         String labelKey = field.key();
+        List<String> choices = new ArrayList<>();
+        choices.add("");
+        choices.addAll(ids);
         return PickerFieldFactory.searchableField(
                 context,
                 ItemEditorText.tr(labelKey),
                 Component.empty(),
-                PickerFieldFactory.selectedOrFallback(value, ItemEditorText.tr("special.misc.trim." + emptyKey)),
+                PickerFieldFactory.selectedOrFallback(value, ItemEditorText.tr("common.unset")),
                 -1,
                 ItemEditorText.str(labelKey),
                 "",
-                ids,
-                id -> id,
+                choices,
+                id -> id.isEmpty() ? ItemEditorText.str("common.unset") : id,
                 id -> context.mutateRefresh(() -> setter.accept(id)));
     }
 
@@ -212,14 +256,12 @@ public final class MiscSpecialDataSections {
         identityRow.child(UiFactory.field(
                         ProfileField.NAME.text(),
                         Component.empty(),
-                        UiFactory.textBox(special.profileName, context.bindText(value -> special.profileName = value))
-                                .horizontalSizing(Sizing.fill(100)))
+                        context.boundTextBox(ProfileField.NAME.key()).horizontalSizing(Sizing.fill(100)))
                 .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileNameWidth)));
         identityRow.child(UiFactory.field(
                         ProfileField.UUID.text(),
                         Component.empty(),
-                        UiFactory.textBox(special.profileUuid, context.bindText(value -> special.profileUuid = value))
-                                .horizontalSizing(Sizing.fill(100)))
+                        context.boundTextBox(ProfileField.UUID.key()).horizontalSizing(Sizing.fill(100)))
                 .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(profileUuidWidth)));
         section.child(identityRow);
         section.child(UiFactory.actionButtonRow(
@@ -245,9 +287,7 @@ public final class MiscSpecialDataSections {
         section.child(UiFactory.field(
                 ProfileField.TEXTURE_SIGNATURE.text(),
                 Component.empty(),
-                UiFactory.textBox(
-                        special.profileTextureSignature,
-                        context.bindText(value -> special.profileTextureSignature = value))));
+                context.boundTextBox(ProfileField.TEXTURE_SIGNATURE.key())));
 
         FlowLayout actions = compactLayout ? UiFactory.column() : UiFactory.row();
         int contentWidth = context.panelWidthHint();
@@ -342,18 +382,12 @@ public final class MiscSpecialDataSections {
         values.child(UiFactory.field(
                         InstrumentField.USE_DURATION.text(),
                         Component.empty(),
-                        UiFactory.textBox(
-                                        special.instrumentUseDuration,
-                                        context.bindText(value -> special.instrumentUseDuration = value))
-                                .horizontalSizing(Sizing.fill(100)))
+                        context.boundTextBox(InstrumentField.USE_DURATION.key()).horizontalSizing(Sizing.fill(100)))
                 .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
         values.child(UiFactory.field(
                         InstrumentField.RANGE.text(),
                         Component.empty(),
-                        UiFactory.textBox(
-                                        special.instrumentRange,
-                                        context.bindText(value -> special.instrumentRange = value))
-                                .horizontalSizing(Sizing.fill(100)))
+                        context.boundTextBox(InstrumentField.RANGE.key()).horizontalSizing(Sizing.fill(100)))
                 .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INSTRUMENT_NUMBER_FIELD_WIDTH)));
         section.child(values);
         return section;
@@ -417,16 +451,6 @@ public final class MiscSpecialDataSections {
                 () -> {
                     FlowLayout content = UiFactory.column();
                     FlowLayout row = isCompactLayout(context) ? UiFactory.column() : UiFactory.row();
-                    row.child(UiFactory.field(
-                            MapField.COLOR.text(),
-                            Component.empty(),
-                            context.colorInputWithPicker(
-                                            special.mapColor,
-                                            value -> special.mapColor = value,
-                                            () -> special.mapColor,
-                                            MapField.COLOR.text().getString(),
-                                            0x7FB238)
-                                    .horizontalSizing(Sizing.fill(100))));
                     row.child(PickerFieldFactory.dropdownField(
                             context,
                             MapField.POST.text(),
@@ -449,18 +473,11 @@ public final class MiscSpecialDataSections {
             Consumer<Boolean> setter,
             Supplier<FlowLayout> contentBuilder) {
         FlowLayout card = UiFactory.subCard();
-        card.id("misc-map");
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
-        ButtonComponent toggle = UiFactory.button(
-                LayoutModeUtil.sectionToggleText(collapsed), UiFactory.ButtonTextPreset.STANDARD, button -> {
-                    setter.accept(!collapsed);
-                    context.screen().refreshCurrentPanel();
-                });
-        int toggleWidth = Math.max(COLLAPSE_TOGGLE_WIDTH_MIN, COLLAPSE_TOGGLE_WIDTH_BASE);
-        toggle.horizontalSizing(Sizing.fixed(toggleWidth));
-        header.child(toggle);
-        card.child(header);
+        card.id(title.equals(ItemEditorText.tr("special.dye.title")) ? "misc-dye" : "misc-map");
+        card.child(UiFactory.collapsibleHeader(UiFactory.title(title).shadow(false), collapsed, () -> {
+            setter.accept(!collapsed);
+            context.screen().refreshCurrentPanel();
+        }));
         if (!collapsed) {
             card.child(contentBuilder.get());
         }
@@ -477,12 +494,14 @@ public final class MiscSpecialDataSections {
         return path.endsWith("_head");
     }
 
-    private enum DyedField implements SpecialDataSearch.Field {
-        HEX_COLOR("special.misc.dyed.hex_color");
+    private enum DyeField implements SpecialDataSearch.Field {
+        COLOR("special.dye.color"),
+        QUICK_PICK("special.dye.quick_pick"),
+        RESET("common.reset");
 
         private final String key;
 
-        DyedField(String key) {
+        DyeField(String key) {
             this.key = key;
         }
 

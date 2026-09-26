@@ -92,13 +92,13 @@ public final class SpecialDataSearch {
         }
 
         EditorSearchDialog.Target target(
-                SpecialDataPanelContext context,
-                EditorCategory category,
-                List<String> parents,
-                String scope,
-                Runnable expand) {
-            return target(categoryTitle(context, category), parents, scope, expand, location -> context.screen()
-                    .revealSearchTarget(category, location));
+                SpecialDataPanelContext context, List<String> parents, String scope, Runnable expand) {
+            return target(
+                    categoryTitle(context, EditorCategory.SPECIAL_DATA),
+                    parents,
+                    scope,
+                    expand,
+                    location -> context.screen().revealSearchTarget(EditorCategory.SPECIAL_DATA, location));
         }
     }
 

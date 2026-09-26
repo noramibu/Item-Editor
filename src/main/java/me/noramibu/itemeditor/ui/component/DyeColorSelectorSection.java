@@ -56,9 +56,7 @@ public final class DyeColorSelectorSection {
             Component helpText,
             String selectedColor,
             Consumer<DyeColor> onSelected) {
-        FlowLayout content = UiFactory.column().gap(2);
-        content.child(colorPalette(context, selectedColor, onSelected));
-        return UiFactory.field(label, helpText, content);
+        return UiFactory.field(label, helpText, colorPalette(context, selectedColor, onSelected));
     }
 
     public static Component buttonLabel(String rawColor, Component fallback) {

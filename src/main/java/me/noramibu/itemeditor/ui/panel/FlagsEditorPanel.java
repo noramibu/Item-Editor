@@ -102,8 +102,8 @@ public final class FlagsEditorPanel implements EditorPanel {
             FlowLayout optionsRow = UiFactory.row();
             FlowLayout left = UiFactory.column();
             FlowLayout right = UiFactory.column();
-            left.horizontalSizing(Sizing.fill(49));
-            right.horizontalSizing(Sizing.fill(49));
+            left.horizontalSizing(Sizing.expand(50));
+            right.horizontalSizing(Sizing.expand(50));
 
             int columnWidth = Math.max(
                     1,

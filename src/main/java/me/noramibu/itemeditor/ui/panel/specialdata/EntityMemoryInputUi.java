@@ -25,6 +25,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 
 final class EntityMemoryInputUi {
+    private static final SpecialDataSearch.Field PICK_PLAYER = () -> "special.misc.profile.pick_player";
     private static final String SELECTION = "memory:";
 
     private EntityMemoryInputUi() {}
@@ -67,7 +68,7 @@ final class EntityMemoryInputUi {
                     context, EditorCategory.SPECIAL_DATA, memoryPath, scope, reveal, Field.values()));
             if (module == MemoryModuleType.ANGRY_AT || module == MemoryModuleType.LIKED_PLAYER) {
                 result.addAll(SpecialDataSearch.targets(
-                        context, EditorCategory.SPECIAL_DATA, memoryPath, scope, reveal, PlayerField.values()));
+                        context, EditorCategory.SPECIAL_DATA, memoryPath, scope, reveal, PICK_PLAYER));
             }
         }
         return result;
@@ -142,8 +143,8 @@ final class EntityMemoryInputUi {
         input.setHint(Field.MEMORY_VALUE.text());
         result.child(input.horizontalSizing(Sizing.fill(100)));
         if (module == MemoryModuleType.ANGRY_AT || module == MemoryModuleType.LIKED_PLAYER) {
-            result.child(UiFactory.button(
-                    PlayerField.PICK_PLAYER.text(), UiFactory.ButtonTextPreset.COMPACT, button -> context.screen()
+            result.child(
+                    UiFactory.button(PICK_PLAYER.text(), UiFactory.ButtonTextPreset.COMPACT, button -> context.screen()
                             .openPlayerUuidPicker(
                                     id,
                                     EntitySpawnDataUi.onlinePlayers(context),
@@ -160,16 +161,11 @@ final class EntityMemoryInputUi {
         expiry.setHint(ItemEditorText.tr("special.entity.tags.memory_no_expiry"));
         result.child(expiry.horizontalSizing(Sizing.fill(100)));
         result.child(UiFactory.packedActionButtonRow(apply, EntityTagInputUi.action(context, Field.REMOVE.key(), () -> {
-            try {
-                String latest = draft.entityTagEdits.getOrDefault(field.key(), field.read(draft.originalEntityTag));
-                if (latest.isBlank()) return;
-                CompoundTag root = ((CompoundTag) field.parse(latest)).copy();
-                CompoundTag memories = root.getCompoundOrEmpty("memories");
-                memories.remove(id);
-                root.put("memories", memories);
-                setter.accept(root.toString());
-            } catch (Exception exception) {
-            }
+            CompoundTag root = previous.copy();
+            CompoundTag memories = root.getCompoundOrEmpty("memories");
+            memories.remove(id);
+            root.put("memories", memories);
+            setter.accept(root.toString());
         })));
         validate.run();
         return result;
@@ -212,20 +208,6 @@ final class EntityMemoryInputUi {
         private final String key;
 
         Field(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
-    }
-
-    private enum PlayerField implements SpecialDataSearch.Field {
-        PICK_PLAYER("special.misc.profile.pick_player");
-
-        private final String key;
-
-        PlayerField(String key) {
             this.key = key;
         }
 

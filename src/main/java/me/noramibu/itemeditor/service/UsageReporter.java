@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import me.noramibu.itemeditor.ItemEditorClient;
 import me.noramibu.itemeditor.storage.StorageServices;
 import me.noramibu.itemeditor.storage.model.PreferencesFileModel;
+import me.noramibu.itemeditor.util.AsyncDispatchUtil;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
@@ -30,11 +31,8 @@ public final class UsageReporter {
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .build();
-    private static final ScheduledExecutorService EXECUTOR = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "itemeditor-usage-reporter");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final ScheduledExecutorService EXECUTOR = Executors.newSingleThreadScheduledExecutor(
+            AsyncDispatchUtil.daemonThreadFactory("itemeditor-usage-reporter"));
     private static volatile boolean statisticsEnabled;
 
     private UsageReporter() {}

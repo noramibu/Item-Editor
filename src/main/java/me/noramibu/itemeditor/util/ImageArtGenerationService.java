@@ -9,11 +9,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public final class ImageArtGenerationService implements AutoCloseable {
-    private static final ScheduledThreadPoolExecutor WORKER = new ScheduledThreadPoolExecutor(1, runnable -> {
-        Thread thread = new Thread(runnable, "itemeditor-image-art");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final ScheduledThreadPoolExecutor WORKER =
+            new ScheduledThreadPoolExecutor(1, AsyncDispatchUtil.daemonThreadFactory("itemeditor-image-art"));
 
     static {
         WORKER.setRemoveOnCancelPolicy(true);

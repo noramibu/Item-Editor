@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.screen;
 
 import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
@@ -120,7 +121,8 @@ public final class ImportedItemsScreen extends ContainerScreen {
     }
 
     private void openEditor(ItemStack stack) {
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack.copy())));
+        this.minecraft.setScreen(new ItemEditorScreen(
+                new ItemEditorSession(this.minecraft, stack.copy(), ItemEditorSessionOrigin.IMPORTED)));
     }
 
     private void changePage(int delta) {

@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -13,12 +14,12 @@ public final class AsyncDispatchUtil {
 
     private AsyncDispatchUtil() {}
 
+    public static ThreadFactory daemonThreadFactory(String threadName) {
+        return runnable -> Thread.ofPlatform().name(threadName).daemon().unstarted(runnable);
+    }
+
     public static ExecutorService newSingleThreadExecutor(String threadName) {
-        return Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, threadName);
-            thread.setDaemon(true);
-            return thread;
-        });
+        return Executors.newSingleThreadExecutor(daemonThreadFactory(threadName));
     }
 
     public static <T> Consumer<T> nullSafeConsumer(Consumer<T> consumer) {

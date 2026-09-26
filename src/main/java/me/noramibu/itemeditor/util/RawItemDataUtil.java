@@ -11,6 +11,7 @@ import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import me.noramibu.itemeditor.editor.ValidationMessage;
@@ -46,17 +47,7 @@ public final class RawItemDataUtil {
     }
 
     public static String serialize(ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults) {
-        if (stack.isEmpty()) {
-            return ItemEditorText.str("raw.empty");
-        }
-
-        DataResult<Tag> result =
-                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
-        return result.result()
-                .map(tag -> printTag(withKnownDefaults(tag, showKnownDefaults)))
-                .orElseGet(() -> ItemEditorText.str(
-                        "raw.serialize_failed",
-                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))));
+        return serialize(stack, registryAccess, showKnownDefaults, RawItemDataUtil::printTag);
     }
 
     public static String serializeJson(ItemStack stack, RegistryAccess registryAccess) {
@@ -64,25 +55,25 @@ public final class RawItemDataUtil {
     }
 
     public static String serializeJson(ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults) {
-        if (stack.isEmpty()) {
-            return ItemEditorText.str("raw.empty");
-        }
+        return serialize(stack, registryAccess, showKnownDefaults, tag -> {
+            try {
+                return GSON.toJson(NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, tag));
+            } catch (RuntimeException exception) {
+                return ItemEditorText.str("raw.serialize_failed", exceptionMessage(exception));
+            }
+        });
+    }
 
-        DataResult<Tag> nbtResult =
+    private static String serialize(
+            ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults, Function<Tag, String> format) {
+        if (stack.isEmpty()) return ItemEditorText.str("raw.empty");
+        DataResult<Tag> result =
                 ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
-        if (nbtResult.result().isEmpty()) {
-            return ItemEditorText.str(
-                    "raw.serialize_failed",
-                    nbtResult.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")));
-        }
-
-        Tag withDefaults = withKnownDefaults(nbtResult.result().get(), showKnownDefaults);
-        try {
-            JsonElement jsonElement = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, withDefaults);
-            return GSON.toJson(jsonElement);
-        } catch (RuntimeException exception) {
-            return ItemEditorText.str("raw.serialize_failed", exceptionMessage(exception));
-        }
+        return result.result()
+                .map(tag -> format.apply(withKnownDefaults(tag, showKnownDefaults)))
+                .orElseGet(() -> ItemEditorText.str(
+                        "raw.serialize_failed",
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))));
     }
 
     public static String serializeGiveCommand(ItemStack stack, RegistryAccess registryAccess) {

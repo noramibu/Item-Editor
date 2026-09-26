@@ -80,6 +80,7 @@ import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.RemoveStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.Repairable;
@@ -157,10 +158,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 DataComponents.FOOD,
                 Objects.equals(context.special().foodNutrition, context.baselineSpecial().foodNutrition)
                         && Objects.equals(context.special().foodSaturation, context.baselineSpecial().foodSaturation)
-                        && context.special().foodCanAlwaysEat == context.baselineSpecial().foodCanAlwaysEat,
+                        && Objects.equals(
+                                context.special().foodCanAlwaysEat, context.baselineSpecial().foodCanAlwaysEat),
                 context.special().foodNutrition.isBlank()
                         && context.special().foodSaturation.isBlank()
-                        && !context.special().foodCanAlwaysEat)) {
+                        && context.special().foodCanAlwaysEat.isBlank())) {
             return;
         }
 
@@ -190,7 +192,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack()
                 .set(
                         DataComponents.FOOD,
-                        new FoodProperties(nutrition, saturation, context.special().foodCanAlwaysEat));
+                        new FoodProperties(
+                                nutrition, saturation, Boolean.parseBoolean(context.special().foodCanAlwaysEat)));
     }
 
     private void applyConsumable(SpecialDataApplyContext context) {
@@ -2483,6 +2486,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         && Objects.equals(left.probability, right.probability)
                         && Objects.equals(left.diameter, right.diameter)
                         && Objects.equals(left.soundId, right.soundId)
+                        && Objects.equals(left.removedEffects, right.removedEffects)
                         && this.sameList(
                                 left.effects, right.effects, ItemEditorState.PotionEffectDraft::hasSameValues));
     }
@@ -2507,6 +2511,20 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             }
 
             switch (normalizedType) {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS -> {
+                    List<String> ids = this.splitIdentifierList(draft.removedEffects);
+                    List<Holder<MobEffect>> removed = ids.stream()
+                            .map(id -> RegistryUtil.resolveHolder(effectRegistry, id))
+                            .filter(Objects::nonNull)
+                            .toList();
+                    if (removed.size() != ids.size()) {
+                        context.messages()
+                                .add(ValidationMessage.error(
+                                        ItemEditorText.str("preview.validation.component_failed", effectsLabel)));
+                        return null;
+                    }
+                    effects.add(new RemoveStatusEffectsConsumeEffect(HolderSet.direct(removed)));
+                }
                 case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS ->
                     effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
                 case ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY -> {

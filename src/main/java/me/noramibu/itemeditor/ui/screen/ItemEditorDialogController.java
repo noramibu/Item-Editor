@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.UIComponent.FocusSource;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -27,9 +29,13 @@ import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.ItemSelectionDialog;
 import me.noramibu.itemeditor.ui.component.LoreImageArtDialog;
 import me.noramibu.itemeditor.ui.component.RawItemDataDialog;
+import me.noramibu.itemeditor.ui.component.RawStringEditorDialog;
+import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
+import me.noramibu.itemeditor.ui.component.RawTextSearchDialog;
 import me.noramibu.itemeditor.ui.component.RichTextTokenDialog;
 import me.noramibu.itemeditor.ui.component.SearchablePickerDialog;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
+import me.noramibu.itemeditor.ui.component.raw.RawEmbeddedString;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.ChatFormatting;
@@ -37,7 +43,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 
 final class ItemEditorDialogController {
     private static final Pattern INVALID_EXPORT_NAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
@@ -61,6 +66,11 @@ final class ItemEditorDialogController {
     private Runnable dialogConfirmShortcut;
     private boolean editorSearchOpen;
     private TextBoxComponent editorSearchFocus;
+    private RawTextSearchDialog rawSearch;
+    private RawStringEditorDialog rawStringEditor;
+    private boolean openingString;
+    private RawTextAreaComponent boundRawEditor;
+    private String rawSearchQuery = "";
     private TextBoxComponent editorSearchInput;
     private RawItemDataDialog.Feedback rawDialogFeedback;
 
@@ -82,14 +92,156 @@ final class ItemEditorDialogController {
                 this::clearDialog);
     }
 
-    void choosePickedItem(ItemStack stack, Consumer<ItemStack> onUse) {
+    void openRawTextSearch(RawTextAreaComponent editor, int tab) {
+        if (!(editor.parent() instanceof FlowLayout host)) return;
+        if (this.rawSearch == null || this.rawSearch.isClosed()) {
+            this.rawSearch =
+                    new RawTextSearchDialog(editor, host, this.rawSearchQuery, query -> this.rawSearchQuery = query);
+        } else this.rawSearch.rebind(editor);
+        this.rawSearch.openTab(tab);
+    }
+
+    boolean handleRawSearchShortcut(KeyEvent input) {
+        return this.screen.isDialogClosed()
+                && this.rawSearch != null
+                && this.rawSearch.isOpen()
+                && this.rawSearch.handle(input);
+    }
+
+    void openRawStringEditor(RawTextAreaComponent editor) {
+        if (this.openingString) return;
+        boolean mainRawEditor = editor == this.boundRawEditor;
+        String snapshot = editor.getValue();
+        int caret = editor.caretIndex(), anchor = editor.selectionIndex();
+        this.openingString = true;
+        CompletableFuture.supplyAsync(() -> {
+                    var slice = RawEmbeddedString.at(snapshot, caret, anchor);
+                    if (slice == null) throw new IllegalArgumentException("select");
+                    return new StringPreview(slice, RawEmbeddedString.format(slice.value()));
+                })
+                .whenComplete((preview, error) -> this.minecraft().execute(() -> {
+                    this.openingString = false;
+                    if (this.minecraft().screen != this.screen
+                            || !this.screen.isDialogClosed()
+                            || !editor.hasParent()
+                            || !editor.getValue().equals(snapshot)) return;
+                    if (error != null) {
+                        this.showInfoDialog(
+                                ItemEditorText.str("raw_editor.string.open"),
+                                ItemEditorText.str("raw_editor.string." + RawStringEditorDialog.errorKey(error)));
+                        return;
+                    }
+                    RawStringEditorDialog dialog = new RawStringEditorDialog(
+                            preview.slice(),
+                            preview.formatted(),
+                            value -> {
+                                RawTextAreaComponent target =
+                                        mainRawEditor && this.boundRawEditor != null ? this.boundRawEditor : editor;
+                                if (!target.getValue().equals(snapshot)) {
+                                    this.showInfoDialog(
+                                            ItemEditorText.str("raw_editor.string.open"),
+                                            ItemEditorText.str("raw_editor.string.stale"));
+                                    return;
+                                }
+                                target.replaceRange(
+                                        preview.slice().start(),
+                                        preview.slice().end(),
+                                        preview.slice().encoded(value));
+                                this.clearDialog();
+                                if (target.focusHandler() != null)
+                                    target.focusHandler().focus(target, FocusSource.KEYBOARD_CYCLE);
+                            },
+                            this::clearDialog);
+                    this.showDialog(dialog.component());
+                    this.rawStringEditor = dialog;
+                }));
+    }
+
+    private record StringPreview(RawEmbeddedString.Slice slice, String formatted) {}
+
+    RawStringEditorDialog rawStringEditor() {
+        return this.rawStringEditor;
+    }
+
+    void restoreRawStringEditor(RawStringEditorDialog dialog) {
+        if (dialog == null) return;
+        dialog.resize();
+        this.showDialog(dialog.component());
+        this.rawStringEditor = dialog;
+    }
+
+    void closeRawSearch() {
+        if (this.rawSearch == null) return;
+        this.rawSearch.close();
+        this.rawSearch = null;
+    }
+
+    void suspendRawSearch() {
+        if (this.rawSearch != null) this.rawSearch.suspend();
+    }
+
+    void bindRawSearchEditor(RawTextAreaComponent editor) {
+        this.boundRawEditor = editor;
+        if (this.rawSearch != null) this.rawSearch.rebind(editor);
+    }
+
+    void rawSearchMouseClicked(double x, double y) {
+        if (this.rawSearch != null) this.rawSearch.mouseClicked(x, y);
+    }
+
+    boolean rawSearchMouseScrolled(double x, double y, double amount) {
+        return this.screen.isDialogClosed() && this.rawSearch != null && this.rawSearch.mouseScrolled(x, y, amount);
+    }
+
+    void confirmRestore(Component label, String current, String original, Runnable restore) {
+        ItemEditorValueDiff.Result diff =
+                ItemEditorValueDiff.between(restoreValue(current), restoreValue(original), 2048);
+        Component body = Component.empty()
+                .append(label.copy().withColor(0x55FFFF))
+                .append("\n\n")
+                .append(ItemEditorText.tr("common.current").copy().withColor(0xFFAA00))
+                .append("\n")
+                .append(diff.before())
+                .append("\n\n")
+                .append(ItemEditorText.tr("screen.raw_data.original_item")
+                        .copy()
+                        .withColor(0x55FF55))
+                .append("\n")
+                .append(diff.after());
+        this.showDialog(ConfirmationDialog.create(
+                ItemEditorText.str("screen.field.restore.confirm"),
+                body,
+                ItemEditorText.tr("common.restore").copy().withColor(0x55FF55),
+                () -> this.clearThen(() -> {
+                    restore.run();
+                    this.screen.refreshCurrentPanel();
+                }),
+                ItemEditorText.tr("common.cancel").copy().withColor(0xFF5555),
+                this::clearDialog));
+    }
+
+    static String restoreValue(String value) {
+        if (value == null || value.isEmpty()) return "\"\"";
+        return value.replace("\\", "\\\\")
+                .replace(" ", "\\u0020")
+                .replace("\t", "\\t")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n\n");
+    }
+
+    void chooseItemSource(Runnable itemList, Runnable storage) {
+        this.showDialog(ItemSelectionDialog.source(
+                () -> this.clearThen(itemList), () -> this.clearThen(storage), this::clearDialog));
+    }
+
+    void choosePickedItem(ItemStack stack, Consumer<ItemStack> onUse, Component contextTitle) {
         ItemStack picked = stack.copy();
         Runnable useItem = () -> this.clearThen(() -> onUse.accept(picked.copy()));
         this.showDialog(
                 ItemSelectionDialog.create(
                         picked,
                         useItem,
-                        () -> this.clearThen(() -> this.screen.openNestedEditor(picked, null, onUse)),
+                        () -> this.clearThen(() -> this.screen.openNestedEditor(picked, null, onUse, contextTitle)),
                         this::clearDialog),
                 useItem);
     }
@@ -120,7 +272,7 @@ final class ItemEditorDialogController {
                                 : ItemEditorText.str(titleKey),
                         body,
                         this.buildRawDiffLines(originalRaw, currentRaw),
-                        ItemEditorText.tr(this.screen.isNestedEditor() ? "screen.nested.apply" : "common.save"),
+                        this.screen.applyActionLabel(),
                         () -> this.performApply(preview.copy()),
                         ItemEditorText.tr("common.cancel"),
                         this::clearDialog),
@@ -188,21 +340,22 @@ final class ItemEditorDialogController {
         if (this.screen.isDialogClosed()) {
             return false;
         }
+        if (this.rawStringEditor != null) return this.rawStringEditor.handle(input);
+        if (input.key() == InputConstants.KEY_ESCAPE) {
+            this.clearDialog();
+            return true;
+        }
         if (this.editorSearchOpen) {
-            if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_F) {
+            if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_F) {
                 this.editorSearchFocus = this.editorSearchInput;
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
-                this.clearDialog();
-                return true;
-            }
             if (input.hasControlDownWithQuirk()
-                    && (input.key() == GLFW.GLFW_KEY_S
-                            || input.key() == GLFW.GLFW_KEY_R
-                            || input.key() == GLFW.GLFW_KEY_TAB)) return true;
+                    && (input.key() == InputConstants.KEY_S
+                            || input.key() == InputConstants.KEY_R
+                            || input.key() == InputConstants.KEY_TAB)) return true;
         }
-        if (!input.hasControlDownWithQuirk() || input.key() != GLFW.GLFW_KEY_S) {
+        if (!input.hasControlDownWithQuirk() || input.key() != InputConstants.KEY_S) {
             return false;
         }
         if (this.dialogConfirmShortcut == null) {
@@ -218,6 +371,23 @@ final class ItemEditorDialogController {
             Consumer<UnifiedColorPickerDialog.ColorPickerResult> onApply) {
         this.showDialog(UnifiedColorPickerDialog.create(
                 title, options, result -> this.clearThen(() -> onApply.accept(result)), this::clearDialog));
+    }
+
+    void openPairedColorPickerDialog(
+            String title,
+            UnifiedColorPickerDialog.Options options,
+            UnifiedColorPickerDialog.PaintLayer text,
+            UnifiedColorPickerDialog.PaintLayer shadow,
+            boolean shadowEnabled,
+            Consumer<UnifiedColorPickerDialog.PairedColorResult> onApply) {
+        this.showDialog(UnifiedColorPickerDialog.createPaired(
+                title,
+                options,
+                text,
+                shadow,
+                shadowEnabled,
+                result -> this.clearThen(() -> onApply.accept(result)),
+                this::clearDialog));
     }
 
     void openRichTextHeadDialog(String title, Consumer<String> onApply) {
@@ -592,6 +762,8 @@ final class ItemEditorDialogController {
     }
 
     void tick() {
+        if (this.rawSearch != null) this.rawSearch.tick();
+        if (this.rawStringEditor != null && !this.screen.isDialogClosed()) this.rawStringEditor.tick();
         if (this.editorSearchFocus != null && this.editorSearchFocus.focusHandler() != null) {
             this.editorSearchFocus.focusHandler().focus(this.editorSearchFocus, FocusSource.KEYBOARD_CYCLE);
             this.editorSearchFocus = null;
@@ -691,6 +863,7 @@ final class ItemEditorDialogController {
     }
 
     private void clearDialog() {
+        this.rawStringEditor = null;
         this.editorSearchOpen = false;
         this.editorSearchInput = null;
         this.editorSearchFocus = null;

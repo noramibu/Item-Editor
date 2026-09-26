@@ -9,6 +9,7 @@ import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.service.ItemImportService;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -108,7 +109,8 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
             this.setStatus(ItemEditorText.tr("import.empty_item"), UiColors.DANGER);
             return;
         }
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, parsed.stack())));
+        this.minecraft.setScreen(new ItemEditorScreen(
+                new ItemEditorSession(this.minecraft, parsed.stack(), ItemEditorSessionOrigin.IMPORTED)));
     }
 
     private void formatText() {

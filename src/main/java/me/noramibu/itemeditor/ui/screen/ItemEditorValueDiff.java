@@ -2,6 +2,7 @@ package me.noramibu.itemeditor.ui.screen;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import net.minecraft.network.chat.Component;
@@ -60,7 +61,7 @@ final class ItemEditorValueDiff {
     }
 
     private static List<String> tokens(String value) {
-        return TOKEN.matcher(value).results().map(match -> match.group()).toList();
+        return TOKEN.matcher(value).results().map(MatchResult::group).toList();
     }
 
     private static Component render(List<String> tokens, boolean[] changed, int color, int length, int limit) {

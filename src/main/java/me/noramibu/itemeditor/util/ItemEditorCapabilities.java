@@ -11,6 +11,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.BannerItem;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SignItem;
@@ -53,6 +54,10 @@ public final class ItemEditorCapabilities {
 
     public static boolean supportsDebugStickData(ItemStack stack) {
         return stack.has(DataComponents.DEBUG_STICK_STATE) || stack.is(Items.DEBUG_STICK);
+    }
+
+    public static boolean supportsDyeData(ItemStack stack) {
+        return stack.getItem() instanceof DyeItem;
     }
 
     public static boolean supportsSignData(ItemStack stack) {

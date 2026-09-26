@@ -61,13 +61,13 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 Integer.MAX_VALUE,
                 context.messages());
         String scaleAttributeId = scaleAttributeId();
-        if (!EntitySpawnDataUtil.applyAttributes(
+        if (EntitySpawnDataUtil.failedToApplyAttributes(
                         entityTag,
                         context.special().armorStandAttributes,
                         Set.of(scaleAttributeId),
                         context,
                         ItemEditorText.str("special.armor_stand.title"))
-                || !EntitySpawnDataUtil.applyHealth(
+                || EntitySpawnDataUtil.failedToApplyHealth(
                         entityTag,
                         context.special().armorStandHealth,
                         EntityType.getKey(EntityType.ARMOR_STAND).toString(),
@@ -76,7 +76,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                         ItemEditorText.str("special.entity.health"))) {
             return;
         }
-        if (!EntitySpawnDataUtil.applyEquipment(
+        if (EntitySpawnDataUtil.failedToApplyEquipment(
                 entityTag, context.special().armorStandEquipment, context, ItemEditorText.str("common.equipment"))) {
             return;
         }

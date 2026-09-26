@@ -48,6 +48,14 @@ dependencies {
 	compileOnly "me.shedaniel:RoughlyEnoughItems-api:${project.rei_version}"
 }
 
+loom {
+    runs {
+        client {
+            vmArg "-XX:StackShadowPages=32"
+        }
+    }
+}
+
 def localTests = file("local-tests.gradle")
 if (localTests.exists()) {
 	apply from: localTests

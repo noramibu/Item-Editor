@@ -35,17 +35,16 @@ final class EffectFieldLayoutUtil {
                 effectIds,
                 Function.identity(),
                 setEffectId));
-        fields.child(UiFactory.field(
-                Field.DURATION.text(),
-                Component.empty(),
-                UiFactory.textBox(duration, setDuration).horizontalSizing(Sizing.fill(100))));
+        fields.child(numberField(Field.DURATION.text(), duration, setDuration));
         if (amplifier != null && setAmplifier != null) {
-            fields.child(UiFactory.field(
-                    Field.AMPLIFIER.text(),
-                    Component.empty(),
-                    UiFactory.textBox(amplifier, setAmplifier).horizontalSizing(Sizing.fill(100))));
+            fields.child(numberField(Field.AMPLIFIER.text(), amplifier, setAmplifier));
         }
         return fields;
+    }
+
+    static FlowLayout numberField(Component label, String value, Consumer<String> setter) {
+        return UiFactory.field(
+                label, Component.empty(), UiFactory.textBox(value, setter).horizontalSizing(Sizing.fill(100)));
     }
 
     enum Field implements SpecialDataSearch.Field {

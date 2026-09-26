@@ -3,8 +3,12 @@ package me.noramibu.itemeditor.api;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageServices;
+import me.noramibu.itemeditor.storage.StorageSortMode;
+import me.noramibu.itemeditor.ui.screen.StorageScreen;
+import me.noramibu.itemeditor.ui.screen.StorageScreenMode;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -16,6 +20,64 @@ import net.minecraft.world.item.ItemStack;
 public final class ItemEditorStorageApi {
 
     private ItemEditorStorageApi() {}
+
+    /**
+     * Opens and highlights an item by stable ID. Returns false if missing, outside a world,
+     * or the user changes screens during lookup. Storage failures complete exceptionally.
+     */
+    public static CompletableFuture<Boolean> openStorageItem(String itemId) {
+        return openStorage(() -> storage().findItemLocationAsync(itemId));
+    }
+
+    /** Opens an occupied zero-based slot by stable page ID, with the same result semantics as openStorageItem. */
+    public static CompletableFuture<Boolean> openStorageSlot(String pageId, int slot) {
+        return openStorage(() -> storage().findSlotLocationAsync(pageId, slot));
+    }
+
+    private static CompletableFuture<Boolean> openStorage(
+            Supplier<CompletableFuture<Optional<SavedItemStorageService.ItemLocation>>> lookup) {
+        Minecraft minecraft = Minecraft.getInstance();
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        minecraft.execute(() -> {
+            if (minecraft.player == null || minecraft.level == null) {
+                result.complete(false);
+                return;
+            }
+            var previous = minecraft.screen;
+            var level = minecraft.level;
+            try {
+                lookup.get()
+                        .whenComplete((location, failure) -> minecraft.execute(() -> {
+                            if (failure != null) {
+                                result.completeExceptionally(failure);
+                            } else if (location.isEmpty()
+                                    || minecraft.player == null
+                                    || minecraft.level != level
+                                    || minecraft.screen != previous) {
+                                result.complete(false);
+                            } else {
+                                try {
+                                    var target = location.get();
+                                    minecraft.setScreen(new StorageScreen(
+                                                    target.pageNumber(),
+                                                    "",
+                                                    StorageSortMode.REGULAR,
+                                                    StorageScreenMode.COPY_IMPORT,
+                                                    previous,
+                                                    null)
+                                            .highlightItem(target.itemId()));
+                                    result.complete(true);
+                                } catch (RuntimeException exception) {
+                                    result.completeExceptionally(exception);
+                                }
+                            }
+                        }));
+            } catch (RuntimeException exception) {
+                result.completeExceptionally(exception);
+            }
+        });
+        return result;
+    }
 
     /** Returns all persistent pages in their current order. */
     public static CompletableFuture<List<StoragePage>> listPages() {
@@ -83,6 +145,43 @@ public final class ItemEditorStorageApi {
     private static SavedItemStorageService storage() {
         return StorageServices.savedItems();
     }
+
+    /** Finds an exact item-data match anywhere in storage, including count. Does not save or show UI. */
+    public static CompletableFuture<Optional<DuplicateMatch>> findDuplicate(ItemStack stack) {
+        return storage()
+                .findDuplicateItemAsync(stack, registryAccess())
+                .thenApply(match -> match.map(ItemEditorStorageApi::duplicate));
+    }
+
+    /**
+     * Atomically checks all storage pages and saves to the target page's first empty slot only if absent.
+     * Matching includes count and all encoded item data. Completion is on a storage worker; dispatch UI work
+     * to the client thread. No warning or notification is shown by this API.
+     */
+    public static CompletableFuture<UniqueStoreResult> addIfAbsent(String pageId, ItemStack stack) {
+        return storage()
+                .enqueueAddIfAbsent(pageId, stack, registryAccess())
+                .thenApply(result -> new UniqueStoreResult(
+                        UniqueStoreStatus.valueOf(result.status().name()),
+                        result.slot(),
+                        Optional.ofNullable(result.duplicate()).map(ItemEditorStorageApi::duplicate)));
+    }
+
+    private static DuplicateMatch duplicate(SavedItemStorageService.DuplicateItem match) {
+        return new DuplicateMatch(match.pageId(), match.pageNumber(), match.slot(), match.itemId());
+    }
+
+    public record DuplicateMatch(String pageId, int pageNumber, int slot, String itemId) {}
+
+    public enum UniqueStoreStatus {
+        SAVED,
+        DUPLICATE,
+        PAGE_NOT_FOUND,
+        PAGE_FULL,
+        INVALID_ITEM
+    }
+
+    public record UniqueStoreResult(UniqueStoreStatus status, int slot, Optional<DuplicateMatch> duplicate) {}
 
     private static RegistryAccess registryAccess() {
         Minecraft minecraft = Minecraft.getInstance();

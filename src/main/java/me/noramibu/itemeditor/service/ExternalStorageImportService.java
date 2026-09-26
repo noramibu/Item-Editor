@@ -29,6 +29,7 @@ import me.noramibu.itemeditor.storage.SavedItemStorageService;
 import me.noramibu.itemeditor.storage.StorageConstants;
 import me.noramibu.itemeditor.storage.StorageItemBackupService;
 import me.noramibu.itemeditor.storage.StorageMetadataUtil;
+import me.noramibu.itemeditor.util.AsyncDispatchUtil;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.inventory.Hotbar;
@@ -55,11 +56,8 @@ public final class ExternalStorageImportService {
     private static final int DEFAULT_HOTBAR_DATA_VERSION = 1343;
     private static final Pattern NBT_EDITOR_PAGE = Pattern.compile("page(\\d+)\\.nbt");
     private static final Pattern LIBRARIAN_PAGE = Pattern.compile("hotbar\\.(-?\\d+)\\.nbt");
-    private static final ExecutorService IMPORT_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "itemeditor-external-storage-import");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final ExecutorService IMPORT_EXECUTOR = Executors.newSingleThreadExecutor(
+            AsyncDispatchUtil.daemonThreadFactory("itemeditor-external-storage-import"));
 
     public CompletableFuture<ScanResult> scan(Minecraft minecraft) {
         Path gameDirectory = minecraft.gameDirectory.toPath();

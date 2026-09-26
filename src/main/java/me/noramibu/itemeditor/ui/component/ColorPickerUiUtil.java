@@ -245,7 +245,7 @@ final class ColorPickerUiUtil {
 
     static FlowLayout savedPresetRow(
             Component applyLabel,
-            Component applyHint,
+            List<Component> applyHint,
             Runnable onApply,
             Runnable onEdit,
             Component editHint,
@@ -257,9 +257,6 @@ final class ColorPickerUiUtil {
             int applyButtonWidth,
             int actionButtonWidth,
             Component removeHint) {
-        FlowLayout row = UiFactory.row();
-        row.horizontalSizing(Sizing.fill(100));
-
         ButtonComponent applyButton =
                 UiFactory.button(applyLabel, UiFactory.ButtonTextPreset.COMPACT, button -> onApply.run());
         if (applyButtonWidth > 0) {
@@ -267,18 +264,15 @@ final class ColorPickerUiUtil {
         } else {
             applyButton.horizontalSizing(Sizing.expand(100));
         }
-        if (applyHint != null && !applyHint.getString().isBlank()) {
-            applyButton.tooltip(List.of(applyHint));
+        if (applyHint != null && !applyHint.isEmpty()) {
+            applyButton.tooltip(applyHint);
         }
-        row.child(applyButton);
-
-        if (onEdit != null) {
-            row.child(savedPresetAction("E", editHint, true, onEdit, actionButtonWidth));
-        }
-        row.child(savedPresetAction("^", ItemEditorText.tr("common.up"), canMoveUp, onMoveUp, actionButtonWidth));
-        row.child(savedPresetAction("v", ItemEditorText.tr("common.down"), canMoveDown, onMoveDown, actionButtonWidth));
-        row.child(savedPresetAction("x", removeHint, true, onRemove, actionButtonWidth));
-        return row;
+        return UiFactory.packedActionButtonRow(
+                applyButton,
+                onEdit == null ? null : savedPresetAction("E", editHint, true, onEdit, actionButtonWidth),
+                savedPresetAction("^", ItemEditorText.tr("common.up"), canMoveUp, onMoveUp, actionButtonWidth),
+                savedPresetAction("v", ItemEditorText.tr("common.down"), canMoveDown, onMoveDown, actionButtonWidth),
+                savedPresetAction("x", removeHint, true, onRemove, actionButtonWidth));
     }
 
     private static ButtonComponent savedPresetAction(

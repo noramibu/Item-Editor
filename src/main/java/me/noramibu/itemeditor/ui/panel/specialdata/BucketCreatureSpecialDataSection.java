@@ -191,7 +191,7 @@ public final class BucketCreatureSpecialDataSection {
                 bucketEntityCard.child(UiFactory.field(
                         Field.AGE.text(),
                         Component.empty(),
-                        UiFactory.textBox(special.bucketAge, context.bindText(value -> special.bucketAge = value))
+                        context.boundTextBox(Field.AGE.key())
                                 .horizontalSizing(
                                         compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))));
                 bucketEntityCard.child(UiFactory.checkbox(
@@ -203,9 +203,7 @@ public final class BucketCreatureSpecialDataSection {
                 bucketEntityCard.child(UiFactory.field(
                         Field.HUNTING_COOLDOWN.text(),
                         Component.empty(),
-                        UiFactory.textBox(
-                                        special.bucketHuntingCooldown,
-                                        context.bindText(value -> special.bucketHuntingCooldown = value))
+                        context.boundTextBox(Field.HUNTING_COOLDOWN.key())
                                 .horizontalSizing(
                                         compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))));
             }
