@@ -1,28 +1,21 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.compactCheckboxRow;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.denseEquipmentRow;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.collapsibleCard;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactCheckboxRow;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdTextWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactPickerButtonWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactTriStateBooleanPicker;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.denseEquipmentRow;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.compactTriStateBooleanPicker;
 
-import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout.Width;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EquipmentSlot;
 
@@ -80,40 +73,19 @@ public final class EquippableSpecialDataSection {
 
     private static FlowLayout buildCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
-        int pickerWidth = compactPickerButtonWidth();
-        int idWidth = compactIdTextWidth();
+        int pickerWidth = Width.PICKER.pixels();
+        int idWidth = Width.ID.pixels();
 
-        ButtonComponent slotButton = UiFactory.button(
-                PickerFieldFactory.selectedOrFallback(
-                        special.equippableSlot, ItemEditorText.tr("special.advanced.select")),
-                UiFactory.ButtonTextPreset.STANDARD,
-                anchor -> context.openClearableDropdown(
-                        anchor,
-                        ItemEditorText.tr("common.none"),
-                        () -> context.mutate(() -> special.equippableSlot = ""),
-                        Arrays.asList(EquipmentSlot.values()),
-                        EquipmentSlot::name,
-                        slot -> context.mutate(() -> special.equippableSlot = slot.name())));
-        slotButton.horizontalSizing(Sizing.fill(100));
-        card.child(compactField(Control.COMPONENT_TWEAKS_EQUIPPABLE_SLOT.label(), slotButton, pickerWidth + 40));
+        card.child(PickerFieldFactory.enumField(
+                context,
+                Control.COMPONENT_TWEAKS_EQUIPPABLE_SLOT.label(),
+                special.equippableSlot,
+                EquipmentSlot.values(),
+                value -> special.equippableSlot = value));
 
         List<String> sounds = context.optionalRegistryIds(Registries.SOUND_EVENT);
-        card.child(compactIdField(
-                context,
-                Control.COMPONENT_TWEAKS_EQUIPPABLE_SOUND.label(),
-                special.equippableEquipSoundId,
-                value -> special.equippableEquipSoundId = value,
-                sounds,
-                Control.COMPONENT_TWEAKS_EQUIPPABLE_SOUND.text(),
-                idWidth));
-        card.child(compactIdField(
-                context,
-                Control.COMPONENT_TWEAKS_EQUIPPABLE_SHEARING_SOUND.label(),
-                special.equippableShearingSoundId,
-                value -> special.equippableShearingSoundId = value,
-                sounds,
-                Control.COMPONENT_TWEAKS_EQUIPPABLE_SHEARING_SOUND.text(),
-                idWidth));
+        card.child(context.boundIdField(Control.COMPONENT_TWEAKS_EQUIPPABLE_SOUND.key(), sounds, idWidth));
+        card.child(context.boundIdField(Control.COMPONENT_TWEAKS_EQUIPPABLE_SHEARING_SOUND.key(), sounds, idWidth));
         card.child(PickerFieldFactory.searchableTextField(
                 context,
                 Control.COMPONENT_TWEAKS_EQUIPPABLE_ASSET_ID.label(),
@@ -170,7 +142,7 @@ public final class EquippableSpecialDataSection {
 
     private static UIComponent equippableTriStateBooleanPicker(
             SpecialDataPanelContext context, Control field, String value, Consumer<String> setter) {
-        return compactTriStateBooleanPicker(context, field.label(), value, setter, compactPickerButtonWidth());
+        return compactTriStateBooleanPicker(context, field.label(), value, setter, Width.PICKER.pixels());
     }
 
     private static UIComponent equippableCheckbox(

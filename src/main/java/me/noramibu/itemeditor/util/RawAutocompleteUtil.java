@@ -30,12 +30,6 @@ public final class RawAutocompleteUtil {
     private RawAutocompleteUtil() {}
 
     public static AutocompleteResult suggest(
-            String rawText, int caretIndex, RegistryAccess registryAccess, String fallbackItemId) {
-        RawAutocompleteIndex index = RawAutocompleteIndex.create(rawText);
-        return suggest(rawText, caretIndex, registryAccess, index, fallbackItemId);
-    }
-
-    public static AutocompleteResult suggest(
             String rawText,
             int caretIndex,
             RegistryAccess registryAccess,

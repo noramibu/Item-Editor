@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
 import me.noramibu.itemeditor.storage.model.ColorPresetEntry;
+import me.noramibu.itemeditor.storage.model.ColorStylePresetEntry;
 import me.noramibu.itemeditor.storage.model.ColorsFileModel;
 import me.noramibu.itemeditor.util.TextColorPresets;
 import me.noramibu.itemeditor.util.ValidationUtil;
@@ -61,6 +62,96 @@ public final class ColorPresetService {
             presets.add(new TextColorPresets.CustomShadowPreset(entry.id, name, stops));
         }
         return presets;
+    }
+
+    public synchronized List<TextColorPresets.CustomStylePreset> customStylePresets() {
+        ColorsFileModel model = loadColorsWithStableIds();
+        List<TextColorPresets.CustomStylePreset> presets = new ArrayList<>();
+        for (ColorStylePresetEntry entry : model.style) {
+            if (entry == null) continue;
+            List<Integer> text = parseStops(entry.text);
+            List<Integer> shadow = parseStops(entry.shadow);
+            if (text.isEmpty() || shadow.isEmpty()) continue;
+            String name = entry.name == null || entry.name.isBlank()
+                    ? styleName(text, shadow, entry.shadowEnabled)
+                    : entry.name;
+            presets.add(new TextColorPresets.CustomStylePreset(entry.id, name, text, shadow, entry.shadowEnabled));
+        }
+        return presets;
+    }
+
+    public synchronized void saveStylePreset(List<Integer> text, List<Integer> shadow, boolean shadowEnabled) {
+        ColorsFileModel model = loadColorsWithStableIds();
+        List<String> textStops = hexRawStops(text);
+        List<String> shadowStops = hexRawStops(shadow);
+        if (textStops.isEmpty() || shadowStops.isEmpty()) return;
+        for (ColorStylePresetEntry entry : model.style) {
+            if (entry != null
+                    && entry.shadowEnabled == shadowEnabled
+                    && textStops.equals(entry.text)
+                    && shadowStops.equals(entry.shadow)) return;
+        }
+        ColorStylePresetEntry entry = new ColorStylePresetEntry();
+        entry.id = UUID.randomUUID().toString();
+        entry.name = styleName(text, shadow, shadowEnabled);
+        entry.text = textStops;
+        entry.shadow = shadowStops;
+        entry.shadowEnabled = shadowEnabled;
+        entry.createdAt = System.currentTimeMillis();
+        entry.updatedAt = entry.createdAt;
+        model.style.add(entry);
+        StorageServices.foundation().saveColors(model);
+    }
+
+    public synchronized boolean updateStylePreset(
+            String id, List<Integer> text, List<Integer> shadow, boolean shadowEnabled) {
+        ColorsFileModel model = loadColorsWithStableIds();
+        List<String> textStops = hexRawStops(text);
+        List<String> shadowStops = hexRawStops(shadow);
+        if (id == null || id.isBlank() || textStops.isEmpty() || shadowStops.isEmpty()) return false;
+        for (ColorStylePresetEntry entry : model.style) {
+            if (entry == null || !id.equals(entry.id)) continue;
+            entry.name = styleName(text, shadow, shadowEnabled);
+            entry.text = textStops;
+            entry.shadow = shadowStops;
+            entry.shadowEnabled = shadowEnabled;
+            entry.updatedAt = System.currentTimeMillis();
+            StorageServices.foundation().saveColors(model);
+            return true;
+        }
+        return false;
+    }
+
+    public synchronized void removeStylePreset(String id) {
+        if (id == null || id.isBlank()) return;
+        ColorsFileModel model = loadColorsWithStableIds();
+        if (model.style.removeIf(entry -> entry != null && id.equals(entry.id))) {
+            StorageServices.foundation().saveColors(model);
+        }
+    }
+
+    public synchronized void moveStylePreset(String id, int direction) {
+        if (id == null || id.isBlank() || direction == 0) return;
+        ColorsFileModel model = loadColorsWithStableIds();
+        List<ColorStylePresetEntry> entries = model.style;
+        for (int index = 0; index < entries.size(); index++) {
+            ColorStylePresetEntry entry = entries.get(index);
+            if (entry == null || !id.equals(entry.id)) continue;
+            int step = Integer.signum(direction);
+            int target = index + step;
+            while (target >= 0 && target < entries.size()) {
+                ColorStylePresetEntry candidate = entries.get(target);
+                if (candidate != null
+                        && !parseStops(candidate.text).isEmpty()
+                        && !parseStops(candidate.shadow).isEmpty()) break;
+                target += step;
+            }
+            if (target < 0 || target >= entries.size()) return;
+            entries.set(index, entries.get(target));
+            entries.set(target, entry);
+            StorageServices.foundation().saveColors(model);
+            return;
+        }
     }
 
     public synchronized void saveColorPreset(String name, int rgb) {
@@ -252,17 +343,31 @@ public final class ColorPresetService {
     }
 
     private static List<Integer> parseRawStops(ColorPresetEntry entry) {
+        return entry == null ? List.of() : parseStops(entry.stops);
+    }
+
+    private static List<Integer> parseStops(List<String> stops) {
         List<Integer> parsedStops = new ArrayList<>();
-        if (entry == null || entry.stops == null) {
+        if (stops == null) {
             return parsedStops;
         }
-        for (String stop : entry.stops) {
+        for (String stop : stops) {
             Integer color = ValidationUtil.tryParseHexColor(stop);
             if (color != null) {
                 parsedStops.add(color);
             }
         }
         return parsedStops;
+    }
+
+    private static String styleName(List<Integer> text, List<Integer> shadow, boolean enabled) {
+        String name = ValidationUtil.toHex(text.getFirst());
+        if (text.size() > 1) name += " +" + (text.size() - 1);
+        if (enabled) {
+            name += " / " + ValidationUtil.toHex(shadow.getFirst());
+            if (shadow.size() > 1) name += " +" + (shadow.size() - 1);
+        }
+        return name;
     }
 
     private static List<String> hexStops(PresetBucket bucket, List<Integer> colors) {
@@ -370,6 +475,12 @@ public final class ColorPresetService {
                     entry.id = UUID.randomUUID().toString();
                     changed = true;
                 }
+            }
+        }
+        for (ColorStylePresetEntry entry : model.style) {
+            if (entry != null && (entry.id == null || entry.id.isBlank())) {
+                entry.id = UUID.randomUUID().toString();
+                changed = true;
             }
         }
         if (changed) {

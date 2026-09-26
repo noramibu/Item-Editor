@@ -271,6 +271,9 @@ public final class StorageDataFoundation {
         if (model.shadow == null) {
             model.shadow = new ArrayList<>();
         }
+        if (model.style == null) {
+            model.style = new ArrayList<>();
+        }
         return model;
     }
 

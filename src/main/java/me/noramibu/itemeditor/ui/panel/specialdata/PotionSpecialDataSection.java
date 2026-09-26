@@ -6,13 +6,12 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
 import net.minecraft.core.Registry;
@@ -104,10 +103,7 @@ public final class PotionSpecialDataSection {
         section.child(UiFactory.field(
                 Field.DURATION_SCALE.text(),
                 Component.empty(),
-                UiFactory.textBox(
-                                special.potionDurationScale,
-                                context.bindText(value -> special.potionDurationScale = value))
-                        .horizontalSizing(Sizing.fill(100))));
+                context.boundTextBox(Field.DURATION_SCALE.key()).horizontalSizing(Sizing.fill(100))));
 
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
         row.child(UiFactory.field(
@@ -123,8 +119,7 @@ public final class PotionSpecialDataSection {
         row.child(UiFactory.field(
                 Field.CUSTOM_NAME.text(),
                 Component.empty(),
-                UiFactory.textBox(special.potionCustomName, context.bindText(value -> special.potionCustomName = value))
-                        .horizontalSizing(Sizing.fill(100))));
+                context.boundTextBox("special.potion.custom_name").horizontalSizing(Sizing.fill(100))));
         section.child(row);
 
         section.child(buildEffectsEditor(context, special.potionEffects, effectIds, Field.ADD_EFFECT.text()));
@@ -154,7 +149,11 @@ public final class PotionSpecialDataSection {
                     effectTitle(draft, index),
                     compactLayout,
                     draft.uiCollapsed,
-                    () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed),
+                    () -> context.mutateRefresh(() -> {
+                        context.screen().selectEntry(effects, draft);
+                        draft.uiCollapsed = !draft.uiCollapsed;
+                    }),
+                    context.screen().isSelectedEntry(effects, draft),
                     () -> effects.remove(currentIndex));
             card.id(SpecialDataSearch.scope("potion-effect", draft));
             if (draft.uiCollapsed) {
@@ -175,11 +174,20 @@ public final class PotionSpecialDataSection {
             FlowLayout toggles = compactLayout ? UiFactory.column() : UiFactory.row();
             toggles.child(UiFactory.checkbox(
                     EffectField.AMBIENT.text(), draft.ambient, context.bindToggle(value -> draft.ambient = value)));
-            FlowLayout visibility = UiFactory.actionButtonRow(
-                    triStateBooleanButton(
-                            context, EffectField.VISIBLE.text(), draft.visible, value -> draft.visible = value),
-                    triStateBooleanButton(
-                            context, EffectField.SHOW_ICON.text(), draft.showIcon, value -> draft.showIcon = value));
+            FlowLayout visibility = UiFactory.column()
+                    .children(List.of(
+                            SpecialDataFieldFactory.effectVisibilityField(
+                                    context,
+                                    EffectField.VISIBLE.text(),
+                                    draft.visible,
+                                    draft.originalVisible,
+                                    value -> draft.visible = value),
+                            SpecialDataFieldFactory.effectVisibilityField(
+                                    context,
+                                    EffectField.SHOW_ICON.text(),
+                                    draft.showIcon,
+                                    draft.originalShowIcon,
+                                    value -> draft.showIcon = value)));
             visibility.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(100));
             toggles.child(visibility);
             card.child(toggles);
@@ -194,13 +202,18 @@ public final class PotionSpecialDataSection {
             boolean compactLayout,
             boolean collapsed,
             Runnable toggleAction,
+            boolean selected,
             Runnable removeAction) {
         FlowLayout card = UiFactory.subCard();
-        FlowLayout header = UiFactory.row();
-        LabelComponent titleLabel = UiFactory.title(title).shadow(false);
+        LabelComponent titleLabel = UiFactory.title(
+                        UiFactory.fitToWidth(title, Math.max(1, context.screen().editorContentWidthHint() - 100)))
+                .shadow(false);
         titleLabel.tooltip(List.of(title));
-        header.child(titleLabel.horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.collapseToggleButton(collapsed, toggleAction));
+        FlowLayout header = UiFactory.collapsibleHeader(titleLabel, collapsed, toggleAction);
+        if (collapsed || !selected) {
+            card.child(header);
+            return card;
+        }
 
         ButtonComponent removeButton = UiFactory.button(
                 EffectField.REMOVE.text(),
@@ -216,23 +229,19 @@ public final class PotionSpecialDataSection {
         return card;
     }
 
-    private static ButtonComponent triStateBooleanButton(
-            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter) {
-        Component text = label.copy().append(": ").append(TriStateBooleanUi.label(value));
-        ButtonComponent button = UiFactory.actionToneButton(
-                text,
-                UiFactory.ButtonTextPreset.STANDARD,
-                TriStateBooleanUi.tone(value),
-                anchor -> context.mutateRefresh(() -> setter.accept(TriStateBooleanUi.next(value))));
-        button.tooltip(List.of(text));
-        return button;
-    }
-
     private static Component effectTitle(ItemEditorState.PotionEffectDraft draft, int index) {
         Component title = ItemEditorText.tr("special.potion.effect", index + 1);
         return draft.effectId == null || draft.effectId.isBlank()
                 ? title
-                : title.copy().append(" | ").append(draft.effectId);
+                : title.copy()
+                        .append(EditorSectionSummary.separator())
+                        .append(EditorSectionSummary.value(draft.effectId))
+                        .append(EditorSectionSummary.separator())
+                        .append(EditorSectionSummary.values(
+                                "special.potion.amplifier",
+                                draft.amplifier,
+                                "special.potion.duration",
+                                draft.duration));
     }
 
     private enum Field implements SpecialDataSearch.Field {

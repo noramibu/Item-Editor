@@ -94,40 +94,16 @@ public final class SpawnerSpecialDataSection {
         UiFactory.addPackedRows(
                 section,
                 compactLayout ? 2 : 3,
-                buildIntField(context, Field.DELAY.text(), special.spawnerDelay, value -> special.spawnerDelay = value),
-                buildIntField(
-                        context,
-                        Field.MIN_SPAWN_DELAY.text(),
-                        special.spawnerMinSpawnDelay,
-                        value -> special.spawnerMinSpawnDelay = value),
-                buildIntField(
-                        context,
-                        Field.MAX_SPAWN_DELAY.text(),
-                        special.spawnerMaxSpawnDelay,
-                        value -> special.spawnerMaxSpawnDelay = value));
+                buildIntField(context, Field.DELAY),
+                buildIntField(context, Field.MIN_SPAWN_DELAY),
+                buildIntField(context, Field.MAX_SPAWN_DELAY));
         UiFactory.addPackedRows(
                 section,
                 compactLayout ? 2 : 4,
-                buildIntField(
-                        context,
-                        Field.SPAWN_COUNT.text(),
-                        special.spawnerSpawnCount,
-                        value -> special.spawnerSpawnCount = value),
-                buildIntField(
-                        context,
-                        Field.MAX_NEARBY_ENTITIES.text(),
-                        special.spawnerMaxNearbyEntities,
-                        value -> special.spawnerMaxNearbyEntities = value),
-                buildIntField(
-                        context,
-                        Field.REQUIRED_PLAYER_RANGE.text(),
-                        special.spawnerRequiredPlayerRange,
-                        value -> special.spawnerRequiredPlayerRange = value),
-                buildIntField(
-                        context,
-                        Field.SPAWN_RANGE.text(),
-                        special.spawnerSpawnRange,
-                        value -> special.spawnerSpawnRange = value));
+                buildIntField(context, Field.SPAWN_COUNT),
+                buildIntField(context, Field.MAX_NEARBY_ENTITIES),
+                buildIntField(context, Field.REQUIRED_PLAYER_RANGE),
+                buildIntField(context, Field.SPAWN_RANGE));
 
         section.child(UiFactory.checkbox(
                 Field.USE_POTENTIALS.text(),
@@ -157,17 +133,10 @@ public final class SpawnerSpecialDataSection {
                         button -> context.mutateRefresh(() -> resetPotentialsFromSpawnData(special)))));
 
         if (!special.spawnerPotentials.isEmpty()) {
-            section.child(UiFactory.actionButtonRow(
-                    UiFactory.button(
-                            PotentialListField.EXPAND_ALL.text(),
-                            UiFactory.ButtonTextPreset.STANDARD,
-                            button -> context.mutateRefresh(() ->
-                                    special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = false))),
-                    UiFactory.button(
-                            PotentialListField.COLLAPSE_ALL.text(),
-                            UiFactory.ButtonTextPreset.STANDARD,
-                            button -> context.mutateRefresh(() ->
-                                    special.spawnerPotentials.forEach(potential -> potential.uiCollapsed = true)))));
+            section.child(UiFactory.collapseAllButton(
+                    special.spawnerPotentials.stream().anyMatch(entry -> entry.uiCollapsed),
+                    collapsed -> context.mutateRefresh(
+                            () -> special.spawnerPotentials.forEach(entry -> entry.uiCollapsed = collapsed))));
         }
 
         for (int index = 0; index < special.spawnerPotentials.size(); index++) {
@@ -314,13 +283,11 @@ public final class SpawnerSpecialDataSection {
                                 isCompactLayout(context) ? Sizing.fill(100) : UiFactory.fixed(LIGHT_FIELD_WIDTH)));
     }
 
-    private static UIComponent buildIntField(
-            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter) {
+    private static UIComponent buildIntField(SpecialDataPanelContext context, Field field) {
         return UiFactory.field(
-                        label,
+                        field.text(),
                         Component.empty(),
-                        UiFactory.textBox(value, context.bindText(setter))
-                                .horizontalSizing(UiFactory.fixed(INT_FIELD_WIDTH)))
+                        context.boundTextBox(field.key()).horizontalSizing(UiFactory.fixed(INT_FIELD_WIDTH)))
                 .horizontalSizing(Sizing.fill(100));
     }
 
@@ -330,12 +297,11 @@ public final class SpawnerSpecialDataSection {
             ItemEditorState.SpawnerPotentialDraft draft,
             int currentIndex) {
         FlowLayout card = UiFactory.subCard();
-        FlowLayout titleRow = UiFactory.row();
-        titleRow.child(UiFactory.title(ItemEditorText.tr("special.spawner.potential", currentIndex + 1))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        titleRow.child(UiFactory.collapseToggleButton(
-                draft.uiCollapsed, () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)));
+        FlowLayout titleRow = UiFactory.collapsibleHeader(
+                UiFactory.title(ItemEditorText.tr("special.spawner.potential", currentIndex + 1))
+                        .shadow(false),
+                draft.uiCollapsed,
+                () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
         card.child(titleRow);
 
         ButtonComponent upButton = UiFactory.button(

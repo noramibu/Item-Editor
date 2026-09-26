@@ -68,6 +68,36 @@ public final class TextComponentUtil {
     }
 
     private static Component parseMarkupInternal(String input, boolean parseEventTokens, boolean parseObjectTokens) {
+        return parseMarkupInternal(input, parseEventTokens, parseObjectTokens, false);
+    }
+
+    public static RichTextDocument parseBookDocument(String input) {
+        String normalized = input == null ? "" : input.replace("\r\n", "\n").replace('\r', '\n');
+        return RichTextDocument.fromComponent(parseMarkupInternal(normalized, false, true, true));
+    }
+
+    public static String serializeBookDocument(RichTextDocument document) {
+        String source = document.plainText();
+        StringBuilder markup = new StringBuilder();
+        int start = 0;
+        for (int index = 0; index < source.length(); index++) {
+            int length = renderableTokenLengthAt(source, index);
+            if (length <= 0 || !containsEventToken(source.substring(index, index + length))) continue;
+            if (index > start) {
+                markup.append("&r").append(toMarkup(document.sliceToComponent(start, index)));
+            }
+            markup.append(source, index, index + length);
+            index += length - 1;
+            start = index + 1;
+        }
+        if (start < source.length()) {
+            markup.append("&r").append(toMarkup(document.sliceToComponent(start, source.length())));
+        }
+        return toMarkup(parseMarkup(markup.toString()));
+    }
+
+    private static Component parseMarkupInternal(
+            String input, boolean parseEventTokens, boolean parseObjectTokens, boolean preserveEventTokens) {
         MutableComponent root = Component.empty();
         if (input == null || input.isEmpty()) {
             return root;
@@ -79,6 +109,14 @@ public final class TextComponentUtil {
         ArrayDeque<HoverEvent> hoverStack = new ArrayDeque<>();
 
         for (int index = 0; index < input.length(); index++) {
+            if (preserveEventTokens) {
+                int length = renderableTokenLengthAt(input, index);
+                if (length > 0 && containsEventToken(input.substring(index, index + length))) {
+                    buffer.append(input, index, index + length);
+                    index += length - 1;
+                    continue;
+                }
+            }
             if (input.startsWith(TOKEN_FONT_OPEN, index)) {
                 int end = input.indexOf(TOKEN_SUFFIX, index + TOKEN_FONT_OPEN.length());
                 Identifier font =
@@ -1410,7 +1448,11 @@ public final class TextComponentUtil {
 
     private static String escapeTokenValue(String value) {
         if (value == null || value.isEmpty()) return "";
-        return value.replace("\\", "\\\\").replace("]", "\\]").replace("[", "\\[");
+        return value.replace("\\", "\\\\")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("]", "\\]")
+                .replace("[", "\\[");
     }
 
     private static String unescapeTokenValue(String value) {
@@ -1420,7 +1462,12 @@ public final class TextComponentUtil {
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (escaped) {
-                out.append(c);
+                out.append(
+                        switch (c) {
+                            case 'n' -> '\n';
+                            case 'r' -> '\r';
+                            default -> c;
+                        });
                 escaped = false;
             } else if (c == '\\') {
                 escaped = true;

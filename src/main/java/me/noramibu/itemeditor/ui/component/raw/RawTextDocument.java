@@ -194,7 +194,9 @@ public final class RawTextDocument {
     }
 
     public EditResult pasteReplacingSelection(String clipboard, double scroll) {
-        return this.replaceSelection(clipboard == null ? "" : clipboard, scroll);
+        String normalized =
+                clipboard == null ? "" : clipboard.replace("\r\n", "\n").replace('\r', '\n');
+        return this.replaceSelection(normalized, scroll);
     }
 
     public CutResult cutSelection(double scroll) {

@@ -13,18 +13,11 @@ import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.service.ClientInventorySyncService;
@@ -62,11 +55,7 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
     private static final Surface PAGE_ROW_SURFACE = Surface.flat(0xAA1B222B).and(Surface.outline(0xFF414B56));
     private static final int ACTION_NEW_EMPTY_WIDTH = 138;
     private static final int ACTION_REMOVE_EMPTY_WIDTH = 156;
-    private static final int ACTION_IMPORT_OTHER_WIDTH = 166;
-    private static final int ACTION_EXPORT_ALL_JSON_WIDTH = 138;
     private static final int ACTION_MOVE_WIDTH = 24;
-    private static final String EXPORT_ALL_JSON_DIRECTORY = "itemeditor/exports/storage-pages-json";
-    private static final DateTimeFormatter EXPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String SYMBOL_UP = "^";
     private static final String SYMBOL_DOWN = "v";
 
@@ -172,23 +161,17 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
         displayEmpty.tooltip(List.of(ItemEditorText.tr("storage.pages.display_empty")));
         FlowLayout pageTools = UiFactory.packedActionButtonRow(
                 this.headerButton(
+                        ItemEditorText.tr("storage.pages.import_screen"),
+                        100,
+                        () -> this.minecraft.setScreenAndShow(new ImportScreen(this.minecraft, this))),
+                this.headerButton(
                         ItemEditorText.tr("storage.pages.new_empty").copy().withColor(UiColors.SUCCESS),
                         ACTION_NEW_EMPTY_WIDTH,
                         this::createPage),
                 this.headerButton(
                         ItemEditorText.tr("storage.pages.remove_empty").copy().withColor(UiColors.DANGER),
                         ACTION_REMOVE_EMPTY_WIDTH,
-                        this::removeEmptyPages),
-                this.headerButton(
-                        ItemEditorText.tr("storage.import_other_mods").copy().withColor(UiColors.SUCCESS),
-                        ACTION_IMPORT_OTHER_WIDTH,
-                        this::openOtherModsImport),
-                this.headerButton(
-                        ItemEditorText.tr("storage.pages.export_all_json")
-                                .copy()
-                                .withColor(UiColors.SUCCESS),
-                        ACTION_EXPORT_ALL_JSON_WIDTH,
-                        this::exportAllItemsJson));
+                        this::removeEmptyPages));
         shell.child(displayEmpty);
         shell.child(pageTools);
 
@@ -795,94 +778,6 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 }));
     }
 
-    private void exportAllItemsJson() {
-        List<SavedItemStorageService.PageInfo> pages = this.storage.listPages(this.visiblePageLimit).stream()
-                .filter(page -> page.itemCount() > 0)
-                .filter(page -> !page.placeholderPage())
-                .toList();
-        if (pages.isEmpty()) {
-            this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_empty"), UiColors.MUTED);
-            return;
-        }
-
-        this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_started"), UiColors.MUTED);
-        RegistryAccess access = this.registryAccess();
-        Path exportDir = this.minecraft
-                .gameDirectory
-                .toPath()
-                .resolve(EXPORT_ALL_JSON_DIRECTORY)
-                .resolve(EXPORT_TIMESTAMP_FORMAT.format(LocalDateTime.now()));
-        CompletableFuture.supplyAsync(() -> this.exportAllItemsJson(pages, exportDir, access))
-                .whenComplete((count, throwable) -> this.minecraft.execute(() -> {
-                    if (throwable != null || count == null) {
-                        this.setStatus(ItemEditorText.tr("storage.pages.export_all_json_failed"), UiColors.DANGER);
-                        return;
-                    }
-                    this.setStatus(
-                            ItemEditorText.tr("storage.pages.export_all_json_done", count, exportDir.toString()),
-                            UiColors.SUCCESS);
-                }));
-    }
-
-    private int exportAllItemsJson(
-            List<SavedItemStorageService.PageInfo> pages, Path exportDir, RegistryAccess access) {
-        try {
-            Files.createDirectories(exportDir);
-            int exported = 0;
-            for (SavedItemStorageService.PageInfo page : pages) {
-                SavedItemStorageService.PageSnapshot snapshot = this.storage
-                        .loadSnapshotAsync(page.pageNumber(), "", StorageSortMode.REGULAR, false, access)
-                        .join();
-                exported += this.writePageItemsJson(page, snapshot, exportDir, access);
-            }
-            return exported;
-        } catch (RuntimeException | IOException exception) {
-            throw new IllegalStateException("Storage JSON export failed", exception);
-        }
-    }
-
-    private int writePageItemsJson(
-            SavedItemStorageService.PageInfo page,
-            SavedItemStorageService.PageSnapshot snapshot,
-            Path exportDir,
-            RegistryAccess access)
-            throws IOException {
-        int exported = 0;
-        Map<String, ItemStack> stacks = snapshot.loadedStacks();
-        for (SavedIndexItemEntry entry : snapshot.result().entries()) {
-            ItemStack stack = stacks.getOrDefault(entry.id, ItemStack.EMPTY).copy();
-            if (stack.isEmpty()) {
-                continue;
-            }
-            String fileName = itemJsonFileName(page, entry, exported);
-            Files.writeString(
-                    exportDir.resolve(fileName), RawItemDataUtil.serializeJson(stack, access), StandardCharsets.UTF_8);
-            exported++;
-        }
-        return exported;
-    }
-
-    private static String itemJsonFileName(
-            SavedItemStorageService.PageInfo page, SavedIndexItemEntry entry, int pageExportIndex) {
-        String itemId = Objects.requireNonNullElse(entry.itemRegistryKey, "item");
-        String baseName = String.format(
-                Locale.ROOT,
-                "page-%03d-slot-%02d-%02d-%s",
-                Math.max(1, page.pageNumber()),
-                Math.max(0, entry.slotInPage) + 1,
-                pageExportIndex + 1,
-                safeFilePart(itemId));
-        return baseName + ".json";
-    }
-
-    private static String safeFilePart(String value) {
-        String safe = Objects.requireNonNullElse(value, "item")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9._-]+", "-")
-                .replaceAll("^-+|-+$", "");
-        return safe.isBlank() ? "item" : safe;
-    }
-
     private int giveExportContainers(
             SavedItemStorageService.PageInfo page, SavedItemStorageService.PageSnapshot snapshot, boolean shulker) {
         int added = 0;
@@ -949,16 +844,6 @@ public final class StoragePagesScreen extends BaseOwoScreen<StackLayout> {
                 this.returnMode,
                 this.returnScreen,
                 this.pickedStackConsumer));
-    }
-
-    private void openOtherModsImport() {
-        this.minecraft.setScreenAndShow(new OtherModsImportScreen(
-                this.minecraft,
-                this.returnPage,
-                this.returnQuery,
-                this.returnSortMode,
-                this.returnMode,
-                this.returnScreen));
     }
 
     private void updatePageState(

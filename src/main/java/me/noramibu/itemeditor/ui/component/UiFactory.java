@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.CheckboxComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
@@ -17,22 +18,71 @@ import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.ItemEditorFieldReset;
 import me.noramibu.itemeditor.ui.scale.UiScaleProfile;
 import me.noramibu.itemeditor.ui.scale.UiScaleService;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.inventory.MenuType;
 
 public final class UiFactory {
+    public static List<Component> tooltipLines(Component text, int width) {
+        return Minecraft.getInstance().font.getSplitter().splitLines(text, Math.max(80, width), Style.EMPTY).stream()
+                .map(line -> {
+                    MutableComponent result = Component.empty();
+                    line.visit(
+                            (style, part) -> {
+                                result.append(Component.literal(part).setStyle(style));
+                                return Optional.empty();
+                            },
+                            Style.EMPTY);
+                    return (Component) result;
+                })
+                .toList();
+    }
+
+    private static final Map<UIComponent, String> FIELD_KEYS = new WeakHashMap<>();
+
+    public static <T extends UIComponent> T bindField(Component label, T input) {
+        if (label.getContents() instanceof TranslatableContents text && ItemEditorFieldReset.supports(text.getKey())) {
+            FIELD_KEYS.put(input, text.getKey());
+            persistTextHistory(text.getKey(), input);
+        }
+        return input;
+    }
+
+    public static String fieldKey(UIComponent input) {
+        return FIELD_KEYS.get(input);
+    }
+
+    static <T extends UIComponent> T persistTextHistory(String key, T input) {
+        if (input instanceof UndoableTextBoxComponent textBox) {
+            textBox.persistHistory(Minecraft.getInstance().gui.screen(), key);
+        }
+        return input;
+    }
+
+    public static Component withChangedMarker(Component original) {
+        return original.copy()
+                .withStyle(ChatFormatting.ITALIC)
+                .append(Component.literal(" (*)").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
+                        .withItalic(false)));
+    }
+
     private static final int UNBOUNDED_TEXT_LIMIT = Integer.MAX_VALUE;
 
     private static final Surface CARD_SURFACE = Surface.flat(0xAA141A22).and(Surface.outline(0xFF2F3945));
@@ -57,6 +107,7 @@ public final class UiFactory {
         POSITIVE,
         NEGATIVE,
         PICKER,
+        EDIT,
         NEUTRAL
     }
 
@@ -117,8 +168,26 @@ public final class UiFactory {
 
     public static FlowLayout row() {
         UiScaleProfile profile = scaleProfile();
-        return baseFlow(profile, true);
+        FlowLayout row = baseFlow(profile, true);
+        row.mouseDown().subscribe((click, doubled) -> {
+            if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return false;
+            for (UIComponent child : row.children()) {
+                if (!(child instanceof LabelComponent)
+                        && child.isInBoundingBox(row.x() + click.x(), row.y() + click.y())) return false;
+            }
+            for (UIComponent child : row.children()) {
+                Runnable toggle = COLLAPSE_ACTIONS.get(child);
+                if (toggle != null) {
+                    toggle.run();
+                    return true;
+                }
+            }
+            return false;
+        });
+        return row;
     }
+
+    private static final Map<UIComponent, Runnable> COLLAPSE_ACTIONS = new WeakHashMap<>();
 
     public static void appendFillChild(FlowLayout parent, UIComponent child) {
         child.horizontalSizing(Sizing.fill(100));
@@ -180,7 +249,7 @@ public final class UiFactory {
         if (!helpText.getString().isBlank()) {
             field.child(muted(helpText, textWidth));
         }
-        field.child(input.horizontalSizing(Sizing.fill(100)));
+        field.child(bindField(label, input).horizontalSizing(Sizing.fill(100)));
         return field;
     }
 
@@ -292,6 +361,13 @@ public final class UiFactory {
         return actionButtonLayout(!stackWhenNarrow, true, buttons);
     }
 
+    public static ButtonComponent collapseAllButton(boolean anyCollapsed, Consumer<Boolean> setCollapsed) {
+        return button(
+                ItemEditorText.tr(anyCollapsed ? "common.expand_all" : "common.collapse_all"),
+                ButtonTextPreset.STANDARD,
+                button -> setCollapsed.accept(!anyCollapsed));
+    }
+
     public static FlowLayout packedActionButtonRow(ButtonComponent... buttons) {
         return actionButtonLayout(false, false, buttons);
     }
@@ -302,6 +378,11 @@ public final class UiFactory {
                 : Arrays.stream(buttons).filter(Objects::nonNull).toList();
         if (present.isEmpty()) {
             return row();
+        }
+        if (present.stream().allMatch(button -> itemActionOrder(button.getMessage()) >= 0)) {
+            present = present.stream()
+                    .sorted(Comparator.comparingInt(button -> itemActionOrder(button.getMessage())))
+                    .toList();
         }
         return new PackedActionLayout(present, Math.max(1, scaleProfile().tightSpacing()), forceSingleRow, fillRows);
     }
@@ -334,15 +415,6 @@ public final class UiFactory {
             button.horizontalSizing(Sizing.fill(100));
         }
         return button;
-    }
-
-    public static FlowLayout pickerField(
-            Component label,
-            Component helpText,
-            Component buttonText,
-            int buttonWidth,
-            Consumer<ButtonComponent> onPress) {
-        return field(label, helpText, pickerButton(buttonText, buttonWidth, onPress));
     }
 
     public static FlowLayout removableSubCard(Component title, Runnable onRemove) {
@@ -402,10 +474,8 @@ public final class UiFactory {
         for (int index = 0; index < components.length; index += perRow) {
             FlowLayout row = UiFactory.row();
             int rowEnd = Math.min(components.length, index + perRow);
-            int rowSize = rowEnd - index;
-            int width = Math.max(1, (100 - rowSize) / Math.max(1, rowSize));
             for (int componentIndex = index; componentIndex < rowEnd; componentIndex++) {
-                row.child(components[componentIndex].horizontalSizing(Sizing.fill(width)));
+                row.child(components[componentIndex].horizontalSizing(Sizing.expand(100 / (rowEnd - index))));
             }
             parent.child(row);
         }
@@ -439,10 +509,7 @@ public final class UiFactory {
             Runnable onMoveDown,
             Runnable onRemove) {
         FlowLayout header = column().gap(Math.max(1, scaleProfile().tightSpacing()));
-        FlowLayout titleRow = row();
-        titleRow.child(title(title).shadow(false).horizontalSizing(Sizing.expand(100)));
-        titleRow.child(collapseToggleButton(collapsed, onToggle));
-        header.child(titleRow);
+        header.child(collapsibleHeader(title(title).shadow(false), collapsed, onToggle));
         header.child(muted(summary, summaryMaxWidth));
 
         addReorderActions(header, canMoveUp, onMoveUp, canMoveDown, onMoveDown, onRemove);
@@ -456,13 +523,37 @@ public final class UiFactory {
             boolean canMoveDown,
             Runnable onMoveDown,
             Runnable onRemove) {
-        FlowLayout actionRow = actionButtonRow(
-                onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp),
-                onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown),
+        FlowLayout actionRow = entryActions(
+                canMoveUp,
+                onMoveUp,
+                canMoveDown,
+                onMoveDown,
+                null,
                 onRemove == null ? null : actionButton(ItemEditorText.tr("common.remove"), true, onRemove));
         if (!actionRow.children().isEmpty()) {
             header.child(actionRow);
         }
+    }
+
+    public static FlowLayout collapsibleHeader(UIComponent title, boolean collapsed, Runnable onToggle) {
+        return row().child(title.horizontalSizing(Sizing.expand(100))).child(collapseToggleButton(collapsed, onToggle));
+    }
+
+    public static FlowLayout entryActions(
+            boolean canMoveUp,
+            Runnable onMoveUp,
+            boolean canMoveDown,
+            Runnable onMoveDown,
+            Runnable onDuplicate,
+            ButtonComponent... trailing) {
+        ButtonComponent[] buttons = new ButtonComponent[3 + trailing.length];
+        buttons[0] = onMoveUp == null ? null : actionButton(ItemEditorText.tr("common.up"), canMoveUp, onMoveUp);
+        buttons[1] =
+                onMoveDown == null ? null : actionButton(ItemEditorText.tr("common.down"), canMoveDown, onMoveDown);
+        buttons[2] =
+                onDuplicate == null ? null : actionButton(ItemEditorText.tr("common.duplicate"), true, onDuplicate);
+        System.arraycopy(trailing, 0, buttons, 3, trailing.length);
+        return actionButtonRow(buttons);
     }
 
     public static ButtonComponent collapseToggleButton(boolean collapsed, Runnable onToggle) {
@@ -470,7 +561,8 @@ public final class UiFactory {
                 Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                 ButtonTextPreset.COMPACT,
                 button -> onToggle.run());
-        collapseToggle.horizontalSizing(Sizing.fixed(Math.max(30, scaledPixels(36))));
+        collapseToggle.horizontalSizing(Sizing.fixed(scaledPixels(16)));
+        COLLAPSE_ACTIONS.put(collapseToggle, onToggle);
         return collapseToggle;
     }
 
@@ -535,9 +627,10 @@ public final class UiFactory {
     }
 
     public static TextBoxComponent textBox(String value, Consumer<String> onChanged) {
-        TextBoxComponent box = UIComponents.textBox(Sizing.fill(100), "");
+        UndoableTextBoxComponent box = new UndoableTextBoxComponent(Sizing.fill(100));
         box.setMaxLength(UNBOUNDED_TEXT_LIMIT);
         box.text(value == null ? "" : value);
+        box.clearHistory();
         box.verticalSizing(Sizing.fixed(scaleProfile().controlHeight()));
         box.onChanged().subscribe(onChanged::accept);
         return box;
@@ -562,8 +655,10 @@ public final class UiFactory {
     }
 
     public static FlowLayout centeredCard(int width) {
-        FlowLayout card = card();
-        card.horizontalSizing(Sizing.fixed(DialogUiUtil.dialogWidth(width)));
+        FlowLayout card = applyFlowContract(new BoundedDialogLayout(DialogUiUtil.dialogWidth(width)));
+        card.gap(scaleProfile().spacing());
+        card.padding(Insets.of(scaleProfile().padding()));
+        card.surface(CARD_SURFACE);
         card.horizontalAlignment(HorizontalAlignment.CENTER);
         return card;
     }
@@ -666,6 +761,7 @@ public final class UiFactory {
                     case POSITIVE -> ACTION_POSITIVE_COLOR;
                     case NEGATIVE -> ACTION_NEGATIVE_COLOR;
                     case PICKER -> ACTION_PICKER_COLOR;
+                    case EDIT -> 0xFFFF55;
                     case NEUTRAL -> throw new IllegalStateException("Neutral action tone should not be tinted");
                 };
         return safeText.copy().withColor(color);
@@ -680,7 +776,16 @@ public final class UiFactory {
         if (text == null || text.getStyle().getColor() != null) {
             return ActionTone.NEUTRAL;
         }
+        int action = itemActionOrder(text);
+        if (action >= 0) {
+            return switch (action) {
+                case 0 -> ActionTone.EDIT;
+                case 1 -> ActionTone.PICKER;
+                default -> ActionTone.NEGATIVE;
+            };
+        }
         String label = text.getString().trim().toLowerCase(Locale.ROOT);
+        if (label.equals("edit") || label.startsWith("edit ")) return ActionTone.EDIT;
         if (label.equals("+")
                 || label.equals("true")
                 || label.equals("add")
@@ -716,6 +821,21 @@ public final class UiFactory {
         return ActionTone.NEUTRAL;
     }
 
+    private static int itemActionOrder(Component text) {
+        if (text == null) return -1;
+        if (text.getContents() instanceof TranslatableContents contents) {
+            String key = contents.getKey();
+            if (key.startsWith("itemeditor.")) {
+                if (key.endsWith(".edit") || key.endsWith(".edit_stack")) return 0;
+                if (key.endsWith(".pick")
+                        || key.equals("itemeditor.common.pick_item_list")
+                        || key.equals("itemeditor.common.pick_storage")) return 1;
+                if (key.endsWith(".remove")) return 2;
+            }
+        }
+        return -1;
+    }
+
     private static ButtonComponent createAdaptiveButton(
             Component text, float preferredScale, ButtonPreset preset, Consumer<ButtonComponent> onPress) {
         Component safeText = text == null ? Component.empty() : text;
@@ -743,7 +863,7 @@ public final class UiFactory {
     }
 
     public static void applyFixedButtonLabel(ButtonComponent button, Component text, int width) {
-        button.setMessage(text);
+        button.setMessage(semanticallyTintActionText(text));
         button.horizontalSizing(Sizing.fixed(Math.max(1, width)));
         if (!text.getString().isBlank()) {
             button.tooltip(List.of(text));

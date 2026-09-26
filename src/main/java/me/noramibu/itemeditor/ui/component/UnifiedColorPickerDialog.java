@@ -80,8 +80,30 @@ public final class UnifiedColorPickerDialog {
 
     public static FlowLayout create(
             String title, Options options, Consumer<ColorPickerResult> onApply, Runnable onCancel) {
+        return createDialog(title, options, null, onApply, null, onCancel);
+    }
+
+    public static FlowLayout createPaired(
+            String title,
+            Options options,
+            PaintLayer text,
+            PaintLayer shadow,
+            boolean shadowEnabled,
+            Consumer<PairedColorResult> onApply,
+            Runnable onCancel) {
+        return createDialog(
+                title, options, new PairedColorResult(text, shadow, shadowEnabled), null, onApply, onCancel);
+    }
+
+    private static FlowLayout createDialog(
+            String title,
+            Options options,
+            PairedColorResult initialPair,
+            Consumer<ColorPickerResult> onApply,
+            Consumer<PairedColorResult> onPairedApply,
+            Runnable onCancel) {
         Options normalizedOptions = options == null ? Options.richText(0xFFFFFF, List.of(0xFFFFFF, 0x55FFFF)) : options;
-        PickerState state = new PickerState(normalizedOptions);
+        PickerState state = new PickerState(normalizedOptions, initialPair);
         FlowLayout overlay = DialogUiUtil.overlay();
         int dialogWidth = DialogUiUtil.dialogWidth(Integer.MAX_VALUE);
         boolean compactButtons = DialogUiUtil.compactButtons(dialogWidth, COMPACT_BUTTON_WIDTH_THRESHOLD);
@@ -92,13 +114,14 @@ public final class UnifiedColorPickerDialog {
         int dialogHeight = DialogUiUtil.dialogHeight(Integer.MAX_VALUE, DIALOG_MIN_HEIGHT);
         int contentHeight = Math.max(CONTENT_MIN_HEIGHT, dialogHeight - headerReserve - buttonRowReserve);
         int contentWidth = Math.max(1, dialogWidth - UiFactory.scaledPixels(CONTENT_WIDTH_RESERVE));
+        boolean wideLayout = contentWidth >= WIDE_LAYOUT_WIDTH_THRESHOLD;
 
         FlowLayout dialog = DialogUiUtil.dialogCard(dialogWidth, dialogHeight, DIALOG_GAP);
         dialog.child(UiFactory.title(title));
 
         FlowLayout modeSlot =
                 UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
-        dialog.child(modeSlot);
+        if (!wideLayout) dialog.child(modeSlot);
 
         FlowLayout contentSlot = UiFactory.column();
         ScrollContainer<FlowLayout> contentScroll = DialogUiUtil.scrollContentExpand(contentSlot);
@@ -109,8 +132,10 @@ public final class UnifiedColorPickerDialog {
 
         AtomicReference<Runnable> rebuildAll = new AtomicReference<>(() -> {});
         Runnable rebuildChrome = () -> {
-            modeSlot.clearChildren();
-            modeSlot.child(buildModeControls(normalizedOptions, state, contentWidth, rebuildAll.get()));
+            if (!wideLayout) {
+                modeSlot.clearChildren();
+                modeSlot.child(buildModeControls(normalizedOptions, state, contentWidth, rebuildAll.get()));
+            }
         };
         Runnable rebuildFooter = () -> {
             footerSlot.clearChildren();
@@ -122,7 +147,12 @@ public final class UnifiedColorPickerDialog {
                     FOOTER_BUTTON_DIVISOR,
                     new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> onCancel.run()),
                     new DialogUiUtil.FooterAction(
-                            ItemEditorText.tr(applyKey(state)), button -> onApply.accept(state.result())));
+                            ItemEditorText.tr(
+                                    state.paired() ? "dialog.unified_color_picker.apply_both" : applyKey(state)),
+                            button -> {
+                                if (state.paired()) onPairedApply.accept(state.pairedResult());
+                                else onApply.accept(state.result());
+                            }));
             buttonRow.horizontalAlignment(HorizontalAlignment.RIGHT);
             footerSlot.child(buttonRow);
         };
@@ -154,9 +184,41 @@ public final class UnifiedColorPickerDialog {
             Options options, PickerState state, int contentWidth, Runnable rebuildAll) {
         FlowLayout controls =
                 UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        if (state.paired()) {
+            Component textLabel = layerButtonLabel(state, false);
+            Component shadowLayerLabel = layerButtonLabel(state, true);
+            int maxButtonWidth =
+                    Math.max(1, (contentWidth - UiFactory.scaleProfile().spacing()) / 2);
+            ButtonComponent textLayer = UiFactory.fixedWidthButton(
+                    textLabel,
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    Math.min(modeButtonDesiredWidth(textLabel), maxButtonWidth),
+                    button -> {
+                        state.shadow(false);
+                        rebuildAll.run();
+                    });
+            textLayer.active(state.shadow());
+            ButtonComponent shadowLayer = UiFactory.fixedWidthButton(
+                    shadowLayerLabel,
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    Math.min(modeButtonDesiredWidth(shadowLayerLabel), maxButtonWidth),
+                    button -> {
+                        state.shadow(true);
+                        state.shadowEnabled(true);
+                        rebuildAll.run();
+                    });
+            shadowLayer.active(!state.shadow());
+            shadowLayer.tooltip(
+                    List.of(shadowLayerLabel, ItemEditorText.tr("dialog.unified_color_picker.edit_shadow_hint")));
+            FlowLayout layerRow = UiFactory.row();
+            layerRow.child(textLayer);
+            layerRow.child(shadowLayer);
+            controls.child(layerRow);
+        }
         List<ModeButtonSpec> buttons = new ArrayList<>();
-        Component shadowLabel =
-                options.allowShadow() ? ItemEditorText.tr("dialog.unified_color_picker.shadow") : Component.empty();
+        Component shadowLabel = options.allowShadow() && !state.paired()
+                ? ItemEditorText.tr("dialog.unified_color_picker.shadow")
+                : Component.empty();
         if (options.allowColorMode()) {
             Component label = ItemEditorText.tr("dialog.unified_color_picker.mode.color");
             buttons.add(new ModeButtonSpec(label, state.mode() != PaintMode.COLOR, () -> {
@@ -180,6 +242,7 @@ public final class UnifiedColorPickerDialog {
                 }
                 row.child(UiFactory.checkbox(shadowLabel, state.shadow(), checked -> {
                     state.shadow(checked);
+                    if (checked && state.paired()) state.shadowEnabled(true);
                     rebuildAll.run();
                 }));
                 controls.child(row);
@@ -195,11 +258,21 @@ public final class UnifiedColorPickerDialog {
                 controls.child(row);
             }
         }
-        if (options.allowShadow() && !modeControlsFitWithShadow(contentWidth, buttons, shadowLabel)) {
+        if (options.allowShadow()
+                && !state.paired()
+                && !modeControlsFitWithShadow(contentWidth, buttons, shadowLabel)) {
             controls.child(UiFactory.checkbox(shadowLabel, state.shadow(), checked -> {
                 state.shadow(checked);
+                if (checked && state.paired()) state.shadowEnabled(true);
                 rebuildAll.run();
             }));
+        }
+        if (state.paired()) {
+            controls.child(UiFactory.checkbox(
+                    ItemEditorText.tr("dialog.unified_color_picker.show_shadow"), state.shadowEnabled(), checked -> {
+                        state.shadowEnabled(checked);
+                        rebuildAll.run();
+                    }));
         }
         return controls;
     }
@@ -344,7 +417,8 @@ public final class UnifiedColorPickerDialog {
         FlowLayout savedList =
                 UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
         AtomicReference<Runnable> refreshSaved = new AtomicReference<>(() -> {});
-        Component saveLabel = ItemEditorText.tr(saveKey(state));
+        Component saveLabel =
+                ItemEditorText.tr(state.paired() ? "dialog.unified_color_picker.save_layer" : saveKey(state));
         ButtonComponent saveCurrentButton = UiFactory.button(saveLabel, UiFactory.ButtonTextPreset.COMPACT, button -> {
             savePreset(state);
             refreshSaved.get().run();
@@ -353,8 +427,35 @@ public final class UnifiedColorPickerDialog {
         if (!saveCurrentButton.getMessage().getString().equals(saveLabel.getString())) {
             saveCurrentButton.tooltip(List.of(saveLabel));
         }
-        saveCurrentButton.horizontalSizing(Sizing.fill(100));
-        savedSection.child(saveCurrentButton);
+        if (state.paired()) {
+            saveCurrentButton.tooltip(List.of(ItemEditorText.tr("dialog.unified_color_picker.save_layer_hint")));
+            ButtonComponent saveStyleButton = UiFactory.button(
+                    ItemEditorText.tr("dialog.unified_color_picker.save_style"),
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    button -> {
+                        saveStylePreset(state);
+                        refreshSaved.get().run();
+                    });
+            saveStyleButton.tooltip(List.of(ItemEditorText.tr("dialog.unified_color_picker.save_style_hint")));
+            if (savedContentWidth >= UiFactory.scaledPixels(210)) {
+                FlowLayout saveRow = UiFactory.row();
+                int buttonWidth = Math.max(
+                        1, (savedContentWidth - UiFactory.scaleProfile().spacing()) / 2);
+                saveStyleButton.horizontalSizing(Sizing.fixed(buttonWidth));
+                saveCurrentButton.horizontalSizing(Sizing.fixed(buttonWidth));
+                saveRow.child(saveStyleButton);
+                saveRow.child(saveCurrentButton);
+                savedSection.child(saveRow);
+            } else {
+                saveStyleButton.horizontalSizing(Sizing.fill(100));
+                saveCurrentButton.horizontalSizing(Sizing.fill(100));
+                savedSection.child(saveStyleButton);
+                savedSection.child(saveCurrentButton);
+            }
+        } else {
+            saveCurrentButton.horizontalSizing(Sizing.fill(100));
+            savedSection.child(saveCurrentButton);
+        }
         savedSection.child(buildSavedFilters(
                 options, state, savedContentWidth, () -> refreshSaved.get().run()));
         savedSection.child(savedList);
@@ -382,6 +483,7 @@ public final class UnifiedColorPickerDialog {
             content.verticalAlignment(VerticalAlignment.TOP);
             FlowLayout leftColumn = UiFactory.column().gap(CONTENT_GAP);
             FlowLayout rightColumn = UiFactory.column().gap(CONTENT_GAP);
+            leftColumn.child(buildModeControls(options, state, leftColumnWidth, rebuildAll));
             leftColumn.child(pickerSection);
             leftColumn.child(preview);
             leftColumn.child(errorLabel);
@@ -485,8 +587,6 @@ public final class UnifiedColorPickerDialog {
         for (int index = 0; index < state.size(); index++) {
             int stopIndex = index;
             int rgb = state.color(stopIndex);
-            FlowLayout row = UiFactory.row();
-            row.horizontalSizing(Sizing.fill(100));
             Component label =
                     Component.literal(stopButtonLabel(state, stopIndex)).withColor(rgb);
             ButtonComponent select =
@@ -495,23 +595,22 @@ public final class UnifiedColorPickerDialog {
                         syncInputs.run();
                         refreshUi.run();
                     });
-            row.child(select);
-            row.child(stopRowAction("^", stopIndex > 0, () -> {
+            ButtonComponent up = stopRowAction("^", stopIndex > 0, () -> {
                 state.move(stopIndex, stopIndex - 1);
                 syncInputs.run();
                 refreshUi.run();
-            }));
-            row.child(stopRowAction("v", stopIndex < state.size() - 1, () -> {
+            });
+            ButtonComponent down = stopRowAction("v", stopIndex < state.size() - 1, () -> {
                 state.move(stopIndex, stopIndex + 1);
                 syncInputs.run();
                 refreshUi.run();
-            }));
-            row.child(stopRowAction("x", state.size() > state.minimumStops(), () -> {
+            });
+            ButtonComponent remove = stopRowAction("x", state.size() > state.minimumStops(), () -> {
                 state.remove(stopIndex);
                 syncInputs.run();
                 refreshUi.run();
-            }));
-            stopsList.child(row);
+            });
+            stopsList.child(UiFactory.packedActionButtonRow(select, up, down, remove));
         }
     }
 
@@ -529,12 +628,7 @@ public final class UnifiedColorPickerDialog {
                     syncInputs.run();
                     refreshUi.run();
                 });
-        FlowLayout row = UiFactory.row();
-        add.horizontalSizing(Sizing.fill(49));
-        remove.horizontalSizing(Sizing.fill(49));
-        row.child(add);
-        row.child(remove);
-        stopActions.child(row);
+        stopActions.child(UiFactory.actionButtonRow(add, remove));
     }
 
     private static ButtonComponent stopAction(Component label, boolean active, Runnable action) {
@@ -571,6 +665,16 @@ public final class UnifiedColorPickerDialog {
         }
     }
 
+    private static void saveStylePreset(PickerState state) {
+        PairedColorResult pair = state.pairedResult();
+        String editId = state.editingStylePresetId();
+        if (editId.isBlank()
+                || !TextColorPresets.updateStylePreset(
+                        editId, pair.text().colors(), pair.shadow().colors(), pair.shadowEnabled())) {
+            TextColorPresets.saveStylePreset(pair.text().colors(), pair.shadow().colors(), pair.shadowEnabled());
+        }
+    }
+
     private static void rebuildSavedPresets(
             Options options,
             PickerState state,
@@ -580,6 +684,31 @@ public final class UnifiedColorPickerDialog {
             Runnable refreshSaved) {
         savedList.clearChildren();
         int rowCount = 0;
+        if (state.paired()) {
+            rowCount += rebuildSavedPresetGroup(
+                    savedList,
+                    TextColorPresets.customStylePresets(),
+                    "dialog.unified_color_picker.saved_styles",
+                    savedContentWidth,
+                    SAVED_EDIT_ACTION_COUNT,
+                    (preset, width) -> pairedLabel(
+                            fittedPresetPreviewText(options.previewText(), width), stylePresetResult(preset)),
+                    UnifiedColorPickerDialog::stylePresetTooltip,
+                    preset -> state.styleMatches(preset),
+                    preset -> {
+                        state.loadStylePreset(preset, false);
+                        rebuildAll.run();
+                    },
+                    preset -> {
+                        state.loadStylePreset(preset, true);
+                        rebuildAll.run();
+                    },
+                    ItemEditorText.tr("common.edit"),
+                    (preset, direction) -> TextColorPresets.moveStylePreset(preset.id(), direction),
+                    preset -> TextColorPresets.removeStylePreset(preset.id()),
+                    ItemEditorText.tr("common.remove"),
+                    refreshSaved);
+        }
         if (options.showColorPresets() && state.showColorPresets()) {
             rowCount += rebuildSavedPresetGroup(
                     savedList,
@@ -588,8 +717,8 @@ public final class UnifiedColorPickerDialog {
                     savedContentWidth,
                     SAVED_ACTION_COUNT,
                     (preset, width) -> savedColorButtonLabel(options.previewText(), preset.rgb(), width),
-                    preset -> Component.literal(ValidationUtil.toHex(preset.rgb()))
-                            .withColor(preset.rgb()),
+                    preset -> List.of(Component.literal(ValidationUtil.toHex(preset.rgb()))
+                            .withColor(preset.rgb())),
                     preset -> matchesColorPreset(state, preset.rgb()),
                     preset -> {
                         state.load(PaintMode.COLOR, false, List.of(preset.rgb()));
@@ -610,7 +739,7 @@ public final class UnifiedColorPickerDialog {
                     savedContentWidth,
                     SAVED_EDIT_ACTION_COUNT,
                     (preset, width) -> savedGradientButtonLabel(options.previewText(), preset.colors(), width),
-                    preset -> colorCodesTooltip("", TextColorPresets.normalizeGradientStops(preset.colors())),
+                    preset -> List.of(colorCodesTooltip("", TextColorPresets.normalizeGradientStops(preset.colors()))),
                     preset -> matchesGradientPreset(state, preset.colors()),
                     preset -> {
                         state.load(PaintMode.GRADIENT, false, preset.colors());
@@ -636,8 +765,8 @@ public final class UnifiedColorPickerDialog {
                     SAVED_EDIT_ACTION_COUNT,
                     (preset, width) -> savedShadowButtonLabel(
                             options.previewText(), options.shadowPreviewTextColor(), preset.colors(), width),
-                    preset -> colorCodesTooltip(
-                            "Shadow ", TextColorPresets.normalizeShadowStopsOrDefault(preset.colors())),
+                    preset -> List.of(colorCodesTooltip(
+                            "Shadow ", TextColorPresets.normalizeShadowStopsOrDefault(preset.colors()))),
                     preset -> matchesShadowPreset(state, preset.colors()),
                     preset -> {
                         state.loadShadowPreset(preset.colors());
@@ -667,7 +796,7 @@ public final class UnifiedColorPickerDialog {
             int savedContentWidth,
             int actionCount,
             BiFunction<T, Integer, Component> applyLabel,
-            Function<T, Component> applyHint,
+            Function<T, List<Component>> applyHint,
             Predicate<T> selected,
             Consumer<T> apply,
             Consumer<T> edit,
@@ -686,7 +815,7 @@ public final class UnifiedColorPickerDialog {
             boolean selectedPreset = selected != null && selected.test(preset);
             savedList.child(ColorPickerUiUtil.savedPresetRow(
                     savedPresetLabel(applyLabel.apply(preset, savedApplyButtonWidth), selectedPreset),
-                    applyHint == null ? Component.empty() : applyHint.apply(preset),
+                    applyHint == null ? List.of() : applyHint.apply(preset),
                     () -> apply.accept(preset),
                     edit == null ? null : () -> edit.accept(preset),
                     editHint,
@@ -753,6 +882,26 @@ public final class UnifiedColorPickerDialog {
         return true;
     }
 
+    private static PairedColorResult stylePresetResult(TextColorPresets.CustomStylePreset preset) {
+        return new PairedColorResult(
+                new PaintLayer(preset.text().size() > 1 ? PaintMode.GRADIENT : PaintMode.COLOR, preset.text()),
+                new PaintLayer(preset.shadow().size() > 1 ? PaintMode.GRADIENT : PaintMode.COLOR, preset.shadow()),
+                preset.shadowEnabled());
+    }
+
+    private static List<Component> stylePresetTooltip(TextColorPresets.CustomStylePreset preset) {
+        return List.of(
+                Component.literal(preset.name()),
+                colorCodesTooltip(ItemEditorText.str("dialog.unified_color_picker.style_text") + ": ", preset.text()),
+                colorCodesTooltip(
+                        ItemEditorText.str(
+                                        preset.shadowEnabled()
+                                                ? "dialog.unified_color_picker.style_shadow_on"
+                                                : "dialog.unified_color_picker.style_shadow_off")
+                                + ": ",
+                        preset.shadow()));
+    }
+
     private static void restoreScroll(ScrollContainer<?> scroll, double scrollOffset) {
         ScrollStateUtil.restore(scroll, scrollOffset);
         Minecraft.getInstance().execute(() -> ScrollStateUtil.restore(scroll, scrollOffset));
@@ -764,7 +913,9 @@ public final class UnifiedColorPickerDialog {
         row.horizontalSizing(Sizing.fill(100));
         String text = normalizePreviewText(previewText);
         Component label;
-        if (state.shadow()) {
+        if (state.paired()) {
+            label = pairedLabel(text, state.pairedResult());
+        } else if (state.shadow()) {
             label = state.mode() == PaintMode.GRADIENT
                     ? shadowGradientLabel(
                             text, state.resultColors(), state.options().shadowPreviewTextColor())
@@ -778,6 +929,31 @@ public final class UnifiedColorPickerDialog {
         previewLabel.horizontalSizing(Sizing.fill(100));
         row.child(previewLabel);
         return row;
+    }
+
+    private static Component pairedLabel(String text, PairedColorResult pair) {
+        MutableComponent root = Component.empty();
+        int count = text.codePointCount(0, text.length());
+        for (int index = 0, step = 0; index < text.length(); step++) {
+            int codePoint = text.codePointAt(index);
+            float progress = count <= 1 ? 0f : (float) step / (count - 1);
+            int foreground = layerColor(pair.text(), progress);
+            MutableComponent glyph =
+                    Component.literal(Character.toString(codePoint)).withColor(foreground);
+            if (pair.shadowEnabled()) {
+                int shadow = layerColor(pair.shadow(), progress) | 0xFF000000;
+                glyph.withStyle(style -> style.withShadowColor(shadow));
+            }
+            root.append(glyph);
+            index += Character.charCount(codePoint);
+        }
+        return root;
+    }
+
+    private static int layerColor(PaintLayer layer, float progress) {
+        return layer.mode() == PaintMode.GRADIENT
+                ? ColorInterpolationUtil.interpolateRgb(layer.colors(), progress)
+                : layer.colors().getFirst() & 0xFFFFFF;
     }
 
     private static Component shadowLabel(String text, int rgb, int foregroundRgb) {
@@ -973,6 +1149,18 @@ public final class UnifiedColorPickerDialog {
         return ItemEditorText.tr("dialog.unified_color_picker.selected_color", state.selectedIndex() + 1);
     }
 
+    private static Component layerButtonLabel(PickerState state, boolean shadow) {
+        PaintLayer layer = state.layer(shadow);
+        return ItemEditorText.tr(
+                "dialog.unified_color_picker.layer_mode",
+                ItemEditorText.tr(
+                        shadow ? "dialog.unified_color_picker.layer_shadow" : "dialog.unified_color_picker.style_text"),
+                ItemEditorText.tr(
+                        layer.mode() == PaintMode.GRADIENT
+                                ? "dialog.unified_color_picker.mode.gradient"
+                                : "dialog.unified_color_picker.mode.color"));
+    }
+
     private static String stopButtonLabel(PickerState state, int index) {
         String prefix = state.selectedIndex() == index ? "> " : "";
         return prefix + ItemEditorText.str("dialog.unified_color_picker.stop_label", index + 1) + " "
@@ -1026,6 +1214,22 @@ public final class UnifiedColorPickerDialog {
             colors = mode == PaintMode.GRADIENT
                     ? TextColorPresets.normalizeGradientStops(colors)
                     : normalizeColor(colors, true);
+        }
+    }
+
+    public record PaintLayer(PaintMode mode, List<Integer> colors) {
+        public PaintLayer {
+            mode = mode == null ? PaintMode.COLOR : mode;
+            colors = mode == PaintMode.GRADIENT
+                    ? TextColorPresets.normalizeGradientStops(colors)
+                    : normalizeColor(colors, false);
+        }
+    }
+
+    public record PairedColorResult(
+            PaintLayer text, PaintLayer shadow, boolean shadowEnabled, boolean textChanged, boolean shadowChanged) {
+        public PairedColorResult(PaintLayer text, PaintLayer shadow, boolean shadowEnabled) {
+            this(text, shadow, shadowEnabled, false, false);
         }
     }
 
@@ -1110,28 +1314,94 @@ public final class UnifiedColorPickerDialog {
 
     private static final class PickerState {
         private final Options options;
+        private final PairedColorResult initialPair;
         private final List<Integer> colors = new ArrayList<>();
         private final RememberedColors normalColor = new RememberedColors();
         private final RememberedColors normalGradient = new RememberedColors();
         private final RememberedColors shadowColor = new RememberedColors();
         private final RememberedColors shadowGradient = new RememberedColors();
         private PaintMode mode;
+        private PaintMode normalMode = PaintMode.COLOR;
+        private PaintMode shadowMode = PaintMode.COLOR;
         private boolean shadow;
+        private final boolean paired;
+        private boolean shadowEnabled;
         private boolean showColorPresets;
         private boolean showGradientPresets;
         private boolean showShadowPresets;
         private int selectedIndex;
         private String editingGradientPresetId = "";
         private String editingShadowPresetId = "";
+        private String editingStylePresetId = "";
 
-        private PickerState(Options options) {
+        private PickerState(Options options, PairedColorResult pair) {
             this.options = options;
+            this.initialPair = pair;
+            this.paired = pair != null;
+            this.shadowEnabled = pair != null && pair.shadowEnabled();
             this.mode = options.initialMode();
             this.shadow = options.initialShadow();
             this.showColorPresets = options.showColorPresets();
             this.showGradientPresets = options.showGradientPresets();
             this.showShadowPresets = options.showShadowPresets();
             this.replace(options.initialColors());
+            if (pair != null) {
+                this.load(pair.text().mode(), false, pair.text().colors());
+                this.load(pair.shadow().mode(), true, pair.shadow().colors());
+                this.shadow(false);
+                this.shadowEnabled = pair.shadowEnabled();
+            }
+        }
+
+        private boolean paired() {
+            return this.paired;
+        }
+
+        private boolean shadowEnabled() {
+            return this.shadowEnabled;
+        }
+
+        private void shadowEnabled(boolean enabled) {
+            this.shadowEnabled = enabled;
+        }
+
+        private PairedColorResult pairedResult() {
+            PaintLayer text = this.layer(false);
+            PaintLayer shadowLayer = this.layer(true);
+            return new PairedColorResult(
+                    text,
+                    shadowLayer,
+                    this.shadowEnabled,
+                    !text.equals(this.initialPair.text()),
+                    this.shadowEnabled != this.initialPair.shadowEnabled()
+                            || this.shadowEnabled && !shadowLayer.equals(this.initialPair.shadow()));
+        }
+
+        private String editingStylePresetId() {
+            return this.editingStylePresetId;
+        }
+
+        private boolean styleMatches(TextColorPresets.CustomStylePreset preset) {
+            PairedColorResult current = this.pairedResult();
+            PairedColorResult saved = stylePresetResult(preset);
+            return current.text().equals(saved.text())
+                    && current.shadow().equals(saved.shadow())
+                    && current.shadowEnabled() == saved.shadowEnabled();
+        }
+
+        private void loadStylePreset(TextColorPresets.CustomStylePreset preset, boolean edit) {
+            PairedColorResult saved = stylePresetResult(preset);
+            this.load(saved.text().mode(), false, saved.text().colors());
+            this.load(saved.shadow().mode(), true, saved.shadow().colors());
+            this.shadow(false);
+            this.shadowEnabled = saved.shadowEnabled();
+            this.editingStylePresetId = edit ? preset.id() : "";
+        }
+
+        private PaintLayer layer(boolean shadowLayer) {
+            if (this.shadow == shadowLayer) return new PaintLayer(this.mode, this.resultColors());
+            PaintMode layerMode = shadowLayer ? this.shadowMode : this.normalMode;
+            return new PaintLayer(layerMode, this.rememberedColors(shadowLayer, layerMode).colors);
         }
 
         private Options options() {
@@ -1188,6 +1458,7 @@ public final class UnifiedColorPickerDialog {
             List<Integer> fallbackColors = List.copyOf(this.colors);
             int fallbackSelectedIndex = this.selectedIndex;
             this.shadow = shadow;
+            this.mode = shadow ? this.shadowMode : this.normalMode;
             this.clearInactiveEditIds();
             this.restoreRememberedOrFallback(fallbackColors, fallbackSelectedIndex);
         }
@@ -1310,6 +1581,8 @@ public final class UnifiedColorPickerDialog {
         private void load(PaintMode mode, boolean shadow, List<Integer> colors) {
             this.mode = mode == null ? PaintMode.COLOR : mode;
             this.shadow = shadow;
+            this.editingStylePresetId = "";
+            if (shadow && this.paired) this.shadowEnabled = true;
             this.clearInactiveEditIds();
             this.replace(colors);
         }
@@ -1334,6 +1607,8 @@ public final class UnifiedColorPickerDialog {
         }
 
         private void rememberCurrentColors() {
+            if (this.shadow) this.shadowMode = this.mode;
+            else this.normalMode = this.mode;
             RememberedColors target = this.rememberedColors(this.shadow, this.mode);
             target.colors.clear();
             target.colors.addAll(this.colors);

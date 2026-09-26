@@ -13,10 +13,12 @@ import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.service.EntityTagFields;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -300,11 +302,7 @@ public final class SpawnEggSpecialDataSection {
             professionField.horizontalSizing(Sizing.fill(compactLayout ? 100 : 40));
             villagerDataRow.child(professionField);
             FlowLayout levelField = UiFactory.field(
-                    VillagerField.LEVEL.text(),
-                    Component.empty(),
-                    UiFactory.textBox(
-                            special.spawnEggVillagerLevel,
-                            context.bindText(value -> special.spawnEggVillagerLevel = value)));
+                    VillagerField.LEVEL.text(), Component.empty(), context.boundTextBox(VillagerField.LEVEL.key()));
             levelField.horizontalSizing(Sizing.fill(compactLayout ? 100 : 14));
             villagerDataRow.child(levelField);
             card.child(villagerDataRow);
@@ -330,19 +328,11 @@ public final class SpawnEggSpecialDataSection {
             return card;
         }
 
-        card.child(UiFactory.actionButtonRow(
-                UiFactory.button(
-                        TradeListField.EXPAND_ALL.text(),
-                        UiFactory.ButtonTextPreset.STANDARD,
-                        button -> context.mutateRefresh(
-                                () -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = false))),
-                UiFactory.button(
-                        TradeListField.COLLAPSE_ALL.text(),
-                        UiFactory.ButtonTextPreset.STANDARD,
-                        button -> context.mutateRefresh(
-                                () -> special.spawnEggVillagerTrades.forEach(trade -> trade.uiCollapsed = true)))));
+        card.child(UiFactory.collapseAllButton(
+                special.spawnEggVillagerTrades.stream().anyMatch(entry -> entry.uiCollapsed),
+                collapsed -> context.mutateRefresh(
+                        () -> special.spawnEggVillagerTrades.forEach(entry -> entry.uiCollapsed = collapsed))));
 
-        List<String> itemIds = context.itemIdsWithoutAir();
         for (int index = 0; index < special.spawnEggVillagerTrades.size(); index++) {
             FlowLayout tradeCard = tradeCard(context, special, index);
             ItemEditorState.VillagerTradeDraft trade = special.spawnEggVillagerTrades.get(index);
@@ -352,24 +342,9 @@ public final class SpawnEggSpecialDataSection {
                 continue;
             }
 
-            tradeCard.child(tradeItemField(
-                    context,
-                    TradeField.BUY.text(),
-                    trade.buy,
-                    itemIds,
-                    TradeField.BUY.text().getString()));
-            tradeCard.child(tradeItemField(
-                    context,
-                    TradeField.BUY_B.text(),
-                    trade.buyB,
-                    itemIds,
-                    TradeField.BUY_B.text().getString()));
-            tradeCard.child(tradeItemField(
-                    context,
-                    TradeField.SELL.text(),
-                    trade.sell,
-                    itemIds,
-                    TradeField.SELL.text().getString()));
+            tradeCard.child(tradeItemField(context, TradeField.BUY.text(), trade.buy, index + 1));
+            tradeCard.child(tradeItemField(context, TradeField.BUY_B.text(), trade.buyB, index + 1));
+            tradeCard.child(tradeItemField(context, TradeField.SELL.text(), trade.sell, index + 1));
             tradeCard.child(UiFactory.actionButtonRow(
                     UiFactory.button(
                             TradeField.SWAP.text(),
@@ -398,35 +373,32 @@ public final class SpawnEggSpecialDataSection {
         ItemEditorState.VillagerTradeDraft trade = special.spawnEggVillagerTrades.get(currentIndex);
         FlowLayout card = UiFactory.subCard();
         card.id(SpecialDataSearch.scope("villager-trade", trade));
-        FlowLayout titleRow = UiFactory.row();
-        titleRow.child(UiFactory.title(ItemEditorText.tr("special.spawn_egg.villager.trade", currentIndex + 1))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        titleRow.child(UiFactory.collapseToggleButton(
-                trade.uiCollapsed, () -> context.mutateRefresh(() -> trade.uiCollapsed = !trade.uiCollapsed)));
+        Component title = ItemEditorText.tr("special.spawn_egg.villager.trade", currentIndex + 1);
+        if (trade.uiCollapsed) title = title.copy().append(" | ").append(tradeSummary(trade));
+        FlowLayout titleRow = UiFactory.collapsibleHeader(
+                UiFactory.title(UiFactory.fitToWidth(
+                                title, Math.max(1, context.screen().editorContentWidthHint() - 100)))
+                        .shadow(false)
+                        .tooltip(List.of(title)),
+                trade.uiCollapsed,
+                () -> context.mutateRefresh(() -> {
+                    context.screen().selectEntry(special.spawnEggVillagerTrades, trade);
+                    trade.uiCollapsed = !trade.uiCollapsed;
+                }));
         card.child(titleRow);
-        card.child(UiFactory.muted(Component.literal(tradeSummary(trade))));
+        if (trade.uiCollapsed) return card;
+        card.child(UiFactory.muted(tradeSummary(trade)));
+        if (!context.screen().isSelectedEntry(special.spawnEggVillagerTrades, trade)) return card;
 
-        ButtonComponent upButton = UiFactory.button(
-                TradeField.UP.text(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> context.mutateRefresh(
-                        () -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex - 1)));
-        upButton.active(currentIndex > 0);
-        ButtonComponent downButton = UiFactory.button(
-                TradeField.DOWN.text(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> context.mutateRefresh(
-                        () -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex + 1)));
-        downButton.active(currentIndex < special.spawnEggVillagerTrades.size() - 1);
-        card.child(UiFactory.actionButtonRow(
-                upButton,
-                downButton,
-                UiFactory.button(
-                        TradeField.DUPLICATE.text(),
-                        UiFactory.ButtonTextPreset.COMPACT,
-                        button -> context.mutateRefresh(
-                                () -> special.spawnEggVillagerTrades.add(currentIndex + 1, copyTrade(trade)))),
+        card.child(UiFactory.entryActions(
+                currentIndex > 0,
+                () -> context.mutateRefresh(
+                        () -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex - 1)),
+                currentIndex < special.spawnEggVillagerTrades.size() - 1,
+                () -> context.mutateRefresh(
+                        () -> context.swapEntries(special.spawnEggVillagerTrades, currentIndex, currentIndex + 1)),
+                () -> context.mutateRefresh(
+                        () -> special.spawnEggVillagerTrades.add(currentIndex + 1, copyTrade(trade))),
                 UiFactory.negativeButton(
                         TradeField.REMOVE.text(),
                         UiFactory.ButtonTextPreset.STANDARD,
@@ -438,40 +410,26 @@ public final class SpawnEggSpecialDataSection {
             SpecialDataPanelContext context,
             Component label,
             ItemEditorState.TradeStackDraft stackDraft,
-            List<String> itemIds,
-            String pickerTitle) {
-        boolean compactLayout = isCompactLayout(context);
-        FlowLayout container = UiFactory.column();
-        container.gap(2);
-        container.child(UiFactory.muted(label));
+            int tradeNumber) {
+        return UiFactory.column()
+                .child(UiFactory.muted(label))
+                .child(context.itemRow(
+                        () -> tradeStack(stackDraft),
+                        stack -> setTradeStackFromInventory(stackDraft, stack),
+                        () -> setTradeStackFromInventory(stackDraft, ItemStack.EMPTY),
+                        ItemEditorText.tr("special.spawn_egg.villager.trades")
+                                .copy()
+                                .append(" " + tradeNumber + " > ")
+                                .append(label)));
+    }
 
-        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-        row.child(UiFactory.textBox(
-                        stackDraft.itemId,
-                        value -> context.mutate(() -> {
-                            stackDraft.itemId = IdFieldNormalizer.normalize(value);
-                            stackDraft.templateStack = ItemStack.EMPTY;
-                        }))
-                .horizontalSizing(Sizing.fill(compactLayout ? 100 : 50)));
-        row.child(UiFactory.textBox(stackDraft.count, context.bindText(value -> stackDraft.count = value))
-                .horizontalSizing(Sizing.fill(compactLayout ? 100 : 10)));
-        row.child(UiFactory.button(
-                        ItemEditorText.tr("common.pick"),
-                        UiFactory.ButtonTextPreset.STANDARD,
-                        button -> context.openSearchablePicker(
-                                pickerTitle,
-                                "",
-                                itemIds,
-                                id -> id,
-                                id -> context.mutateRefresh(() -> {
-                                    stackDraft.itemId = id;
-                                    stackDraft.templateStack = ItemStack.EMPTY;
-                                })))
-                .horizontalSizing(Sizing.fill(compactLayout ? 100 : 15)));
-        row.child(context.storagePickButton(stack -> setTradeStackFromInventory(stackDraft, stack))
-                .horizontalSizing(Sizing.fill(compactLayout ? 100 : 25)));
-        container.child(row);
-        return container;
+    private static ItemStack tradeStack(ItemEditorState.TradeStackDraft draft) {
+        Identifier id = Identifier.tryParse(draft.itemId);
+        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) return ItemStack.EMPTY;
+        var item = BuiltInRegistries.ITEM.getValue(id);
+        ItemStack stack =
+                draft.templateStack != null && draft.templateStack.is(item) ? draft.templateStack : new ItemStack(item);
+        return stack.copyWithCount(Math.max(1, ValidationUtil.parseIntOrDefault(draft.count, 1)));
     }
 
     private static void setTradeStackFromInventory(ItemEditorState.TradeStackDraft stackDraft, ItemStack stack) {
@@ -493,15 +451,6 @@ public final class SpawnEggSpecialDataSection {
             Consumer<String> setter,
             List<String> values,
             String pickerTitle) {
-        return UiFactory.field(label, Component.empty(), idTextWithPicker(context, value, setter, values, pickerTitle));
-    }
-
-    private static FlowLayout idTextWithPicker(
-            SpecialDataPanelContext context,
-            String value,
-            Consumer<String> setter,
-            List<String> entries,
-            String pickerTitle) {
         FlowLayout row = UiFactory.row();
         row.child(
                 UiFactory.textBox(value, text -> context.mutate(() -> setter.accept(IdFieldNormalizer.normalize(text))))
@@ -510,15 +459,15 @@ public final class SpawnEggSpecialDataSection {
                 ItemEditorText.tr("common.pick"),
                 UiFactory.ButtonTextPreset.COMPACT,
                 button -> context.openSearchablePicker(
-                        pickerTitle, "", entries, id -> id, id -> context.mutateRefresh(() -> setter.accept(id))));
+                        pickerTitle, "", values, id -> id, id -> context.mutateRefresh(() -> setter.accept(id))));
         pickButton.horizontalSizing(UiFactory.fixed(52));
         row.child(pickButton);
-        return row;
+        return UiFactory.field(label, Component.empty(), row);
     }
 
     private static FlowLayout shortField(
             SpecialDataPanelContext context, Component label, String value, Consumer<String> setter) {
-        return UiFactory.field(label, Component.empty(), UiFactory.textBox(value, context.bindText(setter)));
+        return EffectFieldLayoutUtil.numberField(label, value, context.bindText(setter));
     }
 
     private static FlowLayout tradeValueRows(
@@ -549,12 +498,9 @@ public final class SpawnEggSpecialDataSection {
     private static FlowLayout tradeValueRow(
             boolean compactLayout, FlowLayout first, FlowLayout second, FlowLayout third) {
         FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-        first.horizontalSizing(Sizing.fill(compactLayout ? 100 : 33));
-        second.horizontalSizing(Sizing.fill(compactLayout ? 100 : 33));
-        third.horizontalSizing(Sizing.fill(compactLayout ? 100 : 33));
-        row.child(first);
-        row.child(second);
-        row.child(third);
+        for (FlowLayout field : List.of(first, second, third)) {
+            row.child(field.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(33)));
+        }
         return row;
     }
 
@@ -586,10 +532,8 @@ public final class SpawnEggSpecialDataSection {
 
     private static void swapBuyAndSell(ItemEditorState.VillagerTradeDraft trade) {
         ItemEditorState.TradeStackDraft buyCopy = new ItemEditorState.TradeStackDraft();
-        ItemEditorState.TradeStackDraft sellCopy = new ItemEditorState.TradeStackDraft();
         copyTradeStack(trade.buy, buyCopy);
-        copyTradeStack(trade.sell, sellCopy);
-        copyTradeStack(sellCopy, trade.buy);
+        copyTradeStack(trade.sell, trade.buy);
         copyTradeStack(buyCopy, trade.sell);
     }
 
@@ -609,12 +553,19 @@ public final class SpawnEggSpecialDataSection {
         trade.rewardExp = true;
     }
 
-    private static String tradeSummary(ItemEditorState.VillagerTradeDraft trade) {
+    private static Component tradeSummary(ItemEditorState.VillagerTradeDraft trade) {
         String buyId = valueOrDefault(trade.buy.itemId, "?");
         String buyCount = valueOrDefault(trade.buy.count, "1");
         String sellId = valueOrDefault(trade.sell.itemId, "?");
         String sellCount = valueOrDefault(trade.sell.count, "1");
-        return buyCount + "x " + buyId + " -> " + sellCount + "x " + sellId;
+        return Component.empty()
+                .append(EditorSectionSummary.value(buyCount))
+                .append("x ")
+                .append(EditorSectionSummary.value(buyId))
+                .append(" -> ")
+                .append(EditorSectionSummary.value(sellCount))
+                .append("x ")
+                .append(EditorSectionSummary.value(sellId));
     }
 
     private static int resolveButtonWidth(SpecialDataPanelContext context, int buttonCount) {

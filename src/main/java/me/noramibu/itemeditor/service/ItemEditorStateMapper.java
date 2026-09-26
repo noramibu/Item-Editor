@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.util.InstrumentDetails;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -81,7 +82,6 @@ import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.item.component.KineticWeapon;
 import net.minecraft.world.item.component.LodestoneTracker;
 import net.minecraft.world.item.component.MapDecorations;
-import net.minecraft.world.item.component.MapItemColor;
 import net.minecraft.world.item.component.MapPostProcessing;
 import net.minecraft.world.item.component.OminousBottleAmplifier;
 import net.minecraft.world.item.component.PiercingWeapon;
@@ -102,6 +102,7 @@ import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.RemoveStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
@@ -194,7 +195,7 @@ public final class ItemEditorStateMapper {
         if (foodProperties != null) {
             state.special.foodNutrition = Integer.toString(foodProperties.nutrition());
             state.special.foodSaturation = trimTrailingZeros(foodProperties.saturation());
-            state.special.foodCanAlwaysEat = foodProperties.canAlwaysEat();
+            state.special.foodCanAlwaysEat = foodProperties.canAlwaysEat() ? "true" : "";
         }
 
         Consumable consumable = stack.get(DataComponents.CONSUMABLE);
@@ -620,6 +621,8 @@ public final class ItemEditorStateMapper {
                 draft.ambient = effect.isAmbient();
                 draft.visible = Boolean.toString(effect.isVisible());
                 draft.showIcon = Boolean.toString(effect.showIcon());
+                draft.originalVisible = draft.visible;
+                draft.originalShowIcon = draft.showIcon;
                 state.special.potionEffects.add(draft);
             });
         }
@@ -763,11 +766,6 @@ public final class ItemEditorStateMapper {
         JukeboxPlayable jukeboxPlayable = stack.get(DataComponents.JUKEBOX_PLAYABLE);
         if (jukeboxPlayable != null) {
             setIdFromHolder(jukeboxPlayable.song(), id -> state.special.jukeboxSongId = id);
-        }
-
-        MapItemColor mapColor = stack.get(DataComponents.MAP_COLOR);
-        if (mapColor != null) {
-            state.special.mapColor = ValidationUtil.toHex(mapColor.rgb());
         }
 
         MapPostProcessing mapPostProcessing = stack.get(DataComponents.MAP_POST_PROCESSING);
@@ -961,7 +959,7 @@ public final class ItemEditorStateMapper {
         sideDraft.lines.clear();
         int baseColor = signText.getColor().getTextColor();
         for (int index = 0; index < 4; index++) {
-            Component line = signText.getMessage(index, false);
+            Component line = signText.getMessages(false)[index];
             sideDraft.lines.add(TextComponentUtil.toMarkup(this.stripBaseSignColor(line, baseColor)));
         }
         sideDraft.color = signText.getColor().name();
@@ -1239,12 +1237,28 @@ public final class ItemEditorStateMapper {
                     effectDraft.ambient = effectInstance.isAmbient();
                     effectDraft.visible = Boolean.toString(effectInstance.isVisible());
                     effectDraft.showIcon = Boolean.toString(effectInstance.showIcon());
+                    effectDraft.originalVisible = effectDraft.visible;
+                    effectDraft.originalShowIcon = effectDraft.showIcon;
                     draft.effects.add(effectDraft);
                 }
                 target.add(draft);
                 continue;
             }
 
+            if (consumeEffect instanceof RemoveStatusEffectsConsumeEffect(var removed)) {
+                var draft = new ItemEditorState.ConsumableEffectDraft();
+                draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS;
+                draft.removedEffects = removed.unwrapKey()
+                        .map(tag -> "#" + tag.location())
+                        .orElseGet(() -> removed.stream()
+                                .map(holder -> holder.unwrapKey()
+                                        .orElseThrow()
+                                        .identifier()
+                                        .toString())
+                                .collect(Collectors.joining(", ")));
+                target.add(draft);
+                continue;
+            }
             if (consumeEffect instanceof ClearAllStatusEffectsConsumeEffect) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
                 draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS;

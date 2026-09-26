@@ -153,8 +153,12 @@ final class ItemEditorLayoutBuilder {
     }
 
     private UIComponent buildShell() {
-        boolean fullViewportShell = usesFullViewportShell(this.screen.screenWidth(), this.screen.screenHeight());
-        this.shellWidth = estimatedShellWidth(this.screen.screenWidth(), this.screen.screenHeight());
+        boolean rawFocusMode = this.screen.rawFocusMode();
+        boolean fullViewportShell =
+                rawFocusMode || usesFullViewportShell(this.screen.screenWidth(), this.screen.screenHeight());
+        this.shellWidth = rawFocusMode
+                ? Math.max(1, this.screen.screenWidth())
+                : estimatedShellWidth(this.screen.screenWidth(), this.screen.screenHeight());
         int outerPadding = fullViewportShell ? 0 : UiFactory.scaledPixels(SHELL_SIDE_PADDING / 2);
         int verticalPadding = fullViewportShell ? 0 : this.scaledMin(2, 2);
         int bottomSafety = fullViewportShell ? 0 : Math.max(2, UiFactory.scaledPixels(SHELL_VERTICAL_SAFE_PADDING));
@@ -164,23 +168,32 @@ final class ItemEditorLayoutBuilder {
         shell.horizontalSizing(Sizing.fixed(this.shellWidth));
         shell.verticalSizing(Sizing.fixed(availableShellHeight));
 
-        FlowLayout topBar = this.buildTopBar();
-        int estimatedTopBarHeight = Math.max(
-                UiFactory.scaledPixels(28),
-                UiFactory.scaleProfile().controlHeight()
-                        + (UiFactory.scaleProfile().padding() * 2)
-                        + UiFactory.scaledPixels(8));
         int minimumBodyHeight = 1;
-        int hardMinimumTopBarHeight = UiFactory.scaledPixels(PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT);
-        int topBarHeightCandidate = Math.clamp(
-                (int) Math.round(availableShellHeight * TOP_BAR_HEIGHT_MAX_RATIO),
-                Math.min(hardMinimumTopBarHeight, estimatedTopBarHeight),
-                estimatedTopBarHeight);
-        int topBarMaxHeight = Math.max(1, availableShellHeight - shellGap - minimumBodyHeight);
-        int topBarHeight = Math.min(topBarHeightCandidate, topBarMaxHeight);
-        topBar.verticalSizing(Sizing.fixed(topBarHeight));
-        shell.child(topBar);
-        int bodyHeight = Math.max(minimumBodyHeight, availableShellHeight - topBarHeight - shellGap);
+        int bodyHeight = availableShellHeight;
+        if (!rawFocusMode) {
+            FlowLayout topBar = this.buildTopBar();
+            int estimatedTopBarHeight = Math.max(
+                    UiFactory.scaledPixels(28),
+                    UiFactory.scaleProfile().controlHeight()
+                            + (UiFactory.scaleProfile().padding() * 2)
+                            + UiFactory.scaledPixels(8));
+            if (this.screen.isNestedEditor()) {
+                estimatedTopBarHeight = Math.max(
+                        estimatedTopBarHeight,
+                        UiFactory.scaledPixels(32) + UiFactory.scaleProfile().padding() * 2);
+            }
+            int hardMinimumTopBarHeight = UiFactory.scaledPixels(PREVIEW_SECTION_FIT_HARD_MIN_HEIGHT);
+            int topBarHeightCandidate = Math.clamp(
+                    (int) Math.round(availableShellHeight * TOP_BAR_HEIGHT_MAX_RATIO),
+                    Math.min(hardMinimumTopBarHeight, estimatedTopBarHeight),
+                    estimatedTopBarHeight);
+            int topBarMaxHeight = Math.max(1, availableShellHeight - shellGap - minimumBodyHeight);
+            if (this.screen.isNestedEditor()) topBarHeightCandidate = estimatedTopBarHeight;
+            int topBarHeight = Math.min(topBarHeightCandidate, topBarMaxHeight);
+            topBar.verticalSizing(Sizing.fixed(topBarHeight));
+            shell.child(topBar);
+            bodyHeight = Math.max(minimumBodyHeight, availableShellHeight - topBarHeight - shellGap);
+        }
         int bodyBottomPadding = fullViewportShell ? 0 : this.scaledMin(2, 3);
 
         boolean categoriesCollapsed = this.screen.categoriesRailCollapsed();
@@ -192,27 +205,27 @@ final class ItemEditorLayoutBuilder {
         body.gap(UiFactory.scaledPixels(BODY_GAP));
         body.padding(Insets.bottom(bodyBottomPadding));
         body.verticalAlignment(VerticalAlignment.TOP);
-        if (categoriesCollapsed) {
+        if (!this.screen.rawFocusMode() && categoriesCollapsed) {
             body.child(this.buildRailSideToggleCard(
                             Component.literal(SYMBOL_RIGHT), Component.literal(TOOLTIP_SHOW_CATEGORIES), () -> {
                                 this.screen.setCategoriesRailCollapsed(false);
                                 this.screen.rebuildLayout();
                             })
                     .horizontalSizing(Sizing.fixed(railToggleWidth)));
-        } else {
+        } else if (!this.screen.rawFocusMode()) {
             body.child(this.buildTabsCard(metrics.tabsWidth()).horizontalSizing(Sizing.fixed(metrics.tabsWidth())));
         }
         body.child(this.buildEditorCard()
-                .horizontalSizing(Sizing.fixed(metrics.editorWidth()))
+                .horizontalSizing(Sizing.fixed(this.screen.rawFocusMode() ? this.shellWidth : metrics.editorWidth()))
                 .verticalSizing(Sizing.fill(100)));
-        if (previewCollapsed) {
+        if (!this.screen.rawFocusMode() && previewCollapsed) {
             body.child(this.buildRailSideToggleCard(
                             Component.literal(SYMBOL_LEFT), Component.literal(TOOLTIP_SHOW_PREVIEW), () -> {
                                 this.screen.setPreviewRailCollapsed(false);
                                 this.screen.rebuildLayout();
                             })
                     .horizontalSizing(Sizing.fixed(railToggleWidth)));
-        } else {
+        } else if (!this.screen.rawFocusMode()) {
             int previewHeightHint = Math.max(1, bodyHeight - bodyBottomPadding);
             body.child(this.buildPreviewCard(metrics.previewWidth(), previewHeightHint)
                     .horizontalSizing(Sizing.fixed(metrics.previewWidth())));
@@ -304,6 +317,13 @@ final class ItemEditorLayoutBuilder {
                 InputSafeScrollContainer.vertical(Sizing.fill(100), Sizing.expand(100), this.panelHost),
                 PANEL_SCROLL_STEP_BASE,
                 PANEL_SCROLLBAR_THICKNESS);
+
+        if (this.screen.rawFocusMode()) {
+            this.screen.bindChangedOnlyButton(null);
+            card.padding(Insets.of(UiFactory.scaledPixels(2)));
+            card.child(this.panelScroll);
+            return card;
+        }
 
         FlowLayout header = UiFactory.row();
         header.child(this.selectedCategoryLabel.horizontalSizing(Sizing.expand(100)));
@@ -768,6 +788,21 @@ final class ItemEditorLayoutBuilder {
 
         Component titleText = this.screen.getTitle();
         Component applyModeFull = Component.literal(this.screen.applyModeText());
+        if (this.screen.isNestedEditor()) {
+            FlowLayout nestedText = UiFactory.column();
+            nestedText.horizontalSizing(Sizing.fixed(textGroupWidth));
+            nestedText.gap(this.tightSpacingFloor2());
+            nestedText.child(UiFactory.title(UiFactory.fitToWidth(titleText, textGroupWidth))
+                    .maxWidth(textGroupWidth)
+                    .tooltip(List.of(titleText)));
+            this.applyModeTextWidthHint = textGroupWidth;
+            this.applyModeLabel = UiFactory.message(
+                    UiFactory.fitToWidth(applyModeFull, textGroupWidth), this.screen.applyModeColorInt());
+            this.applyModeLabel.maxWidth(textGroupWidth);
+            this.applyModeLabel.tooltip(List.of(applyModeFull));
+            nestedText.child(this.applyModeLabel);
+            return nestedText;
+        }
         int textBudget = Math.max(1, textGroupWidth - rowGap);
         int minSegmentWidth = Math.clamp(textBudget / 2, 1, TEXT_WIDTH_MIN);
         int titleFullWidth = this.componentTextWidth(titleText);
@@ -848,7 +883,7 @@ final class ItemEditorLayoutBuilder {
             ItemEditorText.tr("common.current"),
             ItemEditorText.tr("common.reset"),
             ItemEditorText.tr("common.cancel"),
-            ItemEditorText.tr(this.screen.isNestedEditor() ? "screen.nested.apply" : "common.save")
+            this.screen.applyActionLabel()
         };
         if (!this.screen.session().hasStorageOrigin()) {
             return base;
@@ -858,9 +893,9 @@ final class ItemEditorLayoutBuilder {
             base[1],
             base[2],
             base[3],
-            ItemEditorText.tr("editor.apply.place_inventory"),
+            this.screen.applyActionLabel(),
             ItemEditorText.tr("editor.apply.save_storage"),
-            ItemEditorText.tr("editor.apply.place_and_save_storage")
+            this.screen.applyActionLabel().copy().append(" + ").append(ItemEditorText.tr("editor.apply.save_storage"))
         };
     }
 

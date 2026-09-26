@@ -10,12 +10,18 @@ import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.ui.component.CommandEditorControls;
+import me.noramibu.itemeditor.ui.component.CommandValidationLabel;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.component.raw.CommandSuggestions;
+import me.noramibu.itemeditor.ui.screen.CommandEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
@@ -41,7 +47,7 @@ public final class CommandBlockSpecialDataSection {
     }
 
     private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 560;
-    private static final int COMMAND_EDITOR_HEIGHT = 78;
+    private static final int COMMAND_EDITOR_HEIGHT = 240;
     private static final int NAME_EDITOR_HEIGHT = 54;
     private static final int LAST_OUTPUT_EDITOR_HEIGHT = 68;
     private static final int NUMBER_FIELD_WIDTH = 150;
@@ -75,7 +81,7 @@ public final class CommandBlockSpecialDataSection {
                 "special.command_block.custom_name.color_title",
                 "special.command_block.custom_name.gradient_title",
                 document -> special.commandBlockCustomName = TextComponentUtil.serializeEditorDocument(document)));
-        section.child(activationCard(context, special, compactLayout));
+        section.child(activationCard(context, special));
         section.child(runtimeCard(context, special, compactLayout));
         return section;
     }
@@ -100,60 +106,82 @@ public final class CommandBlockSpecialDataSection {
         return button;
     }
 
-    private static FlowLayout activationCard(
-            SpecialDataPanelContext context, ItemEditorState.SpecialData special, boolean compactLayout) {
+    private static FlowLayout activationCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(ItemEditorText.tr("special.command_block.activation"))
                 .shadow(false));
-        UiFactory.addPackedRows(
-                card,
-                compactLayout ? 2 : 3,
-                UiFactory.checkbox(
-                        Field.AUTO.text(),
-                        special.commandBlockAuto,
-                        value -> context.mutateRefresh(() -> special.commandBlockAuto = value)),
-                UiFactory.checkbox(
-                        Field.POWERED.text(),
-                        special.commandBlockPowered,
-                        value -> context.mutateRefresh(() -> special.commandBlockPowered = value)),
-                UiFactory.checkbox(
-                        Field.CONDITION_MET.text(),
-                        special.commandBlockConditionMet,
-                        value -> context.mutateRefresh(() -> special.commandBlockConditionMet = value)));
+        card.child(UiFactory.checkbox(
+                Field.AUTO.text(),
+                special.commandBlockAuto,
+                value -> context.mutateRefresh(() -> special.commandBlockAuto = value)));
         return card;
     }
 
     private static FlowLayout commandField(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout field = UiFactory.column().gap(UiFactory.scaleProfile().tightSpacing());
         field.child(UiFactory.title(Field.COMMAND.text()).shadow(false));
+        field.child(UiFactory.button(
+                        ItemEditorText.tr("raw_editor.focus.enter"),
+                        UiFactory.ButtonTextPreset.COMPACT,
+                        button -> Minecraft.getInstance()
+                                .setScreenAndShow(new CommandEditorScreen(
+                                        context.screen(),
+                                        special.commandBlockCommand,
+                                        value -> context.mutateRefresh(() -> special.commandBlockCommand = value))))
+                .horizontalSizing(Sizing.fill(100)));
         field.child(UiFactory.muted(
                 ItemEditorText.tr("special.command_block.command_hint"),
                 Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(HINT_WIDTH_RESERVE))));
-        field.child(UiFactory.textArea(
-                        special.commandBlockCommand,
-                        COMMAND_EDITOR_HEIGHT,
-                        context.bindText(value -> special.commandBlockCommand = value))
-                .horizontalSizing(Sizing.fill(100)));
+        int height = Math.clamp(
+                context.screen().height / 2, UiFactory.scaledPixels(96), UiFactory.scaledPixels(COMMAND_EDITOR_HEIGHT));
+        RawTextAreaComponent editor = new RawTextAreaComponent(
+                        Sizing.fill(100), Sizing.fixed(height), special.commandBlockCommand)
+                .commandMode(true)
+                .wordWrap(true);
+        editor.onChanged()
+                .subscribe((value, delta) -> context.mutate(() -> special.commandBlockCommand = editor.commandValue()));
+        var status = new CommandValidationLabel(editor);
+        var suggestionStatus = UiFactory.muted(Component.empty());
+        new CommandSuggestions(
+                editor,
+                () -> Minecraft.getInstance().gui.screen() == context.screen() && editor.hasParent(),
+                suggestionStatus::text);
+        field.child(CommandEditorControls.create(editor));
+        field.child(editor);
+        field.child(status);
+        field.child(suggestionStatus);
         return field;
     }
 
     private static FlowLayout runtimeCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special, boolean compactLayout) {
         FlowLayout card = UiFactory.subCard();
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.title(ItemEditorText.tr("special.command_block.runtime"))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.collapseToggleButton(
+        FlowLayout header = UiFactory.collapsibleHeader(
+                UiFactory.title(ItemEditorText.tr("special.command_block.runtime"))
+                        .shadow(false),
                 special.uiCommandBlockRuntimeCollapsed,
                 () -> context.mutateRefresh(
-                        () -> special.uiCommandBlockRuntimeCollapsed = !special.uiCommandBlockRuntimeCollapsed)));
+                        () -> special.uiCommandBlockRuntimeCollapsed = !special.uiCommandBlockRuntimeCollapsed));
         card.child(header);
 
         if (special.uiCommandBlockRuntimeCollapsed) {
             card.child(UiFactory.muted(runtimeSummary(special), HINT_WIDTH));
             return card;
         }
+
+        card.child(UiFactory.muted(ItemEditorText.tr("command_editor.runtime_hint"))
+                .horizontalSizing(Sizing.fill(100)));
+        UiFactory.addPackedRows(
+                card,
+                compactLayout ? 1 : 2,
+                UiFactory.checkbox(
+                        RuntimeField.POWERED.text(),
+                        special.commandBlockPowered,
+                        value -> context.mutateRefresh(() -> special.commandBlockPowered = value)),
+                UiFactory.checkbox(
+                        RuntimeField.CONDITION_MET.text(),
+                        special.commandBlockConditionMet,
+                        value -> context.mutateRefresh(() -> special.commandBlockConditionMet = value)));
 
         UiFactory.addPackedRows(
                 card,
@@ -169,16 +197,8 @@ public final class CommandBlockSpecialDataSection {
         UiFactory.addPackedRows(
                 card,
                 compactLayout ? 1 : 2,
-                numericField(
-                        context,
-                        RuntimeField.SUCCESS_COUNT.text(),
-                        special.commandBlockSuccessCount,
-                        value -> special.commandBlockSuccessCount = value),
-                numericField(
-                        context,
-                        RuntimeField.LAST_EXECUTION.text(),
-                        special.commandBlockLastExecution,
-                        value -> special.commandBlockLastExecution = value));
+                numericField(context, RuntimeField.SUCCESS_COUNT),
+                numericField(context, RuntimeField.LAST_EXECUTION));
         UIComponent lastOutputEditor = richTextField(
                 context,
                 RuntimeField.LAST_OUTPUT,
@@ -192,12 +212,11 @@ public final class CommandBlockSpecialDataSection {
         return card;
     }
 
-    private static UIComponent numericField(
-            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter) {
+    private static UIComponent numericField(SpecialDataPanelContext context, RuntimeField field) {
         return UiFactory.field(
-                        label,
+                        field.text(),
                         Component.empty(),
-                        UiFactory.textBox(value, context.bindText(setter))
+                        context.boundTextBox(field.key())
                                 .horizontalSizing(
                                         isCompactLayout(context)
                                                 ? Sizing.fill(100)
@@ -274,8 +293,6 @@ public final class CommandBlockSpecialDataSection {
         CHAIN("special.command_block.type.chain"),
         REPEATING("special.command_block.type.repeating"),
         AUTO("special.command_block.auto"),
-        POWERED("special.command_block.powered"),
-        CONDITION_MET("special.command_block.condition_met"),
         COMMAND("special.command_block.command");
 
         private final String key;
@@ -290,6 +307,8 @@ public final class CommandBlockSpecialDataSection {
     }
 
     private enum RuntimeField implements SpecialDataSearch.Field {
+        POWERED("special.command_block.powered"),
+        CONDITION_MET("special.command_block.condition_met"),
         TRACK_OUTPUT("special.command_block.track_output"),
         UPDATE_LAST_EXECUTION("special.command_block.update_last_execution"),
         SUCCESS_COUNT("special.command_block.success_count"),

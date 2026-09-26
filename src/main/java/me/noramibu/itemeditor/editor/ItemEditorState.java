@@ -148,8 +148,8 @@ public final class ItemEditorState {
             draft.operation = entry.modifier().operation().name();
             draft.slotGroup = entry.slot().name();
             draft.display = entry.display();
-            if (entry.display() instanceof ItemAttributeModifiers.Display.OverrideText override)
-                draft.displayText = override.component().copy();
+            if (entry.display() instanceof ItemAttributeModifiers.Display.OverrideText(var component))
+                draft.displayText = component.copy();
             return draft;
         }
     }
@@ -221,7 +221,7 @@ public final class ItemEditorState {
 
         public String foodNutrition = "";
         public String foodSaturation = "";
-        public boolean foodCanAlwaysEat;
+        public String foodCanAlwaysEat = "";
         public boolean uiFoodConsumableCollapsed = true;
         public String consumableConsumeSeconds = "";
         public String consumableAnimation = "";
@@ -426,7 +426,6 @@ public final class ItemEditorState {
         public String instrumentRange = "";
         public String jukeboxSongId = "";
 
-        public String mapColor = "";
         public String mapPostProcessing = "";
         public String mapId = "";
         public final List<MapDecorationDraft> mapDecorations = new ArrayList<>();
@@ -651,6 +650,8 @@ public final class ItemEditorState {
     }
 
     public static final class PotionEffectDraft {
+        public String originalVisible = "";
+        public String originalShowIcon = "";
         public String effectId = "";
         public String duration = "200";
         public String amplifier = "0";
@@ -658,10 +659,12 @@ public final class ItemEditorState {
         public String visible = "";
         public String showIcon = "";
         public CompoundTag originalTag = new CompoundTag();
-        public boolean uiCollapsed;
+        public boolean uiCollapsed = true;
 
         public PotionEffectDraft copy() {
             PotionEffectDraft copy = new PotionEffectDraft();
+            copy.originalVisible = this.originalVisible;
+            copy.originalShowIcon = this.originalShowIcon;
             copy.effectId = this.effectId;
             copy.duration = this.duration;
             copy.amplifier = this.amplifier;
@@ -776,12 +779,11 @@ public final class ItemEditorState {
                 TYPE_CLEAR_ALL_EFFECTS,
                 TYPE_TELEPORT_RANDOMLY,
                 TYPE_PLAY_SOUND);
-        public static final List<String> EDITABLE_TYPES = ALL_TYPES.stream()
-                .filter(type -> !type.equals(TYPE_REMOVE_EFFECTS))
-                .toList();
+        public static final List<String> EDITABLE_TYPES = ALL_TYPES;
 
         public String type = TYPE_APPLY_EFFECTS;
         public String probability = "1.0";
+        public String removedEffects = "";
         public String diameter = "16";
         public String soundId = "";
         public boolean uiCollapsed = true;

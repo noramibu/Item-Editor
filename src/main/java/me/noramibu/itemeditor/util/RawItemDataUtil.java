@@ -13,10 +13,12 @@ import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
@@ -48,17 +50,7 @@ public final class RawItemDataUtil {
     }
 
     public static String serialize(ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults) {
-        if (stack.isEmpty()) {
-            return ItemEditorText.str("raw.empty");
-        }
-
-        DataResult<Tag> result =
-                ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
-        return result.result()
-                .map(tag -> printTag(withKnownDefaults(tag, showKnownDefaults)))
-                .orElseGet(() -> ItemEditorText.str(
-                        "raw.serialize_failed",
-                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))));
+        return serialize(stack, registryAccess, showKnownDefaults, RawItemDataUtil::printTag);
     }
 
     public static String serializeJson(ItemStack stack, RegistryAccess registryAccess) {
@@ -66,25 +58,25 @@ public final class RawItemDataUtil {
     }
 
     public static String serializeJson(ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults) {
-        if (stack.isEmpty()) {
-            return ItemEditorText.str("raw.empty");
-        }
+        return serialize(stack, registryAccess, showKnownDefaults, tag -> {
+            try {
+                return GSON.toJson(NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, tag));
+            } catch (RuntimeException exception) {
+                return ItemEditorText.str("raw.serialize_failed", exceptionMessage(exception));
+            }
+        });
+    }
 
-        DataResult<Tag> nbtResult =
+    private static String serialize(
+            ItemStack stack, RegistryAccess registryAccess, boolean showKnownDefaults, Function<Tag, String> format) {
+        if (stack.isEmpty()) return ItemEditorText.str("raw.empty");
+        DataResult<Tag> result =
                 ItemStack.CODEC.encodeStart(registryAccess.createSerializationContext(NbtOps.INSTANCE), stack);
-        if (nbtResult.result().isEmpty()) {
-            return ItemEditorText.str(
-                    "raw.serialize_failed",
-                    nbtResult.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error")));
-        }
-
-        Tag withDefaults = withKnownDefaults(nbtResult.result().get(), showKnownDefaults);
-        try {
-            JsonElement jsonElement = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, withDefaults);
-            return GSON.toJson(jsonElement);
-        } catch (RuntimeException exception) {
-            return ItemEditorText.str("raw.serialize_failed", exceptionMessage(exception));
-        }
+        return result.result()
+                .map(tag -> format.apply(withKnownDefaults(tag, showKnownDefaults)))
+                .orElseGet(() -> ItemEditorText.str(
+                        "raw.serialize_failed",
+                        result.error().map(DataResult.Error::message).orElse(ItemEditorText.str("raw.unknown_error"))));
     }
 
     public static String serializeGiveCommand(ItemStack stack, RegistryAccess registryAccess) {
@@ -114,10 +106,12 @@ public final class RawItemDataUtil {
 
     private static String serializeCommandComponents(ItemStack stack, RegistryAccess registryAccess) {
         DynamicOps<Tag> ops = registryAccess.createSerializationContext(NbtOps.INSTANCE);
-        return stack.getComponentsPatch().entrySet().stream()
-                .flatMap(entry -> entry.getValue()
-                        .map(value -> serializePresentCommandComponent(entry.getKey(), value, ops))
-                        .orElseGet(() -> serializeRemovedCommandComponent(entry.getKey())))
+        DataComponentPatch.SplitResult patch = stack.getComponentsPatch().split();
+        return Stream.concat(
+                        patch.added().stream()
+                                .flatMap(component ->
+                                        serializePresentCommandComponent(component.type(), component.value(), ops)),
+                        patch.removed().stream().flatMap(RawItemDataUtil::serializeRemovedCommandComponent))
                 .collect(Collectors.joining(","));
     }
 

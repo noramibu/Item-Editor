@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -9,6 +10,7 @@ import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.service.ItemImportService;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -22,7 +24,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
     private final Minecraft minecraft;
@@ -89,7 +90,7 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public boolean keyPressed(KeyEvent input) {
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_S) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_S) {
             this.importText();
             return true;
         }
@@ -108,7 +109,8 @@ public final class RawImportScreen extends BaseOwoScreen<StackLayout> {
             this.setStatus(ItemEditorText.tr("import.empty_item"), UiColors.DANGER);
             return;
         }
-        this.minecraft.setScreenAndShow(new ItemEditorScreen(new ItemEditorSession(this.minecraft, parsed.stack())));
+        this.minecraft.setScreenAndShow(new ItemEditorScreen(
+                new ItemEditorSession(this.minecraft, parsed.stack(), ItemEditorSessionOrigin.IMPORTED)));
     }
 
     private void formatText() {

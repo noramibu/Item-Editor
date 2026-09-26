@@ -22,6 +22,7 @@ import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextLayoutUtil;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
@@ -250,24 +251,20 @@ public final class BookEditorPanel implements EditorPanel {
                             button,
                             GENERATION_OPTIONS,
                             option -> option.label().getString(),
-                            PanelBindings.value(this.screen, value -> {
-                                book.generation = Integer.toString(value.value());
-                                button.setMessage(this.generationLabel(book.generation));
-                            })));
-            FlowLayout generationField = UiFactory.field(
-                    Field.GENERATION.label(), Component.empty(), generationButton.horizontalSizing(Sizing.fill(100)));
+                            value -> PanelBindings.mutateRefresh(
+                                    this.screen, () -> book.generation = Integer.toString(value.value()))));
+            FlowLayout generationField = CompactFieldLayout.selectorRow(Field.GENERATION.label(), generationButton);
 
             if (this.availableContentWidth() >= BOOK_METADATA_WIDE_THRESHOLD) {
                 FlowLayout topRow = UiFactory.row();
-                topRow.child(titleField.horizontalSizing(Sizing.fill(49)));
-                topRow.child(authorField.horizontalSizing(Sizing.fill(49)));
+                topRow.child(titleField.horizontalSizing(Sizing.expand(50)));
+                topRow.child(authorField.horizontalSizing(Sizing.expand(50)));
                 metadata.child(topRow);
-                metadata.child(generationField);
             } else {
                 metadata.child(titleField);
                 metadata.child(authorField);
-                metadata.child(generationField);
             }
+            metadata.child(generationField);
             root.child(metadata);
         }
 
@@ -355,13 +352,8 @@ public final class BookEditorPanel implements EditorPanel {
         sideColumn.horizontalSizing(stackWorkspace ? Sizing.fill(100) : Sizing.fixed(controlsWidth));
         sideColumn.child(controls);
         sideColumn.child(miniMap);
-        if (stackWorkspace) {
-            workspace.child(editorField.horizontalSizing(Sizing.fill(100)));
-            workspace.child(sideColumn);
-        } else {
-            workspace.child(editorField.horizontalSizing(Sizing.expand(100)));
-            workspace.child(sideColumn);
-        }
+        workspace.child(editorField.horizontalSizing(stackWorkspace ? Sizing.fill(100) : Sizing.expand(100)));
+        workspace.child(sideColumn);
 
         pages.child(workspace);
 
@@ -376,32 +368,15 @@ public final class BookEditorPanel implements EditorPanel {
         controls.child(UiFactory.title(Field.CURRENT.label(book.selectedPage + 1, book.pages.size()))
                 .shadow(false));
 
-        Component prevLabel = Field.PREV.label();
-        Component nextLabel = Field.NEXT.label();
-        Component addLabel = Field.ADD.label();
-        Component removeLabel = Field.REMOVE.label();
-        Component swapUpLabel = Field.UP.label();
-        Component swapDownLabel = Field.DOWN.label();
-
-        ButtonComponent prev = this.actionButton(prevLabel, button -> {
-            if (book.selectedPage > 0) {
-                book.selectedPage--;
-                this.screen.refreshCurrentPanel();
-            }
-        });
-        ButtonComponent next = this.actionButton(nextLabel, button -> {
-            if (book.selectedPage < book.pages.size() - 1) {
-                book.selectedPage++;
-                this.screen.refreshCurrentPanel();
-            }
-        });
+        ButtonComponent prev = this.actionButton(Field.PREV.label(), button -> this.movePage(book, -1, false));
+        ButtonComponent next = this.actionButton(Field.NEXT.label(), button -> this.movePage(book, 1, false));
         ButtonComponent add = this.actionButton(
-                addLabel,
+                Field.ADD.label(),
                 button -> PanelBindings.mutateRefresh(this.screen, () -> {
                     book.pages.add(book.selectedPage + 1, "");
                     book.selectedPage++;
                 }));
-        ButtonComponent remove = this.actionButton(removeLabel, button -> {
+        ButtonComponent remove = this.actionButton(Field.REMOVE.label(), button -> {
             if (book.pages.size() > 1) {
                 PanelBindings.mutateRefresh(this.screen, () -> {
                     book.pages.remove(book.selectedPage);
@@ -410,25 +385,25 @@ public final class BookEditorPanel implements EditorPanel {
             }
         });
 
-        ButtonComponent swapUp = this.actionButton(swapUpLabel, button -> {
-            if (book.selectedPage > 0) {
-                PanelBindings.mutateRefresh(this.screen, () -> {
-                    Collections.swap(book.pages, book.selectedPage, book.selectedPage - 1);
-                    book.selectedPage--;
-                });
-            }
-        });
-        ButtonComponent swapDown = this.actionButton(swapDownLabel, button -> {
-            if (book.selectedPage < book.pages.size() - 1) {
-                PanelBindings.mutateRefresh(this.screen, () -> {
-                    Collections.swap(book.pages, book.selectedPage, book.selectedPage + 1);
-                    book.selectedPage++;
-                });
-            }
-        });
+        ButtonComponent swapUp = this.actionButton(Field.UP.label(), button -> this.movePage(book, -1, true));
+        ButtonComponent swapDown = this.actionButton(Field.DOWN.label(), button -> this.movePage(book, 1, true));
         controls.child(UiFactory.actionButtonRow(prev, next, add, remove));
         controls.child(UiFactory.actionButtonRow(swapUp, swapDown));
         return controls;
+    }
+
+    private void movePage(ItemEditorState.BookData book, int direction, boolean swap) {
+        int target = book.selectedPage + direction;
+        if (target < 0 || target >= book.pages.size()) return;
+        if (swap) {
+            PanelBindings.mutateRefresh(this.screen, () -> {
+                Collections.swap(book.pages, book.selectedPage, target);
+                book.selectedPage = target;
+            });
+        } else {
+            book.selectedPage = target;
+            this.screen.refreshCurrentPanel();
+        }
     }
 
     private FlowLayout buildPageMiniMap(ItemEditorState.BookData book, int controlsWidth) {
@@ -444,8 +419,8 @@ public final class BookEditorPanel implements EditorPanel {
                 },
                 controlsWidth);
 
-        ScrollContainer<FlowLayout> scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(136), pageList);
-        scroll.verticalSizing(Sizing.fixed(PAGE_MINIMAP_LIST_HEIGHT));
+        ScrollContainer<FlowLayout> scroll =
+                UIContainers.verticalScroll(Sizing.fill(100), Sizing.fixed(PAGE_MINIMAP_LIST_HEIGHT), pageList);
         scroll.scrollbar(ScrollContainer.Scrollbar.vanillaFlat());
         scroll.scrollbarThiccness(8);
         scroll.scrollStep(10);
@@ -473,11 +448,11 @@ public final class BookEditorPanel implements EditorPanel {
             FlowLayout row = UiFactory.row();
             ButtonComponent left = this.buildPageIndexButton(book, index, miniMapOffsetSupplier);
             boolean hasRight = index + 1 < book.pages.size();
-            left.horizontalSizing(Sizing.fill(hasRight ? 49 : 100));
+            left.horizontalSizing(Sizing.expand(hasRight ? 50 : 100));
             row.child(left);
             if (hasRight) {
                 ButtonComponent right = this.buildPageIndexButton(book, index + 1, miniMapOffsetSupplier);
-                right.horizontalSizing(Sizing.fill(49));
+                right.horizontalSizing(Sizing.expand(50));
                 row.child(right);
             }
             pageList.child(row);
@@ -584,32 +559,28 @@ public final class BookEditorPanel implements EditorPanel {
 
     private RichTextDocument documentForPage(ItemEditorState.BookData book) {
         String page = book.pages.get(book.selectedPage);
-        return book.writtenBook ? RichTextDocument.fromMarkup(page) : RichTextDocument.fromPlainText(page);
+        return book.writtenBook ? TextComponentUtil.parseBookDocument(page) : RichTextDocument.fromPlainText(page);
     }
 
     private void storePageDocument(ItemEditorState.BookData book, RichTextDocument document) {
         book.pages.set(
                 book.selectedPage,
-                book.writtenBook ? TextComponentUtil.serializeEditorDocument(document) : document.plainText());
+                book.writtenBook ? TextComponentUtil.serializeBookDocument(document) : document.plainText());
     }
 
     private void applyBookEditorRenderMode(RichTextAreaComponent editor, boolean renderStructured) {
         double previousScroll = editor.scrollAmount();
         editor.lineWrap(true).lineWrapPadding(PAGE_EDITOR_WRAP_PADDING).showSoftWrapMarkers(true);
-        if (renderStructured) {
-            editor.structuredRenderMode(true)
-                    .lineWrapWidthOverride(BookPageLayoutUtil.TEXT_WIDTH)
-                    .renderStructuredObjects(true);
-            editor.setScrollAmount(previousScroll);
-            return;
-        }
-        editor.structuredRenderMode(false).lineWrapWidthOverride(-1).renderStructuredObjects(false);
+        editor.bookMode(true);
+        editor.structuredRenderMode(renderStructured)
+                .lineWrapWidthOverride(renderStructured ? BookPageLayoutUtil.TEXT_WIDTH : -1)
+                .renderStructuredObjects(renderStructured);
         editor.setScrollAmount(previousScroll);
     }
 
     private BookPageLayoutUtil.PageMetrics measureVisiblePageMetrics(RichTextDocument document) {
-        List<RichTextLayoutUtil.LineLayout> logicalLines =
-                RichTextLayoutUtil.layout(document, Minecraft.getInstance().font, BookPageLayoutUtil.TEXT_WIDTH, true);
+        List<RichTextLayoutUtil.LineLayout> logicalLines = RichTextLayoutUtil.layoutBookDocument(
+                document, Minecraft.getInstance().font, BookPageLayoutUtil.TEXT_WIDTH);
         int totalLines = logicalLines.size();
         boolean overflow = totalLines > BookPageLayoutUtil.MAX_VISIBLE_LINES;
         int visibleCharCount = this.visibleBookCharacterCount(document.plainText());
@@ -650,7 +621,7 @@ public final class BookEditorPanel implements EditorPanel {
         int firstVisibleDisplayLine = editor.firstVisibleDisplayedLineIndex();
 
         for (int slot = 0; slot < labels.size(); slot++) {
-            int pageLineNumber = editor.logicalLineNumberForDisplayedLineIndex(firstVisibleDisplayLine + slot);
+            int pageLineNumber = firstVisibleDisplayLine + slot + 1;
             labels.get(slot).text(Component.literal(Integer.toString(pageLineNumber)));
         }
     }
