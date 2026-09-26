@@ -20,9 +20,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 public final class StewSpecialDataSection {
+    private static final SpecialDataSearch.Field ADD_EFFECT = () -> "special.stew.add_effect";
+
     public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
         var result = new ArrayList<>(SpecialDataSearch.targets(
-                context, EditorCategory.SPECIAL_DATA, "special.stew.title", "stew", () -> {}, Field.values()));
+                context, EditorCategory.SPECIAL_DATA, "special.stew.title", "stew", () -> {}, ADD_EFFECT));
         for (int index = 0; index < context.special().stewEffects.size(); index++) {
             var draft = context.special().stewEffects.get(index);
             result.addAll(SpecialDataSearch.targets(
@@ -79,7 +81,7 @@ public final class StewSpecialDataSection {
 
     private static ButtonComponent addStewEffectButton(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        Component label = Field.ADD_EFFECT.text();
+        Component label = ADD_EFFECT.text();
         ButtonComponent button = UiFactory.positiveButton(
                 label,
                 UiFactory.ButtonTextPreset.STANDARD,
@@ -88,19 +90,5 @@ public final class StewSpecialDataSection {
         button.tooltip(List.of(label));
         button.horizontalSizing(Sizing.fill(100));
         return button;
-    }
-
-    private enum Field implements SpecialDataSearch.Field {
-        ADD_EFFECT("special.stew.add_effect");
-
-        private final String key;
-
-        Field(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
     }
 }

@@ -163,8 +163,8 @@ public final class EntitySpawnDataUtil {
         if (!supportsStatusEffects(entityId.toString())) {
             return entityTag;
         }
-        if (!applyAttributes(entityTag, draft.attributes, Set.of(), context, fieldLabel)
-                || !applyHealth(
+        if (failedToApplyAttributes(entityTag, draft.attributes, Set.of(), context, fieldLabel)
+                || failedToApplyHealth(
                         entityTag,
                         draft.health,
                         draft.entityId,
@@ -173,7 +173,7 @@ public final class EntitySpawnDataUtil {
                         fieldLabel + " " + ItemEditorText.str("special.entity.health"))) {
             return null;
         }
-        if (!applyEquipment(entityTag, draft.equipment, context, fieldLabel)) {
+        if (failedToApplyEquipment(entityTag, draft.equipment, context, fieldLabel)) {
             return null;
         }
         return applyDropChances(entityTag, draft.equipment, context, fieldLabel) ? entityTag : null;
@@ -224,6 +224,8 @@ public final class EntitySpawnDataUtil {
             draft.ambient = effectTag.getBooleanOr("ambient", false);
             draft.visible = optionalBoolean(effectTag, "show_particles");
             draft.showIcon = optionalBoolean(effectTag, "show_icon");
+            draft.originalVisible = draft.visible;
+            draft.originalShowIcon = draft.showIcon;
             draft.originalTag = effectTag.copy();
             effects.add(draft);
         }
@@ -798,7 +800,7 @@ public final class EntitySpawnDataUtil {
         draft.uiCollapsed = draft.isEmpty();
     }
 
-    static boolean applyEquipment(
+    static boolean failedToApplyEquipment(
             CompoundTag entityTag,
             ItemEditorState.EntityEquipmentDraft draft,
             SpecialDataApplyContext context,
@@ -823,7 +825,7 @@ public final class EntitySpawnDataUtil {
                 context.messages()
                         .add(ValidationMessage.error(
                                 ItemEditorText.str("preview.validation.component_failed", fieldLabel)));
-                return false;
+                return true;
             }
             equipmentTag.put(slot.getSerializedName(), stackTag);
         }
@@ -832,7 +834,7 @@ public final class EntitySpawnDataUtil {
         } else {
             entityTag.put("equipment", equipmentTag);
         }
-        return true;
+        return false;
     }
 
     static boolean sameEquipment(
@@ -865,7 +867,7 @@ public final class EntitySpawnDataUtil {
         }
     }
 
-    static boolean applyAttributes(
+    static boolean failedToApplyAttributes(
             CompoundTag entityTag,
             List<ItemEditorState.EntityAttributeDraft> drafts,
             Set<String> preservedIds,
@@ -895,7 +897,7 @@ public final class EntitySpawnDataUtil {
                             .add(ValidationMessage.error(
                                     ItemEditorText.str("validation.registry_missing", attributeField, rawId)));
                 }
-                return false;
+                return true;
             }
 
             var holder = registry.get(attributeId).orElse(null);
@@ -910,7 +912,7 @@ public final class EntitySpawnDataUtil {
                 context.messages()
                         .add(ValidationMessage.error(
                                 ItemEditorText.str("validation.registry_missing", attributeField, rawId)));
-                return false;
+                return true;
             }
 
             Attribute attribute = holder.value();
@@ -922,7 +924,7 @@ public final class EntitySpawnDataUtil {
                                 attributeField,
                                 ValidationUtil.trimTrailingZeros(attribute.sanitizeValue(-Double.MAX_VALUE)),
                                 ValidationUtil.trimTrailingZeros(attribute.sanitizeValue(Double.MAX_VALUE)))));
-                return false;
+                return true;
             }
 
             CompoundTag attributeTag = draft.originalTag.copy();
@@ -936,10 +938,10 @@ public final class EntitySpawnDataUtil {
         } else {
             entityTag.put("attributes", encoded);
         }
-        return true;
+        return false;
     }
 
-    static boolean applyHealth(
+    static boolean failedToApplyHealth(
             CompoundTag entityTag,
             String rawValue,
             String entityId,
@@ -949,12 +951,12 @@ public final class EntitySpawnDataUtil {
         String raw = rawValue == null ? "" : rawValue.trim();
         if (raw.isBlank()) {
             entityTag.remove("Health");
-            return true;
+            return false;
         }
 
         Float health = ValidationUtil.parseFloat(raw, fieldLabel, context.messages());
         if (health == null) {
-            return false;
+            return true;
         }
         Double maximum = effectiveMaxHealth(entityTag, context.registryAccess(), entityId);
         if (!Float.isFinite(health) || health < minimum || maximum != null && health > maximum) {
@@ -964,10 +966,10 @@ public final class EntitySpawnDataUtil {
                             fieldLabel,
                             ValidationUtil.trimTrailingZeros(minimum),
                             maximum == null ? Float.MAX_VALUE : ValidationUtil.trimTrailingZeros(maximum))));
-            return false;
+            return true;
         }
         entityTag.putFloat("Health", health);
-        return true;
+        return false;
     }
 
     static boolean sameAttributes(

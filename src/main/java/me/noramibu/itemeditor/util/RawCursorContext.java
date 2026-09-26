@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-final class RawCursorContext {
+public final class RawCursorContext {
 
     private final Slot slot;
     private final boolean insideString;
@@ -89,7 +89,7 @@ final class RawCursorContext {
                 }
 
                 switch (value) {
-                    case '"' -> index = scanString(index);
+                    case '"', '\'' -> index = scanString(index);
                     case '{' -> {
                         openFrame(true);
                         index++;
@@ -142,7 +142,7 @@ final class RawCursorContext {
                     index++;
                     continue;
                 }
-                if (value == '"') {
+                if (value == this.text.charAt(quoteStart)) {
                     consumeStringToken(frame, stringSlot, token.toString());
                     return index + 1;
                 }
@@ -190,7 +190,8 @@ final class RawCursorContext {
             if (parent != null && parent.tokenSlot() == Slot.VALUE) {
                 parent.consumeValue();
             }
-            this.stack.add(new Frame(object, parentKey));
+            Frame frame = new Frame(object, parentKey);
+            this.stack.add(frame);
             this.activeSlot = object ? Slot.OBJECT_KEY : Slot.VALUE;
             this.activeKey = "";
         }

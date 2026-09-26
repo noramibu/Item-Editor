@@ -22,6 +22,12 @@ public final class RawSyntaxHighlighter {
     };
 
     private final Map<Integer, SyntaxLineCache> cache = new HashMap<>();
+    private boolean commandMode;
+
+    public void commandMode(boolean value) {
+        this.commandMode = value;
+        this.clear();
+    }
 
     public void clear() {
         this.cache.clear();
@@ -154,6 +160,21 @@ public final class RawSyntaxHighlighter {
                 } else {
                     this.addSpan(spans, lineStartOffset, cursor, next, SyntaxKind.STRING, 0);
                 }
+                cursor = next;
+                continue;
+            }
+
+            if (this.commandMode && depth == 0 && "{}[],:".indexOf(value) < 0) {
+                next = cursor + 1;
+                while (next < line.length()
+                        && !Character.isWhitespace(line.charAt(next))
+                        && "{}[]".indexOf(line.charAt(next)) < 0) next++;
+                int color = value == '@'
+                        ? COLOR_BOOLEAN
+                        : value == '~' || value == '^' || this.isNumberStart(line, cursor)
+                                ? 0xFFF2C26B
+                                : cursor == 0 || line.substring(0, cursor).isBlank() ? 0xFF67E8F9 : COLOR_IDENTIFIER;
+                this.addSpan(spans, lineStartOffset, cursor, next, SyntaxKind.PLAIN, color);
                 cursor = next;
                 continue;
             }

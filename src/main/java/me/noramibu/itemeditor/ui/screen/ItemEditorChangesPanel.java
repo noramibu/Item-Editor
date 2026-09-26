@@ -37,14 +37,20 @@ final class ItemEditorChangesPanel {
         int contentWidth = Math.max(
                 80, screen.editorContentWidthHint() - UiFactory.scaleProfile().padding() * 4);
         ChangeLayout layout = changeLayout(screen, changes.size(), contentWidth);
-        appendGroup(root, changes, ChangeKind.ADDED, "changes.added", UiColors.SUCCESS, layout);
-        appendGroup(root, changes, ChangeKind.MODIFIED, "changes.modified", UiColors.WARNING, layout);
-        appendGroup(root, changes, ChangeKind.REMOVED, "changes.removed", UiColors.DANGER, layout);
+        appendGroup(screen, root, changes, ChangeKind.ADDED, "changes.added", UiColors.SUCCESS, layout);
+        appendGroup(screen, root, changes, ChangeKind.MODIFIED, "changes.modified", UiColors.WARNING, layout);
+        appendGroup(screen, root, changes, ChangeKind.REMOVED, "changes.removed", UiColors.DANGER, layout);
         return root;
     }
 
     private static void appendGroup(
-            FlowLayout root, List<Change> changes, ChangeKind kind, String titleKey, int color, ChangeLayout layout) {
+            ItemEditorScreen screen,
+            FlowLayout root,
+            List<Change> changes,
+            ChangeKind kind,
+            String titleKey,
+            int color,
+            ChangeLayout layout) {
         List<Change> matching =
                 changes.stream().filter(change -> change.kind() == kind).toList();
         if (matching.isEmpty()) {
@@ -55,7 +61,22 @@ final class ItemEditorChangesPanel {
         section.child(UiFactory.message(ItemEditorText.tr(titleKey, matching.size()), color));
         for (Change change : matching) {
             FlowLayout row = UiFactory.subCard();
-            row.child(UiFactory.title(Component.literal(change.id())).shadow(false));
+            FlowLayout header = UiFactory.row();
+            header.child(UiFactory.title(Component.literal(change.id()))
+                    .shadow(false)
+                    .horizontalSizing(Sizing.expand(100)));
+            var restore = UiFactory.button(
+                    ItemEditorText.tr("common.restore"),
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    button -> screen.confirmRestore(
+                            ItemEditorText.tr("changes.restore.component", change.id()),
+                            change.after(),
+                            change.before(),
+                            () -> screen.session().restoreChange(change.id())));
+            restore.active(!screen.session().hasErrors());
+            restore.tooltip(List.of(ItemEditorText.tr("changes.restore.component", change.id())));
+            header.child(restore);
+            row.child(header);
             row.child(changeValues(change, layout));
             row.horizontalSizing(Sizing.fill(100));
             section.child(row);
@@ -98,10 +119,10 @@ final class ItemEditorChangesPanel {
                 UiFactory.scaleProfile().captionLineHeight()
                         + UiFactory.scaleProfile().bodyLineSpacing());
         int availableLines = Math.clamp(screen.editorContentHeightHint() / lineHeight, 4, MAX_PREVIEW_LINES);
-        int linesPerChange = Math.max(3, availableLines / Math.max(1, Math.min(changeCount, 6)));
+        int linesPerChange = Math.max(3, availableLines / Math.clamp(changeCount, 1, 6));
         int charactersPerLine = Math.max(20, contentWidth / APPROXIMATE_CHARACTER_WIDTH);
-        int previewLength =
-                Math.clamp(charactersPerLine * linesPerChange, MIN_VALUE_PREVIEW_LENGTH, MAX_VALUE_PREVIEW_LENGTH);
+        int previewLength = Math.clamp(
+                (long) charactersPerLine * linesPerChange, MIN_VALUE_PREVIEW_LENGTH, MAX_VALUE_PREVIEW_LENGTH);
         return new ChangeLayout(contentWidth >= SPLIT_VALUES_MIN_WIDTH, previewLength);
     }
 

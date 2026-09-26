@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.util.InstrumentDetails;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
@@ -101,6 +102,7 @@ import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.RemoveStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
@@ -193,7 +195,7 @@ public final class ItemEditorStateMapper {
         if (foodProperties != null) {
             state.special.foodNutrition = Integer.toString(foodProperties.nutrition());
             state.special.foodSaturation = trimTrailingZeros(foodProperties.saturation());
-            state.special.foodCanAlwaysEat = foodProperties.canAlwaysEat();
+            state.special.foodCanAlwaysEat = foodProperties.canAlwaysEat() ? "true" : "";
         }
 
         Consumable consumable = stack.get(DataComponents.CONSUMABLE);
@@ -628,6 +630,8 @@ public final class ItemEditorStateMapper {
                 draft.ambient = effect.isAmbient();
                 draft.visible = Boolean.toString(effect.isVisible());
                 draft.showIcon = Boolean.toString(effect.showIcon());
+                draft.originalVisible = draft.visible;
+                draft.originalShowIcon = draft.showIcon;
                 state.special.potionEffects.add(draft);
             });
         }
@@ -1242,12 +1246,28 @@ public final class ItemEditorStateMapper {
                     effectDraft.ambient = effectInstance.isAmbient();
                     effectDraft.visible = Boolean.toString(effectInstance.isVisible());
                     effectDraft.showIcon = Boolean.toString(effectInstance.showIcon());
+                    effectDraft.originalVisible = effectDraft.visible;
+                    effectDraft.originalShowIcon = effectDraft.showIcon;
                     draft.effects.add(effectDraft);
                 }
                 target.add(draft);
                 continue;
             }
 
+            if (consumeEffect instanceof RemoveStatusEffectsConsumeEffect(var removed)) {
+                var draft = new ItemEditorState.ConsumableEffectDraft();
+                draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS;
+                draft.removedEffects = removed.unwrapKey()
+                        .map(tag -> "#" + tag.location())
+                        .orElseGet(() -> removed.stream()
+                                .map(holder -> holder.unwrapKey()
+                                        .orElseThrow()
+                                        .identifier()
+                                        .toString())
+                                .collect(Collectors.joining(", ")));
+                target.add(draft);
+                continue;
+            }
             if (consumeEffect instanceof ClearAllStatusEffectsConsumeEffect) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
                 draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS;
@@ -1261,7 +1281,7 @@ public final class ItemEditorStateMapper {
                 setIdFromHolder(sound, id -> draft.soundId = id);
                 target.add(draft);
             }
-            if (consumeEffect instanceof TeleportRandomlyConsumeEffect(var diameter, var directionalParticles)) {
+            if (consumeEffect instanceof TeleportRandomlyConsumeEffect(var diameter, var _)) {
                 ItemEditorState.ConsumableEffectDraft draft = new ItemEditorState.ConsumableEffectDraft();
                 draft.type = ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY;
                 draft.diameter = Float.toString(diameter);

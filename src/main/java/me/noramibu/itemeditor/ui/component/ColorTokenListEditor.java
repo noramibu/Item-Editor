@@ -30,6 +30,7 @@ public final class ColorTokenListEditor {
     public static FlowLayout buildField(
             Component label,
             Component helpText,
+            String historyKey,
             Supplier<String> currentValueSupplier,
             Consumer<String> setter,
             int fallbackColor,
@@ -46,8 +47,10 @@ public final class ColorTokenListEditor {
 
         String currentRaw = currentValueSupplier.get();
         FlowLayout inputRow = compactLayout ? UiFactory.column() : UiFactory.row();
-        inputRow.child(UiFactory.textBox(currentRaw, value -> mutateRefresh.accept(() -> setter.accept(value)))
-                .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INPUT_FIELD_WIDTH)));
+        inputRow.child(UiFactory.persistTextHistory(
+                historyKey,
+                UiFactory.textBox(currentRaw, value -> mutateRefresh.accept(() -> setter.accept(value)))
+                        .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(INPUT_FIELD_WIDTH))));
 
         int selectedColor = firstColorOrDefault(currentRaw, fallbackColor);
         ButtonComponent pickButton = UiFactory.button(

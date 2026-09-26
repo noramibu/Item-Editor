@@ -1,45 +1,36 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.compactCheckboxRow;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.compactField;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.denseEquipmentRow;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.distributeRowChildren;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.prefersStackedCompactRows;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.responsiveRow;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.COMBAT_REPAIRABLE_EMPTY_HINT_WIDTH;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.COMPACT_ICON_BUTTON_BASE;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.SECTION_ROW_GAP;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.SYMBOL_SECTION_COLLAPSED;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.SYMBOL_SECTION_EXPANDED;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.blockHolderSetEditor;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.collapsibleCard;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactCheckboxRow;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIconButtonWidth;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdTextWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactLongFieldWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactNumericFieldWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactPickerButtonWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactRemoveButtonWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactTextField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactTinyFieldWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactTriStateBooleanPicker;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.damageTypeHolderSetEditor;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.denseEquipmentRow;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.distributeRowChildren;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.expandedBlocksAttacksDamageReductionDraft;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.expandedToolRuleDraft;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.filledTextBox;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.prefersStackedCompactRows;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.responsiveRow;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.valueOrDefault;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.compactTextField;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.compactTriStateBooleanPicker;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout.Width;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -343,7 +334,7 @@ public final class CombatSpecialDataSection {
                                                 value -> special.uiDamageResistantTypesCollapsed = value,
                                                 special.allowDamageResistantTagExpansion,
                                                 value -> special.allowDamageResistantTagExpansion = value),
-                                        compactLongFieldWidth() + 70)
+                                        Width.LONG.pixels() + 70)
                                 .id("combat-resistant-types")));
     }
 
@@ -375,37 +366,29 @@ public final class CombatSpecialDataSection {
                 special.uiCombatEquipmentCollapsed,
                 value -> special.uiCombatEquipmentCollapsed = value,
                 () -> UiFactory.column()
-                        .child(buildWeaponCard(context, special))
+                        .child(buildWeaponCard(context))
                         .child(buildToolCard(context, special))
                         .child(buildRepairableCard(context, special))
-                        .child(buildAttackRangeCard(context, special)));
+                        .child(buildAttackRangeCard(context)));
     }
 
     private static FlowLayout buildCombatBehaviorCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         boolean stacked = prefersStackedCompactRows();
-        int numericWidth = compactNumericFieldWidth();
-        int pickerWidth = compactPickerButtonWidth();
-        int idWidth = compactIdTextWidth();
+        int numericWidth = Width.NUMERIC.pixels();
+        int idWidth = Width.ID.pixels();
 
-        ButtonComponent swingButton = UiFactory.button(
-                PickerFieldFactory.selectedOrFallback(
-                        special.swingAnimationType, ItemEditorText.tr("special.advanced.select")),
-                UiFactory.ButtonTextPreset.STANDARD,
-                anchor -> context.openClearableDropdown(
-                        anchor,
-                        ItemEditorText.tr("common.none"),
-                        () -> context.mutate(() -> special.swingAnimationType = ""),
-                        Arrays.asList(SwingAnimationType.values()),
-                        SwingAnimationType::name,
-                        type -> context.mutate(() -> special.swingAnimationType = type.name())));
-        swingButton.horizontalSizing(Sizing.fill(100));
-        FlowLayout swingTypeField =
-                compactField(Control.COMBAT_SWING_ANIMATION_TYPE.label(), swingButton, pickerWidth + 40);
+        FlowLayout swingTypeField = PickerFieldFactory.enumField(
+                context,
+                Control.COMBAT_SWING_ANIMATION_TYPE.label(),
+                special.swingAnimationType,
+                SwingAnimationType.values(),
+                value -> special.swingAnimationType = value);
         FlowLayout swingDurationField = compactField(
                 Control.COMBAT_SWING_ANIMATION_DURATION.label(),
-                filledTextBox(context, special.swingAnimationDuration, value -> special.swingAnimationDuration = value),
+                context.boundTextBox(Control.COMBAT_SWING_ANIMATION_DURATION.key())
+                        .horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         if (stacked) {
             card.child(swingTypeField);
@@ -422,71 +405,46 @@ public final class CombatSpecialDataSection {
                 Control.COMBAT_PIERCING_KNOCKBACK.label(),
                 special.piercingDealsKnockback,
                 value -> special.piercingDealsKnockback = value,
-                compactPickerButtonWidth());
+                Width.PICKER.pixels());
         UIComponent piercingDismounts = UiFactory.checkbox(
                 Control.COMBAT_PIERCING_DISMOUNTS.label(),
                 special.piercingDismounts,
                 context.bindToggle(value -> special.piercingDismounts = value));
         card.child(compactCheckboxRow(piercingKnockback, piercingDismounts));
 
-        card.child(compactIdField(
-                context,
-                Control.COMBAT_PIERCING_SOUND.label(),
-                special.piercingSoundId,
-                value -> special.piercingSoundId = value,
-                context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_PIERCING_SOUND.text(),
-                idWidth));
-        card.child(compactIdField(
-                context,
-                Control.COMBAT_PIERCING_HIT_SOUND.label(),
-                special.piercingHitSoundId,
-                value -> special.piercingHitSoundId = value,
-                context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_PIERCING_HIT_SOUND.text(),
-                idWidth));
+        card.child(context.boundIdField(
+                Control.COMBAT_PIERCING_SOUND.key(), context.optionalRegistryIds(Registries.SOUND_EVENT), idWidth));
+        card.child(context.boundIdField(
+                Control.COMBAT_PIERCING_HIT_SOUND.key(), context.optionalRegistryIds(Registries.SOUND_EVENT), idWidth));
 
         FlowLayout kineticCard = UiFactory.subCard();
         kineticCard.child(UiFactory.title(Control.COMBAT_KINETIC_TITLE.label()).shadow(false));
 
         FlowLayout kineticContactField = compactField(
                 Control.COMBAT_KINETIC_CONTACT_COOLDOWN.label(),
-                filledTextBox(
-                        context,
-                        special.kineticContactCooldownTicks,
-                        value -> special.kineticContactCooldownTicks = value),
+                context.boundTextBox(Control.COMBAT_KINETIC_CONTACT_COOLDOWN.key())
+                        .horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         FlowLayout kineticDelayField = compactField(
                 Control.COMBAT_KINETIC_DELAY_TICKS.label(),
-                filledTextBox(context, special.kineticDelayTicks, value -> special.kineticDelayTicks = value),
+                context.boundTextBox(Control.COMBAT_KINETIC_DELAY_TICKS.key()).horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         FlowLayout kineticForwardField = compactField(
                 Control.COMBAT_KINETIC_FORWARD_MOVEMENT.label(),
-                filledTextBox(context, special.kineticForwardMovement, value -> special.kineticForwardMovement = value),
+                context.boundTextBox(Control.COMBAT_KINETIC_FORWARD_MOVEMENT.key())
+                        .horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         FlowLayout kineticDamageField = compactField(
                 Control.COMBAT_KINETIC_DAMAGE_MULTIPLIER.label(),
-                filledTextBox(
-                        context, special.kineticDamageMultiplier, value -> special.kineticDamageMultiplier = value),
+                context.boundTextBox(Control.COMBAT_KINETIC_DAMAGE_MULTIPLIER.key())
+                        .horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         kineticCard.child(
                 denseEquipmentRow(kineticContactField, kineticDelayField, kineticForwardField, kineticDamageField));
-        kineticCard.child(compactIdField(
-                context,
-                Control.COMBAT_KINETIC_SOUND.label(),
-                special.kineticSoundId,
-                value -> special.kineticSoundId = value,
-                context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_KINETIC_SOUND.text(),
-                idWidth));
-        kineticCard.child(compactIdField(
-                context,
-                Control.COMBAT_KINETIC_HIT_SOUND.label(),
-                special.kineticHitSoundId,
-                value -> special.kineticHitSoundId = value,
-                context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_KINETIC_HIT_SOUND.text(),
-                idWidth));
+        kineticCard.child(context.boundIdField(
+                Control.COMBAT_KINETIC_SOUND.key(), context.optionalRegistryIds(Registries.SOUND_EVENT), idWidth));
+        kineticCard.child(context.boundIdField(
+                Control.COMBAT_KINETIC_HIT_SOUND.key(), context.optionalRegistryIds(Registries.SOUND_EVENT), idWidth));
         card.child(kineticCard);
         return card;
     }
@@ -494,27 +452,22 @@ public final class CombatSpecialDataSection {
     private static FlowLayout buildBlocksAttacksCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
-        int numericWidth = compactNumericFieldWidth();
-        int idWidth = compactIdTextWidth();
+        int numericWidth = Width.NUMERIC.pixels();
+        int idWidth = Width.ID.pixels();
 
         FlowLayout blockDelayField = compactField(
                 Control.COMBAT_BLOCKS_ATTACKS_DELAY.label(),
-                filledTextBox(
-                        context,
-                        special.blocksAttacksBlockDelaySeconds,
-                        value -> special.blocksAttacksBlockDelaySeconds = value),
+                context.boundTextBox(Control.COMBAT_BLOCKS_ATTACKS_DELAY.key()).horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         FlowLayout disableScaleField = compactField(
                 Control.COMBAT_BLOCKS_ATTACKS_DISABLE_SCALE.label(),
-                filledTextBox(
-                        context,
-                        special.blocksAttacksDisableCooldownScale,
-                        value -> special.blocksAttacksDisableCooldownScale = value),
+                context.boundTextBox(Control.COMBAT_BLOCKS_ATTACKS_DISABLE_SCALE.key())
+                        .horizontalSizing(Sizing.fill(100)),
                 numericWidth + 40);
         card.child(denseEquipmentRow(blockDelayField, disableScaleField));
 
         card.child(buildBlocksAttacksDamageReductionsEditor(context, special));
-        card.child(buildBlocksAttacksItemDamageCard(context, special));
+        card.child(buildBlocksAttacksItemDamageCard(context));
         card.child(compactField(
                         Control.COMBAT_BLOCKS_ATTACKS_BYPASSED_BY.label(),
                         damageTypeHolderSetEditor(
@@ -529,21 +482,13 @@ public final class CombatSpecialDataSection {
                                 value -> special.allowBlocksAttacksBypassedByTagExpansion = value),
                         idWidth + 80)
                 .id("combat-bypass-types"));
-        card.child(compactIdField(
-                context,
-                Control.COMBAT_BLOCKS_ATTACKS_BLOCK_SOUND.label(),
-                special.blocksAttacksBlockSoundId,
-                value -> special.blocksAttacksBlockSoundId = value,
+        card.child(context.boundIdField(
+                Control.COMBAT_BLOCKS_ATTACKS_BLOCK_SOUND.key(),
                 context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_BLOCKS_ATTACKS_BLOCK_SOUND.text(),
                 idWidth));
-        card.child(compactIdField(
-                context,
-                Control.COMBAT_BLOCKS_ATTACKS_DISABLE_SOUND.label(),
-                special.blocksAttacksDisableSoundId,
-                value -> special.blocksAttacksDisableSoundId = value,
+        card.child(context.boundIdField(
+                Control.COMBAT_BLOCKS_ATTACKS_DISABLE_SOUND.key(),
                 context.optionalRegistryIds(Registries.SOUND_EVENT),
-                Control.COMBAT_BLOCKS_ATTACKS_DISABLE_SOUND.text(),
                 idWidth));
         return card;
     }
@@ -569,8 +514,8 @@ public final class CombatSpecialDataSection {
             return card;
         }
 
-        int idWidth = compactIdTextWidth();
-        int numericWidth = compactTinyFieldWidth();
+        int idWidth = Width.ID.pixels();
+        int numericWidth = Width.TINY.pixels();
         for (int index = 0; index < special.blocksAttacksDamageReductions.size(); index++) {
             int currentIndex = index;
             ItemEditorState.BlocksAttacksDamageReductionDraft draft = special.blocksAttacksDamageReductions.get(index);
@@ -593,7 +538,7 @@ public final class CombatSpecialDataSection {
                     Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
-            collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            collapseToggle.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
             summaryRow.child(collapseToggle);
             reductionCard.child(summaryRow);
 
@@ -639,31 +584,17 @@ public final class CombatSpecialDataSection {
         return card;
     }
 
-    private static FlowLayout buildBlocksAttacksItemDamageCard(
-            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildBlocksAttacksItemDamageCard(SpecialDataPanelContext context) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_TITLE.label())
                 .shadow(false));
 
-        int numericWidth = compactTinyFieldWidth();
-        FlowLayout threshold = compactTextField(
-                context,
-                Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_THRESHOLD.label(),
-                special.blocksAttacksItemDamageThreshold,
-                value -> special.blocksAttacksItemDamageThreshold = value,
-                numericWidth);
-        FlowLayout base = compactTextField(
-                context,
-                Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_BASE.label(),
-                special.blocksAttacksItemDamageBase,
-                value -> special.blocksAttacksItemDamageBase = value,
-                numericWidth);
-        FlowLayout factor = compactTextField(
-                context,
-                Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_FACTOR.label(),
-                special.blocksAttacksItemDamageFactor,
-                value -> special.blocksAttacksItemDamageFactor = value,
-                numericWidth);
+        int numericWidth = Width.TINY.pixels();
+        FlowLayout threshold =
+                context.boundTextField(Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_THRESHOLD.key(), numericWidth);
+        FlowLayout base = context.boundTextField(Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_BASE.key(), numericWidth);
+        FlowLayout factor =
+                context.boundTextField(Control.COMBAT_BLOCKS_ATTACKS_ITEM_DAMAGE_FACTOR.key(), numericWidth);
         card.child(denseEquipmentRow(threshold, base, factor));
         return card;
     }
@@ -676,22 +607,18 @@ public final class CombatSpecialDataSection {
         return types + " - angle " + angle + " - " + base + " + " + factor + "x";
     }
 
-    private static FlowLayout buildWeaponCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildWeaponCard(SpecialDataPanelContext context) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.COMBAT_WEAPON_TITLE.label()).shadow(false));
-        int numberWidth = compactNumericFieldWidth();
+        int numberWidth = Width.NUMERIC.pixels();
 
         FlowLayout damageField = compactField(
                 Control.COMBAT_WEAPON_DAMAGE.label(),
-                filledTextBox(
-                        context, special.weaponItemDamagePerAttack, value -> special.weaponItemDamagePerAttack = value),
+                context.boundTextBox(Control.COMBAT_WEAPON_DAMAGE.key()).horizontalSizing(Sizing.fill(100)),
                 numberWidth + 40);
         FlowLayout disableField = compactField(
                 Control.COMBAT_WEAPON_DISABLE.label(),
-                filledTextBox(
-                        context,
-                        special.weaponDisableBlockingForSeconds,
-                        value -> special.weaponDisableBlockingForSeconds = value),
+                context.boundTextBox(Control.COMBAT_WEAPON_DISABLE.key()).horizontalSizing(Sizing.fill(100)),
                 numberWidth + 40);
         card.child(denseEquipmentRow(damageField, disableField));
         return card;
@@ -700,15 +627,15 @@ public final class CombatSpecialDataSection {
     private static FlowLayout buildToolCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.COMBAT_TOOL_TITLE.label()).shadow(false));
-        int numberWidth = compactNumericFieldWidth();
+        int numberWidth = Width.NUMERIC.pixels();
 
         FlowLayout speedField = compactField(
                 Control.COMBAT_TOOL_SPEED.label(),
-                filledTextBox(context, special.toolDefaultMiningSpeed, value -> special.toolDefaultMiningSpeed = value),
+                context.boundTextBox(Control.COMBAT_TOOL_SPEED.key()).horizontalSizing(Sizing.fill(100)),
                 numberWidth + 40);
         FlowLayout damageField = compactField(
                 Control.COMBAT_TOOL_DAMAGE.label(),
-                filledTextBox(context, special.toolDamagePerBlock, value -> special.toolDamagePerBlock = value),
+                context.boundTextBox(Control.COMBAT_TOOL_DAMAGE.key()).horizontalSizing(Sizing.fill(100)),
                 numberWidth + 40);
         UIComponent creativeField = UiFactory.checkbox(
                 Control.COMBAT_TOOL_CREATIVE.label(),
@@ -741,15 +668,10 @@ public final class CombatSpecialDataSection {
             return section;
         }
 
-        ButtonComponent expandAll = UiFactory.button(
-                Control.COMMON_EXPAND_ALL.label(),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> special.toolRules.forEach(entry -> entry.uiCollapsed = false)));
-        ButtonComponent collapseAll = UiFactory.button(
-                Control.COMMON_COLLAPSE_ALL.label(),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> special.toolRules.forEach(entry -> entry.uiCollapsed = true)));
-        section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+        section.child(UiFactory.collapseAllButton(
+                special.toolRules.stream().anyMatch(entry -> entry.uiCollapsed),
+                collapsed -> context.mutateRefresh(
+                        () -> special.toolRules.forEach(entry -> entry.uiCollapsed = collapsed))));
 
         for (int index = 0; index < special.toolRules.size(); index++) {
             section.child(buildToolRuleCard(context, special, index));
@@ -770,7 +692,7 @@ public final class CombatSpecialDataSection {
                 Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                 UiFactory.ButtonTextPreset.STANDARD,
                 button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
-        collapseToggle.horizontalSizing(Sizing.fixed(COMPACT_ICON_BUTTON_BASE));
+        collapseToggle.horizontalSizing(Sizing.fixed(42));
         header.child(collapseToggle);
         card.child(header);
         card.child(UiFactory.muted(toolRuleSummary(draft), COMBAT_REPAIRABLE_EMPTY_HINT_WIDTH));
@@ -800,7 +722,7 @@ public final class CombatSpecialDataSection {
             return card;
         }
 
-        int numericWidth = compactNumericFieldWidth();
+        int numericWidth = Width.NUMERIC.pixels();
         card.child(compactField(
                         Control.COMBAT_TOOL_RULE_BLOCKS.label(),
                         blockHolderSetEditor(
@@ -811,7 +733,7 @@ public final class CombatSpecialDataSection {
                                 Control.COMBAT_TOOL_RULE_BLOCKS.text(),
                                 draft.allowTagExpansion,
                                 value -> draft.allowTagExpansion = value),
-                        compactLongFieldWidth() + 100)
+                        Width.LONG.pixels() + 100)
                 .id(ComponentSearchField.scope("rule", index) + "-types"));
 
         UIComponent speed = compactTextField(
@@ -825,7 +747,7 @@ public final class CombatSpecialDataSection {
                 Control.COMBAT_TOOL_RULE_CORRECT_FOR_DROPS.label(),
                 draft.correctForDrops,
                 value -> draft.correctForDrops = value,
-                compactPickerButtonWidth());
+                Width.PICKER.pixels());
         card.child(denseEquipmentRow(speed, correct));
         return card;
     }
@@ -847,7 +769,7 @@ public final class CombatSpecialDataSection {
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.COMBAT_REPAIRABLE_TITLE.label()).shadow(false));
-        int idWidth = compactIdTextWidth();
+        int idWidth = Width.ID.pixels();
         List<String> availableItems = context.itemIdsWithoutAir();
 
         ButtonComponent addButton = UiFactory.button(
@@ -880,9 +802,9 @@ public final class CombatSpecialDataSection {
                     Control.COMMON_REMOVE.label(),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> special.repairableItemIds.remove(currentIndex)));
-            FlowLayout removeField = compactField(Component.literal(" "), remove, compactRemoveButtonWidth());
+            FlowLayout removeField = compactField(Component.literal(" "), remove, Width.REMOVE.pixels());
             itemField.horizontalSizing(Sizing.expand(100));
-            removeField.horizontalSizing(Sizing.fixed(compactRemoveButtonWidth()));
+            removeField.horizontalSizing(Sizing.fixed(Width.REMOVE.pixels()));
             row.child(itemField);
             row.child(removeField);
             card.child(row);
@@ -890,50 +812,19 @@ public final class CombatSpecialDataSection {
         return card;
     }
 
-    private static FlowLayout buildAttackRangeCard(
-            SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
+    private static FlowLayout buildAttackRangeCard(SpecialDataPanelContext context) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.COMBAT_ATTACK_RANGE_TITLE.label()).shadow(false));
-        int numberWidth = compactNumericFieldWidth();
+        int numberWidth = Width.NUMERIC.pixels();
 
-        FlowLayout minReach = compactTextField(
-                context,
-                Control.COMBAT_RANGE_MIN_REACH.label(),
-                special.attackRangeMinReach,
-                value -> special.attackRangeMinReach = value,
-                numberWidth);
-        FlowLayout maxReach = compactTextField(
-                context,
-                Control.COMBAT_RANGE_MAX_REACH.label(),
-                special.attackRangeMaxReach,
-                value -> special.attackRangeMaxReach = value,
-                numberWidth);
-        FlowLayout minCreative = compactTextField(
-                context,
-                Control.COMBAT_RANGE_MIN_CREATIVE.label(),
-                special.attackRangeMinCreativeReach,
-                value -> special.attackRangeMinCreativeReach = value,
-                numberWidth);
-        FlowLayout maxCreative = compactTextField(
-                context,
-                Control.COMBAT_RANGE_MAX_CREATIVE.label(),
-                special.attackRangeMaxCreativeReach,
-                value -> special.attackRangeMaxCreativeReach = value,
-                numberWidth);
+        FlowLayout minReach = context.boundTextField(Control.COMBAT_RANGE_MIN_REACH.key(), numberWidth);
+        FlowLayout maxReach = context.boundTextField(Control.COMBAT_RANGE_MAX_REACH.key(), numberWidth);
+        FlowLayout minCreative = context.boundTextField(Control.COMBAT_RANGE_MIN_CREATIVE.key(), numberWidth);
+        FlowLayout maxCreative = context.boundTextField(Control.COMBAT_RANGE_MAX_CREATIVE.key(), numberWidth);
         card.child(denseEquipmentRow(minReach, maxReach, minCreative, maxCreative));
 
-        FlowLayout hitbox = compactTextField(
-                context,
-                Control.COMBAT_RANGE_HITBOX.label(),
-                special.attackRangeHitboxMargin,
-                value -> special.attackRangeHitboxMargin = value,
-                numberWidth);
-        FlowLayout mobFactor = compactTextField(
-                context,
-                Control.COMBAT_RANGE_MOB_FACTOR.label(),
-                special.attackRangeMobFactor,
-                value -> special.attackRangeMobFactor = value,
-                numberWidth);
+        FlowLayout hitbox = context.boundTextField(Control.COMBAT_RANGE_HITBOX.key(), numberWidth);
+        FlowLayout mobFactor = context.boundTextField(Control.COMBAT_RANGE_MOB_FACTOR.key(), numberWidth);
         card.child(denseEquipmentRow(hitbox, mobFactor));
         return card;
     }

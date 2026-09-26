@@ -10,10 +10,16 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.container.UIContainers;
+import io.wispforest.owo.ui.core.CursorStyle;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
+import io.wispforest.owo.ui.core.Positioning;
+import io.wispforest.owo.ui.core.Surface;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -29,6 +35,7 @@ import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.service.ItemApplyService;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.component.UnifiedColorPickerDialog;
 import me.noramibu.itemeditor.ui.util.MenuBackgroundSurface;
@@ -38,6 +45,7 @@ import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -57,16 +65,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private static final int APPLY_MODE_TEXT_WIDTH_HINT_DEFAULT = 220;
     private static final int PREVIEW_TEXT_WIDTH_HINT_DEFAULT = 210;
     private static final int DROPDOWN_VIEWPORT_INSET = 4;
-    private static final int DROPDOWN_ESTIMATED_MAX_HEIGHT = 220;
-    private static final int DROPDOWN_MIN_ESTIMATED_WIDTH = 120;
-    private static final int DROPDOWN_MAX_ESTIMATED_WIDTH = 360;
-    private static final int DROPDOWN_WIDTH_CHROME_RESERVE = 30;
-    private static final int DROPDOWN_WIDTH_SAMPLE_LIMIT = 64;
-    private static final int DROPDOWN_VIEWPORT_HEIGHT_MIN_BUDGET = 24;
     private static final int DROPDOWN_ANCHOR_VERTICAL_GAP = 2;
-    private static final double DROPDOWN_ROW_HEIGHT_ESTIMATE = 18d;
-    private static final int DROPDOWN_CHROME_RESERVE = 12;
-    private static final int DROPDOWN_ROW_HEIGHT_EXTRA_CHROME = 4;
     private static final int BODY_GAP_BASE = 8;
     private static final int RAIL_TOGGLE_BASE = 16;
     private static final int ESTIMATED_TABS_MIN = 56;
@@ -114,6 +113,8 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private boolean previewValidationCollapsed;
     private boolean categoriesRailCollapsed;
     private boolean previewRailCollapsed;
+    private boolean rawFocusMode;
+    private RawTextAreaComponent pendingRawEditorBinding;
     private boolean changedOnly;
     private CompletableFuture<?> rawPanelPreparation;
     private boolean pendingInitialResponsiveRefresh;
@@ -126,16 +127,26 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     private Double deferredPanelScrollOffset;
     private int deferredPanelScrollRestoreTicks;
 
+    private final Component nestedPath;
+
     public ItemEditorScreen(ItemEditorSession session) {
         this(session, null);
     }
 
     public ItemEditorScreen(ItemEditorSession session, EditorCategory onlyCategory) {
-        super(ItemEditorText.tr(
-                session.origin() instanceof ItemEditorSessionOrigin.External external
-                                && external.returnScreen() instanceof ItemEditorScreen
-                        ? "screen.nested.title"
-                        : "screen.title"));
+        this(session, onlyCategory, null);
+    }
+
+    private ItemEditorScreen(ItemEditorSession session, EditorCategory onlyCategory, Component contextTitle) {
+        super(
+                contextTitle != null
+                        ? ItemEditorText.tr("screen.nested.context", contextTitle)
+                        : ItemEditorText.tr(
+                                session.origin() instanceof ItemEditorSessionOrigin.External external
+                                                && external.returnScreen() instanceof ItemEditorScreen
+                                        ? "screen.nested.title"
+                                        : "screen.title"));
+        this.nestedPath = contextTitle;
         this.session = session;
         this.categoriesRailCollapsed = session.state().uiCategoriesRailCollapsed;
         this.previewRailCollapsed = session.state().uiPreviewRailCollapsed;
@@ -149,8 +160,13 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.categoryController = new ItemEditorCategoryController(this, modules);
     }
 
-    public void openNestedEditor(ItemStack stack, EditorCategory onlyCategory, Consumer<ItemStack> onApply) {
+    public void openNestedEditor(
+            ItemStack stack, EditorCategory onlyCategory, Consumer<ItemStack> onApply, Component contextTitle) {
         double scroll = this.panelScrollOffset();
+        Objects.requireNonNull(contextTitle, "Nested editor field context");
+        Component path = this.nestedPath == null
+                ? contextTitle
+                : this.nestedPath.copy().append(" > ").append(contextTitle);
         var origin = new ItemEditorSessionOrigin.External(
                 this,
                 edited -> {
@@ -161,14 +177,31 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                     return ItemApplyService.ApplyResult.success("");
                 },
                 -1);
-        this.session
-                .minecraft()
-                .setScreenAndShow(new ItemEditorScreen(
-                        new ItemEditorSession(this.session.minecraft(), stack.copy(), origin), onlyCategory));
+        var editor = new ItemEditorScreen(
+                new ItemEditorSession(this.session.minecraft(), stack.copy(), origin), onlyCategory, path);
+        this.session.minecraft().setScreenAndShow(editor);
+    }
+
+    public void chooseItemSource(Runnable itemList, Runnable storage) {
+        this.dialogController.chooseItemSource(itemList, storage);
     }
 
     public void choosePickedItem(ItemStack stack, Consumer<ItemStack> onUse) {
-        this.dialogController.choosePickedItem(stack, onUse);
+        this.dialogController.choosePickedItem(
+                stack,
+                onUse,
+                onUse instanceof ContextualSelection selection ? selection.title() : stack.getHoverName());
+    }
+
+    public Consumer<ItemStack> contextualSelection(Consumer<ItemStack> onUse, Component title) {
+        return new ContextualSelection(onUse, Objects.requireNonNull(title, "Picker field context"));
+    }
+
+    private record ContextualSelection(Consumer<ItemStack> action, Component title) implements Consumer<ItemStack> {
+        @Override
+        public void accept(ItemStack stack) {
+            action.accept(stack);
+        }
     }
 
     boolean isNestedEditor() {
@@ -288,8 +321,16 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                                 case WARNING -> UiColors.WARNING;
                                 case INFO -> UiColors.INFO;
                             };
-                    this.messages.child(UiFactory.message(Component.literal(message.message()), color, PREVIEW_UI_SCALE)
-                            .maxWidth(scaledContentWidth));
+                    var label = UiFactory.message(Component.literal(message.message()), color, PREVIEW_UI_SCALE)
+                            .maxWidth(scaledContentWidth);
+                    label.cursorStyle(CursorStyle.HAND);
+                    label.tooltip(List.of(ItemEditorText.tr("screen.validation.locate")));
+                    label.mouseDown().subscribe((click, doubled) -> {
+                        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT || !this.isDialogClosed()) return false;
+                        this.openValidationField(message.message());
+                        return true;
+                    });
+                    this.messages.child(label);
                 }
             }
             ScrollStateUtil.sync(this.messageScroll);
@@ -304,6 +345,24 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         ItemEditorChangeSet changes = this.session.changes();
         this.categoryController.refreshTabs(changes);
         this.categoryController.refreshChangedMarkers(changes);
+    }
+
+    private void openValidationField(String message) {
+        var targets = this.categoryController.searchTargets();
+        String normalized = message.toLowerCase(Locale.ROOT);
+        var matches = targets.stream()
+                .filter(target -> !target.label().isBlank()
+                        && normalized.contains(target.label().toLowerCase(Locale.ROOT)))
+                .toList();
+        int longest = matches.stream()
+                .mapToInt(target -> target.label().length())
+                .max()
+                .orElse(0);
+        matches = matches.stream()
+                .filter(target -> target.label().length() == longest)
+                .toList();
+        if (matches.size() == 1) matches.getFirst().open().run();
+        else this.dialogController.openEditorSearch(matches.isEmpty() ? targets : matches);
     }
 
     public void refreshCurrentPanel() {
@@ -333,6 +392,11 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     void bindChangedOnlyButton(ButtonComponent button) {
         this.changedOnlyButton = button;
+    }
+
+    public void bindApplyButton(ButtonComponent button) {
+        this.applyButton = button;
+        button.active(!this.session.hasErrors());
     }
 
     private void updateChangedOnlyButton() {
@@ -391,50 +455,8 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             return;
         }
 
-        int viewportWidth = this.screenWidth();
-        int viewportHeight = this.screenHeight();
-        int hardCapTextWidth =
-                Math.max(0, DROPDOWN_MAX_ESTIMATED_WIDTH - UiFactory.scaledPixels(DROPDOWN_WIDTH_CHROME_RESERVE));
-        int sampledLimit = Math.min(values.size(), DROPDOWN_WIDTH_SAMPLE_LIMIT);
-        int maxTextWidth = clearLabel == null ? 0 : this.minecraft.font.width(clearLabel);
-        for (int index = 0; index < sampledLimit; index++) {
-            maxTextWidth = Math.max(maxTextWidth, this.dropdownLabelWidth(values.get(index), labelMapper));
-            if (maxTextWidth >= hardCapTextWidth) {
-                break;
-            }
-        }
-        if (maxTextWidth < hardCapTextWidth && sampledLimit < values.size()) {
-            int remaining = values.size() - sampledLimit;
-            int stride = Math.max(1, remaining / Math.max(1, DROPDOWN_WIDTH_SAMPLE_LIMIT));
-            for (int index = sampledLimit; index < values.size(); index += stride) {
-                maxTextWidth = Math.max(maxTextWidth, this.dropdownLabelWidth(values.get(index), labelMapper));
-                if (maxTextWidth >= hardCapTextWidth) {
-                    break;
-                }
-            }
-        }
-        int estimatedWidth = Math.clamp(
-                maxTextWidth + UiFactory.scaledPixels(DROPDOWN_WIDTH_CHROME_RESERVE),
-                DROPDOWN_MIN_ESTIMATED_WIDTH,
-                DROPDOWN_MAX_ESTIMATED_WIDTH);
-        double maxMenuX = Math.max(DROPDOWN_VIEWPORT_INSET, viewportWidth - DROPDOWN_VIEWPORT_INSET - estimatedWidth);
-        double menuX = Math.clamp(anchor.x(), DROPDOWN_VIEWPORT_INSET, maxMenuX);
-        double preferredY = anchor.y() + anchor.height() + DROPDOWN_ANCHOR_VERTICAL_GAP;
-        double estimatedRowHeight = Math.max(
-                DROPDOWN_ROW_HEIGHT_ESTIMATE,
-                UiFactory.scaleProfile().controlHeight() + UiFactory.scaledPixels(DROPDOWN_ROW_HEIGHT_EXTRA_CHROME));
-        double estimatedHeight = Math.min(
-                DROPDOWN_ESTIMATED_MAX_HEIGHT,
-                values.size() * estimatedRowHeight + UiFactory.scaledPixels(DROPDOWN_CHROME_RESERVE));
-        double viewportHeightBudget =
-                Math.max(DROPDOWN_VIEWPORT_HEIGHT_MIN_BUDGET, viewportHeight - (DROPDOWN_VIEWPORT_INSET * 2));
-        estimatedHeight = Math.min(estimatedHeight, viewportHeightBudget);
-        double menuY = preferredY;
-        if (preferredY + estimatedHeight > viewportHeight - DROPDOWN_VIEWPORT_INSET) {
-            menuY = Math.max(DROPDOWN_VIEWPORT_INSET, anchor.y() - estimatedHeight - DROPDOWN_ANCHOR_VERTICAL_GAP);
-        }
-        double maxMenuY = Math.max(DROPDOWN_VIEWPORT_INSET, viewportHeight - DROPDOWN_VIEWPORT_INSET - estimatedHeight);
-        menuY = Math.clamp(menuY, DROPDOWN_VIEWPORT_INSET, maxMenuY);
+        int menuX = anchor.x();
+        int menuY = anchor.y() + anchor.height() + DROPDOWN_ANCHOR_VERTICAL_GAP;
 
         DropdownComponent dropdown =
                 DropdownComponent.openContextMenu(this, this.rootLayout, StackLayout::child, menuX, menuY, menu -> {
@@ -457,11 +479,31 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
                             }));
                 });
         dropdown.closeWhenNotHovered(false);
-    }
-
-    private <T> int dropdownLabelWidth(T value, Function<T, String> labelMapper) {
-        String label = this.dropdownLabelText(value, labelMapper);
-        return this.minecraft.font.width(label);
+        if (dropdown.width() > this.width - DROPDOWN_VIEWPORT_INSET * 2
+                || dropdown.height() > this.height - DROPDOWN_VIEWPORT_INSET * 2) {
+            dropdown.remove();
+            List<String> options = new ArrayList<>();
+            if (clearAction != null) options.add("-1");
+            for (int index = 0; index < values.size(); index++) options.add(Integer.toString(index));
+            this.openSearchablePickerDialog(
+                    anchor.getMessage().getString(),
+                    options,
+                    index -> index.equals("-1")
+                            ? (clearLabel == null ? ItemEditorText.tr("common.none") : clearLabel).getString()
+                            : this.dropdownLabelText(values.get(Integer.parseInt(index)), labelMapper),
+                    index -> {
+                        if (index.equals("-1")) clearAction.run();
+                        else selectionConsumer.accept(values.get(Integer.parseInt(index)));
+                        this.refreshCurrentPanel();
+                        this.refreshPreview();
+                    });
+            return;
+        }
+        var position = DropdownPlacement.at(
+                anchor.x(), anchor.y(), anchor.height(), dropdown.width(), dropdown.height(), this.width, this.height);
+        dropdown.positioning(
+                Positioning.absolute(position.x() - this.rootLayout.x(), position.y() - this.rootLayout.y()));
+        dropdown.surface(Surface.flat(0xFF101418).and(Surface.outline(0xFF78909C)));
     }
 
     private <T> String dropdownLabelText(T value, Function<T, String> labelMapper) {
@@ -490,12 +532,83 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         this.dialogController.requestReset();
     }
 
+    public void openRawStringEditor(RawTextAreaComponent editor) {
+        if (this.isDialogClosed()) this.dialogController.openRawStringEditor(editor);
+    }
+
+    public void openRawTextSearch(RawTextAreaComponent editor, int tab) {
+        if (this.isDialogClosed()) this.dialogController.openRawTextSearch(editor, tab);
+    }
+
+    void suspendRawSearch() {
+        this.pendingRawEditorBinding = null;
+        this.dialogController.suspendRawSearch();
+    }
+
+    public void bindRawSearchEditor(RawTextAreaComponent editor) {
+        this.pendingRawEditorBinding = editor;
+    }
+
+    private void bindMountedRawEditor() {
+        RawTextAreaComponent editor = this.pendingRawEditorBinding;
+        if (editor == null || this.rootLayout == null || editor.focusHandler() == null) return;
+        this.pendingRawEditorBinding = null;
+        if (editor.root() == this.rootLayout) this.dialogController.bindRawSearchEditor(editor);
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
+        this.dialogController.rawSearchMouseClicked(click.x(), click.y());
+        return super.mouseClicked(click, doubled);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        return this.dialogController.rawSearchMouseScrolled(mouseX, mouseY, verticalAmount)
+                || super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    public void confirmRestore(Component label, String current, String original, Runnable restore) {
+        if (!this.isDialogClosed() || Objects.equals(current, original)) return;
+        this.dialogController.confirmRestore(label, current, original, restore);
+    }
+
+    private final Map<List<?>, Object> selectedListEntries = new IdentityHashMap<>();
+
+    public boolean isSelectedEntry(List<?> entries, Object entry) {
+        Object selected = this.selectedListEntries.get(entries);
+        if (!entries.contains(selected)) {
+            selected = entries.isEmpty() ? null : entries.getFirst();
+            this.selectedListEntries.put(entries, selected);
+        }
+        return selected == entry;
+    }
+
+    public void selectEntry(List<?> entries, Object entry) {
+        this.selectedListEntries.put(entries, entry);
+    }
+
     public void openPlayerUuidPicker(String title, Map<String, String> players, Consumer<String> onSelect) {
         this.dialogController.openPlayerUuidPicker(title, players, uuid -> {
             onSelect.accept(uuid);
             this.refreshCurrentPanel();
             this.refreshPreview();
         });
+    }
+
+    public Component applyActionLabel() {
+        if (this.isNestedEditor()) return ItemEditorText.tr("screen.nested.apply");
+        if (this.session.origin() instanceof ItemEditorSessionOrigin.External external) {
+            return external.verificationSlot() >= 0
+                    ? ItemEditorText.tr("editor.apply.inventory_slot", external.verificationSlot() + 1)
+                    : ItemEditorText.tr("editor.apply.return_source");
+        }
+        return ItemEditorText.tr(
+                this.session.origin() instanceof ItemEditorSessionOrigin.Imported
+                                && this.minecraft.player != null
+                                && !this.minecraft.player.getMainHandItem().isEmpty()
+                        ? "editor.apply.replace_held"
+                        : "common.save");
     }
 
     public void requestApply() {
@@ -519,6 +632,16 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             UnifiedColorPickerDialog.Options options,
             Consumer<UnifiedColorPickerDialog.ColorPickerResult> onApply) {
         this.dialogController.openUnifiedColorPickerDialog(title, options, onApply);
+    }
+
+    public void openPairedColorPickerDialog(
+            String title,
+            UnifiedColorPickerDialog.Options options,
+            UnifiedColorPickerDialog.PaintLayer text,
+            UnifiedColorPickerDialog.PaintLayer shadow,
+            boolean shadowEnabled,
+            Consumer<UnifiedColorPickerDialog.PairedColorResult> onApply) {
+        this.dialogController.openPairedColorPickerDialog(title, options, text, shadow, shadowEnabled, onApply);
     }
 
     public void openRichTextHeadDialog(String title, Consumer<String> onApply) {
@@ -557,6 +680,9 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
 
     @Override
     public void resize(int width, int height) {
+        this.pendingRawEditorBinding = null;
+        var stringEditor = this.dialogController.rawStringEditor();
+        this.dialogController.suspendRawSearch();
         if (this.pendingPanelScrollOffset == null) {
             this.pendingPanelScrollOffset = ScrollStateUtil.offset(this.panelScroll);
         }
@@ -572,6 +698,17 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             this.uiAdapter = null;
         }
         super.resize(width, height);
+        this.dialogController.restoreRawStringEditor(stringEditor);
+    }
+
+    @Override
+    public void removed() {
+        this.pendingRawEditorBinding = null;
+        this.dialogController.closeRawSearch();
+        this.preservePanelScrollOnNextBuild(this.panelScrollOffset());
+        this.pendingTooltipScrollOffset = ScrollStateUtil.offset(this.tooltipScroll);
+        this.pendingMessageScrollOffset = ScrollStateUtil.offset(this.messageScroll);
+        super.removed();
     }
 
     @Override
@@ -595,12 +732,21 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
             return true;
         }
 
+        if (this.dialogController.handleRawSearchShortcut(input)) return true;
         if (this.dialogController.handleDialogShortcut(input)) {
             return true;
         }
 
         if (input.hasControlDownWithQuirk()) {
+            if (this.isDialogClosed()
+                    && !input.hasShiftDown()
+                    && input.key() >= InputConstants.KEY_1
+                    && input.key() <= InputConstants.KEY_9) {
+                this.categoryController.selectCategory(input.key() - InputConstants.KEY_1);
+                return true;
+            }
             if (input.key() == InputConstants.KEY_F && this.isDialogClosed()) {
+                if (super.keyPressed(input)) return true;
                 this.openEditorSearch();
                 return true;
             }
@@ -623,6 +769,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     @Override
     public void tick() {
         super.tick();
+        this.bindMountedRawEditor();
         this.dialogController.tick();
         this.runPendingInitialResponsiveRefresh();
         this.runDeferredPanelScrollRestore();
@@ -700,7 +847,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     boolean categoriesRailCollapsed() {
-        return this.categoriesRailCollapsed;
+        return this.rawFocusMode || this.categoriesRailCollapsed;
     }
 
     void setCategoriesRailCollapsed(boolean value) {
@@ -709,7 +856,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     }
 
     boolean previewRailCollapsed() {
-        return this.previewRailCollapsed;
+        return this.rawFocusMode || this.previewRailCollapsed;
     }
 
     void setPreviewRailCollapsed(boolean value) {
@@ -720,6 +867,23 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
     void rebuildLayout() {
         this.preservePanelScrollOnNextBuild(this.panelScrollOffset());
         this.resize(this.width, this.height);
+    }
+
+    public boolean rawFocusMode() {
+        return this.rawFocusMode;
+    }
+
+    public void toggleRawFocusMode() {
+        if (this.selectedModule.category() != EditorCategory.RAW_EDITOR) return;
+        this.rawFocusMode = !this.rawFocusMode;
+        this.rebuildLayout();
+    }
+
+    boolean leaveRawFocusMode() {
+        if (!this.rawFocusMode) return false;
+        this.rawFocusMode = false;
+        this.rebuildLayout();
+        return true;
     }
 
     Component categoryTitle(EditorModule module) {
@@ -844,6 +1008,7 @@ public final class ItemEditorScreen extends BaseOwoScreen<StackLayout> {
         }
 
         int shellWidth = this.estimatedShellWidth();
+        if (this.rawFocusMode) return Math.max(1, shellWidth - UiFactory.scaledPixels(48));
         int bodyGap = UiFactory.scaledPixels(BODY_GAP_BASE);
         int railToggleWidth = UiFactory.scaledPixels(RAIL_TOGGLE_BASE);
         int toggleWidth = (this.categoriesRailCollapsed ? railToggleWidth : 0)

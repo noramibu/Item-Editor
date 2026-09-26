@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.service;
 
+import java.util.Objects;
 import me.noramibu.itemeditor.editor.ValidationMessage;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.component.DataComponents;
@@ -9,8 +10,7 @@ final class MapSpecialDataApplier extends AbstractPreviewApplierSupport implemen
 
     @Override
     public void apply(SpecialDataApplyContext context) {
-        if (java.util.Objects.equals(
-                context.special().mapPostProcessing, context.baselineSpecial().mapPostProcessing)) {
+        if (Objects.equals(context.special().mapPostProcessing, context.baselineSpecial().mapPostProcessing)) {
             this.restoreOriginalComponent(
                     context.originalStack(), context.previewStack(), DataComponents.MAP_POST_PROCESSING);
             return;

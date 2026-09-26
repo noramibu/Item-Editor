@@ -79,10 +79,6 @@ public final class LoreImageArtUtil {
 
     private LoreImageArtUtil() {}
 
-    public static Result generate(BufferedImage image, int requestedWidth, Options options) {
-        return new Generator(image).generate(requestedWidth, options);
-    }
-
     public static final class Generator {
         private final BufferedImage image;
         private int cachedWidth = -1;

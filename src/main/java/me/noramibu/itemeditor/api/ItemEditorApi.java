@@ -21,7 +21,7 @@ public final class ItemEditorApi {
 
     /**
      * Opens a copy of {@code stack} and returns the edited copy to {@code onSave}.
-     * The callback runs on the Minecraft client thread and is not called when editing is cancelled.
+     * The callback runs on the Minecraft client thread and is not called when editing is canceled.
      * The caller is responsible for saving and synchronizing the returned item.
      *
      * @return whether the request was accepted

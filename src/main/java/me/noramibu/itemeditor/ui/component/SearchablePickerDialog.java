@@ -4,7 +4,6 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.List;
 import java.util.Locale;
@@ -61,6 +60,29 @@ public final class SearchablePickerDialog {
             Consumer<String> onSelect,
             Runnable onCancel,
             Map<String, String> players) {
+        return create(title, body, values, labelMapper, onSelect, onCancel, players, false);
+    }
+
+    public static FlowLayout create(
+            String title,
+            String body,
+            List<String> values,
+            Function<String, String> labelMapper,
+            Consumer<String> onSelect,
+            Runnable onCancel,
+            boolean truncateLabels) {
+        return create(title, body, values, labelMapper, onSelect, onCancel, null, truncateLabels);
+    }
+
+    private static FlowLayout create(
+            String title,
+            String body,
+            List<String> values,
+            Function<String, String> labelMapper,
+            Consumer<String> onSelect,
+            Runnable onCancel,
+            Map<String, String> players,
+            boolean truncateLabels) {
         var revision = new AtomicInteger();
         FlowLayout overlay = DialogUiUtil.overlay(revision::incrementAndGet);
         int dialogWidth = DialogUiUtil.dialogWidth(DIALOG_WIDTH);
@@ -93,9 +115,9 @@ public final class SearchablePickerDialog {
                 LABEL_WIDTH_MIN,
                 lineTextWidth - LABEL_WIDTH_RESERVE - UiFactory.scrollContentInset(LABEL_SCROLLBAR_INSET_BASE));
         int maxLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, lineTextWidth));
-        FlowLayout results = UiFactory.column();
+        FlowLayout results = UiFactory.scrollContentColumn(
+                LABEL_SCROLLBAR_INSET_BASE, controlHeight + UiFactory.scaledPixels(RESULTS_GAP));
         results.gap(RESULTS_GAP);
-        results.padding(Insets.bottom(controlHeight + UiFactory.scaledPixels(RESULTS_GAP)));
 
         InputSafeScrollContainer<FlowLayout> modalScroll = InputSafeScrollContainer.vertical(
                         Sizing.fill(100), UiFactory.fixed(sizing.contentHeight()), results)
@@ -124,10 +146,21 @@ public final class SearchablePickerDialog {
                 matches++;
                 Component fullLabel = Component.literal(label);
                 var button = UiFactory.button(
-                        fullLabel, UiFactory.ButtonTextPreset.STANDARD, component -> onSelect.accept(value));
+                        truncateLabels
+                                ? UiFactory.fitToWidth(
+                                        Component.literal(
+                                                label.replace('\n', ' ').replace('\r', ' ')),
+                                        maxLabelWidth)
+                                : fullLabel,
+                        UiFactory.ButtonTextPreset.STANDARD,
+                        component -> onSelect.accept(value));
                 button.horizontalSizing(Sizing.fill(100));
                 button.tooltip(
-                        label.equals(rawValue) ? List.of(fullLabel) : List.of(fullLabel, Component.literal(rawValue)));
+                        truncateLabels
+                                ? UiFactory.tooltipLines(fullLabel, Math.min(360, bodyTextWidth))
+                                : label.equals(rawValue)
+                                        ? List.of(fullLabel)
+                                        : List.of(fullLabel, Component.literal(rawValue)));
                 results.child(button);
             }
 

@@ -3,7 +3,6 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
@@ -23,7 +22,9 @@ import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
 import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.service.EntitySpawnDataUtil;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RichTextHorizontalScrollbarComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
@@ -36,6 +37,7 @@ import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -47,11 +49,16 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
 final class EntitySpawnDataUi {
+    private static final SpecialDataSearch.Field ADD_EFFECT = () -> "special.entity.effects.add";
+    private static final SpecialDataSearch.Field DROP_CHANCE = () -> "special.entity.equipment.drop_chance";
+    private static final SpecialDataSearch.Field DISPLAY_BLOCK = () -> "special.entity.display.block";
+
     static List<EditorSearchDialog.Target> searchTargets(
             SpecialDataPanelContext context,
             ItemEditorState.EntitySpawnDraft draft,
@@ -66,7 +73,7 @@ final class EntitySpawnDataUi {
             result.addAll(SpecialDataSearch.targets(
                     context, EditorCategory.SPECIAL_DATA, path, scope, expand, HealthField.HEALTH));
             result.addAll(context.itemActionSearchTargets(
-                    EditorCategory.SPECIAL_DATA, path, scope, expand, draft.itemEntityStack, true));
+                    EditorCategory.SPECIAL_DATA, path, scope, expand, draft.itemEntityStack));
         } else if (EntitySpawnDataUtil.isDisplayEntity(draft.entityId)) {
             result.addAll(displayAxisTargets(context, draft, path, scope, expand));
             result.addAll(SpecialDataSearch.targets(
@@ -90,19 +97,18 @@ final class EntitySpawnDataUi {
                     },
                     RenderingField.values()));
             switch (EntitySpawnDataUtil.displayType(draft.entityId)) {
-                case "text" -> {
+                case "text" ->
                     result.addAll(SpecialDataSearch.targets(
                             context, EditorCategory.SPECIAL_DATA, path, scope, expand, TextField.values()));
-                }
                 case "item" -> {
                     result.addAll(SpecialDataSearch.targets(
                             context, EditorCategory.SPECIAL_DATA, path, scope, expand, DisplayItemField.values()));
                     result.addAll(context.itemActionSearchTargets(
-                            EditorCategory.SPECIAL_DATA, path, scope, expand, draft.displayItemStack, false));
+                            EditorCategory.SPECIAL_DATA, path, scope, expand, draft.displayItemStack));
                 }
                 case "block" -> {
                     result.addAll(SpecialDataSearch.targets(
-                            context, EditorCategory.SPECIAL_DATA, path, scope, expand, BlockField.values()));
+                            context, EditorCategory.SPECIAL_DATA, path, scope, expand, DISPLAY_BLOCK));
                     String blockId = EntitySpawnDataUtil.displayValue(draft, "block", "minecraft:air");
                     Identifier id = IdFieldNormalizer.parse(blockId);
                     Block block = id == null
@@ -146,7 +152,7 @@ final class EntitySpawnDataUi {
             var effectPath = new ArrayList<>(path);
             effectPath.add(ItemEditorText.str("special.entity.effects"));
             result.addAll(SpecialDataSearch.targets(
-                    context, EditorCategory.SPECIAL_DATA, effectPath, scope, showEffects, EffectField.values()));
+                    context, EditorCategory.SPECIAL_DATA, effectPath, scope, showEffects, ADD_EFFECT));
             result.addAll(PotionSpecialDataSection.effectSearchTargets(
                     context, draft.effects, EditorCategory.SPECIAL_DATA, effectPath, showEffects));
         }
@@ -238,10 +244,10 @@ final class EntitySpawnDataUi {
             slotPath.add(ItemEditorText.str("common.equipment"));
             slotPath.add(ItemEditorText.str(equipmentSlotKey(slot)));
             result.addAll(context.itemActionSearchTargets(
-                    EditorCategory.SPECIAL_DATA, slotPath, scope, show, draft.stack(slot), false));
+                    EditorCategory.SPECIAL_DATA, slotPath, scope, show, draft.stack(slot)));
             if (editDropChances) {
                 result.addAll(SpecialDataSearch.targets(
-                        context, EditorCategory.SPECIAL_DATA, slotPath, scope, show, EquipmentField.values()));
+                        context, EditorCategory.SPECIAL_DATA, slotPath, scope, show, DROP_CHANCE));
             }
         }
         return result;
@@ -268,8 +274,6 @@ final class EntitySpawnDataUi {
 
     private static final int NAME_EDITOR_HEIGHT = 54;
     private static final int DISPLAY_PICK_BUTTON_WIDTH = 96;
-    private static final int EQUIPMENT_SLOT_LABEL_WIDTH = 72;
-    private static final int EQUIPMENT_SUMMARY_RESERVE = 112;
 
     private EntitySpawnDataUi() {}
 
@@ -309,15 +313,13 @@ final class EntitySpawnDataUi {
             SpecialDataPanelContext context, ItemEditorState.EntitySpawnDraft draft, EntityTagFieldsUi tags) {
         FlowLayout group = UiFactory.column().gap(2);
         boolean expanded = draft.uiExpandedTagGroups.contains("flags");
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.title(ItemEditorText.tr("special.entity.flags")).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.collapseToggleButton(
+        group.child(UiFactory.collapsibleHeader(
+                UiFactory.title(ItemEditorText.tr("special.entity.flags")),
                 !expanded,
                 () -> context.mutateRefresh(() -> {
                     if (expanded) draft.uiExpandedTagGroups.remove("flags");
                     else draft.uiExpandedTagGroups.add("flags");
                 })));
-        group.child(header);
         if (!expanded) return group;
 
         addPackedRows(
@@ -340,7 +342,7 @@ final class EntitySpawnDataUi {
                 UiFactory.title(ItemEditorText.tr("special.entity.effects")).shadow(false);
         title.tooltip(List.of(ItemEditorText.tr("special.entity.effects.tooltip")));
         header.child(title.horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.muted(ItemEditorText.tr("special.entity.effects.summary", draft.effects.size())));
+        header.child(UiFactory.muted(EditorSectionSummary.configuredCount(draft.effects.size())));
         header.child(UiFactory.collapseToggleButton(
                 draft.uiEffectsCollapsed,
                 () -> context.mutateRefresh(() -> draft.uiEffectsCollapsed = !draft.uiEffectsCollapsed)));
@@ -352,7 +354,7 @@ final class EntitySpawnDataUi {
             group.child(UiFactory.muted(ItemEditorText.tr("special.entity.effects.empty")));
         }
         group.child(PotionSpecialDataSection.buildEffectsEditor(
-                context, draft.effects, RegistryUtil.ids(registry), EffectField.ADD.text()));
+                context, draft.effects, RegistryUtil.ids(registry), ADD_EFFECT.text()));
         return group;
     }
 
@@ -421,12 +423,14 @@ final class EntitySpawnDataUi {
         FlowLayout group = UiFactory.column().gap(2);
         group.child(UiFactory.title(ItemField.TITLE.text()).shadow(false));
 
-        group.child(context.itemSummary(
-                draft.itemEntityStack, itemEntitySummary(draft.itemEntityStack, draft.itemEntityCount), true));
-        group.child(context.itemActions(
-                draft.itemEntityStack,
+        group.child(context.itemRow(
+                () -> draft.itemEntityStack.isEmpty()
+                        ? ItemStack.EMPTY
+                        : draft.itemEntityStack.copyWithCount(
+                                Math.max(1, ValidationUtil.parseIntOrDefault(draft.itemEntityCount, 1))),
                 stack -> setItemEntityStack(draft, stack),
-                () -> openItemEntityEditor(context, draft)));
+                () -> setItemEntityStack(draft, ItemStack.EMPTY),
+                ItemField.TITLE.text()));
 
         boolean compact = context.isCompactPanel(620);
         int fieldWidth = Math.max(1, context.panelWidthHint() / (compact ? 1 : 4));
@@ -503,19 +507,6 @@ final class EntitySpawnDataUi {
                 .forEach(info -> players.put(
                         info.getProfile().id().toString(), info.getProfile().name()));
         return players;
-    }
-
-    private static void openItemEntityEditor(SpecialDataPanelContext context, ItemEditorState.EntitySpawnDraft draft) {
-        if (draft.itemEntityStack == null || draft.itemEntityStack.isEmpty()) {
-            return;
-        }
-        int count = Math.clamp(
-                ValidationUtil.parseIntOrDefault(draft.itemEntityCount, draft.itemEntityStack.getCount()), 1, 99);
-        editStack(context, draft.itemEntityStack.copyWithCount(count), stack -> setItemEntityStack(draft, stack));
-    }
-
-    static void editStack(SpecialDataPanelContext context, ItemStack stack, Consumer<ItemStack> setter) {
-        context.screen().openNestedEditor(stack, null, edited -> context.mutate(() -> setter.accept(edited)));
     }
 
     static FlowLayout displayEntity(SpecialDataPanelContext context, ItemEditorState.EntitySpawnDraft draft) {
@@ -599,30 +590,31 @@ final class EntitySpawnDataUi {
         FlowLayout group = UiFactory.column().gap(2);
         group.child(UiFactory.muted(ItemEditorText.tr("special.entity.display.block_state")));
         String blockId = EntitySpawnDataUtil.displayValue(draft, "block", "minecraft:air");
-        ButtonComponent storagePick = context.storagePickButton(stack -> {
-            if (stack.getItem() instanceof BlockItem blockItem) {
-                setDisplayBlock(
-                        draft,
-                        BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()).toString());
-            }
-        });
-        group.child(PickerFieldFactory.searchableTextField(
+        Block block = displayBlock(draft);
+        Component contextTitle = ItemEditorText.tr("special.entity.display.title")
+                .copy()
+                .append(" > ")
+                .append(DISPLAY_BLOCK.text());
+        Consumer<ItemStack> applyBlockItem = stack -> setDisplayBlock(draft, stack);
+        ButtonComponent edit = context.itemEditButton(() -> displayBlockItem(draft), applyBlockItem, contextTitle);
+        List<String> blockItemIds = context.registryIds(Registries.BLOCK).stream()
+                .filter(id ->
+                        BuiltInRegistries.BLOCK.getValue(Identifier.parse(id)).asItem() instanceof BlockItem)
+                .toList();
+        ButtonComponent pick = context.itemPickButton(
+                ItemEditorText.str("special.entity.display.block_picker"), blockItemIds, applyBlockItem, contextTitle);
+        group.child(PickerFieldFactory.textFieldWithActions(
                 context,
-                BlockField.BLOCK.text(),
+                DISPLAY_BLOCK.text(),
                 blockId,
-                value -> setDisplayBlock(draft, value),
+                value -> {
+                    setDisplayBlock(draft, value);
+                    context.updateItemEditButton(edit, displayBlockItem(draft));
+                },
                 DISPLAY_PICK_BUTTON_WIDTH,
-                ItemEditorText.str("special.entity.display.block_picker"),
-                "",
-                context.registryIds(Registries.BLOCK),
-                id -> id,
-                id -> context.mutateRefresh(() -> setDisplayBlock(draft, id)),
-                storagePick));
+                edit,
+                pick));
 
-        Identifier identifier = IdFieldNormalizer.parse(blockId);
-        Block block = identifier == null
-                ? null
-                : BuiltInRegistries.BLOCK.getOptional(identifier).orElse(null);
         if (block == null) {
             return group;
         }
@@ -641,24 +633,11 @@ final class EntitySpawnDataUi {
         FlowLayout group = UiFactory.column().gap(2);
         group.child(UiFactory.muted(DisplayItemField.ITEM.text()));
 
-        FlowLayout summary = UiFactory.row();
-        if (draft.displayItemStack != null && !draft.displayItemStack.isEmpty()) {
-            summary.child(
-                    UIComponents.item(draft.displayItemStack).showOverlay(true).setTooltipFromStack(true));
-        }
-        summary.child(
-                UiFactory.muted(displayItemSummary(draft.displayItemStack)).horizontalSizing(Sizing.expand(100)));
-        group.child(summary);
-
-        ButtonComponent remove = UiFactory.negativeButton(
-                ItemEditorText.tr("common.remove"),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.mutateRefresh(() -> draft.displayItemStack = ItemStack.EMPTY));
-        remove.active(draft.displayItemStack != null && !draft.displayItemStack.isEmpty());
-        group.child(UiFactory.actionButtonRow(
-                context.itemPickButton(stack -> draft.displayItemStack = stack.copy()),
-                context.storagePickButton(stack -> draft.displayItemStack = stack.copy()),
-                remove));
+        group.child(context.itemRow(
+                () -> draft.displayItemStack,
+                stack -> draft.displayItemStack = stack.copy(),
+                () -> draft.displayItemStack = ItemStack.EMPTY,
+                DisplayItemField.ITEM.text()));
         group.child(displayDropdown(
                 context,
                 draft,
@@ -762,11 +741,10 @@ final class EntitySpawnDataUi {
 
     private static FlowLayout displayHeader(
             SpecialDataPanelContext context, String titleKey, boolean collapsed, Consumer<Boolean> setter) {
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.muted(ItemEditorText.tr(titleKey)).horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.collapseToggleButton(
-                collapsed, () -> context.mutateRefresh(() -> setter.accept(!collapsed))));
-        return header;
+        return UiFactory.collapsibleHeader(
+                UiFactory.muted(ItemEditorText.tr(titleKey)),
+                collapsed,
+                () -> context.mutateRefresh(() -> setter.accept(!collapsed)));
     }
 
     private static FlowLayout displayVector(
@@ -807,12 +785,11 @@ final class EntitySpawnDataUi {
             vectorPath.add(vector.text().getString());
             for (DisplayField axis : displayVectorFields(vector)) {
                 result.add(new SpecialDataSearch.Control("display-value:" + axis.key(), axis.label(), axis.key())
-                        .target(context, EditorCategory.SPECIAL_DATA, vectorPath, scope, show));
+                        .target(context, vectorPath, scope, show));
                 var axisPath = new ArrayList<>(vectorPath);
                 axisPath.add(axis.label().getString());
                 for (int direction : List.of(-1, 1)) {
-                    result.add(displayStepControl(axis.key(), direction)
-                            .target(context, EditorCategory.SPECIAL_DATA, axisPath, scope, show));
+                    result.add(displayStepControl(axis.key(), direction).target(context, axisPath, scope, show));
                 }
             }
         }
@@ -972,8 +949,7 @@ final class EntitySpawnDataUi {
                         values,
                         value -> value,
                         value -> context.mutateRefresh(() -> draft.displayValues.put(key, value))));
-        button.horizontalSizing(Sizing.fill(100));
-        return UiFactory.field(ItemEditorText.tr(labelKey), Component.empty(), button);
+        return CompactFieldLayout.selectorRow(ItemEditorText.tr(labelKey), button);
     }
 
     private static UIComponent displayFlag(
@@ -1001,14 +977,40 @@ final class EntitySpawnDataUi {
                         values,
                         value -> value,
                         value -> context.mutateRefresh(() -> setDisplayProperty(draft, property.getName(), value))));
-        button.horizontalSizing(Sizing.fill(100));
-        return UiFactory.field(Component.literal(property.getName()), Component.empty(), button)
+        return CompactFieldLayout.selectorRow(Component.literal(property.getName()), button)
                 .id("display-property:" + property.getName());
     }
 
     private static void setDisplayBlock(ItemEditorState.EntitySpawnDraft draft, String blockId) {
         draft.displayValues.put("block", IdFieldNormalizer.normalize(blockId));
         draft.displayValues.remove("block_properties");
+    }
+
+    private static Block displayBlock(ItemEditorState.EntitySpawnDraft draft) {
+        Identifier id = IdFieldNormalizer.parse(EntitySpawnDataUtil.displayValue(draft, "block", "minecraft:air"));
+        return id == null ? null : BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
+    }
+
+    private static ItemStack displayBlockItem(ItemEditorState.EntitySpawnDraft draft) {
+        Block block = displayBlock(draft);
+        if (block == null || !(block.asItem() instanceof BlockItem)) return ItemStack.EMPTY;
+        ItemStack stack = new ItemStack(block);
+        Map<String, String> properties = EntitySpawnDataUtil.parseDisplayProperties(
+                EntitySpawnDataUtil.displayValue(draft, "block_properties", ""));
+        if (!properties.isEmpty()) {
+            stack.set(DataComponents.BLOCK_STATE, new BlockItemStateProperties(properties));
+        }
+        return stack;
+    }
+
+    private static void setDisplayBlock(ItemEditorState.EntitySpawnDraft draft, ItemStack stack) {
+        if (!(stack.getItem() instanceof BlockItem blockItem)) return;
+        draft.displayValues.put(
+                "block", BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()).toString());
+        BlockItemStateProperties properties =
+                stack.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY);
+        draft.displayValues.put(
+                "block_properties", EntitySpawnDataUtil.serializeDisplayProperties(properties.properties()));
     }
 
     private static void setDisplayProperty(ItemEditorState.EntitySpawnDraft draft, String key, String value) {
@@ -1042,11 +1044,8 @@ final class EntitySpawnDataUi {
             Runnable toggle,
             Set<String> excludedIds) {
         FlowLayout group = UiFactory.column().gap(2);
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.title(ItemEditorText.tr("category.attributes.title"))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        header.child(UiFactory.collapseToggleButton(collapsed, toggle));
+        FlowLayout header = UiFactory.collapsibleHeader(
+                UiFactory.title(ItemEditorText.tr("category.attributes.title")).shadow(false), collapsed, toggle);
         group.child(header);
         if (collapsed) {
             return group;
@@ -1132,40 +1131,22 @@ final class EntitySpawnDataUi {
             ItemEditorState.EntityEquipmentDraft draft,
             EquipmentSlot slot,
             boolean editDropChances) {
-        ItemStack stack = draft.stack(slot);
         FlowLayout group = UiFactory.column().gap(1);
         group.id(SpecialDataSearch.scope("equipment", draft) + "-" + slot.getSerializedName());
-        FlowLayout valueRow = UiFactory.row();
-        valueRow.child(UiFactory.muted(ItemEditorText.tr(equipmentSlotKey(slot)), EQUIPMENT_SLOT_LABEL_WIDTH)
-                .horizontalSizing(Sizing.fixed(EQUIPMENT_SLOT_LABEL_WIDTH)));
-        if (!stack.isEmpty()) {
-            valueRow.child(UIComponents.item(stack).showOverlay(false).setTooltipFromStack(true));
-        }
-        Component fullSummary = equipmentSummary(stack);
-        int summaryWidth = Math.max(1, context.panelWidthHint() - UiFactory.scaledPixels(EQUIPMENT_SUMMARY_RESERVE));
-        LabelComponent summary = UiFactory.muted(UiFactory.fitToWidth(fullSummary, summaryWidth), summaryWidth);
-        summary.tooltip(List.of(fullSummary));
-        summary.horizontalSizing(Sizing.expand(100));
-        valueRow.child(summary);
-        group.child(valueRow);
-
-        FlowLayout actions = context.itemActions(stack, picked -> draft.set(slot, picked), null);
+        group.child(UiFactory.muted(ItemEditorText.tr(equipmentSlotKey(slot))));
+        group.child(context.itemRow(
+                () -> draft.stack(slot),
+                picked -> draft.set(slot, picked),
+                () -> draft.set(slot, ItemStack.EMPTY),
+                ItemEditorText.tr(equipmentSlotKey(slot))));
         if (editDropChances) {
-            FlowLayout actionRow = UiFactory.row();
-            actions.horizontalSizing(Sizing.fill(59));
-            actionRow.child(actions);
-            Component dropChanceLabel = EquipmentField.DROP_CHANCE.text();
-            actionRow.child(compactValueField(
-                            dropChanceLabel,
-                            UiFactory.textBox(
-                                    draft.dropChance(slot),
-                                    context.bindText(value -> draft.setDropChance(slot, value))),
-                            Math.max(1, context.panelWidthHint() * 39 / 100),
-                            textWidth(dropChanceLabel))
-                    .horizontalSizing(Sizing.fill(39)));
-            group.child(actionRow);
-        } else {
-            group.child(actions);
+            Component label = DROP_CHANCE.text();
+            group.child(compactValueField(
+                    label,
+                    UiFactory.textBox(
+                            draft.dropChance(slot), context.bindText(value -> draft.setDropChance(slot, value))),
+                    Math.max(1, context.panelWidthHint()),
+                    textWidth(label)));
         }
         return group;
     }
@@ -1173,27 +1154,6 @@ final class EntitySpawnDataUi {
     private static void setItemEntityStack(ItemEditorState.EntitySpawnDraft draft, ItemStack stack) {
         draft.itemEntityStack = stack == null ? ItemStack.EMPTY : stack.copy();
         draft.itemEntityCount = Integer.toString(Math.max(1, draft.itemEntityStack.getCount()));
-    }
-
-    private static Component equipmentSummary(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return ItemEditorText.tr("common.none");
-        }
-        return stack.getHoverName()
-                .copy()
-                .append(Component.literal(" | " + BuiltInRegistries.ITEM.getKey(stack.getItem())));
-    }
-
-    private static Component itemEntitySummary(ItemStack stack, String count) {
-        return stack == null || stack.isEmpty()
-                ? ItemEditorText.tr("special.entity.item.stack_required")
-                : equipmentSummary(stack).copy().append(Component.literal(" x" + count));
-    }
-
-    private static Component displayItemSummary(ItemStack stack) {
-        return stack == null || stack.isEmpty()
-                ? ItemEditorText.tr("common.none")
-                : equipmentSummary(stack).copy().append(Component.literal(" x" + stack.getCount()));
     }
 
     private static Component attributeLabel(SpecialDataPanelContext context, String rawId) {
@@ -1358,34 +1318,6 @@ final class EntitySpawnDataUi {
         }
     }
 
-    private enum EffectField implements SpecialDataSearch.Field {
-        ADD("special.entity.effects.add");
-
-        private final String key;
-
-        EffectField(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
-    }
-
-    private enum EquipmentField implements SpecialDataSearch.Field {
-        DROP_CHANCE("special.entity.equipment.drop_chance");
-
-        private final String key;
-
-        EquipmentField(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
-    }
-
     enum TransformField implements SpecialDataSearch.Field {
         TRANSLATION("special.entity.display.translation", List.of("0", "0", "0")),
         SCALE("special.entity.display.scale", List.of("1", "1", "1")),
@@ -1423,20 +1355,6 @@ final class EntitySpawnDataUi {
         private final String key;
 
         RenderingField(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
-    }
-
-    private enum BlockField implements SpecialDataSearch.Field {
-        BLOCK("special.entity.display.block");
-
-        private final String key;
-
-        BlockField(String key) {
             this.key = key;
         }
 

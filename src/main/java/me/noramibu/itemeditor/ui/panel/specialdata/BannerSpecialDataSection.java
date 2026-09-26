@@ -123,17 +123,14 @@ public final class BannerSpecialDataSection {
         if (special.bannerLayers.isEmpty()) {
             section.child(addLayer);
         } else {
-            ButtonComponent expandAll = boundedActionButton(
-                    Field.EXPAND_ALL.text(),
-                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, false)));
-            ButtonComponent collapseAll = boundedActionButton(
-                    Field.COLLAPSE_ALL.text(),
-                    () -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, true)));
+            ButtonComponent toggleAll = UiFactory.collapseAllButton(
+                    special.bannerLayers.stream().anyMatch(entry -> entry.uiCollapsed),
+                    collapsed -> context.mutateRefresh(() -> setBannerLayersCollapsed(special, collapsed)));
             if (compactLayout) {
                 section.child(addLayer);
-                section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+                section.child(UiFactory.actionButtonRow(toggleAll));
             } else {
-                section.child(UiFactory.actionButtonRow(addLayer, expandAll, collapseAll));
+                section.child(UiFactory.actionButtonRow(addLayer, toggleAll));
             }
         }
 
@@ -407,12 +404,11 @@ public final class BannerSpecialDataSection {
         FlowLayout header = UiFactory.column();
         header.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
 
-        FlowLayout titleRow = UiFactory.row();
-        titleRow.child(UiFactory.title(ItemEditorText.tr("special.banner.layer", index + 1))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        titleRow.child(UiFactory.collapseToggleButton(
-                draft.uiCollapsed, () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed)));
+        FlowLayout titleRow = UiFactory.collapsibleHeader(
+                UiFactory.title(ItemEditorText.tr("special.banner.layer", index + 1))
+                        .shadow(false),
+                draft.uiCollapsed,
+                () -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
         header.child(titleRow);
 
         List<ButtonComponent> actions = new ArrayList<>();

@@ -63,7 +63,8 @@ final class DialogUiUtil {
     static <C extends UIComponent> FlowLayout scrollCard(C content, int height) {
         FlowLayout card = UiFactory.subCard();
         card.padding(Insets.of(CARD_PADDING));
-        card.child(scrollContent(content, height));
+        // Step snapping can leave the final row clipped when the scroll range is not a step multiple.
+        card.child(scrollContent(content, height).scrollStep(0));
         return card;
     }
 
@@ -164,9 +165,9 @@ final class DialogUiUtil {
         int availableWidth = Math.max(VIEWPORT_MIN, dialogWidth - UiFactory.scaledPixels(CARD_PADDING * 2));
         int gapsWidth = footerGap() * Math.max(0, actions.length - 1);
         if (compactButtons || buttonWidth * actions.length + gapsWidth > availableWidth) {
-            return compactFooterRows(dialogWidth, minWidth, maxWidth, actions);
+            return compactFooterRows(dialogWidth, minWidth, actions);
         }
-        return footerRow(buttonWidth, actions);
+        return footerRow(actions);
     }
 
     static FlowLayout footerRowByCount(
@@ -183,31 +184,27 @@ final class DialogUiUtil {
                         (dialogWidth - UiFactory.scaledPixels(rowReserve)) / Math.max(1, buttonCount),
                         minWidth,
                         maxWidth);
-        if (compactButtons) {
-            return compactFooterRows(dialogWidth, minWidth, maxWidth, actions);
+        int availableWidth = Math.max(1, dialogWidth - UiFactory.scaleProfile().padding() * 2);
+        if (compactButtons
+                || buttonWidth * actions.length + footerGap() * Math.max(0, actions.length - 1) > availableWidth) {
+            return compactFooterRows(dialogWidth, minWidth, actions);
         }
-        return footerRow(buttonWidth, actions);
+        return footerRow(actions);
     }
 
-    private static FlowLayout footerRow(int buttonWidth, FooterAction... actions) {
+    private static FlowLayout footerRow(FooterAction... actions) {
         FlowLayout row = footerActionRow();
         row.horizontalAlignment(HorizontalAlignment.RIGHT);
         for (FooterAction action : actions) {
-            ButtonComponent button = baseFooterButton(action.fullText(), false, action.onPress());
-            configureFooterButton(button, action.fullText(), buttonWidth);
-            row.child(button);
+            row.child(footerButton(action, false, actions.length));
         }
         return row;
     }
 
-    private static FlowLayout compactFooterRows(int dialogWidth, int minWidth, int maxWidth, FooterAction... actions) {
+    private static FlowLayout compactFooterRows(int dialogWidth, int minWidth, FooterAction... actions) {
         FlowLayout column = UiFactory.column();
         column.gap(footerGap());
         int columns = compactFooterColumns(dialogWidth, minWidth, actions.length);
-        int gap = footerGap();
-        int availableWidth = Math.max(VIEWPORT_MIN, dialogWidth - UiFactory.scaledPixels(CARD_PADDING * 2));
-        int rawButtonWidth = Math.max(VIEWPORT_MIN, (availableWidth - gap * Math.max(0, columns - 1)) / columns);
-        int buttonWidth = columns <= 1 ? rawButtonWidth : clampUi(rawButtonWidth, minWidth, maxWidth);
 
         FlowLayout row = footerActionRow();
         int rowItems = 0;
@@ -218,12 +215,7 @@ final class DialogUiUtil {
                 rowItems = 0;
             }
 
-            ButtonComponent button = baseFooterButton(action.fullText(), true, action.onPress());
-            configureFooterButton(button, action.fullText(), buttonWidth);
-            if (columns <= 1) {
-                button.horizontalSizing(Sizing.fill(100));
-            }
-            row.child(button);
+            row.child(footerButton(action, true, columns));
             rowItems++;
         }
         if (!row.children().isEmpty()) {
@@ -240,23 +232,17 @@ final class DialogUiUtil {
         return new ScrollDialogSizing(contentHeight, dialogHeight);
     }
 
-    private static ButtonComponent baseFooterButton(
-            Component fullText, boolean compactButtons, Consumer<ButtonComponent> onPress) {
+    private static ButtonComponent footerButton(FooterAction action, boolean compactButtons, int columns) {
         ButtonComponent button = UiFactory.button(
-                fullText,
+                action.fullText(),
                 compactButtons ? UiFactory.ButtonTextPreset.COMPACT : UiFactory.ButtonTextPreset.STANDARD,
-                onPress);
+                action.onPress());
         button.verticalSizing(Sizing.fixed(footerButtonHeight(compactButtons)));
-        if (compactButtons) {
-            button.horizontalSizing(Sizing.fill(100));
-        }
+        button.setMessage(action.fullText());
+        button.tooltip(List.of(action.fullText()));
+        // Divide actual parent space after gaps, rather than trusting window-based estimates.
+        button.horizontalSizing(Sizing.expand(100 / Math.max(1, columns)));
         return button;
-    }
-
-    private static void configureFooterButton(ButtonComponent button, Component fullText, int buttonWidth) {
-        button.setMessage(fullText);
-        button.tooltip(List.of(fullText));
-        button.horizontalSizing(Sizing.fixed(buttonWidth));
     }
 
     private static FlowLayout footerActionRow() {
@@ -297,7 +283,8 @@ final class DialogUiUtil {
             int dialogWidth, int padding, int gap, int minWidth, int maxWidth, int divisor, int actionCount) {
         int availableWidth = Math.max(VIEWPORT_MIN, dialogWidth - Math.max(0, padding) * 2);
         int gapsWidth = Math.max(0, gap) * Math.max(0, actionCount - 1);
-        return clampUi((availableWidth - gapsWidth) / Math.max(1, divisor), minWidth, maxWidth);
+        int perAction = Math.max(1, (availableWidth - gapsWidth) / Math.max(1, actionCount));
+        return Math.min(perAction, clampUi((availableWidth - gapsWidth) / Math.max(1, divisor), minWidth, maxWidth));
     }
 
     private static int overlayPadding() {

@@ -35,6 +35,7 @@ import me.noramibu.itemeditor.storage.model.SavedPageEntry;
 import me.noramibu.itemeditor.storage.search.StorageSearchEngine;
 import me.noramibu.itemeditor.storage.search.StorageSearchParser;
 import me.noramibu.itemeditor.storage.search.StorageSearchQuery;
+import me.noramibu.itemeditor.util.AsyncDispatchUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextComponentUtil;
 import net.minecraft.ChatFormatting;
@@ -88,9 +89,11 @@ public final class SavedItemStorageService {
     private final AtomicLong decodedCacheGeneration = new AtomicLong();
     private final ExecutorService decodeExecutor;
     private final int decodeThreadCount;
-    private final ExecutorService prefetchExecutor = newSingleDaemonExecutor("itemeditor-storage-prefetch");
-    private final ExecutorService readExecutor = newSingleDaemonExecutor("itemeditor-storage-reads");
-    private final ExecutorService writeExecutor = newSingleDaemonExecutor("itemeditor-storage-writes");
+    private final ExecutorService prefetchExecutor =
+            AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-storage-prefetch");
+    private final ExecutorService readExecutor = AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-storage-reads");
+    private final ExecutorService writeExecutor =
+            AsyncDispatchUtil.newSingleThreadExecutor("itemeditor-storage-writes");
     private final Object writeQueueLock = new Object();
     private CompletableFuture<Void> writeQueue = CompletableFuture.completedFuture(null);
     private Throwable queuedWriteFailure;
@@ -117,7 +120,7 @@ public final class SavedItemStorageService {
         this.backupService = new StorageItemBackupService(foundation.paths().storageBackupsDirectory());
         this.decodeThreadCount = computeDecodeThreadCount();
         this.decodeExecutor = Executors.newFixedThreadPool(
-                this.decodeThreadCount, runnable -> newDaemonThread(runnable, "itemeditor-storage-decode"));
+                this.decodeThreadCount, AsyncDispatchUtil.daemonThreadFactory("itemeditor-storage-decode"));
     }
 
     public Map<String, ItemStack> loadItems(List<SavedIndexItemEntry> entries, RegistryAccess registryAccess) {
@@ -416,6 +419,76 @@ public final class SavedItemStorageService {
         }));
     }
 
+    public CompletableFuture<Optional<DuplicateItem>> findDuplicateItemAsync(ItemStack stack, RegistryAccess access) {
+        ItemStack copy = stack == null ? ItemStack.EMPTY : stack.copy();
+        if (copy.isEmpty()) return CompletableFuture.completedFuture(Optional.empty());
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            return this.findDuplicateItem(this.encodeItemTag(copy, access));
+        }));
+    }
+
+    public CompletableFuture<UniqueStoreResult> enqueueAddIfAbsent(
+            String pageId, ItemStack stack, RegistryAccess access) {
+        ItemStack copy = stack == null ? ItemStack.EMPTY : stack.copy();
+        if (copy.isEmpty())
+            return CompletableFuture.completedFuture(new UniqueStoreResult(UniqueStoreStatus.INVALID_ITEM, -1, null));
+        return this.enqueueWriteResult(() -> this.withIndexWrite(() -> {
+            this.ensureIndexLoaded();
+            SavedPageEntry page = this.pageById(this.indexCache, pageId);
+            if (page == null) return new UniqueStoreResult(UniqueStoreStatus.PAGE_NOT_FOUND, -1, null);
+            var duplicate = this.findDuplicateItem(this.encodeItemTag(copy, access));
+            if (duplicate.isPresent()) return new UniqueStoreResult(UniqueStoreStatus.DUPLICATE, -1, duplicate.get());
+            int slot = this.occupiedSlots(pageId).nextClearBit(0);
+            if (!isValidSlot(slot)) return new UniqueStoreResult(UniqueStoreStatus.PAGE_FULL, -1, null);
+            this.applySlotMutations(page.order + 1, List.of(new SlotMutation(slot, null, copy)), access);
+            this.flushIndexNow();
+            return new UniqueStoreResult(UniqueStoreStatus.SAVED, slot, null);
+        }));
+    }
+
+    private Optional<DuplicateItem> findDuplicateItem(CompoundTag target) {
+        int hash = target.hashCode();
+        for (SavedIndexItemEntry entry : this.indexCache.items) {
+            if (entry == null) continue;
+            var stored = this.readChunk(entry.chunkId).entries().get(entry.slotInChunk);
+            if (stored != null
+                    && stored.itemTag().hashCode() == hash
+                    && stored.itemTag().equals(target)) {
+                return Optional.of(new DuplicateItem(entry.pageId, entry.page, entry.slotInPage, entry.id));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<PageInfo> findDuplicatePage(List<ExternalItemImport> items, RegistryAccess access) {
+        Map<Integer, CompoundTag> target = new HashMap<>();
+        for (ExternalItemImport item : items) {
+            target.put(
+                    item.slotInPage(),
+                    item.itemTag() == null ? this.encodeItemTag(item.stack(), access) : item.itemTag());
+        }
+        int hash = target.hashCode();
+        for (SavedPageEntry page : this.indexCache.pages) {
+            if (page == null) continue;
+            Map<Integer, CompoundTag> candidate = new HashMap<>();
+            boolean complete = true;
+            for (SavedIndexItemEntry entry : this.indexCache.items) {
+                if (entry == null || !page.id.equals(entry.pageId)) continue;
+                var stored = this.readChunk(entry.chunkId).entries().get(entry.slotInChunk);
+                if (stored == null) {
+                    complete = false;
+                    break;
+                }
+                candidate.put(entry.slotInPage, stored.itemTag());
+            }
+            if (complete && candidate.hashCode() == hash && candidate.equals(target)) {
+                return Optional.of(this.pageInfo(this.indexCache, page, false));
+            }
+        }
+        return Optional.empty();
+    }
+
     public CompletableFuture<Integer> firstEmptySlotAsync(String pageId) {
         String targetPageId = pageId == null ? "" : pageId.trim();
         if (targetPageId.isBlank()) {
@@ -445,6 +518,37 @@ public final class SavedItemStorageService {
                 },
                 this.readExecutor);
     }
+
+    public CompletableFuture<Optional<ItemLocation>> findItemLocationAsync(String itemId) {
+        if (itemId == null || itemId.isBlank()) return CompletableFuture.completedFuture(Optional.empty());
+        return this.findItemLocation(entry -> itemId.equals(entry.id));
+    }
+
+    public CompletableFuture<Optional<ItemLocation>> findSlotLocationAsync(String pageId, int slot) {
+        if (pageId == null || pageId.isBlank() || slot < 0 || slot >= StorageConstants.PAGE_SIZE)
+            return CompletableFuture.completedFuture(Optional.empty());
+        return this.findItemLocation(entry -> pageId.equals(entry.pageId) && entry.slotInPage == slot);
+    }
+
+    private CompletableFuture<Optional<ItemLocation>> findItemLocation(Predicate<SavedIndexItemEntry> matches) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    this.ensureIndexLoaded();
+                    return this.withIndexRead(() -> {
+                        for (SavedIndexItemEntry entry : this.indexCache.items) {
+                            if (!matches.test(entry)) continue;
+                            SavedPageEntry page = this.pageById(this.indexCache, entry.pageId);
+                            if (page != null)
+                                return Optional.of(
+                                        new ItemLocation(entry.id, page.id, page.order + 1, entry.slotInPage));
+                        }
+                        return Optional.empty();
+                    });
+                },
+                this.readExecutor);
+    }
+
+    public record ItemLocation(String itemId, String pageId, int pageNumber, int slot) {}
 
     public CompletableFuture<Optional<PageSummary>> findPageByNumberAsync(int pageNumber) {
         if (pageNumber < 1) {
@@ -635,6 +739,23 @@ public final class SavedItemStorageService {
 
     public CompletableFuture<StorageImportResult> enqueueImportPages(
             List<ExternalPageImport> pages, RegistryAccess registryAccess, Consumer<StorageImportProgress> progress) {
+        return this.enqueueImportPages(pages, registryAccess, progress, false);
+    }
+
+    public CompletableFuture<StorageImportResult> enqueueImportPages(
+            List<ExternalPageImport> pages,
+            RegistryAccess registryAccess,
+            Consumer<StorageImportProgress> progress,
+            boolean includeEmptyPages) {
+        return this.enqueueImportPages(pages, registryAccess, progress, includeEmptyPages, false);
+    }
+
+    public CompletableFuture<StorageImportResult> enqueueImportPages(
+            List<ExternalPageImport> pages,
+            RegistryAccess registryAccess,
+            Consumer<StorageImportProgress> progress,
+            boolean includeEmptyPages,
+            boolean skipDuplicates) {
         CompletableFuture<StorageImportResult> result = new CompletableFuture<>();
         RegistryAccess access = registryAccess == null ? RegistryAccess.EMPTY : registryAccess;
         List<ExternalPageImport> imports = pages == null ? List.of() : pages;
@@ -644,6 +765,8 @@ public final class SavedItemStorageService {
                     this.ensureIndexLoaded();
                     int importedPages = 0;
                     int importedItems = 0;
+                    List<PageInfo> duplicates = new ArrayList<>();
+                    List<String> createdPageIds = new ArrayList<>();
                     int nextPageNumber = this.maxKnownPage(this.indexCache) + 1;
                     long now = System.currentTimeMillis();
                     for (int importIndex = 0; importIndex < imports.size(); importIndex++) {
@@ -655,8 +778,15 @@ public final class SavedItemStorageService {
                                         .filter(item ->
                                                 item != null && !item.stack().isEmpty())
                                         .toList();
-                        if (items.isEmpty()) {
+                        if (items.isEmpty() && !includeEmptyPages) {
                             continue;
+                        }
+                        if (skipDuplicates) {
+                            var duplicate = this.findDuplicatePage(items, access);
+                            if (duplicate.isPresent()) {
+                                duplicates.add(duplicate.get());
+                                continue;
+                            }
                         }
                         SavedPageEntry page = this.ensurePersistentPageByNumber(this.indexCache, nextPageNumber++);
                         page.name = pageImport.name() == null
@@ -694,6 +824,7 @@ public final class SavedItemStorageService {
                         }
                         this.withChunkWrite(() -> this.writeChunk(chunk));
                         importedPages++;
+                        createdPageIds.add(page.id);
                     }
                     if (importedPages > 0) {
                         emitImportProgress(progress, "finalize", importedPages, imports.size(), importedItems);
@@ -703,7 +834,8 @@ public final class SavedItemStorageService {
                         this.flushIndexNow();
                         this.runtimeCaches.invalidateHotPageCache();
                     }
-                    result.complete(new StorageImportResult(importedPages, importedItems));
+                    result.complete(new StorageImportResult(
+                            importedPages, importedItems, List.copyOf(duplicates), List.copyOf(createdPageIds)));
                 });
             } catch (RuntimeException exception) {
                 result.completeExceptionally(exception);
@@ -2411,7 +2543,27 @@ public final class SavedItemStorageService {
         }
     }
 
-    public record StorageImportResult(int pages, int items) {}
+    public record StorageImportResult(int pages, int items, List<PageInfo> duplicates, List<String> createdPageIds) {
+        public StorageImportResult(int pages, int items, List<PageInfo> duplicates) {
+            this(pages, items, duplicates, List.of());
+        }
+
+        public StorageImportResult(int pages, int items) {
+            this(pages, items, List.of());
+        }
+    }
+
+    public record DuplicateItem(String pageId, int pageNumber, int slot, String itemId) {}
+
+    public enum UniqueStoreStatus {
+        SAVED,
+        DUPLICATE,
+        PAGE_NOT_FOUND,
+        PAGE_FULL,
+        INVALID_ITEM
+    }
+
+    public record UniqueStoreResult(UniqueStoreStatus status, int slot, DuplicateItem duplicate) {}
 
     public record StorageImportProgress(String phase, int current, int total, int items) {}
 
@@ -2455,16 +2607,6 @@ public final class SavedItemStorageService {
                 return size() > safeMax;
             }
         };
-    }
-
-    private static ExecutorService newSingleDaemonExecutor(String threadName) {
-        return Executors.newSingleThreadExecutor(runnable -> newDaemonThread(runnable, threadName));
-    }
-
-    private static Thread newDaemonThread(Runnable runnable, String threadName) {
-        Thread thread = new Thread(runnable, threadName);
-        thread.setDaemon(true);
-        return thread;
     }
 
     private void enqueueWrite(Runnable task) {

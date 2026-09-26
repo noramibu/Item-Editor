@@ -109,6 +109,13 @@ public final class StorageScreen extends ContainerScreen {
     private final Consumer<ItemStack> pickedStackConsumer;
 
     private int currentPage;
+    private String highlightedItemId;
+
+    public StorageScreen highlightItem(String itemId) {
+        this.highlightedItemId = itemId;
+        return this;
+    }
+
     private String currentQuery;
     private StorageSortMode sortMode;
     private boolean reverseSort;
@@ -213,6 +220,16 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     protected void extractLabels(@NotNull GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        for (var entry : this.slotEntries.entrySet()) {
+            if (!entry.getValue().id.equals(this.highlightedItemId)) continue;
+            Slot slot = this.menu.slots.get(entry.getKey());
+            int x = slot.x - 1;
+            int y = slot.y - 1;
+            context.fill(x, y, x + 18, y + 1, 0xFFFFFF55);
+            context.fill(x, y + 17, x + 18, y + 18, 0xFFFFFF55);
+            context.fill(x, y, x + 1, y + 18, 0xFFFFFF55);
+            context.fill(x + 17, y, x + 18, y + 18, 0xFFFFFF55);
+        }
         context.text(this.font, this.storageTitleLabel, this.titleLabelX, this.titleLabelY, -12566464, false);
         context.text(
                 this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, -12566464, false);
@@ -374,6 +391,11 @@ public final class StorageScreen extends ContainerScreen {
             return true;
         }
         if (!this.isManageMode()) {
+            if (this.isLockMode() && !typingInInputs && !inventoryCloseKey) {
+                // Vanilla keyboard swaps, cloning and throwing all go through slotClicked,
+                // which blocks them in Lock mode. Allow parent-screen shortcut hooks to run.
+                super.keyPressed(input);
+            }
             return true;
         }
         this.beginInteractionSnapshot();

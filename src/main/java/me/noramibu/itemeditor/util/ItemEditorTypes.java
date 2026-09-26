@@ -29,22 +29,8 @@ public final class ItemEditorTypes {
     public static final BlockEntityType<?> MOB_SPAWNER = blockEntity("mob_spawner");
     public static final BlockEntityType<?> SIGN = blockEntity("sign");
 
-    public static final Item BLACK_BANNER = item("black_banner");
-    public static final Item BLUE_BANNER = item("blue_banner");
-    public static final Item BROWN_BANNER = item("brown_banner");
-    public static final Item CYAN_BANNER = item("cyan_banner");
-    public static final Item GRAY_BANNER = item("gray_banner");
-    public static final Item GREEN_BANNER = item("green_banner");
-    public static final Item LIGHT_BLUE_BANNER = item("light_blue_banner");
-    public static final Item LIGHT_GRAY_BANNER = item("light_gray_banner");
-    public static final Item LIME_BANNER = item("lime_banner");
-    public static final Item MAGENTA_BANNER = item("magenta_banner");
-    public static final Item ORANGE_BANNER = item("orange_banner");
-    public static final Item PINK_BANNER = item("pink_banner");
-    public static final Item PURPLE_BANNER = item("purple_banner");
-    public static final Item RED_BANNER = item("red_banner");
-    public static final Item WHITE_BANNER = item("white_banner");
-    public static final Item YELLOW_BANNER = item("yellow_banner");
+    public static final Item WHITE_BANNER =
+            BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace("white_banner"));
 
     private ItemEditorTypes() {}
 
@@ -54,9 +40,5 @@ public final class ItemEditorTypes {
 
     private static EntityType<?> entity(String path) {
         return BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace(path));
-    }
-
-    private static Item item(String path) {
-        return BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(path));
     }
 }

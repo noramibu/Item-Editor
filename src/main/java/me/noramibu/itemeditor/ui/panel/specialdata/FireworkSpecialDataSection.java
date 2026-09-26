@@ -66,7 +66,7 @@ public final class FireworkSpecialDataSection {
         var result = new ArrayList<>(SpecialDataSearch.targets(
                 context, EditorCategory.SPECIAL_DATA, path, scope, () -> {}, ExplosionField.values()));
         for (FireworkExplosion.Shape shape : FireworkExplosion.Shape.values()) {
-            result.add(materialControl(shape).target(context, EditorCategory.SPECIAL_DATA, path, scope, () -> {}));
+            result.add(materialControl(shape).target(context, path, scope, () -> {}));
         }
         if (removable) {
             result.addAll(SpecialDataSearch.targets(
@@ -84,14 +84,14 @@ public final class FireworkSpecialDataSection {
             colorPath.add(field.text().getString());
             String colorScope = colorScope(draft, field.key());
             for (var control : colorHeaderControls()) {
-                result.add(control.target(context, EditorCategory.SPECIAL_DATA, colorPath, colorScope, () -> {}));
+                result.add(control.target(context, colorPath, colorScope, () -> {}));
             }
             var tokens = ColorTokenListEditor.splitColorTokens(raw);
             for (int index = 0; index < tokens.size(); index++) {
                 var tokenPath = new ArrayList<>(colorPath);
                 tokenPath.add(ItemEditorText.str("special.firework.color_pick_existing", index + 1));
                 for (var control : colorTokenControls(tokens, index, fallback)) {
-                    result.add(control.target(context, EditorCategory.SPECIAL_DATA, tokenPath, colorScope, () -> {}));
+                    result.add(control.target(context, tokenPath, colorScope, () -> {}));
                 }
             }
         }
@@ -169,9 +169,7 @@ public final class FireworkSpecialDataSection {
         section.child(UiFactory.field(
                 Field.FLIGHT_DURATION.text(),
                 Component.empty(),
-                UiFactory.textBox(
-                                special.fireworkFlightDuration,
-                                context.bindText(value -> special.fireworkFlightDuration = value))
+                context.boundTextBox(Field.FLIGHT_DURATION.key())
                         .horizontalSizing(
                                 compactLayout ? Sizing.fill(100) : UiFactory.fixed(FLIGHT_DURATION_FIELD_WIDTH))));
         Component addExplosionText = Field.ADD_EXPLOSION.text();
@@ -269,6 +267,7 @@ public final class FireworkSpecialDataSection {
         FlowLayout field = ColorTokenListEditor.buildField(
                 ItemEditorText.tr(labelKey),
                 Component.empty(),
+                colorScope(draft, labelKey),
                 currentValueSupplier,
                 setter,
                 fallbackColor,

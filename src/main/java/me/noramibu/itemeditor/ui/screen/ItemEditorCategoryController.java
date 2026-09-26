@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -21,15 +22,20 @@ import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.EditorModule;
 import me.noramibu.itemeditor.editor.ItemEditorChangeSet;
+import me.noramibu.itemeditor.editor.ItemEditorFieldReset;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog.Target;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.panel.EditorPanel;
 import me.noramibu.itemeditor.ui.util.ScrollStateUtil;
+import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.sounds.SoundEvents;
 
 final class ItemEditorCategoryController {
     private static final int PANEL_SCROLL_STEP_BASE = 14;
@@ -59,6 +65,9 @@ final class ItemEditorCategoryController {
     private UIComponent highlighted;
     private Component highlightMessage;
     private Color highlightColor;
+    private final Map<UIComponent, Component> restoreLabels = new IdentityHashMap<>();
+    private final Map<UIComponent, String> boundFields = new IdentityHashMap<>();
+    private final Map<UIComponent, ParentUIComponent> fieldParents = new IdentityHashMap<>();
     private final Map<LabelComponent, Component> changedLabels = new IdentityHashMap<>();
     private final Map<AbstractWidget, Component> changedWidgets = new IdentityHashMap<>();
 
@@ -90,6 +99,7 @@ final class ItemEditorCategoryController {
         this.selectedCategoryLabel.text(UiFactory.fitToWidth(fullCategoryTitle, this.categoryHeaderTextWidthHint()));
         this.selectedCategoryLabel.tooltip(List.of(fullCategoryTitle));
         this.clearChangedMarkers();
+        this.screen.suspendRawSearch();
         this.panelHost.clearChildren();
 
         UIComponent panelComponent;
@@ -102,6 +112,10 @@ final class ItemEditorCategoryController {
             this.currentPanelTargets = panel.searchTargets();
         }
         UiFactory.appendFillChild(this.panelHost, panelComponent);
+        this.boundFields.clear();
+        this.restoreLabels.clear();
+        this.fieldParents.clear();
+        if (!this.screen.changedOnly()) this.bindFieldResets(panelComponent);
         ItemEditorChangeSet changes = this.screen.session().changes();
         this.refreshChangedMarkers(changes);
         this.screen.restorePanelScroll(scrollAmount);
@@ -140,7 +154,13 @@ final class ItemEditorCategoryController {
                     UiFactory.ButtonTextPreset.STANDARD,
                     component -> this.switchModule(module));
             button.active(module != selected);
-            button.tooltip(List.of(fullTitle));
+            int shortcut = this.modules.indexOf(module) + 1;
+            button.tooltip(
+                    shortcut <= 9
+                            ? List.of(
+                                    fullTitle,
+                                    Component.literal("Ctrl+" + shortcut).withStyle(ChatFormatting.GRAY))
+                            : List.of(fullTitle));
             button.horizontalSizing(Sizing.fill(100));
             button.verticalSizing(Sizing.fixed(buttonHeight));
             button.margins(Insets.of(0, 0, horizontalInset, horizontalInset));
@@ -157,17 +177,17 @@ final class ItemEditorCategoryController {
         return title.copy().append(Component.literal(" (" + count + ")").withStyle(ChatFormatting.GRAY));
     }
 
-    void selectAdjacentCategory(int direction) {
-        if (this.modules.isEmpty()) {
-            return;
-        }
+    void selectCategory(int index) {
+        if (index < 0 || index >= this.modules.size()) return;
+        EditorModule module = this.modules.get(index);
+        if (module == this.screen.selectedModule() || !this.switchModule(module)) return;
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    }
 
-        int currentIndex = this.modules.indexOf(this.screen.selectedModule());
-        if (currentIndex < 0) {
-            currentIndex = 0;
-        }
-        int nextIndex = Math.floorMod(currentIndex + direction, this.modules.size());
-        this.switchModule(this.modules.get(nextIndex));
+    void selectAdjacentCategory(int direction) {
+        if (this.modules.isEmpty()) return;
+        int currentIndex = Math.max(0, this.modules.indexOf(this.screen.selectedModule()));
+        this.selectCategory(Math.floorMod(currentIndex + direction, this.modules.size()));
     }
 
     List<Target> searchTargets() {
@@ -273,6 +293,15 @@ final class ItemEditorCategoryController {
 
     void refreshChangedMarkers(ItemEditorChangeSet changes) {
         this.clearChangedMarkers();
+        if (!this.screen.changedOnly())
+            this.boundFields.forEach((control, key) -> {
+                boolean changed = this.screen.session().fieldChanged(key);
+                Component label = this.restoreLabels.get(control);
+                if (label != null)
+                    control.tooltip(
+                            changed ? List.of(label, ItemEditorText.tr("screen.field.reset.tooltip")) : List.of(label));
+                if (changed) this.markChanged(control);
+            });
         if (this.currentPanelTargets.isEmpty() || this.panelHost == null || this.screen.changedOnly()) {
             return;
         }
@@ -291,37 +320,76 @@ final class ItemEditorCategoryController {
                 continue;
             }
             UIComponent control = this.findLabel(this.panelHost, target.location());
-            if (control == null) {
+            if (control == null || this.boundFields.containsKey(control)) {
                 continue;
             }
             this.markChanged(control);
-            this.markSiblingControls(this.panelHost, control);
+            ParentUIComponent parent = this.fieldParents.get(control);
+            if (parent != null)
+                for (UIComponent sibling : parent.children()) {
+                    if (sibling instanceof AbstractWidget && !this.boundFields.containsKey(sibling))
+                        this.markChanged(sibling);
+                }
         }
+    }
+
+    private void bindFieldResets(UIComponent component) {
+        this.bindFieldResets(component, null);
+    }
+
+    private void bindFieldResets(UIComponent component, String inheritedKey) {
+        String explicitKey = UiFactory.fieldKey(component);
+        String childKey = explicitKey != null ? explicitKey : inheritedKey;
+        String key = resetKey(component);
+        if (key == null) key = childKey;
+        if (key != null) {
+            this.boundFields.put(component, key);
+            if (component instanceof LabelComponent || component instanceof AbstractWidget) {
+                this.bindFieldReset(component, Component.translatable(ItemEditorFieldReset.labelKey(key)), key);
+            }
+        }
+        if (component instanceof ParentUIComponent parent) {
+            for (UIComponent child : parent.children()) {
+                this.fieldParents.put(child, parent);
+                this.bindFieldResets(child, childKey);
+            }
+        }
+    }
+
+    private void bindFieldReset(UIComponent component, Component label, String key) {
+        this.restoreLabels.put(component, label);
+        component.tooltip(
+                this.screen.session().fieldChanged(key)
+                        ? List.of(label, ItemEditorText.tr("screen.field.reset.tooltip"))
+                        : List.of(label));
+        component.mouseDown().subscribe((click, doubled) -> {
+            if (click.button() != InputConstants.MOUSE_BUTTON_RIGHT || !this.screen.isDialogClosed()) return false;
+            this.screen.confirmRestore(
+                    label,
+                    this.screen.session().fieldValue(key, false),
+                    this.screen.session().fieldValue(key, true),
+                    () -> this.screen.session().resetField(key));
+            return true;
+        });
+    }
+
+    private static String resetKey(UIComponent component) {
+        String explicitKey = UiFactory.fieldKey(component);
+        if (explicitKey != null) return explicitKey;
+        if (component.id() != null && ItemEditorFieldReset.supports(component.id())) return component.id();
+        Component text = component instanceof LabelComponent label
+                ? label.text()
+                : component instanceof AbstractWidget widget ? widget.getMessage() : null;
+        return text != null
+                        && text.getContents() instanceof TranslatableContents translated
+                        && ItemEditorFieldReset.supports(translated.getKey())
+                ? translated.getKey()
+                : null;
     }
 
     private static boolean matchesChangedTerm(String terms, Set<String> changedTerms) {
         for (String term : terms.split("\\s+")) {
             if (changedTerms.contains(term)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean markSiblingControls(UIComponent component, UIComponent target) {
-        if (!(component instanceof ParentUIComponent parent)) {
-            return false;
-        }
-        if (parent.children().contains(target)) {
-            for (UIComponent child : parent.children()) {
-                if (child instanceof AbstractWidget) {
-                    this.markChanged(child);
-                }
-            }
-            return true;
-        }
-        for (UIComponent child : parent.children()) {
-            if (this.markSiblingControls(child, target)) {
                 return true;
             }
         }
@@ -334,18 +402,11 @@ final class ItemEditorCategoryController {
         }
         if (component instanceof LabelComponent label) {
             Component original = this.changedLabels.computeIfAbsent(label, ignored -> label.text());
-            label.text(withChangedMarker(original));
+            label.text(UiFactory.withChangedMarker(original));
         } else if (component instanceof AbstractWidget widget) {
             Component original = this.changedWidgets.computeIfAbsent(widget, ignored -> widget.getMessage());
-            widget.setMessage(withChangedMarker(original));
+            widget.setMessage(UiFactory.withChangedMarker(original));
         }
-    }
-
-    private static Component withChangedMarker(Component original) {
-        return original.copy()
-                .withStyle(ChatFormatting.ITALIC)
-                .append(Component.literal(" (*)").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
-                        .withItalic(false)));
     }
 
     private void clearChangedMarkers() {
@@ -379,18 +440,25 @@ final class ItemEditorCategoryController {
     }
 
     private UIComponent findLabel(UIComponent component, boolean anchor, String key) {
-        anchor |= key.equals(component.id());
-        if (component instanceof LabelComponent label
-                && (anchor
-                        || label.text().getContents() instanceof TranslatableContents text
-                                && text.getKey().equals(key))) return label;
-        if (component instanceof AbstractWidget widget
-                && (anchor
-                        || widget.getMessage().getContents() instanceof TranslatableContents text
-                                && text.getKey().equals(key))) return component;
+        boolean matchesAnchor = anchor || key.equals(component.id()) || key.equals(UiFactory.fieldKey(component));
+        switch (component) {
+            case LabelComponent label
+            when matchesAnchor
+                    || label.text().getContents() instanceof TranslatableContents text
+                            && text.getKey().equals(key) -> {
+                return label;
+            }
+            case AbstractWidget widget
+            when matchesAnchor
+                    || widget.getMessage().getContents() instanceof TranslatableContents text
+                            && text.getKey().equals(key) -> {
+                return component;
+            }
+            default -> {}
+        }
         if (component instanceof ParentUIComponent parent) {
             for (UIComponent child : parent.children()) {
-                UIComponent found = this.findLabel(child, anchor, key);
+                UIComponent found = this.findLabel(child, matchesAnchor, key);
                 if (found != null) return found;
             }
         }
@@ -408,6 +476,7 @@ final class ItemEditorCategoryController {
         this.clearHighlight();
         this.searchTicks = 0;
         this.screen.setSelectedModule(module);
+        if (module.category() != EditorCategory.RAW_EDITOR && this.screen.leaveRawFocusMode()) return true;
         this.refreshCurrentPanel(false);
         this.screen.requestResponsiveRelayout();
         return true;

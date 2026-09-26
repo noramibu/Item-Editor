@@ -177,14 +177,16 @@ public final class EditorSearchDialog {
                 toggle.horizontalSizing(UiFactory.fixed(18));
                 toggle.cursorStyle(CursorStyle.HAND);
                 toggle.mouseDown().subscribe((click, doubled) -> {
-                    if (click.button() != 0) return false;
+                    if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return false;
                     toggle(node);
                     return true;
                 });
                 toggle.tooltip(pathTooltip);
                 row.mouseDown().subscribe((click, doubled) -> {
                     double left = toggle.x() - row.x();
-                    if (click.button() != 0 || click.x() < left || click.x() >= left + toggle.width()) return false;
+                    if (click.button() != InputConstants.MOUSE_BUTTON_LEFT
+                            || click.x() < left
+                            || click.x() >= left + toggle.width()) return false;
                     toggle(node);
                     return true;
                 });
@@ -210,7 +212,7 @@ public final class EditorSearchDialog {
                         .horizontalSizing(Sizing.fill(100)));
             row.tooltip(pathTooltip);
             text.mouseDown().subscribe((click, doubled) -> {
-                if (click.button() != 0) return false;
+                if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) return false;
                 activate.run();
                 return true;
             });

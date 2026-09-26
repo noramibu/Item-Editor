@@ -10,11 +10,17 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 public sealed interface ItemEditorSessionOrigin
-        permits ItemEditorSessionOrigin.Transient, ItemEditorSessionOrigin.Storage, ItemEditorSessionOrigin.External {
+        permits ItemEditorSessionOrigin.Transient,
+                ItemEditorSessionOrigin.Imported,
+                ItemEditorSessionOrigin.Storage,
+                ItemEditorSessionOrigin.External {
 
     ItemEditorSessionOrigin.Transient TRANSIENT = new ItemEditorSessionOrigin.Transient();
+    ItemEditorSessionOrigin.Imported IMPORTED = new ItemEditorSessionOrigin.Imported();
 
     record Transient() implements ItemEditorSessionOrigin {}
+
+    record Imported() implements ItemEditorSessionOrigin {}
 
     record Storage(SavedIndexItemEntry entry, ItemStack originalSavedStack) implements ItemEditorSessionOrigin {
         public Storage {

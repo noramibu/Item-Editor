@@ -1,11 +1,31 @@
 package me.noramibu.itemeditor.ui.panel;
 
+import io.wispforest.owo.ui.component.TextBoxComponent;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.ItemEditorFieldReset;
+import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
+import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.network.chat.Component;
 
 public final class PanelBindings {
 
     private PanelBindings() {}
+
+    public static TextBoxComponent textBox(ItemEditorScreen screen, String key) {
+        return textBox(screen, key, mutation -> mutate(screen, mutation));
+    }
+
+    public static TextBoxComponent textBox(ItemEditorScreen screen, String key, Consumer<Runnable> mutate) {
+        String fullKey = ItemEditorText.key(key);
+        var binding = ItemEditorFieldReset.text(fullKey);
+        var state = screen.session().state();
+        return UiFactory.bindField(
+                Component.translatable(fullKey),
+                UiFactory.textBox(
+                        binding.read().apply(state),
+                        value -> mutate.accept(() -> binding.write().accept(state, value))));
+    }
 
     public static void mutate(ItemEditorScreen screen, Runnable mutation) {
         screen.session().state().rawEditorEdited = false;
