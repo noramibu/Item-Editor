@@ -1,23 +1,19 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.distributeRowChildren;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.responsiveRow;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.collapsibleCard;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdField;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactIdTextWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.compactLongFieldWidth;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.distributeRowChildren;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.jukeboxSongIds;
-import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.responsiveRow;
 import static me.noramibu.itemeditor.ui.panel.specialdata.AdvancedItemSpecialDataSection.withCurrentId;
 
 import io.wispforest.owo.ui.container.FlowLayout;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout.Width;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.core.registries.Registries;
 
 public final class RegistrySpecialDataSection {
@@ -72,79 +68,47 @@ public final class RegistrySpecialDataSection {
     private static FlowLayout buildRegistryAndFlagsCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
-        int idWidth = compactIdTextWidth();
-        int longWidth = compactLongFieldWidth();
+        int idWidth = Width.ID.pixels();
+        int longWidth = Width.LONG.pixels();
 
-        FlowLayout damageTypeField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_DAMAGE_TYPE,
-                special.damageTypeId,
-                value -> special.damageTypeId = value,
+        FlowLayout damageTypeField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_DAMAGE_TYPE.key(),
                 context.optionalRegistryIds(Registries.DAMAGE_TYPE),
                 idWidth);
         card.child(damageTypeField);
 
         FlowLayout soundRow = responsiveRow();
-        FlowLayout noteBlockSoundField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_NOTE_BLOCK_SOUND,
-                special.noteBlockSoundId,
-                value -> special.noteBlockSoundId = value,
+        FlowLayout noteBlockSoundField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_NOTE_BLOCK_SOUND.key(),
                 context.optionalRegistryIds(Registries.SOUND_EVENT),
                 idWidth);
-        FlowLayout jukeboxPlayableField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_JUKEBOX_PLAYABLE,
-                special.jukeboxSongId,
-                value -> special.jukeboxSongId = value,
+        FlowLayout jukeboxPlayableField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_JUKEBOX_PLAYABLE.key(),
                 jukeboxSongIds(context, special.jukeboxSongId),
                 idWidth);
-        FlowLayout providesBannerPatternsField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_PROVIDES_BANNER_PATTERNS,
-                special.providesBannerPatternsTagId,
-                value -> special.providesBannerPatternsTagId = value,
+        FlowLayout providesBannerPatternsField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_PROVIDES_BANNER_PATTERNS.key(),
                 withCurrentId(
                         context.registryTagIds(Registries.BANNER_PATTERN, "#"), special.providesBannerPatternsTagId),
                 longWidth);
-        FlowLayout breakSoundField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_BREAK_SOUND,
-                special.breakSoundId,
-                value -> special.breakSoundId = value,
+        FlowLayout breakSoundField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_BREAK_SOUND.key(),
                 context.optionalRegistryIds(Registries.SOUND_EVENT),
                 idWidth);
         distributeRowChildren(soundRow, noteBlockSoundField, jukeboxPlayableField, breakSoundField);
         card.child(soundRow);
 
         FlowLayout variantRow = responsiveRow();
-        FlowLayout providesTrimMaterialField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_PROVIDES_TRIM_MATERIAL,
-                special.providesTrimMaterialId,
-                value -> special.providesTrimMaterialId = value,
+        FlowLayout providesTrimMaterialField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_PROVIDES_TRIM_MATERIAL.key(),
                 context.optionalRegistryIds(Registries.TRIM_MATERIAL),
                 longWidth);
-        FlowLayout paintingVariantField = registryIdField(
-                context,
-                Control.COMPONENT_TWEAKS_PAINTING_VARIANT,
-                special.paintingVariantId,
-                value -> special.paintingVariantId = value,
+        FlowLayout paintingVariantField = context.boundIdField(
+                Control.COMPONENT_TWEAKS_PAINTING_VARIANT.key(),
                 context.optionalRegistryIds(Registries.PAINTING_VARIANT),
                 idWidth);
         distributeRowChildren(variantRow, providesTrimMaterialField, providesBannerPatternsField, paintingVariantField);
         card.child(variantRow);
         return card;
-    }
-
-    private static FlowLayout registryIdField(
-            SpecialDataPanelContext context,
-            Control field,
-            String value,
-            Consumer<String> setter,
-            List<String> options,
-            int width) {
-        String key = field.key();
-        return compactIdField(context, ItemEditorText.tr(key), value, setter, options, ItemEditorText.str(key), width);
     }
 }

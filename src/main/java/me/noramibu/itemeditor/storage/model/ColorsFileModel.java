@@ -10,4 +10,5 @@ public final class ColorsFileModel {
     public List<ColorPresetEntry> color = new ArrayList<>();
     public List<ColorPresetEntry> gradient = new ArrayList<>();
     public List<ColorPresetEntry> shadow = new ArrayList<>();
+    public List<ColorStylePresetEntry> style = new ArrayList<>();
 }

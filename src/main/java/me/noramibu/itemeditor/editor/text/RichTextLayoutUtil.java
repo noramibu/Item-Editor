@@ -75,6 +75,31 @@ public final class RichTextLayoutUtil {
                         document, start, end, renderStructuredEvents, renderStructuredObjects));
     }
 
+    public static List<LineLayout> layoutBookDocument(RichTextDocument document, Font font, int maxWidth) {
+        return layoutLogicalLines(
+                document.plainText(),
+                Math.max(1, maxWidth),
+                (start, end) -> renderedBookDocumentForRange(document, start, end),
+                (text, start, end) -> buildStructuredUnits(
+                        text,
+                        start,
+                        end,
+                        (source, index) -> styledCodePointWidth(document, font, source, index),
+                        (source, index, length) -> objectTokenWidth(source, index, length, font),
+                        true,
+                        true),
+                true);
+    }
+
+    public static Component renderedBookDocumentForRange(RichTextDocument document, int start, int end) {
+        Component slice = document.sliceToComponent(start, end);
+        if (!TextComponentUtil.containsStructuredToken(document.plainText().substring(start, end))) {
+            return slice;
+        }
+        return TextComponentUtil.parseMarkup(
+                TextComponentUtil.serializeBookDocument(RichTextDocument.fromComponent(slice)));
+    }
+
     public static LogicalMetrics logicalMetricsForEventPayload(String sourceText) {
         if (sourceText == null || sourceText.isEmpty()) {
             return new LogicalMetrics(0, 0);
@@ -423,6 +448,15 @@ public final class RichTextLayoutUtil {
 
     private static List<LineLayout> layoutLogicalLines(
             String sourceText, int wrapWidth, LineComponentFactory componentFactory, LineUnitBuilder unitBuilder) {
+        return layoutLogicalLines(sourceText, wrapWidth, componentFactory, unitBuilder, false);
+    }
+
+    private static List<LineLayout> layoutLogicalLines(
+            String sourceText,
+            int wrapWidth,
+            LineComponentFactory componentFactory,
+            LineUnitBuilder unitBuilder,
+            boolean bookWrapping) {
         String text = sourceText == null ? "" : sourceText;
         if (text.isEmpty()) {
             return List.of(emptyLine(0, 1));
@@ -438,7 +472,7 @@ public final class RichTextLayoutUtil {
                 lines.add(emptyLine(cursor, logicalLineNumber));
             } else {
                 List<Unit> units = unitBuilder.build(text, cursor, logicalEnd);
-                wrapUnitsIntoLines(units, wrapWidth, componentFactory, lines, logicalLineNumber);
+                wrapUnitsIntoLines(units, wrapWidth, componentFactory, lines, logicalLineNumber, text, bookWrapping);
             }
 
             if (newlineIndex >= 0) {
@@ -598,7 +632,9 @@ public final class RichTextLayoutUtil {
             int wrapWidth,
             LineComponentFactory componentFactory,
             List<LineLayout> out,
-            int logicalLineNumber) {
+            int logicalLineNumber,
+            String source,
+            boolean bookWrapping) {
         if (units.isEmpty()) {
             return;
         }
@@ -608,15 +644,20 @@ public final class RichTextLayoutUtil {
             float width = 0f;
             int unitEndExclusive = unitStart;
             int lastBreakExclusive = -1;
+            boolean hadWidth = false;
 
             while (unitEndExclusive < units.size()) {
                 Unit unit = units.get(unitEndExclusive);
-                if (unitEndExclusive > unitStart && width + unit.layoutWidth() > wrapWidth) {
+                boolean space = unit.end() == unit.start() + 1 && source.charAt(unit.start()) == ' ';
+                if (bookWrapping && space) lastBreakExclusive = unitEndExclusive + 1;
+                if ((bookWrapping ? hadWidth : unitEndExclusive > unitStart)
+                        && width + unit.layoutWidth() > wrapWidth) {
                     break;
                 }
                 width += unit.layoutWidth();
+                hadWidth |= unit.layoutWidth() != 0f;
                 unitEndExclusive++;
-                if (unit.breakAfter()) {
+                if (!bookWrapping && unit.breakAfter()) {
                     lastBreakExclusive = unitEndExclusive;
                 }
             }
@@ -626,7 +667,17 @@ public final class RichTextLayoutUtil {
                 lineEndExclusive = lastBreakExclusive;
             }
 
-            out.add(buildLineFromUnits(units, unitStart, lineEndExclusive, componentFactory, logicalLineNumber));
+            int hiddenSeparator = bookWrapping && unitEndExclusive < units.size() && lastBreakExclusive > unitStart
+                    ? lastBreakExclusive - 1
+                    : -1;
+            if (bookWrapping) {
+                while (lineEndExclusive < units.size()
+                        && units.get(lineEndExclusive).layoutWidth() == 0f) {
+                    lineEndExclusive++;
+                }
+            }
+            out.add(buildLineFromUnits(
+                    units, unitStart, lineEndExclusive, componentFactory, logicalLineNumber, hiddenSeparator));
             unitStart = lineEndExclusive;
         }
     }
@@ -636,7 +687,8 @@ public final class RichTextLayoutUtil {
             int unitStart,
             int unitEndExclusive,
             LineComponentFactory componentFactory,
-            int logicalLineNumber) {
+            int logicalLineNumber,
+            int hiddenSeparator) {
         Unit first = units.get(unitStart);
         Unit last = units.get(unitEndExclusive - 1);
         int start = first.start();
@@ -650,14 +702,20 @@ public final class RichTextLayoutUtil {
         int outputIndex = 1;
         for (int unitIndex = unitStart; unitIndex < unitEndExclusive; unitIndex++) {
             Unit unit = units.get(unitIndex);
-            width += unit.visualWidth();
+            if (unitIndex != hiddenSeparator) width += unit.visualWidth();
             positions[outputIndex] = unit.end();
             boundaries[outputIndex] = width;
             outputIndex++;
         }
 
         return new LineLayout(
-                start, end, componentFactory.component(start, end), positions, boundaries, logicalLineNumber);
+                start,
+                end,
+                componentFactory.component(
+                        start, hiddenSeparator >= 0 ? units.get(hiddenSeparator).start() : end),
+                positions,
+                boundaries,
+                logicalLineNumber);
     }
 
     private static boolean isEventTokenTokenBody(String sourceText, int tokenStart, int tokenEndExclusive) {

@@ -44,15 +44,6 @@ final class RawSuggestionBuilder {
             String prefix,
             RawAutocompleteUtil.SuggestionKind kind,
             UnaryOperator<String> insertMapper,
-            int contextRank) {
-        addSuggestions(values, prefix, kind, insertMapper, contextRank, null, "");
-    }
-
-    void addSuggestions(
-            List<String> values,
-            String prefix,
-            RawAutocompleteUtil.SuggestionKind kind,
-            UnaryOperator<String> insertMapper,
             int contextRank,
             RawAutocompleteUtil.SuggestionSource source,
             String reason) {

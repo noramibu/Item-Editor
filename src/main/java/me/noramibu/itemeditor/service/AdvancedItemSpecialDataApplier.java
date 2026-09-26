@@ -23,12 +23,15 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.Identifier;
@@ -81,6 +84,7 @@ import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ConsumeEffect;
 import net.minecraft.world.item.consume_effects.PlaySoundConsumeEffect;
+import net.minecraft.world.item.consume_effects.RemoveStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.TeleportRandomlyConsumeEffect;
 import net.minecraft.world.item.enchantment.Enchantable;
 import net.minecraft.world.item.enchantment.Repairable;
@@ -162,10 +166,11 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                 DataComponents.FOOD,
                 Objects.equals(context.special().foodNutrition, context.baselineSpecial().foodNutrition)
                         && Objects.equals(context.special().foodSaturation, context.baselineSpecial().foodSaturation)
-                        && context.special().foodCanAlwaysEat == context.baselineSpecial().foodCanAlwaysEat,
+                        && Objects.equals(
+                                context.special().foodCanAlwaysEat, context.baselineSpecial().foodCanAlwaysEat),
                 context.special().foodNutrition.isBlank()
                         && context.special().foodSaturation.isBlank()
-                        && !context.special().foodCanAlwaysEat)) {
+                        && context.special().foodCanAlwaysEat.isBlank())) {
             return;
         }
 
@@ -195,7 +200,8 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
         context.previewStack()
                 .set(
                         DataComponents.FOOD,
-                        new FoodProperties(nutrition, saturation, context.special().foodCanAlwaysEat));
+                        new FoodProperties(
+                                nutrition, saturation, Boolean.parseBoolean(context.special().foodCanAlwaysEat)));
     }
 
     private void applyConsumable(SpecialDataApplyContext context) {
@@ -2528,6 +2534,7 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
                         && Objects.equals(left.probability, right.probability)
                         && Objects.equals(left.diameter, right.diameter)
                         && Objects.equals(left.soundId, right.soundId)
+                        && Objects.equals(left.removedEffects, right.removedEffects)
                         && this.sameList(
                                 left.effects, right.effects, ItemEditorState.PotionEffectDraft::hasSameValues));
     }
@@ -2552,6 +2559,28 @@ final class AdvancedItemSpecialDataApplier extends AbstractPreviewApplierSupport
             }
 
             switch (normalizedType) {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS -> {
+                    List<String> ids = this.splitIdentifierList(draft.removedEffects);
+                    Tag input;
+                    if (ids.size() == 1) {
+                        input = StringTag.valueOf(ids.getFirst());
+                    } else {
+                        var list = new ListTag();
+                        ids.forEach(id -> list.add(StringTag.valueOf(id)));
+                        input = list;
+                    }
+                    var ops = context.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+                    var removed = RegistryCodecs.homogeneousList(Registries.MOB_EFFECT)
+                            .parse(ops, input)
+                            .result();
+                    if (removed.isEmpty()) {
+                        context.messages()
+                                .add(ValidationMessage.error(
+                                        ItemEditorText.str("preview.validation.component_failed", effectsLabel)));
+                        return null;
+                    }
+                    effects.add(new RemoveStatusEffectsConsumeEffect(removed.get()));
+                }
                 case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS ->
                     effects.add(ClearAllStatusEffectsConsumeEffect.INSTANCE);
                 case ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY -> {

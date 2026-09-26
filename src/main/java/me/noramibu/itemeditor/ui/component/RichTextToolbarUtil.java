@@ -7,10 +7,12 @@ import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import me.noramibu.itemeditor.editor.text.RichTextStyle;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.TextColorPresets;
@@ -154,12 +156,14 @@ public final class RichTextToolbarUtil {
             int toolbarWidthHint) {
         FlowLayout tools = UiFactory.column();
         tools.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing() - 1));
-        AtomicReference<List<Integer>> gradientColors = new AtomicReference<>(TextColorPresets.normalizeGradientStops(
-                List.of(selectedColor.get(), TextColorPresets.gradientEndFor(selectedColor.get()))));
         AtomicInteger selectedShadowColor = TextStylingController.initialShadowColor(editor, DEFAULT_SHADOW_COLOR);
-        AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult =
-                new AtomicReference<>(new UnifiedColorPickerDialog.ColorPickerResult(
-                        UnifiedColorPickerDialog.PaintMode.COLOR, false, List.of(selectedColor.get())));
+        AtomicReference<UnifiedColorPickerDialog.PaintLayer> textDraft =
+                new AtomicReference<>(new UnifiedColorPickerDialog.PaintLayer(
+                        UnifiedColorPickerDialog.PaintMode.COLOR, List.of(selectedColor.get())));
+        AtomicReference<UnifiedColorPickerDialog.PaintLayer> shadowDraft =
+                new AtomicReference<>(new UnifiedColorPickerDialog.PaintLayer(
+                        UnifiedColorPickerDialog.PaintMode.COLOR, List.of(selectedShadowColor.get())));
+        AtomicBoolean shadowEnabled = new AtomicBoolean(editor.selectionStyle().shadowColor() != null);
         Runnable preparation = prepareStyledApply == null ? () -> {} : prepareStyledApply;
         List<ToolbarItem> toolbarItems = new ArrayList<>();
         int maxRowWidth = toolbarAvailableWidth(screen, compactToolbar, toolbarWidthHint);
@@ -170,17 +174,25 @@ public final class RichTextToolbarUtil {
                     includeGradient && !gradientDialogTitle.isBlank() ? gradientDialogTitle : colorDialogTitle;
             colorButton = UiFactory.button(
                     toolbarColorLabel(selectedColor.get()), UiFactory.ButtonTextPreset.STANDARD, button -> {
-                        UnifiedColorPickerDialog.ColorPickerResult initial = lastColorResult.get();
-                        List<Integer> initialColors = initial.colors();
-                        if (!initial.shadow() && initial.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
-                            initialColors = gradientColorsForSelectedStart(initialColors, selectedColor.get());
+                        RichTextStyle style = editor.selectionStyle();
+                        int foreground = style.color() == null ? selectedColor.get() : style.color();
+                        int shadow = style.shadowColor() == null ? selectedShadowColor.get() : style.shadowColor();
+                        UnifiedColorPickerDialog.PaintLayer initialText = textDraft.get();
+                        if (initialText.mode() == UnifiedColorPickerDialog.PaintMode.COLOR) {
+                            initialText = new UnifiedColorPickerDialog.PaintLayer(
+                                    UnifiedColorPickerDialog.PaintMode.COLOR, List.of(foreground));
                         }
-                        screen.openUnifiedColorPickerDialog(
+                        UnifiedColorPickerDialog.PaintLayer initialShadow = shadowDraft.get();
+                        if (initialShadow.mode() == UnifiedColorPickerDialog.PaintMode.COLOR) {
+                            initialShadow = new UnifiedColorPickerDialog.PaintLayer(
+                                    UnifiedColorPickerDialog.PaintMode.COLOR, List.of(shadow));
+                        }
+                        screen.openPairedColorPickerDialog(
                                 unifiedColorDialogTitle,
                                 new UnifiedColorPickerDialog.Options(
-                                        initial.mode(),
-                                        initial.shadow(),
-                                        initialColors,
+                                        initialText.mode(),
+                                        false,
+                                        initialText.colors(),
                                         true,
                                         includeGradient,
                                         true,
@@ -190,13 +202,17 @@ public final class RichTextToolbarUtil {
                                         selectedColor.get(),
                                         editor.selectedTextOr(""),
                                         false),
-                                result -> applyUnifiedColor(
+                                initialText,
+                                initialShadow,
+                                style.shadowColor() != null || shadowEnabled.get(),
+                                result -> applyPairedColor(
                                         editor,
                                         preparation,
                                         selectedColor,
-                                        gradientColors,
                                         selectedShadowColor,
-                                        lastColorResult,
+                                        textDraft,
+                                        shadowDraft,
+                                        shadowEnabled,
                                         result,
                                         button));
                     });
@@ -219,7 +235,7 @@ public final class RichTextToolbarUtil {
                     standardColorLabel(preset),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> applySolidColor(
-                            editor, preparation, selectedColor, lastColorResult, preset.rgb(), finalColorButton));
+                            editor, preparation, selectedColor, textDraft, preset.rgb(), finalColorButton));
             presetButton.tooltip(List.of(Component.literal(preset.label() + " " + ValidationUtil.toHex(preset.rgb()))
                     .withColor(preset.rgb())));
             toolbarItems.add(toolbarItem(presetButton, maxRowWidth));
@@ -275,14 +291,14 @@ public final class RichTextToolbarUtil {
             RichTextAreaComponent editor,
             Runnable preparation,
             AtomicInteger selectedColor,
-            AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult,
+            AtomicReference<UnifiedColorPickerDialog.PaintLayer> textDraft,
             int color,
             ButtonComponent pickColorButton) {
         boolean hadSelection = editor.hasSelection();
         preparation.run();
         selectedColor.set(color);
-        lastColorResult.set(new UnifiedColorPickerDialog.ColorPickerResult(
-                UnifiedColorPickerDialog.PaintMode.COLOR, false, List.of(color)));
+        textDraft.set(
+                new UnifiedColorPickerDialog.PaintLayer(UnifiedColorPickerDialog.PaintMode.COLOR, List.of(color)));
         editor.applyColor(color);
         if (pickColorButton != null) {
             pickColorButton.setMessage(toolbarColorLabel(color));
@@ -291,64 +307,39 @@ public final class RichTextToolbarUtil {
         editor.collapseUnexpectedSelection(hadSelection);
     }
 
-    private static void applyUnifiedColor(
+    private static void applyPairedColor(
             RichTextAreaComponent editor,
             Runnable preparation,
             AtomicInteger selectedColor,
-            AtomicReference<List<Integer>> gradientColors,
             AtomicInteger selectedShadowColor,
-            AtomicReference<UnifiedColorPickerDialog.ColorPickerResult> lastColorResult,
-            UnifiedColorPickerDialog.ColorPickerResult result,
+            AtomicReference<UnifiedColorPickerDialog.PaintLayer> textDraft,
+            AtomicReference<UnifiedColorPickerDialog.PaintLayer> shadowDraft,
+            AtomicBoolean shadowEnabled,
+            UnifiedColorPickerDialog.PairedColorResult result,
             ButtonComponent button) {
         boolean hadSelection = editor.hasSelection();
         preparation.run();
-        List<Integer> colors = result.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT
-                ? TextColorPresets.normalizeGradientStops(result.colors())
-                : result.colors();
-        lastColorResult.set(new UnifiedColorPickerDialog.ColorPickerResult(result.mode(), result.shadow(), colors));
-        if (result.shadow()) {
-            if (result.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
-                selectedShadowColor.set(colors.getFirst() | 0xFF000000);
-                editor.applyShadowGradientSelectionOrAll(colors);
-                button.setMessage(toolbarShadowGradientLabel(colors));
-            } else {
-                int color = colors.getFirst() | 0xFF000000;
-                selectedShadowColor.set(color);
-                editor.applyShadowColor(color);
-                button.setMessage(toolbarShadowLabel(color));
-            }
-        } else if (result.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
-            selectedColor.set(colors.getFirst());
-            gradientColors.set(colors);
-            editor.applyGradientSelectionOrAll(colors);
-            button.setMessage(TextColorPresets.gradientLabel(ItemEditorText.str("toolbar.color"), colors));
-        } else {
-            int color = colors.getFirst();
-            selectedColor.set(color);
-            editor.applyColor(color);
-            button.setMessage(toolbarColorLabel(color));
+        editor.applyPairedColors(result);
+        textDraft.set(result.text());
+        shadowDraft.set(result.shadow());
+        shadowEnabled.set(result.shadowEnabled());
+        selectedColor.set(result.text().colors().getFirst());
+        selectedShadowColor.set(result.shadow().colors().getFirst() | 0xFF000000);
+        Component label = result.text().mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT
+                ? TextColorPresets.gradientLabel(
+                        ItemEditorText.str("toolbar.color"), result.text().colors())
+                : toolbarColorLabel(selectedColor.get());
+        if (result.shadowEnabled()) {
+            int color = selectedShadowColor.get();
+            label = label.copy().withStyle(style -> style.withShadowColor(color));
         }
+        button.setMessage(label);
         editor.resumeEditing();
         editor.collapseUnexpectedSelection(hadSelection);
     }
 
     private static Component toolbarColorLabel(int color) {
         return ItemEditorText.tr("toolbar.color").copy().withColor(color & 0xFFFFFF);
-    }
-
-    private static Component toolbarShadowLabel(int color) {
-        return ItemEditorText.tr("toolbar.color")
-                .copy()
-                .withColor(0xFFFFFF)
-                .withStyle(style -> style.withShadowColor(color | 0xFF000000));
-    }
-
-    private static Component toolbarShadowGradientLabel(List<Integer> colors) {
-        return ItemEditorText.tr("toolbar.color")
-                .copy()
-                .withColor(0xFFFFFF)
-                .withStyle(style -> style.withShadowColor(
-                        (TextColorPresets.normalizeGradientStops(colors).getFirst() & 0xFFFFFF) | 0xFF000000));
     }
 
     private static int toolbarAvailableWidth(ItemEditorScreen screen, boolean compactToolbar, int toolbarWidthHint) {
@@ -416,12 +407,6 @@ public final class RichTextToolbarUtil {
         return Component.literal(preset.label()).withColor(preset.rgb());
     }
 
-    private static List<Integer> gradientColorsForSelectedStart(List<Integer> colors, int selectedColor) {
-        List<Integer> normalized = new ArrayList<>(TextColorPresets.normalizeGradientStops(colors));
-        normalized.set(0, selectedColor & 0xFFFFFF);
-        return TextColorPresets.normalizeGradientStops(normalized);
-    }
-
     private static Component styled(String key, ChatFormatting formatting) {
         return ItemEditorText.tr(key).copy().withStyle(formatting);
     }
@@ -476,8 +461,8 @@ public final class RichTextToolbarUtil {
                         !id.getNamespace().equals("minecraft") || !id.getPath().startsWith("include/"))
                 .map(Identifier::toString)
                 .forEach(fonts::add);
-        String current = editor.currentFont() instanceof FontDescription.Resource resource
-                ? resource.id().toString()
+        String current = editor.currentFont() instanceof FontDescription.Resource(var id)
+                ? id.toString()
                 : FontDescription.DEFAULT.id().toString();
         fonts.add(current);
         fonts.remove(FontDescription.DEFAULT.id().toString());

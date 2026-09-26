@@ -187,7 +187,7 @@ final class EntityTagInputUi {
         }
     }
 
-    private static DeclaredAction declaredAction(SpecialDataPanelContext context, String key, Runnable mutation) {
+    private static DeclaredAction declaredAction(String key, Runnable mutation) {
         return new DeclaredAction(key, mutation);
     }
 
@@ -231,31 +231,27 @@ final class EntityTagInputUi {
         var player = context.screen().session().minecraft().player;
         if (!field.key().equals("UUID") && field.kind() == EntityTagFields.Kind.UUID && player != null) {
             actions.accept(declaredAction(
-                    context,
                     "special.entity.tags.me",
                     () -> setter.accept(player.getUUID().toString())));
         }
         if (breedingAge(draft.entityId, field.key()) && !draft.entityId.equals("minecraft:parrot")) {
             actions.accept(declaredAction(
-                    context,
-                    "special.entity.tags.baby",
-                    () -> setter.accept(Integer.toString(AgeableMob.BABY_START_AGE))));
-            actions.accept(declaredAction(context, "special.entity.tags.adult", () -> setter.accept("0")));
+                    "special.entity.tags.baby", () -> setter.accept(Integer.toString(AgeableMob.BABY_START_AGE))));
+            actions.accept(declaredAction("special.entity.tags.adult", () -> setter.accept("0")));
         }
         if (field.key().equals("InLove") && !draft.entityId.equals("minecraft:parrot")) {
-            DeclaredAction start = declaredAction(context, "special.entity.tags.start_love", () -> {
+            DeclaredAction start = declaredAction("special.entity.tags.start_love", () -> {
                 draft.entityTagEdits.put("Age", "0");
                 setter.accept("600");
             });
             start.tooltip(List.of(ItemEditorText.tr("special.entity.tags.love_requires_adult")));
             actions.accept(start);
-            actions.accept(declaredAction(context, "special.entity.tags.stop_love", () -> setter.accept("0")));
+            actions.accept(declaredAction("special.entity.tags.stop_love", () -> setter.accept("0")));
         }
         if (player != null
                 && (field.kind() == EntityTagFields.Kind.POSITION || field.key().equals("Pos"))) {
             if (!field.key().equals("sleeping_pos")) {
                 DeclaredAction here = declaredAction(
-                        context,
                         field.key().equals("home_pos") ? "special.entity.tags.home_here" : "special.entity.tags.here",
                         () -> {
                             setter.accept(
@@ -282,7 +278,6 @@ final class EntityTagInputUi {
         }
         if (player != null && field.kind() == EntityTagFields.Kind.ROTATION) {
             actions.accept(declaredAction(
-                    context,
                     "special.entity.tags.my_rotation",
                     () -> setter.accept("[" + player.getYRot() + "," + player.getXRot() + "]")));
         }
@@ -293,7 +288,6 @@ final class EntityTagInputUi {
                 && hit.getType() == HitResult.Type.BLOCK
                 && minecraft.level.getBlockState(hit.getBlockPos()).is(BlockTags.BEDS)) {
             actions.accept(declaredAction(
-                    context,
                     "special.entity.tags.target_bed",
                     () -> setter.accept(BlockPos.CODEC
                             .encodeStart(NbtOps.INSTANCE, hit.getBlockPos())
@@ -301,10 +295,10 @@ final class EntityTagInputUi {
                             .toString())));
         }
         if (field.key().equals("Motion")) {
-            actions.accept(declaredAction(context, "special.entity.tags.stop", () -> setter.accept("[0,0,0]")));
+            actions.accept(declaredAction("special.entity.tags.stop", () -> setter.accept("[0,0,0]")));
         }
         if (field.key().equals("anger_end_time")) {
-            actions.accept(declaredAction(context, "special.entity.tags.calm", () -> {
+            actions.accept(declaredAction("special.entity.tags.calm", () -> {
                 setter.accept("-1");
                 draft.entityTagEdits.put("angry_at", "");
             }));
@@ -312,7 +306,7 @@ final class EntityTagInputUi {
         if (field.kind() == EntityTagFields.Kind.POSITION
                 || field.kind() == EntityTagFields.Kind.MOTION
                 || field.kind() == EntityTagFields.Kind.ROTATION) {
-            actions.accept(declaredAction(context, "common.unset", () -> {
+            actions.accept(declaredAction("common.unset", () -> {
                 setter.accept("");
                 if (field.key().equals("home_pos")) draft.entityTagEdits.put("home_radius", "");
             }));

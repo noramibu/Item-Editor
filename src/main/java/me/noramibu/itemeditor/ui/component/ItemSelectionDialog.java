@@ -4,10 +4,27 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.ChatFormatting;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemSelectionDialog {
     private ItemSelectionDialog() {}
+
+    public static FlowLayout source(Runnable itemList, Runnable storage, Runnable cancel) {
+        FlowLayout overlay = DialogUiUtil.overlay();
+        FlowLayout dialog = UiFactory.centeredCard(DialogUiUtil.dialogWidth(260));
+        dialog.child(UiFactory.title(ItemEditorText.tr("common.pick")));
+        String[] labels = {"common.pick_item_list", "common.pick_storage", "common.cancel"};
+        Runnable[] actions = {itemList, storage, cancel};
+        for (int i = 0; i < labels.length; i++) {
+            Runnable action = actions[i];
+            dialog.child(UiFactory.button(
+                            ItemEditorText.tr(labels[i]), UiFactory.ButtonTextPreset.STANDARD, button -> action.run())
+                    .horizontalSizing(Sizing.fill(100)));
+        }
+        overlay.child(dialog);
+        return overlay;
+    }
 
     public static FlowLayout create(ItemStack stack, Runnable use, Runnable edit, Runnable cancel) {
         int width = DialogUiUtil.dialogWidth(360);
@@ -24,7 +41,8 @@ public final class ItemSelectionDialog {
                 120,
                 3,
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("common.cancel"), button -> cancel.run()),
-                new DialogUiUtil.FooterAction(ItemEditorText.tr("common.edit"), button -> edit.run()),
+                new DialogUiUtil.FooterAction(
+                        ItemEditorText.tr("common.edit").copy().withStyle(ChatFormatting.YELLOW), button -> edit.run()),
                 new DialogUiUtil.FooterAction(ItemEditorText.tr("dialog.picked_item.use"), button -> use.run())));
         overlay.child(dialog);
         return overlay;

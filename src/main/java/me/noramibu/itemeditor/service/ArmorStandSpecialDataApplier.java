@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.service;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.*;
+
 import java.util.Objects;
 import java.util.Set;
 import me.noramibu.itemeditor.editor.ItemEditorState;
@@ -39,7 +41,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
 
         CompoundTag entityTag = new CompoundTag();
         TypedEntityData<EntityType<?>> originalData = context.originalStack().get(DataComponents.ENTITY_DATA);
-        if (originalData != null && originalData.type() == EntityType.ARMOR_STAND) {
+        if (originalData != null && originalData.type() == ARMOR_STAND) {
             entityTag = originalData.copyTagWithoutId();
         }
 
@@ -61,22 +63,22 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
                 Integer.MAX_VALUE,
                 context.messages());
         String scaleAttributeId = scaleAttributeId();
-        if (!EntitySpawnDataUtil.applyAttributes(
+        if (EntitySpawnDataUtil.failedToApplyAttributes(
                         entityTag,
                         context.special().armorStandAttributes,
                         Set.of(scaleAttributeId),
                         context,
                         ItemEditorText.str("special.armor_stand.title"))
-                || !EntitySpawnDataUtil.applyHealth(
+                || EntitySpawnDataUtil.failedToApplyHealth(
                         entityTag,
                         context.special().armorStandHealth,
-                        EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                        EntityType.getKey(ARMOR_STAND).toString(),
                         0.0F,
                         context,
                         ItemEditorText.str("special.entity.health"))) {
             return;
         }
-        if (!EntitySpawnDataUtil.applyEquipment(
+        if (EntitySpawnDataUtil.failedToApplyEquipment(
                 entityTag, context.special().armorStandEquipment, context, ItemEditorText.str("common.equipment"))) {
             return;
         }
@@ -88,7 +90,7 @@ final class ArmorStandSpecialDataApplier extends AbstractPreviewApplierSupport i
             this.clearToPrototype(context.previewStack(), DataComponents.ENTITY_DATA);
             return;
         }
-        context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(EntityType.ARMOR_STAND, entityTag));
+        context.previewStack().set(DataComponents.ENTITY_DATA, TypedEntityData.of(ARMOR_STAND, entityTag));
     }
 
     private void applyPose(CompoundTag entityTag, SpecialDataApplyContext context) {

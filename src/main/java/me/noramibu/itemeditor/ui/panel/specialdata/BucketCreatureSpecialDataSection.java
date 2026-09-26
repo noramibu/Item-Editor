@@ -14,6 +14,7 @@ import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ItemEditorTypes;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
@@ -191,7 +192,7 @@ public final class BucketCreatureSpecialDataSection {
                 bucketEntityCard.child(UiFactory.field(
                         Field.AGE.text(),
                         Component.empty(),
-                        UiFactory.textBox(special.bucketAge, context.bindText(value -> special.bucketAge = value))
+                        context.boundTextBox(Field.AGE.key())
                                 .horizontalSizing(
                                         compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))));
                 bucketEntityCard.child(UiFactory.checkbox(
@@ -203,9 +204,7 @@ public final class BucketCreatureSpecialDataSection {
                 bucketEntityCard.child(UiFactory.field(
                         Field.HUNTING_COOLDOWN.text(),
                         Component.empty(),
-                        UiFactory.textBox(
-                                        special.bucketHuntingCooldown,
-                                        context.bindText(value -> special.bucketHuntingCooldown = value))
+                        context.boundTextBox(Field.HUNTING_COOLDOWN.key())
                                 .horizontalSizing(
                                         compactLayout ? Sizing.fill(100) : UiFactory.fixed(HEALTH_FIELD_WIDTH))));
             }
@@ -289,12 +288,12 @@ public final class BucketCreatureSpecialDataSection {
     private record PufferStateOption(String value, String labelKey) {}
 
     private enum BucketType {
-        AXOLOTL(EntityType.AXOLOTL),
-        SALMON(EntityType.SALMON),
-        TROPICAL_FISH(EntityType.TROPICAL_FISH),
-        PUFFERFISH(EntityType.PUFFERFISH),
-        COD(EntityType.COD),
-        TADPOLE(EntityType.TADPOLE),
+        AXOLOTL(ItemEditorTypes.AXOLOTL),
+        SALMON(ItemEditorTypes.SALMON),
+        TROPICAL_FISH(ItemEditorTypes.TROPICAL_FISH),
+        PUFFERFISH(ItemEditorTypes.PUFFERFISH),
+        COD(ItemEditorTypes.COD),
+        TADPOLE(ItemEditorTypes.TADPOLE),
         UNKNOWN(null);
 
         private final EntityType<?> entityType;

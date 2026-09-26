@@ -71,6 +71,7 @@ final class RichTextRenderer {
             int clipRight,
             boolean renderStructuredEvents,
             boolean renderStructuredObjects,
+            boolean bookMode,
             List<RichTextLayoutUtil.EventOverlayRange> eventOverlayRanges) {
         if (renderStructuredEvents) {
             this.renderEventAttachmentOverlay(context, line, baseX, lineY, eventOverlayRanges);
@@ -78,9 +79,12 @@ final class RichTextRenderer {
         List<TextRun> runs = this.cachedLines.computeIfAbsent(
                 line,
                 ignored -> buildRuns(
-                        document, line, renderStructuredEvents, renderStructuredObjects, component -> this.font
-                                .getSplitter()
-                                .stringWidth(component)));
+                        document,
+                        line,
+                        renderStructuredEvents,
+                        renderStructuredObjects,
+                        bookMode,
+                        component -> this.font.getSplitter().stringWidth(component)));
         for (TextRun run : runs) {
             if (baseX + run.end() < clipLeft - 16 || baseX + run.start() > clipRight + 16) continue;
             context.pose().pushMatrix();
@@ -99,6 +103,16 @@ final class RichTextRenderer {
             boolean renderStructuredEvents,
             boolean renderStructuredObjects,
             ToDoubleFunction<Component> measure) {
+        return buildRuns(document, line, renderStructuredEvents, renderStructuredObjects, false, measure);
+    }
+
+    static List<TextRun> buildRuns(
+            RichTextDocument document,
+            RichTextLayoutUtil.LineLayout line,
+            boolean renderStructuredEvents,
+            boolean renderStructuredObjects,
+            boolean bookMode,
+            ToDoubleFunction<Component> measure) {
         List<TextRun> runs = new ArrayList<>();
         List<FormattedCharSequence> text = new ArrayList<>();
         int[] positions = line.positions();
@@ -107,8 +121,17 @@ final class RichTextRenderer {
         boolean shadow = false;
         for (int index = 0; index + 1 < positions.length; index++) {
             if (boundaries[index + 1] <= boundaries[index]) continue;
-            Component component = RichTextLayoutUtil.renderedDocumentComponentForRange(
-                    document, positions[index], positions[index + 1], renderStructuredEvents, renderStructuredObjects);
+            Component component = bookMode
+                    ? (renderStructuredEvents && renderStructuredObjects
+                            ? RichTextLayoutUtil.renderedBookDocumentForRange(
+                                    document, positions[index], positions[index + 1])
+                            : document.sliceToComponent(positions[index], positions[index + 1]))
+                    : RichTextLayoutUtil.renderedDocumentComponentForRange(
+                            document,
+                            positions[index],
+                            positions[index + 1],
+                            renderStructuredEvents,
+                            renderStructuredObjects);
             boolean nextShadow = hasShadowColor(component);
             boolean exactWidth =
                     Math.abs(measure.applyAsDouble(component) - (boundaries[index + 1] - boundaries[index])) < .001f;

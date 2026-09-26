@@ -21,6 +21,9 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemEditorSession {
@@ -257,6 +260,48 @@ public final class ItemEditorSession {
         }
         this.messages = safeMessages;
         this.notifyListeners();
+    }
+
+    public void resetField(String key) {
+        if (!ItemEditorFieldReset.supports(key) || !this.prepareStructuredTransition()) return;
+        if (!ItemEditorFieldReset.restore(key, this.state, this.baselineState)) return;
+        this.rebuildPreview();
+    }
+
+    public String fieldValue(String key, boolean original) {
+        return ItemEditorFieldReset.value(key, original ? this.baselineState : this.state);
+    }
+
+    public boolean fieldChanged(String key) {
+        return ItemEditorFieldReset.changed(key, this.state, this.baselineState);
+    }
+
+    public void restoreChange(String id) {
+        if (this.hasErrors()) return;
+        ItemStack restored = restoredChange(this.originalStack, this.previewStack, id);
+        this.state.rawEditorText = RawItemDataUtil.serialize(restored, this.registryAccess());
+        this.state.rawEditorEdited = true;
+        this.rebuildRawPreview(this.state.rawEditorText, restored);
+    }
+
+    static ItemStack restoredChange(ItemStack original, ItemStack current, String id) {
+        ItemStack restored = current.copy();
+        if (id.equals("itemeditor:count")) restored.setCount(original.getCount());
+        else if (id.equals("itemeditor:item")) {
+            restored = restored.transmuteCopy(original.getItem(), restored.getCount());
+        } else {
+            var type = BuiltInRegistries.DATA_COMPONENT_TYPE
+                    .getOptional(Identifier.parse(id))
+                    .orElse(null);
+            if (type != null) restoreComponent(original, restored, type);
+        }
+        return restored;
+    }
+
+    private static <T> void restoreComponent(ItemStack original, ItemStack stack, DataComponentType<T> type) {
+        T value = original.get(type);
+        if (value == null) stack.remove(type);
+        else stack.set(type, value);
     }
 
     public void reset() {

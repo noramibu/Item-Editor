@@ -126,13 +126,13 @@ final class BucketCreatureSpecialDataApplier extends AbstractPreviewApplierSuppo
         String entityId = bucketEntityType == null
                 ? ""
                 : EntityType.getKey(bucketEntityType).toString();
-        if (!EntitySpawnDataUtil.applyAttributes(
+        if (EntitySpawnDataUtil.failedToApplyAttributes(
                         bucketTag,
                         special.bucketAttributes,
                         Set.of(),
                         context,
                         ItemEditorText.str("special.bucket.entity_data"))
-                || !EntitySpawnDataUtil.applyHealth(
+                || EntitySpawnDataUtil.failedToApplyHealth(
                         bucketTag,
                         special.bucketHealth,
                         entityId,

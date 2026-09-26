@@ -5,6 +5,7 @@ import io.wispforest.owo.ui.component.DiscreteSliderComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
+import io.wispforest.owo.ui.core.CursorStyle;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
@@ -32,6 +33,7 @@ import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.LootTableIds;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
 import me.noramibu.itemeditor.util.RawValidationAsyncService;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -57,7 +59,7 @@ public final class RawEditorPanel implements EditorPanel {
             Pattern.CASE_INSENSITIVE);
     private static final int PANEL_SCROLLBAR_BASE_THICKNESS = 8;
     private static final int CONTROL_STACK_WIDTH_HINT = 420;
-    private static final int ACTION_ROW_BUTTON_COUNT = 3;
+    private static final int ACTION_ROW_BUTTON_COUNT = 6;
     private static final double CONTROL_COMPACT_HEIGHT_RATIO = 0.78d;
     private static final int CONTROL_SECONDARY_BUTTON_MIN = 62;
     private static final int CONTROL_SECONDARY_BUTTON_MAX = 108;
@@ -70,7 +72,7 @@ public final class RawEditorPanel implements EditorPanel {
     private static final int SECTION_RIGHT_SAFETY_PADDING_BASE = 12;
     private static final int ACTION_BUTTON_WIDTH_MIN = 78;
     private static final int ACTION_BUTTON_WIDTH_BASE = 96;
-    private static final int STATUS_LINE_COUNT = 3;
+    private static final int STATUS_LINE_COUNT = 1;
     private static final int STATUS_TEXT_SAFETY_PADDING = 4;
     private static final int OPTIONS_INLINE_WIDTH_THRESHOLD = 620;
     private static final int EDITOR_HEIGHT_SAFETY_PADDING = 4;
@@ -184,17 +186,14 @@ public final class RawEditorPanel implements EditorPanel {
                 () -> LootTableIds.fromResources(
                         this.screen.session().minecraft().getResourceManager()),
                 () -> this.persistRawEditorOptions(state));
-        int[] activeLine = new int[] {editor.caretLine()};
-        int[] errorLine = new int[] {-1};
-        int[] errorColumn = new int[] {-1};
 
         ButtonComponent optionsButton = this.rawActionButton(
                 Field.OPTIONS.label(),
-                controlLayout.compactControls(),
-                controlLayout.secondaryButtonWidth(),
+                true,
+                controlLayout.undoRedoButtonWidth(),
                 controlLayout.actionButtonHeight(),
-                controlLayout.stackActionRows(),
-                UiFactory.ButtonTextPreset.STANDARD,
+                false,
+                UiFactory.ButtonTextPreset.COMPACT,
                 button -> {
                     state.uiRawEditorOptionsExpanded = !state.uiRawEditorOptionsExpanded;
                     this.screen.refreshCurrentPanel();
@@ -216,17 +215,36 @@ public final class RawEditorPanel implements EditorPanel {
                 UiFactory.ButtonTextPreset.COMPACT,
                 button -> editor.redo());
 
+        ButtonComponent focusButton = UiFactory.button(
+                ItemEditorText.tr(this.screen.rawFocusMode() ? "raw_editor.focus.exit" : "raw_editor.focus.enter"),
+                UiFactory.ButtonTextPreset.COMPACT,
+                button -> this.screen.toggleRawFocusMode());
+        focusButton.tooltip(UiFactory.tooltipLines(ItemEditorText.tr("raw_editor.focus.tooltip"), 260));
+        focusButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+        ButtonComponent findButton = UiFactory.button(
+                ItemEditorText.tr("raw_editor.find.title"),
+                UiFactory.ButtonTextPreset.COMPACT,
+                button -> this.screen.openRawTextSearch(editor, 0));
+        findButton.tooltip(UiFactory.tooltipLines(ItemEditorText.tr("command_editor.find_tooltip"), 260));
+        findButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+        ButtonComponent stringButton = UiFactory.button(
+                ItemEditorText.tr("raw_editor.string.open"),
+                UiFactory.ButtonTextPreset.COMPACT,
+                button -> this.screen.openRawStringEditor(editor));
+        stringButton.tooltip(UiFactory.tooltipLines(ItemEditorText.tr("raw_editor.string.tooltip"), 260));
+        stringButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+        boolean focusMode = this.screen.rawFocusMode();
         if (controlLayout.stackActionRows()) {
-            FlowLayout optionsHeader = UiFactory.column();
-            optionsHeader.child(optionsButton);
+            FlowLayout optionsHeader =
+                    UiFactory.actionButtonRow(false, optionsButton, focusButton, findButton, stringButton);
             section.child(optionsHeader);
 
-            section.child(UiFactory.actionButtonRow(false, undoButton, redoButton));
+            if (!focusMode) section.child(UiFactory.actionButtonRow(false, undoButton, redoButton));
+        } else if (focusMode) {
+            section.child(UiFactory.actionButtonRow(false, optionsButton, focusButton, findButton, stringButton));
         } else {
-            FlowLayout topActions = UiFactory.row();
-            topActions.child(optionsButton);
-            topActions.child(undoButton);
-            topActions.child(redoButton);
+            FlowLayout topActions = UiFactory.actionButtonRow(
+                    false, optionsButton, undoButton, redoButton, focusButton, findButton, stringButton);
             section.child(topActions);
         }
 
@@ -332,15 +350,53 @@ public final class RawEditorPanel implements EditorPanel {
                         - UiFactory.scrollContentInset(PANEL_SCROLLBAR_BASE_THICKNESS)
                         - rightSafetyPadding);
         LabelComponent parseStatus = this.statusLabel(statusWidth);
-        LabelComponent caretStatus = this.statusLabel(statusWidth);
-        LabelComponent diffStatus = this.statusLabel(statusWidth);
+        parseStatus.mouseDown().subscribe((click, doubled) -> click.button() == 0 && editor.selectError());
 
         section.child(parseStatus);
-        section.child(caretStatus);
-        section.child(diffStatus);
+
+        if (focusMode) {
+            ButtonComponent cancelButton = UiFactory.negativeButton(
+                    ItemEditorText.tr("common.cancel"),
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    button -> this.screen.requestClose());
+            ButtonComponent applyButton = UiFactory.positiveButton(
+                    this.screen.applyActionLabel(),
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    button -> this.screen.requestApply());
+            cancelButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+            applyButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+            this.screen.bindApplyButton(applyButton);
+            var focusActions = new ArrayList<ButtonComponent>();
+            focusActions.add(undoButton);
+            focusActions.add(redoButton);
+            focusActions.add(cancelButton);
+            focusActions.add(applyButton);
+            if (this.screen.session().hasStorageOrigin()) {
+                ButtonComponent saveStorageButton = UiFactory.positiveButton(
+                        ItemEditorText.tr("editor.apply.save_storage"),
+                        UiFactory.ButtonTextPreset.COMPACT,
+                        button -> this.screen.requestSaveStorage());
+                ButtonComponent placeAndSaveButton = UiFactory.positiveButton(
+                        this.screen
+                                .applyActionLabel()
+                                .copy()
+                                .append(" + ")
+                                .append(ItemEditorText.tr("editor.apply.save_storage")),
+                        UiFactory.ButtonTextPreset.COMPACT,
+                        button -> this.screen.requestPlaceAndSaveStorage());
+                saveStorageButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+                placeAndSaveButton.verticalSizing(Sizing.fixed(controlLayout.actionButtonHeight()));
+                focusActions.add(saveStorageButton);
+                focusActions.add(placeAndSaveButton);
+            }
+            section.child(UiFactory.actionButtonRow(false, focusActions.toArray(ButtonComponent[]::new)));
+        }
 
         Runnable requestValidation = () -> {
             String rawText = editor.getValue();
+            editor.setErrorLocation(-1, -1, 0);
+            parseStatus.cursorStyle(CursorStyle.POINTER);
+            this.setStatusText(parseStatus, Component.literal(STATUS_VALIDATING_TEXT), UiColors.MUTED, statusWidth);
             int rawTextLength = rawText.length();
             boolean likelyIncomplete =
                     rawTextLength < VERY_LARGE_TEXT_THRESHOLD && this.isLikelyIncompleteRawState(rawText);
@@ -365,46 +421,27 @@ public final class RawEditorPanel implements EditorPanel {
                     parseIdleDelay,
                     heavyIdleDelay,
                     parseResult -> {
+                        if (!editor.getValue().equals(rawText)) return;
                         if (!parseResult.success()) {
-                            this.applyParseFailure(
-                                    ParseFailure.from(parseResult),
-                                    parseStatus,
-                                    diffStatus,
-                                    statusWidth,
-                                    editor,
-                                    errorLine,
-                                    errorColumn);
+                            this.applyParseFailure(ParseFailure.from(parseResult), parseStatus, statusWidth, editor);
                             return;
                         }
 
-                        errorLine[0] = -1;
-                        errorColumn[0] = -1;
-                        this.setStatusText(
-                                parseStatus,
-                                ItemEditorText.tr("raw_editor.status.valid"),
-                                UiColors.SUCCESS,
-                                statusWidth);
+                        this.setParsedStatus(
+                                parseStatus, Component.literal(STATUS_VALIDATING_TEXT), UiColors.MUTED, statusWidth);
                         editor.setErrorLocation(-1, -1, 0);
-                        this.setStatusText(
-                                diffStatus, Component.literal(STATUS_VALIDATING_TEXT), UiColors.MUTED, statusWidth);
                         this.screen.session().rebuildRawPreview(rawText, parseResult.parsedStack());
                     },
                     result -> {
+                        if (!editor.getValue().equals(rawText)) return;
                         if (!result.success()) {
-                            this.applyParseFailure(
-                                    ParseFailure.from(result),
-                                    parseStatus,
-                                    diffStatus,
-                                    statusWidth,
-                                    editor,
-                                    errorLine,
-                                    errorColumn);
+                            this.applyParseFailure(ParseFailure.from(result), parseStatus, statusWidth, editor);
                             return;
                         }
 
                         if (result.diffError() != null) {
-                            this.setStatusText(
-                                    diffStatus,
+                            this.setParsedStatus(
+                                    parseStatus,
                                     ItemEditorText.tr("dialog.apply.diff_failed", result.diffError()),
                                     UiColors.DANGER,
                                     statusWidth);
@@ -412,7 +449,7 @@ public final class RawEditorPanel implements EditorPanel {
                             String diffText = result.diffEntries() == 0
                                     ? ItemEditorText.str("raw_editor.status.no_changes")
                                     : ItemEditorText.str("raw_editor.status.changes", result.diffEntries());
-                            this.setStatusText(diffStatus, Component.literal(diffText), UiColors.MUTED, statusWidth);
+                            this.setParsedStatus(parseStatus, Component.literal(diffText), UiColors.MUTED, statusWidth);
                         }
                     });
         };
@@ -435,21 +472,12 @@ public final class RawEditorPanel implements EditorPanel {
         editor.onChanged().subscribe((text, delta) -> {
             state.rawEditorText = text;
             state.rawEditorEdited = true;
-            activeLine[0] = editor.caretLine();
             autocomplete.onChanged(delta);
             requestValidation.run();
             this.persistEditorUiState(state, editor);
         });
 
         editor.onViewportChanged(() -> {
-            int caretLine = editor.caretLine();
-            this.setStatusText(
-                    caretStatus,
-                    ItemEditorText.tr("raw_editor.caret", caretLine, editor.caretColumn()),
-                    UiColors.MUTED,
-                    statusWidth);
-            activeLine[0] = caretLine;
-
             autocomplete.onViewportChanged();
             this.persistEditorUiState(state, editor);
         });
@@ -457,14 +485,10 @@ public final class RawEditorPanel implements EditorPanel {
         refreshHistoryButtons.run();
         requestValidation.run();
         autocomplete.request();
-        this.setStatusText(
-                caretStatus,
-                ItemEditorText.tr("raw_editor.caret", activeLine[0], editor.caretColumn()),
-                UiColors.MUTED,
-                statusWidth);
         this.persistEditorUiState(state, editor);
 
         UiFactory.appendFillChild(root, section);
+        this.screen.bindRawSearchEditor(editor);
         return root;
     }
 
@@ -499,7 +523,7 @@ public final class RawEditorPanel implements EditorPanel {
     }
 
     private void persistRawEditorOptions(ItemEditorState state) {
-        RawEditorOptions options = new RawEditorOptions();
+        RawEditorOptions options = RawEditorOptionsService.instance().load();
         options.wordWrap = state.rawEditorWordWrap;
         options.showDefaultKeys = state.rawEditorShowDefaults;
         options.autocompleteDisabled = state.rawEditorAutocompleteDisabled;
@@ -550,7 +574,7 @@ public final class RawEditorPanel implements EditorPanel {
                 compactControls,
                 compactControls,
                 actionButtonHeight,
-                compactControlHeight,
+                actionButtonHeight,
                 secondaryButtonWidth,
                 undoRedoButtonWidth);
     }
@@ -607,6 +631,15 @@ public final class RawEditorPanel implements EditorPanel {
         label.tooltip(safeText.getString().isBlank() ? List.of() : List.of(safeText));
     }
 
+    private void setParsedStatus(LabelComponent label, Component detail, int detailColor, int width) {
+        Component text = ItemEditorText.tr("raw_editor.status.valid")
+                .copy()
+                .withColor(UiColors.SUCCESS)
+                .append(Component.literal(" | ").withStyle(ChatFormatting.GRAY))
+                .append(detail.copy().withColor(detailColor));
+        this.setStatusText(label, text, UiColors.MUTED, width);
+    }
+
     private long resolveValidationDelay(
             int textLength,
             boolean likelyIncomplete,
@@ -637,7 +670,10 @@ public final class RawEditorPanel implements EditorPanel {
         int sectionGap = UiFactory.scaleProfile().spacing();
         int topChildCount;
         int topHeight;
-        if (controlLayout.stackActionRows()) {
+        if (this.screen.rawFocusMode()) {
+            topHeight = controlLayout.actionButtonHeight();
+            topChildCount = 1;
+        } else if (controlLayout.stackActionRows()) {
             topHeight = controlLayout.actionButtonHeight() + controlLayout.undoRedoButtonHeight();
             topChildCount = 2;
         } else {
@@ -648,6 +684,11 @@ public final class RawEditorPanel implements EditorPanel {
         if (optionsExpanded) {
             topHeight += this.optionsPanelHeight(
                     controlLayout, editorWidthHint >= UiFactory.scaledPixels(OPTIONS_INLINE_WIDTH_THRESHOLD));
+            topChildCount++;
+        }
+
+        if (this.screen.rawFocusMode()) {
+            topHeight += Math.max(controlLayout.actionButtonHeight(), controlLayout.undoRedoButtonHeight());
             topChildCount++;
         }
 
@@ -783,16 +824,8 @@ public final class RawEditorPanel implements EditorPanel {
     }
 
     private void applyParseFailure(
-            ParseFailure failure,
-            LabelComponent parseStatus,
-            LabelComponent diffStatus,
-            int statusWidth,
-            RawTextAreaComponent editor,
-            int[] errorLine,
-            int[] errorColumn) {
+            ParseFailure failure, LabelComponent parseStatus, int statusWidth, RawTextAreaComponent editor) {
         ErrorHighlight highlight = this.resolveErrorHighlight(editor.getValue(), failure);
-        errorLine[0] = highlight.line();
-        errorColumn[0] = highlight.column();
         String conciseError = this.compactError(failure.error(), MAX_STATUS_ERROR_LENGTH);
         String parseMessage = highlight.hasPosition()
                 ? ItemEditorText.str(
@@ -804,7 +837,10 @@ public final class RawEditorPanel implements EditorPanel {
                         "dialog.apply.parse.error_position", validationError, highlight.line(), highlight.column())
                 : ItemEditorText.str("preview.validation.component_failed", validationError);
         this.setStatusText(parseStatus, Component.literal(parseMessage), UiColors.DANGER, statusWidth);
-        this.setStatusText(diffStatus, Component.literal(STATUS_EMPTY_TEXT), UiColors.MUTED, statusWidth);
+        parseStatus.cursorStyle(highlight.hasPosition() ? CursorStyle.HAND : CursorStyle.POINTER);
+        if (highlight.hasPosition()) {
+            parseStatus.tooltip(List.of(Component.literal(parseMessage), ItemEditorText.tr("raw_editor.error.jump")));
+        }
         editor.setErrorLocation(highlight.line(), highlight.column(), highlight.length());
         this.screen.session().setTransientValidationMessages(List.of(ValidationMessage.error(validationMessage)));
     }

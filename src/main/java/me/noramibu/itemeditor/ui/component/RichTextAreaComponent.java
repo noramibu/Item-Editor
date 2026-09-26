@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.component;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.owo.mixin.ui.access.MultilineTextFieldAccessor;
 import io.wispforest.owo.ui.component.TextAreaComponent;
 import io.wispforest.owo.ui.core.CursorStyle;
@@ -31,7 +32,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
 import org.jetbrains.annotations.NotNull;
-import org.lwjgl.glfw.GLFW;
 
 public final class RichTextAreaComponent extends TextAreaComponent implements GreedyInputUIComponent {
 
@@ -73,6 +73,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     private int committedLayoutViewportHeight = -1;
     private boolean lineWrap = true;
     private int lineWrapWidthOverride = -1;
+    private boolean bookMode;
     private int lineWrapPadding;
     private boolean showSoftWrapMarkers;
     private boolean renderStructuredEvents;
@@ -118,21 +119,6 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         this.ensureLayoutCurrent();
         int index = (int) Math.floor(this.scrollAmount() / LINE_HEIGHT);
         return Math.clamp(index, 0, this.displayLines.size() - 1);
-    }
-
-    public int logicalLineNumberForDisplayedLineIndex(int displayedLineIndex) {
-        this.ensureLayoutCurrent();
-        if (this.displayLines.isEmpty()) {
-            return Math.max(1, displayedLineIndex + 1);
-        }
-        if (displayedLineIndex < 0) {
-            return this.displayLines.getFirst().logicalLineNumber();
-        }
-        if (displayedLineIndex < this.displayLines.size()) {
-            return this.displayLines.get(displayedLineIndex).logicalLineNumber();
-        }
-        RichTextLayoutUtil.LineLayout lastLine = this.displayLines.getLast();
-        return lastLine.logicalLineNumber() + (displayedLineIndex - this.displayLines.size() + 1);
     }
 
     public int displayedTopInset() {
@@ -224,6 +210,14 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         return this;
     }
 
+    public RichTextAreaComponent bookMode(boolean enabled) {
+        if (this.bookMode != enabled) {
+            this.bookMode = enabled;
+            this.refreshLayout();
+        }
+        return this;
+    }
+
     public RichTextAreaComponent lineWrapPadding(int lineWrapPadding) {
         int normalized = Math.max(0, lineWrapPadding);
         if (this.lineWrapPadding == normalized) {
@@ -299,6 +293,69 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     public void applyShadowColor(int color) {
         this.applyStyle(style -> style.withShadowColor(color));
+    }
+
+    public RichTextStyle selectionStyle() {
+        RichTextSelectionModel selection = this.currentSelection();
+        return selection.hasSelection() ? this.document.insertionStyleAt(selection.start()) : this.pendingStyle;
+    }
+
+    public void applyPairedColors(UnifiedColorPickerDialog.PairedColorResult colors) {
+        if (!colors.textChanged() && !colors.shadowChanged()) return;
+        RichTextSelectionModel selection = this.currentSelection();
+        HistoryState before = this.captureHistoryState();
+        UnifiedColorPickerDialog.PaintLayer text = colors.text();
+        UnifiedColorPickerDialog.PaintLayer shadow = colors.shadow();
+        if (!selection.hasSelection()
+                && (!colors.textChanged() || text.mode() == UnifiedColorPickerDialog.PaintMode.COLOR)
+                && (!colors.shadowChanged()
+                        || !colors.shadowEnabled()
+                        || shadow.mode() == UnifiedColorPickerDialog.PaintMode.COLOR)) {
+            if (colors.textChanged())
+                this.pendingStyle = this.pendingStyle.withColor(text.colors().getFirst());
+            if (colors.shadowChanged()) {
+                this.pendingStyle = this.pendingStyle.withShadowColor(
+                        colors.shadowEnabled() ? shadow.colors().getFirst() | 0xFF000000 : null);
+            }
+            this.pendingStylePinned = true;
+            this.recordUndo(before);
+            return;
+        }
+
+        RichTextDocument updated = this.document.copy();
+        int start = selection.hasSelection() ? selection.start() : 0;
+        int end = selection.hasSelection() ? selection.end() : updated.length();
+        if (colors.textChanged()) {
+            if (text.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
+                updated.applyGradient(start, end, text.colors());
+            } else {
+                updated.applyStyle(
+                        start, end, style -> style.withColor(text.colors().getFirst()));
+            }
+        }
+        if (colors.shadowChanged()) {
+            if (!colors.shadowEnabled()) {
+                updated.applyStyle(start, end, style -> style.withShadowColor(null));
+            } else if (shadow.mode() == UnifiedColorPickerDialog.PaintMode.GRADIENT) {
+                updated.applyShadowGradient(start, end, shadow.colors());
+            } else {
+                updated.applyStyle(
+                        start,
+                        end,
+                        style -> style.withShadowColor(shadow.colors().getFirst() | 0xFF000000));
+            }
+        }
+        String rejection = this.validator.apply(updated);
+        if (rejection != null) {
+            this.rejectionHandler.accept(rejection);
+            return;
+        }
+        this.document = updated;
+        this.pendingStylePinned = false;
+        this.pendingStyle = this.resolveInsertionStyle(selection.cursor());
+        this.refreshLayout();
+        this.recordUndo(before);
+        this.documentChangedEvents.sink().onChanged(this.document.copy());
     }
 
     public void applyGradientSelectionOrAll(List<Integer> colors) {
@@ -412,7 +469,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     public boolean mouseClicked(@NotNull MouseButtonEvent click, boolean doubled) {
         if (!this.active
                 || !this.visible
-                || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT
+                || click.button() != InputConstants.MOUSE_BUTTON_LEFT
                 || !this.isMouseOver(click.x(), click.y())) {
             if (!this.isMouseOver(click.x(), click.y())) {
                 this.setFocused(false);
@@ -436,7 +493,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         }
 
         int targetCursor = this.cursorForPoint(click.x(), click.y());
-        this.editBox.setSelecting(click.hasShiftDown());
+        this.editBox.setSelecting(click.hasShiftDown() || doubled);
         if (doubled) {
             RichTextLayoutUtil.SourceRange word = this.visualWordRangeAtCursor(targetCursor);
             ((MultilineTextFieldAccessor) this.editBox).owo$setSelectCursor(word.start());
@@ -464,7 +521,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
     @Override
     public boolean mouseDragged(@NotNull MouseButtonEvent click, double deltaX, double deltaY) {
-        if (!this.visible || !this.isFocused() || click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (!this.visible || !this.isFocused() || click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
         this.editBox.setSelecting(true);
@@ -486,7 +543,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             });
         }
         if (input.hasControlDownWithQuirk()) {
-            if (input.key() == GLFW.GLFW_KEY_Z) {
+            if (input.key() == InputConstants.KEY_Z) {
                 if (input.hasShiftDown()) {
                     this.redo();
                 } else {
@@ -494,17 +551,17 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                 }
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_Y) {
+            if (input.key() == InputConstants.KEY_Y) {
                 this.redo();
                 return true;
             }
-            if (input.key() == GLFW.GLFW_KEY_C) {
+            if (input.key() == InputConstants.KEY_C) {
                 return this.copySelectionToClipboard(false);
             }
-            if (input.key() == GLFW.GLFW_KEY_X) {
+            if (input.key() == InputConstants.KEY_X) {
                 return this.copySelectionToClipboard(true);
             }
-            if (input.key() == GLFW.GLFW_KEY_V) {
+            if (input.key() == InputConstants.KEY_V) {
                 return this.pasteClipboardContents();
             }
         }
@@ -516,18 +573,18 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
             this.moveCursorVertical(1, input.hasShiftDown());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_HOME) {
+        if (input.key() == InputConstants.KEY_HOME) {
             this.moveCursorToLineEdge(false, input.hasShiftDown(), input.hasControlDownWithQuirk());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_END) {
+        if (input.key() == InputConstants.KEY_END) {
             this.moveCursorToLineEdge(true, input.hasShiftDown(), input.hasControlDownWithQuirk());
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_BACKSPACE && this.deleteRenderedTokenAtCursor(true)) {
+        if (input.key() == InputConstants.KEY_BACKSPACE && this.deleteRenderedTokenAtCursor(true)) {
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_DELETE && this.deleteRenderedTokenAtCursor(false)) {
+        if (input.key() == InputConstants.KEY_DELETE && this.deleteRenderedTokenAtCursor(false)) {
             return true;
         }
 
@@ -597,6 +654,7 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
                             clipRight,
                             this.renderStructuredEvents,
                             this.renderStructuredObjects,
+                            this.bookMode,
                             this.eventOverlayRanges);
                     if (this.showSoftWrapMarkers && this.isSoftWrappedLine(lineIndex)) {
                         this.renderer.renderPlaceholder(
@@ -864,8 +922,14 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
         int displayWrapWidth = this.lineWrap ? this.effectiveDisplayWrapWidth(measuredContentWidth) : Integer.MAX_VALUE;
 
         this.renderer.invalidate();
-        this.displayLines = RichTextLayoutUtil.layoutDocumentSource(
-                this.document, this.font, displayWrapWidth, this.renderStructuredEvents, this.renderStructuredObjects);
+        this.displayLines = this.bookMode && this.renderStructuredEvents && this.renderStructuredObjects
+                ? RichTextLayoutUtil.layoutBookDocument(this.document, this.font, displayWrapWidth)
+                : RichTextLayoutUtil.layoutDocumentSource(
+                        this.document,
+                        this.font,
+                        displayWrapWidth,
+                        this.renderStructuredEvents,
+                        this.renderStructuredObjects);
         if (this.displayLines.isEmpty()) {
             this.displayLines = List.of(
                     new RichTextLayoutUtil.LineLayout(0, 0, Component.empty(), new int[] {0}, new float[] {0f}));
@@ -1345,7 +1409,10 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
 
         Component selected = this.document.sliceToComponent(selection.start(), selection.end());
         richClipboardPlain = selected.getString();
-        richClipboardMarkup = RichTextDocument.fromComponent(selected).toMarkup();
+        RichTextDocument selectionDocument = RichTextDocument.fromComponent(selected);
+        richClipboardMarkup = this.bookMode
+                ? TextComponentUtil.serializeBookDocument(selectionDocument)
+                : selectionDocument.toMarkup();
         Minecraft.getInstance().keyboardHandler.setClipboard(richClipboardPlain);
 
         if (!cutSelection) {
@@ -1375,7 +1442,8 @@ public final class RichTextAreaComponent extends TextAreaComponent implements Gr
     }
 
     private boolean insertRichMarkup(String markup) {
-        RichTextDocument inserted = RichTextDocument.fromMarkup(markup);
+        RichTextDocument inserted =
+                this.bookMode ? TextComponentUtil.parseBookDocument(markup) : RichTextDocument.fromMarkup(markup);
         if (inserted.isEmpty()) {
             return false;
         }

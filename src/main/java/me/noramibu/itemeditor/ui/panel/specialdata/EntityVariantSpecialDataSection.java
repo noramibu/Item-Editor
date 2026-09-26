@@ -2,21 +2,25 @@ package me.noramibu.itemeditor.ui.panel.specialdata;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.Sizing;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import me.noramibu.itemeditor.editor.EditorCategory;
+import me.noramibu.itemeditor.editor.ItemEditorFieldReset;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
-import me.noramibu.itemeditor.util.ItemEditorText;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -39,9 +43,110 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
 
 public final class EntityVariantSpecialDataSection {
-    private static final int COMPACT_LAYOUT_WIDTH_THRESHOLD = 620;
-    private static final int ID_FIELD_WIDTH = 260;
-    private static final int PICK_BUTTON_WIDTH = 110;
+
+    static final List<VariantDefinition> VARIANTS = List.of(
+            new VariantDefinition(
+                    "axolotl_variant",
+                    DataComponents.AXOLOTL_VARIANT,
+                    context -> serializedValues(Axolotl.Variant.values())),
+            new VariantDefinition(
+                    "cat_variant", DataComponents.CAT_VARIANT, context -> context.registryIds(Registries.CAT_VARIANT)),
+            new VariantDefinition(
+                    "cat_sound_variant",
+                    DataComponents.CAT_SOUND_VARIANT,
+                    context -> context.registryIds(Registries.CAT_SOUND_VARIANT)),
+            new VariantDefinition("cat_collar", DataComponents.CAT_COLLAR, context -> dyeColorValues()),
+            new VariantDefinition(
+                    "chicken_variant",
+                    DataComponents.CHICKEN_VARIANT,
+                    context -> context.registryIds(Registries.CHICKEN_VARIANT)),
+            new VariantDefinition(
+                    "chicken_sound_variant",
+                    DataComponents.CHICKEN_SOUND_VARIANT,
+                    context -> context.registryIds(Registries.CHICKEN_SOUND_VARIANT)),
+            new VariantDefinition(
+                    "cow_variant", DataComponents.COW_VARIANT, context -> context.registryIds(Registries.COW_VARIANT)),
+            new VariantDefinition(
+                    "cow_sound_variant",
+                    DataComponents.COW_SOUND_VARIANT,
+                    context -> context.registryIds(Registries.COW_SOUND_VARIANT)),
+            new VariantDefinition(
+                    "fox_variant", DataComponents.FOX_VARIANT, context -> serializedValues(Fox.Variant.values())),
+            new VariantDefinition(
+                    "frog_variant",
+                    DataComponents.FROG_VARIANT,
+                    context -> context.registryIds(Registries.FROG_VARIANT)),
+            new VariantDefinition(
+                    "horse_variant", DataComponents.HORSE_VARIANT, context -> serializedValues(Variant.values())),
+            new VariantDefinition(
+                    "llama_variant", DataComponents.LLAMA_VARIANT, context -> serializedValues(Llama.Variant.values())),
+            new VariantDefinition(
+                    "mooshroom_variant",
+                    DataComponents.MOOSHROOM_VARIANT,
+                    context -> serializedValues(MushroomCow.Variant.values())),
+            new VariantDefinition(
+                    "painting_variant",
+                    DataComponents.PAINTING_VARIANT,
+                    context -> context.registryIds(Registries.PAINTING_VARIANT)),
+            new VariantDefinition(
+                    "parrot_variant",
+                    DataComponents.PARROT_VARIANT,
+                    context -> serializedValues(Parrot.Variant.values())),
+            new VariantDefinition(
+                    "pig_variant", DataComponents.PIG_VARIANT, context -> context.registryIds(Registries.PIG_VARIANT)),
+            new VariantDefinition(
+                    "pig_sound_variant",
+                    DataComponents.PIG_SOUND_VARIANT,
+                    context -> context.registryIds(Registries.PIG_SOUND_VARIANT)),
+            new VariantDefinition(
+                    "rabbit_variant",
+                    DataComponents.RABBIT_VARIANT,
+                    context -> serializedValues(Rabbit.Variant.values())),
+            new VariantDefinition(
+                    "salmon_size", DataComponents.SALMON_SIZE, context -> serializedValues(Salmon.Variant.values())),
+            new VariantDefinition("sheep_color", DataComponents.SHEEP_COLOR, context -> dyeColorValues()),
+            new VariantDefinition("shulker_color", DataComponents.SHULKER_COLOR, context -> dyeColorValues()),
+            new VariantDefinition(
+                    "tropical_pattern",
+                    DataComponents.TROPICAL_FISH_PATTERN,
+                    context -> serializedValues(TropicalFish.Pattern.values())),
+            new VariantDefinition(
+                    "tropical_base_color", DataComponents.TROPICAL_FISH_BASE_COLOR, context -> dyeColorValues()),
+            new VariantDefinition(
+                    "tropical_pattern_color", DataComponents.TROPICAL_FISH_PATTERN_COLOR, context -> dyeColorValues()),
+            new VariantDefinition(
+                    "villager_variant",
+                    DataComponents.VILLAGER_VARIANT,
+                    context -> context.registryIds(Registries.VILLAGER_TYPE)),
+            new VariantDefinition(
+                    "wolf_variant",
+                    DataComponents.WOLF_VARIANT,
+                    context -> context.registryIds(Registries.WOLF_VARIANT)),
+            new VariantDefinition(
+                    "wolf_sound_variant",
+                    DataComponents.WOLF_SOUND_VARIANT,
+                    context -> context.registryIds(Registries.WOLF_SOUND_VARIANT)),
+            new VariantDefinition("wolf_collar", DataComponents.WOLF_COLLAR, context -> dyeColorValues()),
+            new VariantDefinition(
+                    "zombie_nautilus_variant",
+                    DataComponents.ZOMBIE_NAUTILUS_VARIANT,
+                    context -> context.registryIds(Registries.ZOMBIE_NAUTILUS_VARIANT)));
+
+    record VariantDefinition(
+            String name, DataComponentType<?> component, Function<SpecialDataPanelContext, List<String>> entries) {
+        boolean visible(ItemStack stack, String selectedEntity, String value) {
+            String entity = entityForKey("special.entity_variant." + name);
+            boolean present = stack.has(component);
+            if (name.equals("painting_variant")) {
+                return stack.is(Items.PAINTING) || present || !value.isBlank();
+            }
+            if (name.equals("chicken_variant")) present |= stack.is(Items.EGG);
+            if (name.equals("llama_variant") && selectedEntity.equals("minecraft:trader_llama")) {
+                selectedEntity = "minecraft:llama";
+            }
+            return show(selectedEntity, entity, present, value);
+        }
+    }
 
     private EntityVariantSpecialDataSection() {}
 
@@ -50,28 +155,71 @@ public final class EntityVariantSpecialDataSection {
     }
 
     public static FlowLayout build(SpecialDataPanelContext context) {
-        FlowLayout section = UiFactory.section(ItemEditorText.tr("special.entity_variant.title"), Component.empty());
-        section.id("entity-variants");
-        FlowLayout card = UiFactory.subCard();
-        fields(
-                context,
-                field -> card.child(textWithPicker(
-                        context,
-                        context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD),
-                        field.text(),
-                        field.value(),
-                        field.setter(),
-                        field.entries().get())));
-
-        if (card.children().isEmpty()) {
-            card.child(UiFactory.muted(ItemEditorText.tr("special.entity_variant.none"), context.panelWidthHint()));
+        FlowLayout result = UiFactory.column();
+        var groups = new LinkedHashSet<String>();
+        fields(context, field -> groups.add(field.entityId()));
+        for (String entityId : groups) {
+            if (embedded(context, entityId)) continue;
+            FlowLayout section = UiFactory.section(entityTitle(entityId), Component.empty());
+            section.child(buildFields(context, entityId));
+            result.child(section);
         }
-        section.child(card);
-        return section;
+        return result;
     }
 
     private record VariantField(String key, String value, Consumer<String> setter, Supplier<List<String>> entries)
-            implements SpecialDataSearch.Field {}
+            implements SpecialDataSearch.Field {
+        String entityId() {
+            return entityForKey(key);
+        }
+    }
+
+    static String entityForKey(String key) {
+        String suffix = key.substring("special.entity_variant.".length());
+        if (suffix.startsWith("tropical_")) return "minecraft:tropical_fish";
+        if (suffix.startsWith("zombie_nautilus_")) return "minecraft:zombie_nautilus";
+        return "minecraft:" + suffix.substring(0, suffix.indexOf('_'));
+    }
+
+    private static Component entityTitle(String entityId) {
+        return Component.translatable("entity." + entityId.replace(':', '.'));
+    }
+
+    private static boolean matches(VariantField field, String entityId) {
+        return field.entityId().equals(entityId)
+                || entityId.equals("minecraft:trader_llama") && field.entityId().equals("minecraft:llama");
+    }
+
+    private static boolean embedded(SpecialDataPanelContext context, String entityId) {
+        String selected = selectedEntityId(context.originalStack(), context.special());
+        return SpawnEggSpecialDataSection.supports(context.originalStack())
+                && (entityId.equals(selected)
+                        || entityId.equals("minecraft:llama") && selected.equals("minecraft:trader_llama"));
+    }
+
+    static long fieldCount(SpecialDataPanelContext context, String entityId, boolean configuredOnly) {
+        var fields = new ArrayList<VariantField>();
+        fields(context, field -> {
+            if (matches(field, entityId) && (!configuredOnly || !field.value().isBlank())) fields.add(field);
+        });
+        return fields.size();
+    }
+
+    static FlowLayout buildFields(SpecialDataPanelContext context, String entityId) {
+        FlowLayout result = UiFactory.column();
+        String scopeEntity = entityId.equals("minecraft:trader_llama") ? "minecraft:llama" : entityId;
+        result.id("entity-variants:" + scopeEntity);
+        fields(context, field -> {
+            if (matches(field, entityId))
+                result.child(variantPicker(
+                        context,
+                        field.text(),
+                        field.value(),
+                        field.setter(),
+                        field.entries().get()));
+        });
+        return result;
+    }
 
     public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
         var result = new ArrayList<EditorSearchDialog.Target>();
@@ -80,340 +228,48 @@ public final class EntityVariantSpecialDataSection {
                 field -> result.addAll(SpecialDataSearch.targets(
                         context,
                         EditorCategory.SPECIAL_DATA,
-                        "special.entity_variant.title",
-                        "entity-variants",
-                        () -> {},
+                        List.of(entityTitle(field.entityId()).getString()),
+                        "entity-variants:" + field.entityId(),
+                        () -> {
+                            if (embedded(context, field.entityId()))
+                                context.special()
+                                        .spawnEggEntity
+                                        .uiExpandedTagGroups
+                                        .add("entity");
+                        },
                         field)));
         return result;
     }
 
     private static void fields(SpecialDataPanelContext context, Consumer<VariantField> fields) {
         ItemStack stack = context.originalStack();
-        ItemEditorState.SpecialData special = context.special();
-        String entityId = selectedEntityId(stack, special);
-
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:axolotl",
-                        stack.has(DataComponents.AXOLOTL_VARIANT),
-                        special.bucketAxolotlVariant),
-                "axolotl_variant",
-                special.bucketAxolotlVariant,
-                value -> special.bucketAxolotlVariant = value,
-                () -> serializedValues(Axolotl.Variant.values()));
-        declare(
-                fields,
-                show(entityId, "minecraft:cat", stack.has(DataComponents.CAT_VARIANT), special.entityCatVariant),
-                "cat_variant",
-                special.entityCatVariant,
-                value -> special.entityCatVariant = value,
-                () -> context.registryIds(Registries.CAT_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:cat",
-                        stack.has(DataComponents.CAT_SOUND_VARIANT),
-                        special.entityCatSoundVariant),
-                "cat_sound_variant",
-                special.entityCatSoundVariant,
-                value -> special.entityCatSoundVariant = value,
-                () -> context.registryIds(Registries.CAT_SOUND_VARIANT));
-        declare(
-                fields,
-                show(entityId, "minecraft:cat", stack.has(DataComponents.CAT_COLLAR), special.entityCatCollar),
-                "cat_collar",
-                special.entityCatCollar,
-                value -> special.entityCatCollar = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:chicken",
-                        stack.has(DataComponents.CHICKEN_VARIANT) || stack.is(Items.EGG),
-                        special.entityChickenVariant),
-                "chicken_variant",
-                special.entityChickenVariant,
-                value -> special.entityChickenVariant = value,
-                () -> context.registryIds(Registries.CHICKEN_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:chicken",
-                        stack.has(DataComponents.CHICKEN_SOUND_VARIANT),
-                        special.entityChickenSoundVariant),
-                "chicken_sound_variant",
-                special.entityChickenSoundVariant,
-                value -> special.entityChickenSoundVariant = value,
-                () -> context.registryIds(Registries.CHICKEN_SOUND_VARIANT));
-        declare(
-                fields,
-                show(entityId, "minecraft:cow", stack.has(DataComponents.COW_VARIANT), special.entityCowVariant),
-                "cow_variant",
-                special.entityCowVariant,
-                value -> special.entityCowVariant = value,
-                () -> context.registryIds(Registries.COW_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:cow",
-                        stack.has(DataComponents.COW_SOUND_VARIANT),
-                        special.entityCowSoundVariant),
-                "cow_sound_variant",
-                special.entityCowSoundVariant,
-                value -> special.entityCowSoundVariant = value,
-                () -> context.registryIds(Registries.COW_SOUND_VARIANT));
-        declare(
-                fields,
-                show(entityId, "minecraft:fox", stack.has(DataComponents.FOX_VARIANT), special.entityFoxVariant),
-                "fox_variant",
-                special.entityFoxVariant,
-                value -> special.entityFoxVariant = value,
-                () -> serializedValues(Fox.Variant.values()));
-        declare(
-                fields,
-                show(entityId, "minecraft:frog", stack.has(DataComponents.FROG_VARIANT), special.entityFrogVariant),
-                "frog_variant",
-                special.entityFrogVariant,
-                value -> special.entityFrogVariant = value,
-                () -> context.registryIds(Registries.FROG_VARIANT));
-        declare(
-                fields,
-                show(entityId, "minecraft:horse", stack.has(DataComponents.HORSE_VARIANT), special.entityHorseVariant),
-                "horse_variant",
-                special.entityHorseVariant,
-                value -> special.entityHorseVariant = value,
-                () -> serializedValues(Variant.values()));
-        declare(
-                fields,
-                showAny(
-                        entityId,
-                        List.of("minecraft:llama", "minecraft:trader_llama"),
-                        stack.has(DataComponents.LLAMA_VARIANT),
-                        special.entityLlamaVariant),
-                "llama_variant",
-                special.entityLlamaVariant,
-                value -> special.entityLlamaVariant = value,
-                () -> serializedValues(Llama.Variant.values()));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:mooshroom",
-                        stack.has(DataComponents.MOOSHROOM_VARIANT),
-                        special.entityMooshroomVariant),
-                "mooshroom_variant",
-                special.entityMooshroomVariant,
-                value -> special.entityMooshroomVariant = value,
-                () -> serializedValues(MushroomCow.Variant.values()));
-        declare(
-                fields,
-                stack.is(Items.PAINTING)
-                        || stack.has(DataComponents.PAINTING_VARIANT)
-                        || !special.paintingVariantId.isBlank(),
-                "painting_variant",
-                special.paintingVariantId,
-                value -> special.paintingVariantId = value,
-                () -> context.registryIds(Registries.PAINTING_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:parrot",
-                        stack.has(DataComponents.PARROT_VARIANT),
-                        special.entityParrotVariant),
-                "parrot_variant",
-                special.entityParrotVariant,
-                value -> special.entityParrotVariant = value,
-                () -> serializedValues(Parrot.Variant.values()));
-        declare(
-                fields,
-                show(entityId, "minecraft:pig", stack.has(DataComponents.PIG_VARIANT), special.entityPigVariant),
-                "pig_variant",
-                special.entityPigVariant,
-                value -> special.entityPigVariant = value,
-                () -> context.registryIds(Registries.PIG_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:pig",
-                        stack.has(DataComponents.PIG_SOUND_VARIANT),
-                        special.entityPigSoundVariant),
-                "pig_sound_variant",
-                special.entityPigSoundVariant,
-                value -> special.entityPigSoundVariant = value,
-                () -> context.registryIds(Registries.PIG_SOUND_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:rabbit",
-                        stack.has(DataComponents.RABBIT_VARIANT),
-                        special.entityRabbitVariant),
-                "rabbit_variant",
-                special.entityRabbitVariant,
-                value -> special.entityRabbitVariant = value,
-                () -> serializedValues(Rabbit.Variant.values()));
-        declare(
-                fields,
-                show(entityId, "minecraft:salmon", stack.has(DataComponents.SALMON_SIZE), special.bucketSalmonSize),
-                "salmon_size",
-                special.bucketSalmonSize,
-                value -> special.bucketSalmonSize = value,
-                () -> serializedValues(Salmon.Variant.values()));
-        declare(
-                fields,
-                show(entityId, "minecraft:sheep", stack.has(DataComponents.SHEEP_COLOR), special.entitySheepColor),
-                "sheep_color",
-                special.entitySheepColor,
-                value -> special.entitySheepColor = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:shulker",
-                        stack.has(DataComponents.SHULKER_COLOR),
-                        special.entityShulkerColor),
-                "shulker_color",
-                special.entityShulkerColor,
-                value -> special.entityShulkerColor = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:tropical_fish",
-                        stack.has(DataComponents.TROPICAL_FISH_PATTERN),
-                        special.bucketTropicalPattern),
-                "tropical_pattern",
-                special.bucketTropicalPattern,
-                value -> special.bucketTropicalPattern = value,
-                () -> serializedValues(TropicalFish.Pattern.values()));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:tropical_fish",
-                        stack.has(DataComponents.TROPICAL_FISH_BASE_COLOR),
-                        special.bucketTropicalBaseColor),
-                "tropical_base_color",
-                special.bucketTropicalBaseColor,
-                value -> special.bucketTropicalBaseColor = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:tropical_fish",
-                        stack.has(DataComponents.TROPICAL_FISH_PATTERN_COLOR),
-                        special.bucketTropicalPatternColor),
-                "tropical_pattern_color",
-                special.bucketTropicalPatternColor,
-                value -> special.bucketTropicalPatternColor = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:villager",
-                        stack.has(DataComponents.VILLAGER_VARIANT),
-                        special.entityVillagerVariant),
-                "villager_variant",
-                special.entityVillagerVariant,
-                value -> special.entityVillagerVariant = value,
-                () -> context.registryIds(Registries.VILLAGER_TYPE));
-        declare(
-                fields,
-                show(entityId, "minecraft:wolf", stack.has(DataComponents.WOLF_VARIANT), special.entityWolfVariant),
-                "wolf_variant",
-                special.entityWolfVariant,
-                value -> special.entityWolfVariant = value,
-                () -> context.registryIds(Registries.WOLF_VARIANT));
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:wolf",
-                        stack.has(DataComponents.WOLF_SOUND_VARIANT),
-                        special.entityWolfSoundVariant),
-                "wolf_sound_variant",
-                special.entityWolfSoundVariant,
-                value -> special.entityWolfSoundVariant = value,
-                () -> context.registryIds(Registries.WOLF_SOUND_VARIANT));
-        declare(
-                fields,
-                show(entityId, "minecraft:wolf", stack.has(DataComponents.WOLF_COLLAR), special.entityWolfCollar),
-                "wolf_collar",
-                special.entityWolfCollar,
-                value -> special.entityWolfCollar = value,
-                EntityVariantSpecialDataSection::dyeColorValues);
-        declare(
-                fields,
-                show(
-                        entityId,
-                        "minecraft:zombie_nautilus",
-                        stack.has(DataComponents.ZOMBIE_NAUTILUS_VARIANT),
-                        special.entityZombieNautilusVariant),
-                "zombie_nautilus_variant",
-                special.entityZombieNautilusVariant,
-                value -> special.entityZombieNautilusVariant = value,
-                () -> context.registryIds(Registries.ZOMBIE_NAUTILUS_VARIANT));
-    }
-
-    private static void declare(
-            Consumer<VariantField> fields,
-            boolean visible,
-            String key,
-            String value,
-            Consumer<String> setter,
-            Supplier<List<String>> entries) {
-        if (visible) {
-            fields.accept(new VariantField("special.entity_variant." + key, value, setter, entries));
+        var state = context.screen().session().state();
+        String entityId = selectedEntityId(stack, context.special());
+        for (VariantDefinition definition : VARIANTS) {
+            var binding = ItemEditorFieldReset.variant(definition.name());
+            String value = binding.read().apply(state);
+            if (definition.visible(stack, entityId, value)) {
+                fields.accept(new VariantField(
+                        "special.entity_variant." + definition.name(),
+                        value,
+                        selected -> binding.write().accept(state, selected),
+                        () -> definition.entries().apply(context)));
+            }
         }
     }
 
-    private static FlowLayout textWithPicker(
+    private static FlowLayout variantPicker(
             SpecialDataPanelContext context,
-            boolean compactLayout,
             Component label,
             String value,
             Consumer<String> setter,
             List<String> entries) {
-        FlowLayout row = compactLayout ? UiFactory.column() : UiFactory.row();
-        row.child(
-                UiFactory.textBox(value, text -> context.mutate(() -> setter.accept(IdFieldNormalizer.normalize(text))))
-                        .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(ID_FIELD_WIDTH)));
-        ButtonComponent pick = UiFactory.button(
-                ItemEditorText.tr("common.pick"),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> context.openSearchablePicker(
-                        label.getString(),
-                        "",
-                        entries,
-                        id -> id,
-                        id -> context.mutateRefresh(() -> setter.accept(id))));
-        pick.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(PICK_BUTTON_WIDTH));
-        row.child(pick);
-        return UiFactory.field(label, Component.empty(), row);
+        ButtonComponent picker = PickerFieldFactory.clearableIdButton(context, value, entries, setter);
+        return CompactFieldLayout.selectorRow(label, picker);
     }
 
-    private static boolean show(
-            String selectedEntityId, String entityId, boolean componentPresent, String currentValue) {
-        return Objects.equals(selectedEntityId, entityId)
-                || componentPresent
-                || (currentValue != null && !currentValue.isBlank());
-    }
-
-    private static boolean showAny(
-            String selectedEntityId, List<String> entityIds, boolean componentPresent, String currentValue) {
-        return entityIds.contains(selectedEntityId)
+    static boolean show(String selectedEntityId, String entityId, boolean componentPresent, String currentValue) {
+        return (!entityId.equals("minecraft:horse") && Objects.equals(selectedEntityId, entityId))
                 || componentPresent
                 || (currentValue != null && !currentValue.isBlank());
     }

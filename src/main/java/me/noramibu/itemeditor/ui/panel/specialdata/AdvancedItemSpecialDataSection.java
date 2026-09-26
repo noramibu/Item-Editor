@@ -1,14 +1,23 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.compactCheckboxRow;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.compactField;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.denseEquipmentRow;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.distributeRowChildren;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.guiWidth;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.isNarrowLayout;
+import static me.noramibu.itemeditor.ui.component.CompactFieldLayout.responsiveRow;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.compactTextField;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.compactTriStateBooleanPicker;
+import static me.noramibu.itemeditor.ui.panel.specialdata.SpecialDataFieldFactory.filledTextBox;
+
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.CheckboxComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,16 +30,17 @@ import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.service.ComponentRemovalService;
 import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout.Width;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
-import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
-import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.LootTableIds;
+import me.noramibu.itemeditor.util.TextComponentUtil;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.advancements.criterion.DataComponentMatchers;
 import net.minecraft.advancements.criterion.ItemPredicate;
@@ -48,6 +58,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -58,33 +69,14 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
 public final class AdvancedItemSpecialDataSection {
-    private static final int NARROW_LAYOUT_WIDTH_THRESHOLD = 900;
-    private static final int STACKED_COMPACT_WIDTH_THRESHOLD = 1080;
-    private static final int EQUIPMENT_DENSE_STACK_WIDTH_THRESHOLD = 620;
-    private static final int COMPACT_ICON_BUTTON_MIN = 36;
-    static final int COMPACT_ICON_BUTTON_BASE = 42;
-    private static final int COMPACT_CLEAR_BUTTON_MIN = 52;
-    private static final int COMPACT_CLEAR_BUTTON_BASE = 68;
-    private static final int COMPACT_REMOVE_BUTTON_MIN = 72;
-    private static final int COMPACT_REMOVE_BUTTON_BASE = 88;
-    private static final int COMPACT_FIXED_PICK_BUTTON_MIN = 46;
-    private static final int COMPACT_FIXED_PICK_BUTTON_BASE = 56;
     private static final int PICKER_ROW_INLINE_MIN_WIDTH = 360;
     private static final int PICKER_ROW_INPUT_MIN_WIDTH = 180;
     private static final int STORAGE_PICK_INPUT_MIN_WIDTH = 96;
-    private static final int STORAGE_PICK_BUTTON_MIN = 92;
-    private static final int STORAGE_PICK_BUTTON_BASE = 122;
-    private static final int BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD = 420;
-    private static final int BLOCK_STATE_VALUE_WIDTH_PERCENT = 76;
-    private static final int BLOCK_STATE_VALUE_WITH_RESET_WIDTH_PERCENT = 56;
     static final int SECTION_ROW_GAP = 10;
     private static final int COLLAPSIBLE_HEADER_TITLE_RESERVE = 26;
-    private static final int COMPACT_FIELD_LABEL_RESERVE = 44;
-    private static final int PANEL_WIDTH_SAFETY_RESERVE = 20;
     static final String SYMBOL_SECTION_COLLAPSED = "+";
     static final String SYMBOL_SECTION_EXPANDED = "-";
     private static final int CONSUMABLE_EFFECTS_EMPTY_HINT_WIDTH = 300;
-    private static final int CONSUMABLE_EFFECT_SUMMARY_HINT_WIDTH = 300;
     private static final int CONSUMABLE_APPLY_EFFECTS_EMPTY_HINT_WIDTH = 280;
     private static final int MAP_DECORATIONS_EMPTY_HINT_WIDTH = 280;
     static final int COMBAT_REPAIRABLE_EMPTY_HINT_WIDTH = 280;
@@ -129,6 +121,7 @@ public final class AdvancedItemSpecialDataSection {
         COMPONENT_TWEAKS_DEATH_EFFECT("entryTitle", "special.advanced.component_tweaks.death_effect"),
         CONSUMABLE_EFFECT_TYPE("effect", "special.advanced.consumable.effect_type"),
         CONSUMABLE_EFFECT_SOUND("soundEffect", "special.advanced.consumable.effect_sound"),
+        CONSUMABLE_REMOVE_EFFECTS("removeEffect", "special.advanced.consumable.remove_effects"),
         CONSUMABLE_DIAMETER("teleportEffect", "special.advanced.consumable.diameter"),
         CONSUMABLE_EFFECT_PROBABILITY("apply", "special.advanced.consumable.effect_probability"),
         POTION_ADD_EFFECT("apply", "special.potion.add_effect"),
@@ -480,6 +473,8 @@ public final class AdvancedItemSpecialDataSection {
             addGroup(targets, context, "effect", path, scope, expand);
             String type = consumeEffectType(entry);
             switch (type) {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS ->
+                    addGroup(targets, context, "removeEffect", path, scope, expand);
                 case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS -> {}
                 case ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND ->
                     addGroup(targets, context, "soundEffect", path, scope, expand);
@@ -571,8 +566,14 @@ public final class AdvancedItemSpecialDataSection {
                             UiFactory.scaledPixels(CUSTOM_DATA_CONTENT_PADDING)));
                     content.child(
                             wrappedMutedText(ItemEditorText.tr("special.advanced.custom_data.hint"), contentWidth));
-                    content.child(compactField(
-                            Control.CUSTOM_DATA_EDITOR.label(), customDataEditor(context, special), contentWidth));
+                    RawTextAreaComponent editor = customDataEditor(context, special);
+                    ButtonComponent openString = UiFactory.button(
+                            ItemEditorText.tr("raw_editor.string.open"),
+                            UiFactory.ButtonTextPreset.COMPACT,
+                            button -> context.screen().openRawStringEditor(editor));
+                    openString.tooltip(UiFactory.tooltipLines(ItemEditorText.tr("raw_editor.string.tooltip"), 260));
+                    content.child(UiFactory.actionButtonRow(openString));
+                    content.child(compactField(Control.CUSTOM_DATA_EDITOR.label(), editor, contentWidth));
                     return content;
                 });
     }
@@ -637,32 +638,14 @@ public final class AdvancedItemSpecialDataSection {
                 value -> special.uiFoodConsumableCollapsed = value,
                 () -> {
                     boolean narrowLayout = isNarrowLayout();
-                    int compactNumberWidth = compactNumericFieldWidth();
-                    int compactTinyWidth = compactTinyFieldWidth();
-                    int compactIdWidth = narrowLayout ? clampWidth(guiWidth(), 0.14, 130, 220) : compactIdTextWidth();
-                    int compactGroupWidth = compactGroupFieldWidth();
-                    int animationButtonWidth =
-                            narrowLayout ? clampWidth(guiWidth(), 0.11, 110, 180) : compactPickerButtonWidth();
+                    int compactNumberWidth = Width.NUMERIC.pixels();
+                    int compactIdWidth = narrowLayout ? Width.NARROW_ID.pixels() : Width.ID.pixels();
+                    int compactGroupWidth = Width.GROUP.pixels();
                     FlowLayout content = UiFactory.column();
                     content.child(denseEquipmentRow(
-                            compactTextField(
-                                    context,
-                                    Control.FOOD_NUTRITION.label(),
-                                    special.foodNutrition,
-                                    value -> special.foodNutrition = value,
-                                    compactNumberWidth),
-                            compactTextField(
-                                    context,
-                                    Control.FOOD_SATURATION.label(),
-                                    special.foodSaturation,
-                                    value -> special.foodSaturation = value,
-                                    compactNumberWidth),
-                            compactTextField(
-                                    context,
-                                    Control.CONSUMABLE_CONSUME_SECONDS.label(),
-                                    special.consumableConsumeSeconds,
-                                    value -> special.consumableConsumeSeconds = value,
-                                    compactNumberWidth)));
+                            context.boundTextField(Control.FOOD_NUTRITION.key(), compactNumberWidth),
+                            context.boundTextField(Control.FOOD_SATURATION.key(), compactNumberWidth),
+                            context.boundTextField(Control.CONSUMABLE_CONSUME_SECONDS.key(), compactNumberWidth)));
 
                     Component alwaysEatLabel = Control.FOOD_CAN_ALWAYS_EAT.label();
                     Component particlesLabel = Control.CONSUMABLE_HAS_PARTICLES.label();
@@ -673,27 +656,30 @@ public final class AdvancedItemSpecialDataSection {
                             + UiFactory.scaleProfile().padding() * 2;
                     content.child(new CompactFieldLayout(
                             List.of(
-                                    UiFactory.checkbox(
+                                    compactTriStateBooleanPicker(
+                                            context,
                                             alwaysEatLabel,
                                             special.foodCanAlwaysEat,
-                                            context.bindToggle(value -> special.foodCanAlwaysEat = value)),
+                                            value -> special.foodCanAlwaysEat = value,
+                                            Width.PICKER.pixels()),
                                     compactTriStateBooleanPicker(
                                             context,
                                             particlesLabel,
                                             special.consumableHasParticles,
                                             value -> special.consumableHasParticles = value,
-                                            compactPickerButtonWidth())),
+                                            Width.PICKER.pixels())),
                             toggleWidth));
 
-                    content.child(compactAnimationPicker(context, special, animationButtonWidth));
-
-                    content.child(compactIdField(
+                    content.child(PickerFieldFactory.enumField(
                             context,
-                            Control.CONSUMABLE_SOUND.label(),
-                            special.consumableSoundId,
-                            value -> special.consumableSoundId = value,
+                            Control.CONSUMABLE_ANIMATION.label(),
+                            special.consumableAnimation,
+                            ItemUseAnimation.values(),
+                            value -> special.consumableAnimation = value));
+
+                    content.child(context.boundIdField(
+                            Control.CONSUMABLE_SOUND.key(),
                             context.optionalRegistryIds(Registries.SOUND_EVENT),
-                            Control.CONSUMABLE_SOUND.text(),
                             compactIdWidth));
                     content.child(buildOnConsumeEffectsEditor(context, special));
 
@@ -706,12 +692,8 @@ public final class AdvancedItemSpecialDataSection {
                                     Control.USE_EFFECTS_INTERACT_VIBRATIONS.label(),
                                     special.useEffectsInteractVibrations,
                                     context.bindToggle(value -> special.useEffectsInteractVibrations = value))));
-                    content.child(denseEquipmentRow(compactTextField(
-                            context,
-                            Control.USE_EFFECTS_SPEED_MULTIPLIER.label(),
-                            special.useEffectsSpeedMultiplier,
-                            value -> special.useEffectsSpeedMultiplier = value,
-                            compactNumberWidth)));
+                    content.child(denseEquipmentRow(
+                            context.boundTextField(Control.USE_EFFECTS_SPEED_MULTIPLIER.key(), compactNumberWidth)));
                     var state = context.screen().session().state();
                     boolean useRemainderHasDefault = hasUseRemainderDefault(context);
                     boolean useRemainderRemoved = state.removedComponents.contains(DataComponents.USE_REMAINDER);
@@ -733,49 +715,30 @@ public final class AdvancedItemSpecialDataSection {
                                         state.removedComponents.remove(DataComponents.USE_REMAINDER);
                                     else state.removedComponents.add(DataComponents.USE_REMAINDER);
                                 }));
-                        removalButton.horizontalSizing(Sizing.fixed(compactPickerButtonWidth()));
+                        removalButton.horizontalSizing(Sizing.fixed(Width.PICKER.pixels()));
                         remainderHeader.child(removalButton);
                     }
                     content.child(remainderHeader);
                     if (!useRemainderRemoved) {
-                        content.child(compactField(
-                                Control.USE_REMAINDER_ITEM_ID.label(),
-                                itemIdInputWithStoragePick(
+                        content.child(context.itemRow(
+                                () -> editableItem(
                                         context,
                                         special.useRemainderItemId,
-                                        value -> {
-                                            special.useRemainderItemId = value;
-                                            special.useRemainderTemplateSnbt = "";
-                                        },
-                                        stack -> {
-                                            special.useRemainderItemId = BuiltInRegistries.ITEM
-                                                    .getKey(stack.getItem())
-                                                    .toString();
-                                            special.useRemainderCount = Integer.toString(Math.max(1, stack.getCount()));
-                                            special.useRemainderTemplateSnbt = encodeItemStackTemplate(context, stack);
-                                        },
-                                        Control.USE_REMAINDER_ITEM_ID.text()),
-                                compactLongFieldWidth() + 170));
-                        content.child(denseEquipmentRow(compactTextField(
-                                context,
-                                Control.USE_REMAINDER_COUNT.label(),
-                                special.useRemainderCount,
-                                value -> special.useRemainderCount = value,
-                                compactTinyWidth)));
+                                        special.useRemainderCount,
+                                        special.useRemainderTemplateSnbt),
+                                stack -> {
+                                    special.useRemainderItemId = BuiltInRegistries.ITEM
+                                            .getKey(stack.getItem())
+                                            .toString();
+                                    special.useRemainderCount = Integer.toString(stack.getCount());
+                                    special.useRemainderTemplateSnbt = encodeItemStackTemplate(context, stack);
+                                },
+                                null,
+                                ItemEditorText.tr("special.advanced.use_remainder.title")));
                     }
                     content.child(denseEquipmentRow(
-                            compactTextField(
-                                    context,
-                                    Control.USE_COOLDOWN_SECONDS.label(),
-                                    special.useCooldownSeconds,
-                                    value -> special.useCooldownSeconds = value,
-                                    compactNumberWidth),
-                            compactTextField(
-                                    context,
-                                    Control.USE_COOLDOWN_GROUP.label(),
-                                    special.useCooldownGroup,
-                                    value -> special.useCooldownGroup = value,
-                                    compactGroupWidth)));
+                            context.boundTextField(Control.USE_COOLDOWN_SECONDS.key(), compactNumberWidth),
+                            context.boundTextField(Control.USE_COOLDOWN_GROUP.key(), compactGroupWidth)));
 
                     FlowLayout actions = responsiveRow();
                     ButtonComponent resetAll = UiFactory.button(
@@ -784,7 +747,7 @@ public final class AdvancedItemSpecialDataSection {
                             button -> context.mutateRefresh(() -> {
                                 special.foodNutrition = "";
                                 special.foodSaturation = "";
-                                special.foodCanAlwaysEat = false;
+                                special.foodCanAlwaysEat = "";
                                 special.consumableConsumeSeconds = "";
                                 special.consumableAnimation = "";
                                 special.consumableSoundId = "";
@@ -817,8 +780,7 @@ public final class AdvancedItemSpecialDataSection {
         if (title.getContents() instanceof TranslatableContents translation) {
             card.id("component-section-" + translation.getKey());
         }
-        FlowLayout header = UiFactory.row();
-        int toggleWidth = compactIconButtonWidth();
+        int toggleWidth = Width.ICON.pixels();
         int preferredTitleWidth =
                 Math.max(30, guiWidth() - toggleWidth - UiFactory.scaledPixels(COLLAPSIBLE_HEADER_TITLE_RESERVE));
         int titleWidth = Math.clamp(preferredTitleWidth, 1, Math.max(1, guiWidth()));
@@ -830,58 +792,18 @@ public final class AdvancedItemSpecialDataSection {
         if (title.getContents() instanceof TranslatableContents translation) {
             titleLabel.id(translation.getKey());
         }
-        header.child(titleLabel);
-        ButtonComponent toggle = UiFactory.button(
-                Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
-                UiFactory.ButtonTextPreset.STANDARD,
-                button -> {
-                    setter.accept(!collapsed);
-                    context.screen().refreshCurrentPanel();
-                });
-        toggle.horizontalSizing(Sizing.fixed(toggleWidth));
-        header.child(toggle);
-        card.child(header);
+        card.child(UiFactory.collapsibleHeader(titleLabel, collapsed, () -> {
+            setter.accept(!collapsed);
+            context.screen().refreshCurrentPanel();
+        }));
         if (!collapsed) {
             card.child(contentBuilder.get());
+        } else {
+            Component summary = EditorSectionSummary.forSection(
+                    title, context.screen().session().state());
+            if (!summary.getString().isBlank()) card.child(EditorSectionSummary.label(summary, titleWidth));
         }
         return card;
-    }
-
-    static FlowLayout compactTextField(
-            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter, int width) {
-        return compactField(label, filledTextBox(context, value, setter), width + 40);
-    }
-
-    static UIComponent filledTextBox(SpecialDataPanelContext context, String value, Consumer<String> setter) {
-        return UiFactory.textBox(value, context.bindText(setter)).horizontalSizing(Sizing.fill(100));
-    }
-
-    private static FlowLayout compactAnimationPicker(
-            SpecialDataPanelContext context, ItemEditorState.SpecialData special, int buttonWidth) {
-        ButtonComponent button = UiFactory.button(
-                PickerFieldFactory.selectedOrFallback(
-                        special.consumableAnimation, ItemEditorText.tr("special.advanced.select")),
-                UiFactory.ButtonTextPreset.STANDARD,
-                anchor -> context.openClearableDropdown(
-                        anchor,
-                        ItemEditorText.tr("common.none"),
-                        () -> context.mutate(() -> special.consumableAnimation = ""),
-                        Arrays.asList(ItemUseAnimation.values()),
-                        ItemUseAnimation::name,
-                        animation -> context.mutate(() -> special.consumableAnimation = animation.name())));
-        button.horizontalSizing(Sizing.fill(100));
-        return compactField(Control.CONSUMABLE_ANIMATION.label(), button, buttonWidth + 40);
-    }
-
-    static FlowLayout compactTriStateBooleanPicker(
-            SpecialDataPanelContext context, Component label, String value, Consumer<String> setter, int buttonWidth) {
-        ButtonComponent button = UiFactory.actionToneButton(
-                TriStateBooleanUi.label(value),
-                UiFactory.ButtonTextPreset.STANDARD,
-                TriStateBooleanUi.tone(value),
-                anchor -> context.mutateRefresh(() -> setter.accept(TriStateBooleanUi.next(value))));
-        button.horizontalSizing(Sizing.fill(100));
-        return compactField(label, button, buttonWidth + 40);
     }
 
     static FlowLayout compactIdField(
@@ -901,38 +823,34 @@ public final class AdvancedItemSpecialDataSection {
             String value,
             Consumer<String> setter,
             Consumer<ItemStack> storageSelectionConsumer,
-            String pickerTitle) {
+            String pickerTitle,
+            Supplier<ItemStack> currentItem) {
         int rowGap = holderSetRowGap();
         int panelWidth = guiWidth();
-        int pickWidth = compactFixedPickButtonWidth();
-        int storageWidth =
-                clampToPanelWidth(Math.max(STORAGE_PICK_BUTTON_MIN, UiFactory.scaledPixels(STORAGE_PICK_BUTTON_BASE)));
+        int pickWidth = Width.FIXED_PICK.pixels();
         int minInputWidth = Math.clamp(panelWidth, 1, STORAGE_PICK_INPUT_MIN_WIDTH);
-        boolean stacked = panelWidth < minInputWidth + pickWidth + storageWidth + (rowGap * 2);
+        boolean stacked = panelWidth < minInputWidth + pickWidth * 2 + (rowGap * 2);
         FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
         row.gap(rowGap);
 
-        UIComponent input = UiFactory.textBox(
-                        value, text -> context.mutate(() -> setter.accept(IdFieldNormalizer.normalize(text))))
+        ButtonComponent editButton =
+                context.itemEditButton(currentItem, storageSelectionConsumer, Component.literal(pickerTitle));
+        UIComponent input = UiFactory.textBox(value, text -> {
+                    context.mutate(() -> setter.accept(IdFieldNormalizer.normalize(text)));
+                    context.updateItemEditButton(editButton, currentItem.get());
+                })
                 .horizontalSizing(Sizing.expand(100));
         ButtonComponent pickButton = context.itemPickButton(pickerTitle, storageSelectionConsumer);
 
-        ButtonComponent storageButton = context.storagePickButton(storageSelectionConsumer);
         if (stacked) {
             row.child(input.horizontalSizing(Sizing.fill(100)));
-            FlowLayout buttons = UiFactory.row();
-            buttons.gap(rowGap);
-            pickButton.horizontalSizing(Sizing.fill(50));
-            storageButton.horizontalSizing(Sizing.fill(50));
-            buttons.child(pickButton);
-            buttons.child(storageButton);
-            row.child(buttons.horizontalSizing(Sizing.fill(100)));
+            row.child(UiFactory.actionButtonRow(editButton, pickButton));
         } else {
             row.child(input);
+            editButton.horizontalSizing(Sizing.fixed(pickWidth));
+            row.child(editButton);
             pickButton.horizontalSizing(Sizing.fixed(pickWidth));
             row.child(pickButton);
-            storageButton.horizontalSizing(Sizing.fixed(storageWidth));
-            row.child(storageButton);
         }
         return row;
     }
@@ -951,6 +869,17 @@ public final class AdvancedItemSpecialDataSection {
         } catch (RuntimeException ignored) {
             return "";
         }
+    }
+
+    private static ItemStack editableItem(SpecialDataPanelContext context, String id, String count, String template) {
+        Identifier key = Identifier.tryParse(id);
+        if (key == null || !BuiltInRegistries.ITEM.containsKey(key)) return ItemStack.EMPTY;
+        ItemStack stack = template == null || template.isBlank()
+                ? new ItemStack(BuiltInRegistries.ITEM.getValue(key))
+                : decodeItemStackTemplate(context, template);
+        return stack.isEmpty()
+                ? ItemStack.EMPTY
+                : stack.copyWithCount(Math.max(1, ValidationUtil.parseIntOrDefault(count, 1)));
     }
 
     private static ItemStack decodeItemStackTemplate(SpecialDataPanelContext context, String raw) {
@@ -1030,163 +959,13 @@ public final class AdvancedItemSpecialDataSection {
         return true;
     }
 
-    static FlowLayout compactField(Component label, UIComponent input, int labelWidth) {
-        FlowLayout field = UiFactory.column();
-        field.gap(2);
-        int panelWidth = guiWidth();
-        int availableLabelWidth = Math.max(80, panelWidth - UiFactory.scaledPixels(COMPACT_FIELD_LABEL_RESERVE));
-        int preferredLabelWidth = prefersStackedCompactRows()
-                ? availableLabelWidth
-                : Math.clamp(availableLabelWidth, 40, Math.max(40, labelWidth));
-        int effectiveLabelWidth = Math.clamp(preferredLabelWidth, 1, Math.max(1, panelWidth));
-        Component fittedLabel = UiFactory.fitToWidth(label, effectiveLabelWidth);
-        var labelComponent = UiFactory.muted(fittedLabel, effectiveLabelWidth);
-        if (label.getContents() instanceof TranslatableContents translation) {
-            labelComponent.id(translation.getKey());
-        }
-        labelComponent.horizontalSizing(Sizing.fill(100));
-        if (!Objects.equals(fittedLabel.getString(), label.getString())) {
-            labelComponent.tooltip(List.of(label));
-        }
-        field.child(labelComponent);
-        field.child(input.horizontalSizing(Sizing.fill(100)));
-        return field;
-    }
-
-    static int compactNumericFieldWidth() {
-        return clampWidth(guiWidth(), 0.065, 64, 104);
-    }
-
-    static int compactTinyFieldWidth() {
-        return clampWidth(guiWidth(), 0.05, 54, 80);
-    }
-
-    static int compactIdTextWidth() {
-        return clampWidth(guiWidth(), 0.22, 104, 220);
-    }
-
-    private static int compactGroupFieldWidth() {
-        return clampWidth(guiWidth(), 0.18, 96, 190);
-    }
-
-    static int compactPickerButtonWidth() {
-        return clampWidth(guiWidth(), 0.16, 86, 150);
-    }
-
-    static int compactIconButtonWidth() {
-        return clampToPanelWidth(Math.max(COMPACT_ICON_BUTTON_MIN, UiFactory.scaledPixels(COMPACT_ICON_BUTTON_BASE)));
-    }
-
-    private static int compactClearButtonWidth() {
-        return clampToPanelWidth(Math.max(COMPACT_CLEAR_BUTTON_MIN, UiFactory.scaledPixels(COMPACT_CLEAR_BUTTON_BASE)));
-    }
-
-    static int compactRemoveButtonWidth() {
-        return clampToPanelWidth(
-                Math.max(COMPACT_REMOVE_BUTTON_MIN, UiFactory.scaledPixels(COMPACT_REMOVE_BUTTON_BASE)));
-    }
-
-    private static int compactFixedPickButtonWidth() {
-        return clampToPanelWidth(
-                Math.max(COMPACT_FIXED_PICK_BUTTON_MIN, UiFactory.scaledPixels(COMPACT_FIXED_PICK_BUTTON_BASE)));
-    }
-
-    static int compactLongFieldWidth() {
-        return clampWidth(guiWidth(), 0.26, 136, 280);
-    }
-
-    private static int clampWidth(int sourceWidth, double ratio, int min, int max) {
-        int value = (int) Math.round(sourceWidth * ratio);
-        int preferred = Math.clamp(value, min, max);
-        return Math.clamp(preferred, 1, Math.max(1, sourceWidth));
-    }
-
-    private static int clampToPanelWidth(int preferredWidth) {
-        return Math.clamp(preferredWidth, 1, Math.max(1, guiWidth()));
-    }
-
-    private static int guiWidth() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof ItemEditorScreen itemEditorScreen) {
-            int hinted = itemEditorScreen.editorContentWidthHint();
-            int reserve = Math.max(2, UiFactory.scaledPixels(PANEL_WIDTH_SAFETY_RESERVE));
-            return Math.max(1, hinted - reserve);
-        }
-        return UiFactory.responsiveBodyTextWidth();
-    }
-
-    private static boolean isNarrowLayout() {
-        return guiWidth() <= NARROW_LAYOUT_WIDTH_THRESHOLD;
-    }
-
-    static boolean prefersStackedCompactRows() {
-        return guiWidth() <= STACKED_COMPACT_WIDTH_THRESHOLD;
-    }
-
     private static boolean usesStackedPickerRows() {
         int requiredInlineWidth = Math.max(
                 PICKER_ROW_INLINE_MIN_WIDTH,
                 UiFactory.scaledPixels(PICKER_ROW_INPUT_MIN_WIDTH)
-                        + compactFixedPickButtonWidth()
+                        + Width.FIXED_PICK.pixels()
                         + UiFactory.scaledPixels(SECTION_ROW_GAP));
         return guiWidth() < requiredInlineWidth;
-    }
-
-    private static boolean usesStackedBlockStateRows() {
-        return guiWidth() <= UiFactory.scaledPixels(BLOCK_STATE_STACKED_ROW_WIDTH_THRESHOLD);
-    }
-
-    private static int blockStateLabelWidth() {
-        return clampWidth(guiWidth(), 0.10, 72, 128);
-    }
-
-    static FlowLayout responsiveRow() {
-        return prefersStackedCompactRows() ? UiFactory.column() : UiFactory.row();
-    }
-
-    static FlowLayout denseEquipmentRow() {
-        return guiWidth() <= EQUIPMENT_DENSE_STACK_WIDTH_THRESHOLD ? UiFactory.column() : UiFactory.row();
-    }
-
-    static FlowLayout denseEquipmentRow(UIComponent... children) {
-        FlowLayout row = denseEquipmentRow();
-        if (children.length == 0) {
-            return row;
-        }
-        int childWidth =
-                guiWidth() <= EQUIPMENT_DENSE_STACK_WIDTH_THRESHOLD ? 100 : distributedRowChildWidth(children.length);
-        for (UIComponent child : children) {
-            child.horizontalSizing(Sizing.fill(childWidth));
-            row.child(child);
-        }
-        return row;
-    }
-
-    static FlowLayout compactCheckboxRow(UIComponent... children) {
-        int preferredWidth = Arrays.stream(children)
-                        .filter(CheckboxComponent.class::isInstance)
-                        .map(CheckboxComponent.class::cast)
-                        .mapToInt(checkbox -> Minecraft.getInstance().font.width(checkbox.getMessage()))
-                        .max()
-                        .orElse(0)
-                + UiFactory.scaleProfile().controlHeight()
-                + UiFactory.scaleProfile().padding() * 2;
-        return new CompactFieldLayout(List.of(children), preferredWidth);
-    }
-
-    static void distributeRowChildren(FlowLayout row, UIComponent... children) {
-        if (children.length == 0) {
-            return;
-        }
-        int childWidth = prefersStackedCompactRows() ? 100 : distributedRowChildWidth(children.length);
-        for (UIComponent child : children) {
-            child.horizontalSizing(Sizing.fill(childWidth));
-            row.child(child);
-        }
-    }
-
-    private static int distributedRowChildWidth(int childCount) {
-        return Math.max(1, (100 - Math.max(1, childCount)) / Math.max(1, childCount));
     }
 
     private static FlowLayout buildOnConsumeEffectsEditor(
@@ -1289,27 +1068,33 @@ public final class AdvancedItemSpecialDataSection {
             ItemEditorState.ConsumableEffectDraft draft = drafts.get(index);
             String currentType = consumeEffectType(draft);
 
-            FlowLayout effectCard = context.createReorderableCard(
-                    ItemEditorText.tr(effectTitleKey, index + 1),
-                    currentIndex > 0,
-                    () -> context.swapEntries(drafts, currentIndex, currentIndex - 1),
-                    currentIndex < drafts.size() - 1,
-                    () -> context.swapEntries(drafts, currentIndex, currentIndex + 1),
-                    () -> drafts.remove(currentIndex));
+            FlowLayout effectCard = draft.uiCollapsed || !context.screen().isSelectedEntry(drafts, draft)
+                    ? UiFactory.subCard()
+                    : context.createReorderableCard(
+                            ItemEditorText.tr(effectTitleKey, index + 1),
+                            currentIndex > 0,
+                            () -> context.swapEntries(drafts, currentIndex, currentIndex - 1),
+                            currentIndex < drafts.size() - 1,
+                            () -> context.swapEntries(drafts, currentIndex, currentIndex + 1),
+                            () -> drafts.remove(currentIndex));
             String effectScope = ComponentSearchField.scope(
                     drafts == context.special().deathProtectionEffects ? "death" : "consume", index);
             effectCard.id(effectScope);
             FlowLayout collapseRow = responsiveRow();
-            UIComponent summary = UiFactory.muted(
-                    Component.literal(consumableEffectSummary(draft, currentType)),
-                    CONSUMABLE_EFFECT_SUMMARY_HINT_WIDTH);
+            UIComponent summary = EditorSectionSummary.label(
+                    ItemEditorText.tr(effectTitleKey, index + 1)
+                            .copy()
+                            .append(" | ")
+                            .append(consumableEffectSummary(draft, currentType)),
+                    Math.max(1, guiWidth() - Width.ICON.pixels() - 48));
             summary.horizontalSizing(Sizing.expand(100));
             collapseRow.child(summary);
-            ButtonComponent collapseToggle = UiFactory.button(
-                    Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
-            collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            ButtonComponent collapseToggle = UiFactory.collapseToggleButton(
+                    draft.uiCollapsed,
+                    () -> context.mutateRefresh(() -> {
+                        context.screen().selectEntry(drafts, draft);
+                        draft.uiCollapsed = !draft.uiCollapsed;
+                    }));
             collapseRow.child(collapseToggle);
             effectCard.child(collapseRow);
 
@@ -1329,11 +1114,21 @@ public final class AdvancedItemSpecialDataSection {
                     selectedType -> context.mutateRefresh(() -> draft.type = selectedType)));
 
             switch (currentType) {
-                case ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS -> {
+                case ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS -> {
+                    effectCard.child(UiFactory.field(
+                            Control.CONSUMABLE_REMOVE_EFFECTS.label(),
+                            Component.empty(),
+                            filledTextBox(context, draft.removedEffects, value -> draft.removedEffects = value)));
+                    effectCard.child(holderSetPickerButtons(
+                            context,
+                            value -> draft.removedEffects = value,
+                            () -> draft.removedEffects,
+                            Control.POTION_EFFECT_ID.text(),
+                            effectIds,
+                            context.registryTagIds(Registries.MOB_EFFECT, "")));
                     card.child(effectCard);
                     continue;
                 }
-
                 case ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND -> {
                     effectCard.child(UiFactory.field(
                             Control.CONSUMABLE_EFFECT_SOUND.label(),
@@ -1358,7 +1153,11 @@ public final class AdvancedItemSpecialDataSection {
                     continue;
                 }
 
-                default -> {}
+                case ItemEditorState.ConsumableEffectDraft.TYPE_APPLY_EFFECTS -> {}
+                default -> {
+                    card.child(effectCard);
+                    continue;
+                }
             }
 
             effectCard.child(UiFactory.field(
@@ -1401,14 +1200,14 @@ public final class AdvancedItemSpecialDataSection {
                         effectIds,
                         id -> id,
                         id -> context.mutateRefresh(() -> effectDraft.effectId = id));
-                UIComponent durationField = UiFactory.field(
+                UIComponent durationField = EffectFieldLayoutUtil.numberField(
                         Control.POTION_DURATION.label(),
-                        Component.empty(),
-                        filledTextBox(context, effectDraft.duration, value -> effectDraft.duration = value));
-                UIComponent amplifierField = UiFactory.field(
+                        effectDraft.duration,
+                        context.bindText(value -> effectDraft.duration = value));
+                UIComponent amplifierField = EffectFieldLayoutUtil.numberField(
                         Control.POTION_AMPLIFIER.label(),
-                        Component.empty(),
-                        filledTextBox(context, effectDraft.amplifier, value -> effectDraft.amplifier = value));
+                        effectDraft.amplifier,
+                        context.bindText(value -> effectDraft.amplifier = value));
                 distributeRowChildren(inputs, effectField, durationField, amplifierField);
                 potionCard.child(inputs);
 
@@ -1416,18 +1215,18 @@ public final class AdvancedItemSpecialDataSection {
                         Control.POTION_AMBIENT.label(),
                         effectDraft.ambient,
                         context.bindToggle(value -> effectDraft.ambient = value));
-                UIComponent visibleToggle = compactTriStateBooleanPicker(
+                UIComponent visibleToggle = SpecialDataFieldFactory.effectVisibilityField(
                         context,
                         Control.POTION_VISIBLE.label(),
                         effectDraft.visible,
-                        value -> effectDraft.visible = value,
-                        compactPickerButtonWidth());
-                UIComponent iconToggle = compactTriStateBooleanPicker(
+                        effectDraft.originalVisible,
+                        value -> effectDraft.visible = value);
+                UIComponent iconToggle = SpecialDataFieldFactory.effectVisibilityField(
                         context,
                         Control.POTION_SHOW_ICON.label(),
                         effectDraft.showIcon,
-                        value -> effectDraft.showIcon = value,
-                        compactPickerButtonWidth());
+                        effectDraft.originalShowIcon,
+                        value -> effectDraft.showIcon = value);
                 potionCard.child(denseEquipmentRow(ambientToggle, visibleToggle, iconToggle));
                 effectCard.child(potionCard);
             }
@@ -1438,21 +1237,38 @@ public final class AdvancedItemSpecialDataSection {
         return card;
     }
 
-    private static String consumableEffectSummary(ItemEditorState.ConsumableEffectDraft draft, String currentType) {
+    private static Component consumableEffectSummary(ItemEditorState.ConsumableEffectDraft draft, String currentType) {
+        if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_REMOVE_EFFECTS)) {
+            return Component.literal(effectTypeLabel(currentType))
+                    .withColor(0x55FFFF)
+                    .append(EditorSectionSummary.separator())
+                    .append(EditorSectionSummary.value(valueOrDefault(draft.removedEffects, "-")));
+        }
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_TELEPORT_RANDOMLY)) {
-            return effectTypeLabel(currentType) + " - " + valueOrDefault(draft.diameter, "16");
+            return Component.literal(effectTypeLabel(currentType))
+                    .withColor(0x55FFFF)
+                    .append(EditorSectionSummary.separator())
+                    .append(EditorSectionSummary.value(valueOrDefault(draft.diameter, "16")));
         }
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_CLEAR_ALL_EFFECTS)) {
-            return effectTypeLabel(currentType);
+            return Component.literal(effectTypeLabel(currentType)).withColor(0x55FFFF);
         }
         if (Objects.equals(currentType, ItemEditorState.ConsumableEffectDraft.TYPE_PLAY_SOUND)) {
             String sound = valueOrDefault(draft.soundId, "-");
-            return effectTypeLabel(currentType) + " - " + sound;
+            return Component.literal(effectTypeLabel(currentType))
+                    .withColor(0x55FFFF)
+                    .append(EditorSectionSummary.separator())
+                    .append(EditorSectionSummary.value(sound));
         }
         int effectCount = draft.effects.size();
         String probability = draft.probability.isBlank() ? "1.0" : draft.probability;
-        return ItemEditorText.str(
-                "special.advanced.consumable.effect_summary", effectTypeLabel(currentType), effectCount, probability);
+        return ItemEditorText.tr(
+                        "special.advanced.consumable.effect_summary",
+                        Component.literal(effectTypeLabel(currentType)).withColor(0x55FFFF),
+                        EditorSectionSummary.value(Integer.toString(effectCount)),
+                        EditorSectionSummary.value(probability))
+                .copy()
+                .withColor(0xAAAAAA);
     }
 
     private static String beeSummary(ItemEditorState.BeeOccupantDraft draft) {
@@ -1631,23 +1447,7 @@ public final class AdvancedItemSpecialDataSection {
     }
 
     private static FlowLayout lockMatchRow(UIComponent first, UIComponent second, UIComponent third) {
-        if (guiWidth() <= UiFactory.scaledPixels(640)) {
-            FlowLayout column = UiFactory.column();
-            column.gap(2);
-            column.child(first);
-            column.child(second);
-            column.child(third);
-            return column;
-        }
-        FlowLayout row = UiFactory.row();
-        row.gap(Math.max(1, UiFactory.scaledPixels(4)));
-        first.horizontalSizing(Sizing.fill(33));
-        second.horizontalSizing(Sizing.fill(33));
-        third.horizontalSizing(Sizing.fill(33));
-        row.child(first);
-        row.child(second);
-        row.child(third);
-        return row;
+        return new CompactFieldLayout(List.of(first, second, third), UiFactory.scaledPixels(210));
     }
 
     private static Component lockSummary(ItemEditorState.SpecialData special) {
@@ -1699,9 +1499,9 @@ public final class AdvancedItemSpecialDataSection {
                 value -> special.uiContainerMetadataCollapsed = value,
                 () -> {
                     FlowLayout content = UiFactory.column();
-                    int idWidth = compactIdTextWidth();
-                    int lockPredicateWidth = compactLongFieldWidth();
-                    int seedWidth = compactNumericFieldWidth();
+                    int idWidth = Width.ID.pixels();
+                    int lockPredicateWidth = Width.LONG.pixels();
+                    int seedWidth = Width.NUMERIC.pixels();
                     List<String> lootTables = LootTableIds.fromResources(
                             context.screen().session().minecraft().getResourceManager());
 
@@ -1715,20 +1515,14 @@ public final class AdvancedItemSpecialDataSection {
                                         resetLockPredicateConfig(special);
                                     },
                                     stack -> configureLockKeyFromStack(context, special, stack),
-                                    Control.CONTAINER_META_LOCK_ITEM.text()),
+                                    Control.CONTAINER_META_LOCK_ITEM.text(),
+                                    () -> editableItem(context, special.lockItemId, "1", special.lockKeyTemplateSnbt)),
                             idWidth + 170));
                     content.child(UiFactory.muted(lockSummary(special), CONTAINER_META_LOCK_HINT_WIDTH));
                     if (!special.lockKeyTemplateSnbt.isBlank()) {
                         content.child(buildLockMatchOptions(context, special));
                     }
-                    content.child(compactIdField(
-                            context,
-                            Control.CONTAINER_META_LOOT_TABLE.label(),
-                            special.containerLootTableId,
-                            value -> special.containerLootTableId = value,
-                            lootTables,
-                            Control.CONTAINER_META_LOOT_TABLE.text(),
-                            idWidth));
+                    content.child(context.boundIdField(Control.CONTAINER_META_LOOT_TABLE.key(), lootTables, idWidth));
 
                     content.child(compactTextField(
                             context,
@@ -1743,16 +1537,11 @@ public final class AdvancedItemSpecialDataSection {
                             ItemEditorText.tr("special.advanced.container_meta.lock_predicate_hint"),
                             CONTAINER_META_LOCK_HINT_WIDTH));
 
-                    content.child(compactTextField(
-                            context,
-                            Control.CONTAINER_META_LOOT_SEED.label(),
-                            special.containerLootSeed,
-                            value -> special.containerLootSeed = value,
-                            seedWidth));
+                    content.child(context.boundTextField(Control.CONTAINER_META_LOOT_SEED.key(), seedWidth));
 
                     content.child(buildBeesEditor(context, special));
 
-                    content.child(buildPotDecorations(context, special, availableItems));
+                    content.child(buildPotDecorations(context, availableItems));
                     return content;
                 });
     }
@@ -1777,18 +1566,10 @@ public final class AdvancedItemSpecialDataSection {
         clearAll.active = !special.beesOccupants.isEmpty();
         card.child(UiFactory.actionButtonRow(addButton, clearAll));
         if (!special.beesOccupants.isEmpty()) {
-            ButtonComponent expandAll = UiFactory.button(
-                    Control.COMMON_EXPAND_ALL.label(),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> context.mutateRefresh(
-                            () -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = false)));
-            ButtonComponent collapseAll = UiFactory.button(
-                    Control.COMMON_COLLAPSE_ALL.label(),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> context.mutateRefresh(
-                            () -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = true)));
-
-            card.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+            card.child(UiFactory.collapseAllButton(
+                    special.beesOccupants.stream().anyMatch(entry -> entry.uiCollapsed),
+                    collapsed -> context.mutateRefresh(
+                            () -> special.beesOccupants.forEach(entry -> entry.uiCollapsed = collapsed))));
         }
 
         if (special.beesOccupants.isEmpty()) {
@@ -1798,8 +1579,8 @@ public final class AdvancedItemSpecialDataSection {
             return card;
         }
 
-        int idWidth = compactIdTextWidth();
-        int numberWidth = compactNumericFieldWidth();
+        int idWidth = Width.ID.pixels();
+        int numberWidth = Width.NUMERIC.pixels();
         List<String> entityTypeIds = context.optionalRegistryIds(Registries.ENTITY_TYPE);
         for (int index = 0; index < special.beesOccupants.size(); index++) {
             int currentIndex = index;
@@ -1822,7 +1603,7 @@ public final class AdvancedItemSpecialDataSection {
                     Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
-            collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            collapseToggle.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
             summaryRow.child(collapseToggle);
             beeCard.child(summaryRow);
 
@@ -1864,8 +1645,7 @@ public final class AdvancedItemSpecialDataSection {
                 value -> special.uiCrossbowCollapsed = value,
                 () -> {
                     FlowLayout content = UiFactory.column();
-                    int idWidth = compactIdTextWidth();
-                    int countWidth = compactTinyFieldWidth();
+                    int countWidth = Width.TINY.pixels();
 
                     ButtonComponent addButton = UiFactory.button(
                             Control.CROSSBOW_ADD_PROJECTILE.label(),
@@ -1884,18 +1664,10 @@ public final class AdvancedItemSpecialDataSection {
                                 button -> context.mutateRefresh(special.chargedProjectiles::clear));
                         content.child(UiFactory.actionButtonRow(addButton, clearAll));
 
-                        ButtonComponent expandAll = UiFactory.button(
-                                Control.COMMON_EXPAND_ALL.label(),
-                                UiFactory.ButtonTextPreset.STANDARD,
-                                button -> context.mutateRefresh(
-                                        () -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = false)));
-                        ButtonComponent collapseAll = UiFactory.button(
-                                Control.COMMON_COLLAPSE_ALL.label(),
-                                UiFactory.ButtonTextPreset.STANDARD,
-                                button -> context.mutateRefresh(
-                                        () -> special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = true)));
-
-                        content.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+                        content.child(UiFactory.collapseAllButton(
+                                special.chargedProjectiles.stream().anyMatch(entry -> entry.uiCollapsed),
+                                collapsed -> context.mutateRefresh(() ->
+                                        special.chargedProjectiles.forEach(entry -> entry.uiCollapsed = collapsed))));
                     } else {
                         content.child(addButton);
                     }
@@ -1925,24 +1697,19 @@ public final class AdvancedItemSpecialDataSection {
                         card.id(ComponentSearchField.scope("projectile", index));
 
                         if (!draft.uiCollapsed) {
-                            card.child(compactField(
-                                    Control.CROSSBOW_ITEM.label(),
-                                    itemIdInputWithStoragePick(
-                                            context,
-                                            draft.itemId,
-                                            value -> {
-                                                draft.itemId = value;
-                                                draft.templateSnbt = "";
-                                            },
-                                            stack -> {
-                                                draft.itemId = BuiltInRegistries.ITEM
-                                                        .getKey(stack.getItem())
-                                                        .toString();
-                                                draft.count = Integer.toString(Math.max(1, stack.getCount()));
-                                                draft.templateSnbt = encodeItemStackTemplate(context, stack);
-                                            },
-                                            Control.CROSSBOW_ITEM.text()),
-                                    idWidth + 170));
+                            card.child(context.itemRow(
+                                    () -> editableItem(context, draft.itemId, draft.count, draft.templateSnbt),
+                                    stack -> {
+                                        draft.itemId = BuiltInRegistries.ITEM
+                                                .getKey(stack.getItem())
+                                                .toString();
+                                        draft.count = Integer.toString(stack.getCount());
+                                        draft.templateSnbt = encodeItemStackTemplate(context, stack);
+                                    },
+                                    null,
+                                    ItemEditorText.tr("special.advanced.crossbow.title")
+                                            .copy()
+                                            .append(" > " + (index + 1))));
 
                             FlowLayout countRow = responsiveRow();
                             FlowLayout countField = compactTextField(
@@ -1956,13 +1723,13 @@ public final class AdvancedItemSpecialDataSection {
                                     UiFactory.ButtonTextPreset.STANDARD,
                                     button -> context.mutateRefresh(() ->
                                             draft.count = Integer.toString(adjustNumericString(draft.count, -1))));
-                            decrement.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+                            decrement.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
                             ButtonComponent increment = UiFactory.button(
                                     Component.literal("+"),
                                     UiFactory.ButtonTextPreset.STANDARD,
                                     button -> context.mutateRefresh(
                                             () -> draft.count = Integer.toString(adjustNumericString(draft.count, 1))));
-                            increment.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+                            increment.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
                             distributeRowChildren(countRow, countField, decrement, increment);
                             card.child(countRow);
                         }
@@ -1985,95 +1752,33 @@ public final class AdvancedItemSpecialDataSection {
                     content.child(UiFactory.field(
                             Control.MAP_MAP_ID.label(),
                             Component.empty(),
-                            filledTextBox(context, special.mapId, value -> special.mapId = value)));
+                            context.boundTextBox(Control.MAP_MAP_ID.key()).horizontalSizing(Sizing.fill(100))));
                     content.child(buildMapDecorationsEditor(context, special));
                     content.child(buildLodestoneEditor(context, special));
                     return content;
                 });
     }
 
-    private static FlowLayout buildPotDecorations(
-            SpecialDataPanelContext context, ItemEditorState.SpecialData special, List<String> itemIds) {
+    private static FlowLayout buildPotDecorations(SpecialDataPanelContext context, List<String> itemIds) {
         FlowLayout card = UiFactory.subCard();
         card.child(UiFactory.title(Control.CONTAINER_META_POT_TITLE.label()).shadow(false));
-        int idWidth = compactIdTextWidth();
+        int idWidth = Width.ID.pixels();
         boolean narrowLayout = isNarrowLayout();
 
+        List<FlowLayout> fields = List.of(
+                context.boundIdField(Control.CONTAINER_META_POT_BACK.key(), itemIds, idWidth),
+                context.boundIdField(Control.CONTAINER_META_POT_LEFT.key(), itemIds, idWidth),
+                context.boundIdField(Control.CONTAINER_META_POT_RIGHT.key(), itemIds, idWidth),
+                context.boundIdField(Control.CONTAINER_META_POT_FRONT.key(), itemIds, idWidth));
         if (narrowLayout) {
-            card.child(compactIdField(
-                    context,
-                    Control.CONTAINER_META_POT_BACK.label(),
-                    special.potBackItemId,
-                    value -> special.potBackItemId = value,
-                    itemIds,
-                    Control.CONTAINER_META_POT_BACK.text(),
-                    idWidth));
-            card.child(compactIdField(
-                    context,
-                    Control.CONTAINER_META_POT_LEFT.label(),
-                    special.potLeftItemId,
-                    value -> special.potLeftItemId = value,
-                    itemIds,
-                    Control.CONTAINER_META_POT_LEFT.text(),
-                    idWidth));
-            card.child(compactIdField(
-                    context,
-                    Control.CONTAINER_META_POT_RIGHT.label(),
-                    special.potRightItemId,
-                    value -> special.potRightItemId = value,
-                    itemIds,
-                    Control.CONTAINER_META_POT_RIGHT.text(),
-                    idWidth));
-            card.child(compactIdField(
-                    context,
-                    Control.CONTAINER_META_POT_FRONT.label(),
-                    special.potFrontItemId,
-                    value -> special.potFrontItemId = value,
-                    itemIds,
-                    Control.CONTAINER_META_POT_FRONT.text(),
-                    idWidth));
-            return card;
+            fields.forEach(card::child);
+        } else {
+            for (int index = 0; index < fields.size(); index += 2) {
+                FlowLayout row = responsiveRow();
+                distributeRowChildren(row, fields.get(index), fields.get(index + 1));
+                card.child(row);
+            }
         }
-
-        FlowLayout rowA = responsiveRow();
-        FlowLayout backField = compactIdField(
-                context,
-                Control.CONTAINER_META_POT_BACK.label(),
-                special.potBackItemId,
-                value -> special.potBackItemId = value,
-                itemIds,
-                Control.CONTAINER_META_POT_BACK.text(),
-                idWidth);
-        FlowLayout leftField = compactIdField(
-                context,
-                Control.CONTAINER_META_POT_LEFT.label(),
-                special.potLeftItemId,
-                value -> special.potLeftItemId = value,
-                itemIds,
-                Control.CONTAINER_META_POT_LEFT.text(),
-                idWidth);
-        distributeRowChildren(rowA, backField, leftField);
-        card.child(rowA);
-
-        FlowLayout rowB = responsiveRow();
-        FlowLayout rightField = compactIdField(
-                context,
-                Control.CONTAINER_META_POT_RIGHT.label(),
-                special.potRightItemId,
-                value -> special.potRightItemId = value,
-                itemIds,
-                Control.CONTAINER_META_POT_RIGHT.text(),
-                idWidth);
-        FlowLayout frontField = compactIdField(
-                context,
-                Control.CONTAINER_META_POT_FRONT.label(),
-                special.potFrontItemId,
-                value -> special.potFrontItemId = value,
-                itemIds,
-                Control.CONTAINER_META_POT_FRONT.text(),
-                idWidth);
-        distributeRowChildren(rowB, rightField, frontField);
-        card.child(rowB);
         return card;
     }
 
@@ -2084,9 +1789,9 @@ public final class AdvancedItemSpecialDataSection {
         card.id("component-list-decorations");
         card.child(UiFactory.title(Control.MAP_DECORATIONS_TITLE.label()).shadow(false));
 
-        int keyWidth = compactGroupFieldWidth();
-        int idWidth = compactIdTextWidth();
-        int numberWidth = compactNumericFieldWidth();
+        int keyWidth = Width.GROUP.pixels();
+        int idWidth = Width.ID.pixels();
+        int numberWidth = Width.NUMERIC.pixels();
 
         ButtonComponent addButton = UiFactory.button(
                 Control.MAP_ADD_DECORATION.label(),
@@ -2103,18 +1808,10 @@ public final class AdvancedItemSpecialDataSection {
         clearAll.active = !special.mapDecorations.isEmpty();
         card.child(UiFactory.actionButtonRow(addButton, clearAll));
         if (!special.mapDecorations.isEmpty()) {
-            ButtonComponent expandAll = UiFactory.button(
-                    Control.COMMON_EXPAND_ALL.label(),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> context.mutateRefresh(
-                            () -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = false)));
-            ButtonComponent collapseAll = UiFactory.button(
-                    Control.COMMON_COLLAPSE_ALL.label(),
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> context.mutateRefresh(
-                            () -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = true)));
-
-            card.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+            card.child(UiFactory.collapseAllButton(
+                    special.mapDecorations.stream().anyMatch(entry -> entry.uiCollapsed),
+                    collapsed -> context.mutateRefresh(
+                            () -> special.mapDecorations.forEach(entry -> entry.uiCollapsed = collapsed))));
         }
 
         if (special.mapDecorations.isEmpty()) {
@@ -2144,7 +1841,7 @@ public final class AdvancedItemSpecialDataSection {
                     Component.literal(draft.uiCollapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> draft.uiCollapsed = !draft.uiCollapsed));
-            collapseToggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            collapseToggle.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
             summaryRow.child(collapseToggle);
             entry.child(summaryRow);
 
@@ -2209,25 +1906,10 @@ public final class AdvancedItemSpecialDataSection {
                         Control.MAP_LODESTONE_DIMENSION.text(),
                         true)));
 
-        int numberWidth = compactNumericFieldWidth();
-        FlowLayout xField = compactTextField(
-                context,
-                Control.MAP_LODESTONE_X.label(),
-                special.lodestoneX,
-                value -> special.lodestoneX = value,
-                numberWidth);
-        FlowLayout yField = compactTextField(
-                context,
-                Control.MAP_LODESTONE_Y.label(),
-                special.lodestoneY,
-                value -> special.lodestoneY = value,
-                numberWidth);
-        FlowLayout zField = compactTextField(
-                context,
-                Control.MAP_LODESTONE_Z.label(),
-                special.lodestoneZ,
-                value -> special.lodestoneZ = value,
-                numberWidth);
+        int numberWidth = Width.NUMERIC.pixels();
+        FlowLayout xField = context.boundTextField(Control.MAP_LODESTONE_X.key(), numberWidth);
+        FlowLayout yField = context.boundTextField(Control.MAP_LODESTONE_Y.key(), numberWidth);
+        FlowLayout zField = context.boundTextField(Control.MAP_LODESTONE_Z.key(), numberWidth);
         card.child(denseEquipmentRow(xField, yField, zField));
         return card;
     }
@@ -2254,26 +1936,26 @@ public final class AdvancedItemSpecialDataSection {
     private static FlowLayout buildNamingAndStackCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
         FlowLayout card = UiFactory.subCard();
-        int numericWidth = compactNumericFieldWidth();
-        int longWidth = compactLongFieldWidth();
+        int numericWidth = Width.NUMERIC.pixels();
+        int longWidth = Width.LONG.pixels();
 
-        card.child(compactField(
-                Control.COMPONENT_TWEAKS_ITEM_NAME.label(),
-                filledTextBox(context, special.itemName, value -> special.itemName = value),
-                longWidth + 40));
+        Component inheritedName = context.originalStack().getItem().components().get(DataComponents.ITEM_NAME);
+        String defaultName = inheritedName == null ? null : TextComponentUtil.toMarkup(inheritedName);
+        var defaultHint = UiFactory.muted(
+                special.itemName.equals(defaultName) ? ItemEditorText.tr("screen.field.default") : Component.empty());
+        var nameInput = context.boundTextBox(Control.COMPONENT_TWEAKS_ITEM_NAME.key());
+        nameInput
+                .onChanged()
+                .subscribe(value -> defaultHint.text(
+                        value.equals(defaultName) ? ItemEditorText.tr("screen.field.default") : Component.empty()));
+        card.child(compactField(Control.COMPONENT_TWEAKS_ITEM_NAME.label(), nameInput, longWidth + 40));
+        card.child(defaultHint);
 
-        FlowLayout minAttackField = compactField(
-                Control.COMPONENT_TWEAKS_MIN_ATTACK_CHARGE.label(),
-                filledTextBox(context, special.minimumAttackCharge, value -> special.minimumAttackCharge = value),
-                numericWidth + 40);
-        FlowLayout enchantableField = compactField(
-                Control.COMPONENT_TWEAKS_ENCHANTABLE.label(),
-                filledTextBox(context, special.enchantableValue, value -> special.enchantableValue = value),
-                numericWidth + 40);
-        FlowLayout ominousField = compactField(
-                Control.COMPONENT_TWEAKS_OMINOUS_AMPLIFIER.label(),
-                filledTextBox(context, special.ominousBottleAmplifier, value -> special.ominousBottleAmplifier = value),
-                numericWidth + 40);
+        FlowLayout minAttackField =
+                context.boundTextField(Control.COMPONENT_TWEAKS_MIN_ATTACK_CHARGE.key(), numericWidth);
+        FlowLayout enchantableField = context.boundTextField(Control.COMPONENT_TWEAKS_ENCHANTABLE.key(), numericWidth);
+        FlowLayout ominousField =
+                context.boundTextField(Control.COMPONENT_TWEAKS_OMINOUS_AMPLIFIER.key(), numericWidth);
 
         card.child(denseEquipmentRow(minAttackField, enchantableField, ominousField));
 
@@ -2282,7 +1964,7 @@ public final class AdvancedItemSpecialDataSection {
                 Control.COMPONENT_TWEAKS_TOOLTIP_STYLE.label(),
                 special.tooltipStyleId,
                 value -> special.tooltipStyleId = value,
-                compactPickerButtonWidth(),
+                Width.PICKER.pixels(),
                 Control.COMPONENT_TWEAKS_TOOLTIP_STYLE.text(),
                 "",
                 withCurrentId(context.tooltipStyleIds(), special.tooltipStyleId),
@@ -2317,17 +1999,18 @@ public final class AdvancedItemSpecialDataSection {
         card.child(UiFactory.title(Control.COMPONENT_TWEAKS_BLOCK_STATE.label()).shadow(false));
 
         Map<String, String> currentValues = parseBlockStatePropertyMap(special.blockStateProperties);
-        FlowLayout stateActions = UiFactory.row();
-        stateActions.horizontalAlignment(HorizontalAlignment.RIGHT);
-        stateActions.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
-        ButtonComponent clearProperties = UiFactory.button(
-                Control.COMMON_RESET.label(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> context.mutateRefresh(() -> special.blockStateProperties = ""));
-        clearProperties.active(!currentValues.isEmpty());
-        clearProperties.horizontalSizing(Sizing.fixed(compactClearButtonWidth()));
-        card.child(stateActions);
-        stateActions.child(clearProperties);
+        if (!currentValues.isEmpty()) {
+            FlowLayout stateActions = UiFactory.row();
+            stateActions.horizontalAlignment(HorizontalAlignment.RIGHT);
+            stateActions.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+            ButtonComponent clearProperties = UiFactory.button(
+                    Control.COMMON_RESET.label(),
+                    UiFactory.ButtonTextPreset.COMPACT,
+                    button -> context.mutateRefresh(() -> special.blockStateProperties = ""));
+            clearProperties.horizontalSizing(Sizing.fixed(Width.CLEAR.pixels()));
+            card.child(stateActions);
+            stateActions.child(clearProperties);
+        }
 
         for (BlockStatePropertyMeta property : availableProperties) {
             UIComponent entry = blockStatePropertyRow(context, special, currentValues, property);
@@ -2342,50 +2025,30 @@ public final class AdvancedItemSpecialDataSection {
             ItemEditorState.SpecialData special,
             Map<String, String> currentValues,
             BlockStatePropertyMeta property) {
-        String currentValue = selectedBlockStateValue(currentValues, property);
-        boolean hasOverride = currentValues.containsKey(property.key())
-                && !currentValues.getOrDefault(property.key(), "").isBlank();
-        boolean stacked = usesStackedBlockStateRows();
-        FlowLayout row = stacked ? UiFactory.column() : UiFactory.row();
-        row.id(blockStateAnchor(property));
-        row.gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
+        String currentValue = currentValues.getOrDefault(property.key(), "");
+        var originalProperties = context.originalStack().get(DataComponents.BLOCK_STATE);
+        String originalValue = originalProperties == null
+                ? ""
+                : originalProperties.properties().getOrDefault(property.key(), "");
+        boolean changed = !Objects.equals(currentValue, originalValue);
+        boolean hasOverride = !currentValue.isBlank();
 
-        int labelWidth = blockStateLabelWidth();
-        Component labelText = Component.literal(property.key());
-        Component fittedLabel = UiFactory.fitToWidth(labelText, labelWidth);
-        var label = UiFactory.muted(fittedLabel, labelWidth);
-        if (!Objects.equals(fittedLabel.getString(), labelText.getString())) {
-            label.tooltip(List.of(labelText));
-        }
-        label.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(labelWidth));
-        row.child(label);
-
+        Component valueLabel = hasOverride
+                ? Component.literal(currentValue).withColor(0x55FFFF)
+                : ItemEditorText.tr("common.unset").copy().withColor(0xAAAAAA);
         ButtonComponent valueButton = UiFactory.button(
-                Component.literal(currentValue),
+                valueLabel,
                 UiFactory.ButtonTextPreset.STANDARD,
-                anchor -> context.openDropdown(
-                        anchor,
-                        property.values(),
-                        value -> value,
-                        value -> context.mutateRefresh(() -> setBlockStateProperty(special, property.key(), value))));
-        valueButton.active(!property.values().isEmpty());
-        valueButton.horizontalSizing(
-                stacked
-                        ? Sizing.fill(100)
-                        : Sizing.fill(
-                                hasOverride
-                                        ? BLOCK_STATE_VALUE_WITH_RESET_WIDTH_PERCENT
-                                        : BLOCK_STATE_VALUE_WIDTH_PERCENT));
-        row.child(valueButton);
-
-        if (hasOverride) {
-            ButtonComponent resetButton = UiFactory.button(
-                    Control.COMMON_RESET.label(),
-                    UiFactory.ButtonTextPreset.COMPACT,
-                    button -> context.mutateRefresh(() -> removeBlockStateProperty(special, property.key())));
-            resetButton.horizontalSizing(stacked ? Sizing.fill(100) : Sizing.fixed(compactClearButtonWidth()));
-            row.child(resetButton);
-        }
+                button -> context.mutateRefresh(() -> setBlockStateProperty(
+                        special,
+                        property.key(),
+                        nextBlockStateValue(
+                                currentValue,
+                                property.values(),
+                                Minecraft.getInstance().hasShiftDown() ? -1 : 1))));
+        valueButton.active(hasOverride || !property.values().isEmpty());
+        FlowLayout row = CompactFieldLayout.selectorRow(Component.literal(property.key()), valueButton, changed);
+        row.id(blockStateAnchor(property));
         return row;
     }
 
@@ -2412,7 +2075,7 @@ public final class AdvancedItemSpecialDataSection {
                                 entries,
                                 id -> id,
                                 id -> context.mutateRefresh(() -> setter.accept(id))))
-                .horizontalSizing(Sizing.fixed(compactFixedPickButtonWidth())));
+                .horizontalSizing(Sizing.fixed(Width.FIXED_PICK.pixels())));
         return row;
     }
 
@@ -2470,8 +2133,7 @@ public final class AdvancedItemSpecialDataSection {
         List<String> entries = splitIdentifierTokens(value);
         FlowLayout summaryRow = UiFactory.row();
         UIComponent summary = UiFactory.muted(
-                holderSetSummary(entries, "special.advanced.component_tweaks.damage_types"),
-                compactLongFieldWidth() + 120);
+                holderSetSummary(entries, "special.advanced.component_tweaks.damage_types"), Width.LONG.pixels() + 120);
         summary.horizontalSizing(Sizing.expand(100));
         summaryRow.child(summary);
         if (collapsedSetter != null) {
@@ -2479,7 +2141,7 @@ public final class AdvancedItemSpecialDataSection {
                     Component.literal(collapsed ? SYMBOL_SECTION_COLLAPSED : SYMBOL_SECTION_EXPANDED),
                     UiFactory.ButtonTextPreset.STANDARD,
                     button -> context.mutateRefresh(() -> collapsedSetter.accept(!collapsed)));
-            toggle.horizontalSizing(Sizing.fixed(compactIconButtonWidth()));
+            toggle.horizontalSizing(Sizing.fixed(Width.ICON.pixels()));
             summaryRow.child(toggle);
         }
         editor.child(summaryRow);
@@ -2487,7 +2149,7 @@ public final class AdvancedItemSpecialDataSection {
         if (hasHolderSetExpansionWarning(context, entries, Registries.DAMAGE_TYPE)) {
             var warning = UiFactory.message(
                     ItemEditorText.str("special.advanced.component_tweaks.tag_expansion_warning"), 0xFF8A8A);
-            warning.maxWidth(Math.min(UiFactory.responsiveBodyTextWidth(), compactLongFieldWidth() + 60));
+            warning.maxWidth(Math.min(UiFactory.responsiveBodyTextWidth(), Width.LONG.pixels() + 60));
             warning.horizontalSizing(Sizing.fill(100));
             editor.child(warning);
             if (allowTagExpansionSetter != null) {
@@ -2503,8 +2165,7 @@ public final class AdvancedItemSpecialDataSection {
         }
 
         boolean compactHolderRows = usesStackedPickerRows();
-        FlowLayout pickers =
-                holderSetPickerButtons(context, setter, currentValueSupplier, pickerTitle, compactHolderRows);
+        FlowLayout pickers = holderSetPickerButtons(context, setter, currentValueSupplier, pickerTitle);
         if (compactHolderRows) {
             editor.child(pickers);
         }
@@ -2558,7 +2219,7 @@ public final class AdvancedItemSpecialDataSection {
 
         List<String> entries = splitIdentifierTokens(value);
         UIComponent summary = UiFactory.muted(
-                holderSetSummary(entries, "special.advanced.combat.tool_rule_blocks"), compactLongFieldWidth() + 120);
+                holderSetSummary(entries, "special.advanced.combat.tool_rule_blocks"), Width.LONG.pixels() + 120);
         summary.horizontalSizing(Sizing.fill(100));
         editor.child(summary);
 
@@ -2569,14 +2230,13 @@ public final class AdvancedItemSpecialDataSection {
                 setter,
                 currentValueSupplier,
                 pickerTitle,
-                usesStackedPickerRows(),
                 context.optionalRegistryIds(Registries.BLOCK),
                 context.registryTagIds(Registries.BLOCK, "")));
 
         if (hasHolderSetExpansionWarning(context, entries, Registries.BLOCK)) {
             var warning = UiFactory.message(
                     ItemEditorText.str("special.advanced.combat.tool_rule_tag_expansion_warning"), 0xFF8A8A);
-            warning.maxWidth(Math.min(UiFactory.responsiveBodyTextWidth(), compactLongFieldWidth() + 60));
+            warning.maxWidth(Math.min(UiFactory.responsiveBodyTextWidth(), Width.LONG.pixels() + 60));
             warning.horizontalSizing(Sizing.fill(100));
             editor.child(warning);
             editor.child(UiFactory.checkbox(
@@ -2591,14 +2251,12 @@ public final class AdvancedItemSpecialDataSection {
             SpecialDataPanelContext context,
             Consumer<String> setter,
             Supplier<String> currentValueSupplier,
-            String pickerTitle,
-            boolean compact) {
+            String pickerTitle) {
         return holderSetPickerButtons(
                 context,
                 setter,
                 currentValueSupplier,
                 pickerTitle,
-                compact,
                 context.optionalRegistryIds(Registries.DAMAGE_TYPE),
                 context.registryTagIds(Registries.DAMAGE_TYPE, ""));
     }
@@ -2608,11 +2266,8 @@ public final class AdvancedItemSpecialDataSection {
             Consumer<String> setter,
             Supplier<String> currentValueSupplier,
             String pickerTitle,
-            boolean compact,
             List<String> typeIds,
             List<String> tagIds) {
-        FlowLayout pickers = UiFactory.row();
-        pickers.gap(holderSetRowGap());
         ButtonComponent pickType = UiFactory.button(
                 Control.COMMON_ADD_TYPE.label().copy().withColor(0x91E68C),
                 UiFactory.ButtonTextPreset.COMPACT,
@@ -2623,8 +2278,6 @@ public final class AdvancedItemSpecialDataSection {
                         id -> id,
                         id -> context.mutateRefresh(
                                 () -> setter.accept(appendIdentifierListValue(currentValueSupplier.get(), id)))));
-        pickType.horizontalSizing(compact ? Sizing.fill(49) : Sizing.fixed(compactPickerButtonWidth()));
-        pickers.child(pickType);
 
         ButtonComponent pickTag = UiFactory.button(
                 Control.COMMON_ADD_TAG.label().copy().withColor(0x8AC8FF),
@@ -2636,20 +2289,18 @@ public final class AdvancedItemSpecialDataSection {
                         id -> id,
                         id -> context.mutateRefresh(
                                 () -> setter.accept(appendIdentifierListValue(currentValueSupplier.get(), "#" + id)))));
-        pickTag.horizontalSizing(compact ? Sizing.fill(49) : Sizing.fixed(compactPickerButtonWidth()));
-        pickers.child(pickTag);
-        return pickers;
+        return UiFactory.actionButtonRow(pickType, pickTag);
     }
 
     private static int holderSetKindWidth() {
-        return clampToPanelWidth(Math.max(34, UiFactory.scaledPixels(42)));
+        return Width.HOLDER_KIND.pixels();
     }
 
     private static int holderSetRemoveButtonWidth() {
         if (usesStackedPickerRows()) {
-            return clampToPanelWidth(Math.max(34, UiFactory.scaledPixels(40)));
+            return Width.HOLDER_REMOVE.pixels();
         }
-        return compactRemoveButtonWidth();
+        return Width.REMOVE.pixels();
     }
 
     private static int holderSetRowGap() {
@@ -2792,17 +2443,16 @@ public final class AdvancedItemSpecialDataSection {
         return valuesByKey;
     }
 
-    private static String selectedBlockStateValue(Map<String, String> currentValues, BlockStatePropertyMeta property) {
-        String currentValue = currentValues.get(property.key());
-        if (currentValue != null && !currentValue.isBlank()) {
-            return currentValue;
-        }
-        if (property.defaultValue() != null && !property.defaultValue().isBlank()) {
-            return property.defaultValue();
-        }
-        return property.values().isEmpty()
-                ? ItemEditorText.str("special.advanced.select")
-                : property.values().getFirst();
+    static String nextBlockStateValue(String current, List<String> values) {
+        return nextBlockStateValue(current, values, 1);
+    }
+
+    static String nextBlockStateValue(String current, List<String> values, int direction) {
+        if (values.isEmpty()) return "";
+        if (current != null && !current.isBlank() && !values.contains(current)) return "";
+        int index = current == null || current.isBlank() ? -1 : values.indexOf(current);
+        int next = Math.floorMod(index + 1 + direction, values.size() + 1);
+        return next == 0 ? "" : values.get(next - 1);
     }
 
     private static void setBlockStateProperty(ItemEditorState.SpecialData special, String key, String value) {
@@ -2818,13 +2468,6 @@ public final class AdvancedItemSpecialDataSection {
         } else {
             entries.remove(normalizedKey);
         }
-        special.blockStateProperties = serializeBlockStateProperties(entries);
-    }
-
-    private static void removeBlockStateProperty(ItemEditorState.SpecialData special, String key) {
-        String normalizedKey = key == null ? "" : key.trim();
-        Map<String, String> entries = parseBlockStatePropertyMap(special.blockStateProperties);
-        entries.remove(normalizedKey);
         special.blockStateProperties = serializeBlockStateProperties(entries);
     }
 

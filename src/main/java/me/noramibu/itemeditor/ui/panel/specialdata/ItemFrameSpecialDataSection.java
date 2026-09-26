@@ -14,6 +14,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemFrameSpecialDataSection {
+    private static final SpecialDataSearch.Field ITEM_TITLE = () -> "special.entity.item.title";
+
     public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
         var fields = new ArrayList<SpecialDataSearch.Field>();
         fields.addAll(FLAGS);
@@ -26,28 +28,22 @@ public final class ItemFrameSpecialDataSection {
                 () -> {},
                 fields.toArray(SpecialDataSearch.Field[]::new)));
         result.addAll(SpecialDataSearch.targets(
-                context,
-                EditorCategory.SPECIAL_DATA,
-                "special.item_frame.title",
-                "item-frame",
-                () -> {},
-                ItemField.values()));
+                context, EditorCategory.SPECIAL_DATA, "special.item_frame.title", "item-frame", () -> {}, ITEM_TITLE));
         result.addAll(SpecialDataSearch.targets(
                 context,
                 EditorCategory.SPECIAL_DATA,
                 "special.item_frame.title",
                 "item-frame",
                 () -> {},
-                SpecialDataPanelContext.NameField.values()));
+                SpecialDataPanelContext.CUSTOM_NAME_FIELD));
         result.addAll(context.itemActionSearchTargets(
                 EditorCategory.SPECIAL_DATA,
                 List.of(
                         ItemEditorText.str("special.item_frame.title"),
-                        ItemField.TITLE.text().getString()),
+                        ITEM_TITLE.text().getString()),
                 "item-frame",
                 () -> {},
-                context.special().itemFrameItem,
-                true));
+                context.special().itemFrameItem));
         return result;
     }
 
@@ -114,17 +110,14 @@ public final class ItemFrameSpecialDataSection {
     }
 
     private static FlowLayout buildItem(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        ItemStack item = special.itemFrameItem;
         return UiFactory.column()
                 .gap(2)
-                .child(UiFactory.title(ItemField.TITLE.text()).shadow(false))
-                .child(context.itemSummary(
-                        item, item.isEmpty() ? ItemEditorText.tr("common.none") : item.getHoverName(), true))
-                .child(context.itemActions(item, stack -> special.itemFrameItem = stack, () -> context.screen()
-                        .openNestedEditor(
-                                item,
-                                null,
-                                edited -> context.mutateRefresh(() -> special.itemFrameItem = edited.copy()))));
+                .child(UiFactory.title(ITEM_TITLE.text()).shadow(false))
+                .child(context.itemRow(
+                        () -> special.itemFrameItem,
+                        stack -> special.itemFrameItem = stack.copy(),
+                        () -> special.itemFrameItem = ItemStack.EMPTY,
+                        ITEM_TITLE.text()));
     }
 
     private static FlowLayout buildNameCard(SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
@@ -161,19 +154,5 @@ public final class ItemFrameSpecialDataSection {
 
     private static boolean isCompactLayout(SpecialDataPanelContext context) {
         return context.isCompactPanel(COMPACT_LAYOUT_WIDTH_THRESHOLD);
-    }
-
-    private enum ItemField implements SpecialDataSearch.Field {
-        TITLE("special.entity.item.title");
-
-        private final String key;
-
-        ItemField(String key) {
-            this.key = key;
-        }
-
-        public String key() {
-            return key;
-        }
     }
 }

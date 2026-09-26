@@ -2,17 +2,9 @@ package me.noramibu.itemeditor.service;
 
 import com.mojang.datafixers.DataFixer;
 import com.mojang.serialization.DataResult;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import me.noramibu.itemeditor.util.IdFieldNormalizer;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RawItemDataUtil;
@@ -21,8 +13,6 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
@@ -33,60 +23,15 @@ import net.minecraft.world.item.ItemStack;
 public final class ItemImportService {
     private static final int HOTBAR_SLOT_COUNT = 9;
     private static final int DEFAULT_HOTBAR_DATA_VERSION = 1343;
-    private static final ExecutorService IMPORT_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "itemeditor-import");
-        thread.setDaemon(true);
-        return thread;
-    });
 
     public RawItemDataUtil.ParseResult parseText(String input, RegistryAccess registryAccess) {
         return RawItemDataUtil.parseFlexible(input, registryAccess);
     }
 
-    public CompletableFuture<ImportResult> importFile(Path path, RegistryAccess registryAccess, DataFixer fixerUpper) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    if (path == null) {
-                        return ImportResult.failure(ItemEditorText.str("import.cancelled"));
-                    }
-                    String extension = this.extension(path);
-                    try {
-                        return switch (extension) {
-                            case "json", "snbt" ->
-                                this.resultFromParse(RawItemDataUtil.parseFlexible(
-                                        Files.readString(path, StandardCharsets.UTF_8), registryAccess));
-                            case "nbt" -> this.importNbt(path, registryAccess, fixerUpper);
-                            default ->
-                                ImportResult.failure(ItemEditorText.str(
-                                        "import.unsupported_extension",
-                                        extension.isBlank() ? path.getFileName().toString() : extension));
-                        };
-                    } catch (IOException exception) {
-                        return ImportResult.failure(
-                                ItemEditorText.str("import.read_failed", this.errorMessage(exception)));
-                    } catch (RuntimeException exception) {
-                        return ImportResult.failure(ItemEditorText.str("import.failed", this.errorMessage(exception)));
-                    }
-                },
-                IMPORT_EXECUTOR);
-    }
-
-    private ImportResult importNbt(Path path, RegistryAccess registryAccess, DataFixer fixerUpper) throws IOException {
-        try {
-            CompoundTag tag = NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap());
-            return this.resultFromTag(tag, registryAccess, fixerUpper);
-        } catch (IOException | RuntimeException compressedFailure) {
-            try {
-                CompoundTag tag = NbtIo.read(path);
-                return this.resultFromTag(tag, registryAccess, fixerUpper);
-            } catch (IOException | RuntimeException rawFailure) {
-                return this.resultFromParse(
-                        RawItemDataUtil.parseFlexible(Files.readString(path, StandardCharsets.UTF_8), registryAccess));
-            }
+    ImportResult resultFromTag(CompoundTag tag, RegistryAccess registryAccess, DataFixer fixerUpper) {
+        if (tag != null && tag.getStringOr("backupType", "").equals("storage_page")) {
+            return ImportResult.failure(ItemEditorText.str("import.storage_page"));
         }
-    }
-
-    private ImportResult resultFromTag(CompoundTag tag, RegistryAccess registryAccess, DataFixer fixerUpper) {
         List<ItemStack> stacks = this.extractHotbarStacks(tag, registryAccess, fixerUpper);
         if (stacks.isEmpty()) {
             stacks = this.extractItemsList(tag, registryAccess);
@@ -100,7 +45,7 @@ public final class ItemImportService {
         return this.resultFromParse(RawItemDataUtil.parseTagFlexible(tag, registryAccess));
     }
 
-    private ImportResult resultFromParse(RawItemDataUtil.ParseResult parseResult) {
+    ImportResult resultFromParse(RawItemDataUtil.ParseResult parseResult) {
         if (parseResult == null || !parseResult.success()) {
             String error = parseResult == null ? ItemEditorText.str("raw.unknown_error") : parseResult.error();
             return ImportResult.failure(ItemEditorText.str("import.parse_failed", error));
@@ -227,22 +172,6 @@ public final class ItemImportService {
                 .filter(stack -> stack != null && !stack.isEmpty())
                 .map(ItemStack::copy)
                 .toList();
-    }
-
-    private String extension(Path path) {
-        String filename = path == null || path.getFileName() == null
-                ? ""
-                : path.getFileName().toString();
-        int dot = filename.lastIndexOf('.');
-        if (dot < 0 || dot >= filename.length() - 1) {
-            return "";
-        }
-        return filename.substring(dot + 1).toLowerCase(Locale.ROOT);
-    }
-
-    private String errorMessage(Throwable throwable) {
-        String message = throwable.getMessage();
-        return message == null || message.isBlank() ? throwable.getClass().getSimpleName() : message;
     }
 
     private record SlottedStack(int slot, int index, ItemStack stack) {}

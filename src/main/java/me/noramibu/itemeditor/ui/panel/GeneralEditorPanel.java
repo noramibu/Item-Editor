@@ -14,7 +14,9 @@ import java.util.function.Consumer;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.RichTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
@@ -40,7 +42,6 @@ public final class GeneralEditorPanel implements EditorPanel {
     private static final int FIELD_LABEL_DYNAMIC_MIN = 88;
     private static final int FIELD_LABEL_COMPACT_RESERVE = 56;
     private static final int FIELD_LABEL_REGULAR_RESERVE = 42;
-    private static final int RARITY_BUTTON_WIDTH = 140;
     private static final int DURABILITY_NUMERIC_FIELD_WIDTH = 96;
     private static final int DURABILITY_LABEL_WIDTH_CURRENT = 140;
     private static final int DURABILITY_LABEL_WIDTH_MAX = 120;
@@ -178,10 +179,6 @@ public final class GeneralEditorPanel implements EditorPanel {
         }
     }
 
-    static boolean adventureEntriesVisible(boolean anyBlock) {
-        return !anyBlock;
-    }
-
     static boolean hasPrevious(int index) {
         return index > 0;
     }
@@ -218,11 +215,7 @@ public final class GeneralEditorPanel implements EditorPanel {
         }
         for (Field field : Field.values()) {
             if (!field.applicable(capabilities) || field == Field.NAME_COLOR || field == Field.NAME_GRADIENT) continue;
-            String anchor =
-                    switch (field) {
-                        case NAME -> Group.IDENTITY.descriptor.fullKey();
-                        default -> field.descriptor.fullKey();
-                    };
+            String anchor = field == Field.NAME ? Group.IDENTITY.descriptor.fullKey() : field.descriptor.fullKey();
             targets.add(DocumentPanelSearch.target(
                     screen,
                     category,
@@ -279,7 +272,7 @@ public final class GeneralEditorPanel implements EditorPanel {
                     field.descriptor.fullKey(),
                     expand));
         }
-        if (!adventureEntriesVisible(anyBlock)) return;
+        if (anyBlock) return;
         for (int index = 0; index < entries.size(); index++) {
             String scope = adventureEntryScope(list, index);
             String entry = entries.get(index);
@@ -390,8 +383,7 @@ public final class GeneralEditorPanel implements EditorPanel {
 
         FlowLayout stackCountField = this.compactField(
                 Field.COUNT.label(),
-                UiFactory.textBox(state.count, PanelBindings.text(this.screen, value -> state.count = value))
-                        .horizontalSizing(Sizing.fill(100)),
+                PanelBindings.textBox(this.screen, "general.stack_count").horizontalSizing(Sizing.fill(100)),
                 140,
                 true);
         FlowLayout maxStackField = this.compactField(
@@ -421,14 +413,8 @@ public final class GeneralEditorPanel implements EditorPanel {
                         button,
                         Arrays.asList(Rarity.values()),
                         Rarity::name,
-                        PanelBindings.value(this.screen, rarity -> state.rarity = rarity.name())));
-        FlowLayout rarityRow = compactLayout ? UiFactory.column() : UiFactory.row();
-        rarityRow.child(this.compactField(
-                Field.RARITY.label(),
-                rarityButton.horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.fixed(RARITY_BUTTON_WIDTH)),
-                150,
-                compactLayout));
-        identity.child(rarityRow);
+                        rarity -> PanelBindings.mutateRefresh(this.screen, () -> state.rarity = rarity.name())));
+        identity.child(CompactFieldLayout.selectorRow(Field.RARITY.label(), rarityButton));
         return identity;
     }
 
@@ -451,23 +437,24 @@ public final class GeneralEditorPanel implements EditorPanel {
             labelComponent.tooltip(List.of(label));
         }
         labelComponent.margins(Insets.top(1));
-        field.child(labelComponent);
-        field.child(input);
+        field.child(UiFactory.bindField(label, labelComponent));
+        field.child(UiFactory.bindField(label, input));
         return field;
     }
 
     private FlowLayout collapsibleSection(Component title, boolean collapsed, Consumer<Boolean> collapsedSetter) {
         FlowLayout section = UiFactory.card();
-        FlowLayout header = UiFactory.row();
-        header.child(UiFactory.title(title).horizontalSizing(Sizing.expand(100)));
-        ButtonComponent toggle = UiFactory.button(
-                LayoutModeUtil.sectionToggleText(collapsed),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> PanelBindings.mutateRefresh(this.screen, () -> collapsedSetter.accept(!collapsed)));
-        toggle.horizontalSizing(Sizing.fixed(Math.max(
-                ADVENTURE_COLLAPSE_TOGGLE_MIN_WIDTH, UiFactory.scaledPixels(ADVENTURE_COLLAPSE_TOGGLE_BASE_WIDTH))));
-        header.child(toggle);
-        section.child(header);
+        section.child(UiFactory.collapsibleHeader(
+                UiFactory.title(title),
+                collapsed,
+                () -> PanelBindings.mutateRefresh(this.screen, () -> collapsedSetter.accept(!collapsed))));
+        if (collapsed) {
+            Component summary =
+                    EditorSectionSummary.forSection(title, this.screen.session().state());
+            if (!summary.getString().isBlank())
+                section.child(
+                        EditorSectionSummary.label(summary, Math.max(1, this.screen.editorContentWidthHint() - 40)));
+        }
         return section;
     }
 
@@ -492,16 +479,13 @@ public final class GeneralEditorPanel implements EditorPanel {
         if (supportsDurability) {
             row.child(this.compactField(
                     Field.DAMAGE.label(),
-                    UiFactory.textBox(
-                                    state.currentDamage,
-                                    PanelBindings.text(this.screen, value -> state.currentDamage = value))
+                    PanelBindings.textBox(this.screen, "general.current_damage")
                             .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(numericWidth)),
                     DURABILITY_LABEL_WIDTH_CURRENT,
                     compactLayout));
             row.child(this.compactField(
                     Field.MAX_DAMAGE.label(),
-                    UiFactory.textBox(
-                                    state.maxDamage, PanelBindings.text(this.screen, value -> state.maxDamage = value))
+                    PanelBindings.textBox(this.screen, "general.max_damage")
                             .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(numericWidth)),
                     DURABILITY_LABEL_WIDTH_MAX,
                     compactLayout));
@@ -509,9 +493,7 @@ public final class GeneralEditorPanel implements EditorPanel {
         if (supportsRepairCost) {
             row.child(this.compactField(
                     Field.REPAIR.label(),
-                    UiFactory.textBox(
-                                    state.repairCost,
-                                    PanelBindings.text(this.screen, value -> state.repairCost = value))
+                    PanelBindings.textBox(this.screen, "general.repair_cost")
                             .horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(numericWidth)),
                     DURABILITY_LABEL_WIDTH_REPAIR,
                     compactLayout));
@@ -657,7 +639,7 @@ public final class GeneralEditorPanel implements EditorPanel {
         }
         card.child(controls);
 
-        if (collapsed || !adventureEntriesVisible(anyBlock)) {
+        if (collapsed || anyBlock) {
             return card;
         }
 
@@ -747,14 +729,12 @@ public final class GeneralEditorPanel implements EditorPanel {
         if (state.uiGeneralVisualOverridesCollapsed) {
             return visual;
         }
-        ButtonComponent glintButton = UiFactory.actionToneButton(
-                TriStateBooleanUi.label(state.glintOverride),
-                UiFactory.ButtonTextPreset.STANDARD,
-                TriStateBooleanUi.tone(state.glintOverride),
-                button -> PanelBindings.mutateRefresh(
-                        this.screen, () -> state.glintOverride = TriStateBooleanUi.next(state.glintOverride)));
-        glintButton.horizontalSizing(Sizing.fill(100));
-        visual.child(this.compactField(Field.GLINT.label(), glintButton, ITEM_MODEL_VALUE_LABEL_WIDTH, true));
+        visual.child(TriStateBooleanUi.field(
+                Field.GLINT.label(),
+                state.glintOverride,
+                false,
+                -1,
+                value -> PanelBindings.mutateRefresh(this.screen, () -> state.glintOverride = value)));
         return visual;
     }
 
@@ -779,8 +759,7 @@ public final class GeneralEditorPanel implements EditorPanel {
                 || contentWidth < (pickItemModelWidth + minIdInputWidth + idRowGap);
         FlowLayout itemModelIdInputRow =
                 stackPickButton ? UiFactory.column() : UiFactory.row().gap(idRowGap);
-        TextBoxComponent itemModelIdInput = this.itemModelTextBox(
-                state.itemModelId, PanelBindings.text(this.screen, value -> state.itemModelId = value));
+        TextBoxComponent itemModelIdInput = this.itemModelTextBox("general.item_model.id");
         itemModelIdInput.setMaxLength(UNBOUNDED_TEXT_LIMIT);
         itemModelIdInput.horizontalSizing(stackPickButton ? Sizing.fill(100) : Sizing.expand(100));
         itemModelIdInputRow.child(itemModelIdInput);
@@ -807,18 +786,12 @@ public final class GeneralEditorPanel implements EditorPanel {
         FlowLayout customModelValues = stackValueFields ? UiFactory.column() : UiFactory.row();
         customModelValues.child(this.compactField(
                 Field.MODEL_FLOAT.label(),
-                this.itemModelTextBox(
-                                state.customModelFloat,
-                                PanelBindings.text(this.screen, value -> state.customModelFloat = value))
-                        .horizontalSizing(Sizing.fill(100)),
+                this.itemModelTextBox("general.item_model.float").horizontalSizing(Sizing.fill(100)),
                 ITEM_MODEL_VALUE_LABEL_WIDTH,
                 true));
         customModelValues.child(this.compactField(
                 Field.MODEL_STRING.label(),
-                this.itemModelTextBox(
-                                state.customModelString,
-                                PanelBindings.text(this.screen, value -> state.customModelString = value))
-                        .horizontalSizing(Sizing.fill(100)),
+                this.itemModelTextBox("general.item_model.string").horizontalSizing(Sizing.fill(100)),
                 ITEM_MODEL_VALUE_LABEL_WIDTH,
                 true));
         if (!stackValueFields) {
@@ -827,25 +800,19 @@ public final class GeneralEditorPanel implements EditorPanel {
         itemModel.child(customModelValues);
         itemModel.child(this.compactField(
                 Field.MODEL_COLOR.label(),
-                this.itemModelTextBox(
-                                state.customModelColor,
-                                PanelBindings.text(this.screen, value -> state.customModelColor = value))
-                        .horizontalSizing(Sizing.fill(100)),
+                this.itemModelTextBox("general.item_model.color").horizontalSizing(Sizing.fill(100)),
                 ITEM_MODEL_VALUE_LABEL_WIDTH,
                 true));
         itemModel.child(this.compactField(
                 Field.MODEL_FLAGS.label(),
-                this.itemModelTextBox(
-                                state.customModelFlags,
-                                PanelBindings.text(this.screen, value -> state.customModelFlags = value))
-                        .horizontalSizing(Sizing.fill(100)),
+                this.itemModelTextBox("general.item_model.flag_value").horizontalSizing(Sizing.fill(100)),
                 ITEM_MODEL_VALUE_LABEL_WIDTH,
                 true));
         return itemModel;
     }
 
-    private TextBoxComponent itemModelTextBox(String value, Consumer<String> onChanged) {
-        TextBoxComponent input = UiFactory.textBox(value, onChanged);
+    private TextBoxComponent itemModelTextBox(String key) {
+        TextBoxComponent input = PanelBindings.textBox(this.screen, key);
         input.verticalSizing(Sizing.fixed(this.itemModelControlHeight()));
         return input;
     }
@@ -861,9 +828,9 @@ public final class GeneralEditorPanel implements EditorPanel {
         if (childCount <= 1) {
             return;
         }
-        int childWidth = Math.max(1, (100 - childCount) / childCount);
+        int childWidth = Math.max(1, 100 / childCount);
         for (UIComponent child : row.children()) {
-            child.horizontalSizing(Sizing.fill(childWidth));
+            child.horizontalSizing(Sizing.expand(childWidth));
         }
     }
 

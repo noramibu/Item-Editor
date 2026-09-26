@@ -1,5 +1,6 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.serialization.DataResult;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -53,7 +54,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 public final class StorageScreen extends ContainerScreen {
 
@@ -109,6 +109,13 @@ public final class StorageScreen extends ContainerScreen {
     private final Consumer<ItemStack> pickedStackConsumer;
 
     private int currentPage;
+    private String highlightedItemId;
+
+    public StorageScreen highlightItem(String itemId) {
+        this.highlightedItemId = itemId;
+        return this;
+    }
+
     private String currentQuery;
     private StorageSortMode sortMode;
     private boolean reverseSort;
@@ -213,6 +220,16 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     protected void extractLabels(@NotNull GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        for (var entry : this.slotEntries.entrySet()) {
+            if (!entry.getValue().id.equals(this.highlightedItemId)) continue;
+            Slot slot = this.menu.slots.get(entry.getKey());
+            int x = slot.x - 1;
+            int y = slot.y - 1;
+            context.fill(x, y, x + 18, y + 1, 0xFFFFFF55);
+            context.fill(x, y + 17, x + 18, y + 18, 0xFFFFFF55);
+            context.fill(x, y, x + 1, y + 18, 0xFFFFFF55);
+            context.fill(x + 17, y, x + 18, y + 18, 0xFFFFFF55);
+        }
         context.text(this.font, this.storageTitleLabel, this.titleLabelX, this.titleLabelY, -12566464, false);
         context.text(
                 this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, -12566464, false);
@@ -319,7 +336,7 @@ public final class StorageScreen extends ContainerScreen {
 
     @Override
     public boolean keyPressed(@NotNull KeyEvent input) {
-        if (input.key() == GLFW.GLFW_KEY_I) {
+        if (input.key() == InputConstants.KEY_I) {
             Slot hovered = this.hoveredSlot;
             if (hovered != null && hovered.hasItem()) {
                 if (!this.isManageMode()) {
@@ -338,7 +355,7 @@ public final class StorageScreen extends ContainerScreen {
         if (this.handleSearchShortcuts(input)) {
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+        if (input.key() == InputConstants.KEY_RETURN || input.key() == InputConstants.KEY_NUMPADENTER) {
             if (this.searchInput != null && this.searchInput.isFocused()) {
                 this.applySearch();
                 return true;
@@ -365,7 +382,7 @@ public final class StorageScreen extends ContainerScreen {
                 return true;
             }
         }
-        if (!this.isManageMode() && input.key() == GLFW.GLFW_KEY_ESCAPE && !typingInInputs) {
+        if (!this.isManageMode() && input.key() == InputConstants.KEY_ESCAPE && !typingInInputs) {
             this.returnToPreviousScreen();
             return true;
         }
@@ -374,6 +391,11 @@ public final class StorageScreen extends ContainerScreen {
             return true;
         }
         if (!this.isManageMode()) {
+            if (this.isLockMode() && !typingInInputs && !inventoryCloseKey) {
+                // Vanilla keyboard swaps, cloning and throwing all go through slotClicked,
+                // which blocks them in Lock mode. Allow parent-screen shortcut hooks to run.
+                super.keyPressed(input);
+            }
             return true;
         }
         this.beginInteractionSnapshot();
@@ -883,24 +905,24 @@ public final class StorageScreen extends ContainerScreen {
         if (this.searchInput == null) {
             return false;
         }
-        if (input.key() == GLFW.GLFW_KEY_TAB && (this.jumpInput == null || !this.jumpInput.isFocused())) {
+        if (input.key() == InputConstants.KEY_TAB && (this.jumpInput == null || !this.jumpInput.isFocused())) {
             if (!this.searchInput.isFocused()) {
                 this.focusPanelInput(this.searchInput);
                 this.searchInput.setCursorPosition(this.searchInput.getValue().length());
             }
             return this.applyAutocomplete(input.hasShiftDown());
         }
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_F) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_F) {
             this.focusPanelInput(this.searchInput);
             this.searchInput.setCursorPosition(this.searchInput.getValue().length());
             return true;
         }
-        if (input.hasControlDownWithQuirk() && input.key() == GLFW.GLFW_KEY_L) {
+        if (input.hasControlDownWithQuirk() && input.key() == InputConstants.KEY_L) {
             this.clearSearch();
             this.focusPanelInput(this.searchInput);
             return true;
         }
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE && this.searchInput.isFocused()) {
+        if (input.key() == InputConstants.KEY_ESCAPE && this.searchInput.isFocused()) {
             this.setFocused(null);
             return true;
         }

@@ -4,6 +4,7 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import org.joml.Matrix3x2fStack;
 
 public final class ScaledLabelComponent extends LabelComponent {
@@ -44,6 +45,12 @@ public final class ScaledLabelComponent extends LabelComponent {
         matrices.translate(-this.x(), -this.y());
         super.draw(context, mouseX, mouseY, partialTicks, delta);
         matrices.popMatrix();
+    }
+
+    @Override
+    protected Style styleAt(int mouseX, int mouseY) {
+        Style style = super.styleAt(mouseX, mouseY);
+        return style == null ? Style.EMPTY : style;
     }
 
     @Override

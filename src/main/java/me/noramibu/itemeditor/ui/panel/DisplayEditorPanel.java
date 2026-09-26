@@ -215,6 +215,7 @@ public final class DisplayEditorPanel implements EditorPanel {
                 ItemEditorText.tr("display.lore.optimize"),
                 UiFactory.ButtonTextPreset.STANDARD,
                 button -> this.optimizeLore());
+        optimize.tooltip(List.of(ItemEditorText.tr("display.lore.optimize.tooltip")));
         optimize.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));
         row.child(optimize);
         clearLore.horizontalSizing(compactLayout ? Sizing.fill(100) : UiFactory.fixed(clearWidth));

@@ -83,7 +83,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                                 EditorCategory.ENCHANTMENTS,
                                 list.entryScope(index),
                                 parents,
-                                this.enchantmentSummary(draft),
+                                this.enchantmentSummary(draft).getString(),
                                 () -> draft.uiCollapsed = false,
                                 index + 1));
                 for (EntryField field : EntryField.values()) {
@@ -95,7 +95,7 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                             EditorCategory.ENCHANTMENTS,
                             list.entryScope(index),
                             entryParents,
-                            this.enchantmentSummary(draft) + " " + EditorSearchDialog.english(list.path()),
+                            this.enchantmentSummary(draft).getString() + " " + EditorSearchDialog.english(list.path()),
                             () -> draft.uiCollapsed = false));
                 }
             }
@@ -185,22 +185,10 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                                 button -> PanelBindings.mutateRefresh(this.screen, drafts::clear))
                         : null));
         if (hasEntries) {
-            Component expandText = ListField.EXPAND.label();
-            ButtonComponent expandAll = UiFactory.button(
-                    expandText,
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> PanelBindings.mutateRefresh(
-                            this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = false)));
-            expandAll.tooltip(List.of(expandText));
-
-            Component collapseText = ListField.COLLAPSE.label();
-            ButtonComponent collapseAll = UiFactory.button(
-                    collapseText,
-                    UiFactory.ButtonTextPreset.STANDARD,
-                    button -> PanelBindings.mutateRefresh(
-                            this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = true)));
-            collapseAll.tooltip(List.of(collapseText));
-            section.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+            section.child(UiFactory.collapseAllButton(
+                    drafts.stream().anyMatch(entry -> entry.uiCollapsed),
+                    collapsed -> PanelBindings.mutateRefresh(
+                            this.screen, () -> drafts.forEach(entry -> entry.uiCollapsed = collapsed))));
         }
         int summaryWidth = Math.clamp(
                 Math.max(SUMMARY_WIDTH_MIN, contentWidth - UiFactory.scaledPixels(SUMMARY_WIDTH_RESERVE)),
@@ -208,9 +196,8 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                 contentWidth);
 
         for (int index = 0; index < drafts.size(); index++) {
-            int currentIndex = index;
-            ItemEditorState.EnchantmentDraft draft = drafts.get(currentIndex);
-            FlowLayout card = this.entryCard(list, drafts, currentIndex, summaryWidth);
+            ItemEditorState.EnchantmentDraft draft = drafts.get(index);
+            FlowLayout card = this.entryCard(list, drafts, index, summaryWidth);
             card.id(list.entryScope(index));
 
             if (draft.uiCollapsed) {
@@ -246,22 +233,18 @@ public final class EnchantmentEditorPanel implements EditorPanel {
                             draft.level, PanelBindings.text(this.screen, value -> draft.level = value))
                     .horizontalSizing(stackLevelControls ? Sizing.fill(100) : UiFactory.fixed(levelFieldWidth)));
 
-            FlowLayout levelButtons = UiFactory.row();
-            levelButtons.horizontalSizing(stackLevelControls ? Sizing.fill(100) : Sizing.fixed(levelButtonsWidth));
             ButtonComponent minusLevel = UiFactory.negativeButton(
                     Component.literal("-"),
                     UiFactory.ButtonTextPreset.COMPACT,
                     button -> PanelBindings.mutateRefresh(
                             this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, -1))));
-            minusLevel.horizontalSizing(Sizing.fill(50));
-            levelButtons.child(minusLevel);
             ButtonComponent plusLevel = UiFactory.positiveButton(
                     Component.literal("+"),
                     UiFactory.ButtonTextPreset.COMPACT,
                     button -> PanelBindings.mutateRefresh(
                             this.screen, () -> draft.level = Integer.toString(this.adjustLevel(draft.level, 1))));
-            plusLevel.horizontalSizing(Sizing.fill(50));
-            levelButtons.child(plusLevel);
+            FlowLayout levelButtons = UiFactory.actionButtonRow(minusLevel, plusLevel);
+            levelButtons.horizontalSizing(stackLevelControls ? Sizing.fill(100) : Sizing.fixed(levelButtonsWidth));
             levelControls.child(levelButtons);
             card.child(UiFactory.field(EntryField.LEVEL.label(), Component.empty(), levelControls));
             section.child(card);
@@ -276,13 +259,12 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         FlowLayout card = UiFactory.subCard();
         FlowLayout header =
                 UiFactory.column().gap(Math.max(1, UiFactory.scaleProfile().tightSpacing()));
-        FlowLayout title = UiFactory.row();
-        title.child(UiFactory.title(list.entryLabel(index)).shadow(false).horizontalSizing(Sizing.expand(100)));
-        title.child(UiFactory.collapseToggleButton(
+        FlowLayout title = UiFactory.collapsibleHeader(
+                UiFactory.title(list.entryLabel(index)).shadow(false),
                 draft.uiCollapsed,
-                () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed)));
+                () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed));
         header.child(title);
-        header.child(UiFactory.muted(Component.literal(this.enchantmentSummary(draft)), summaryWidth));
+        header.child(UiFactory.muted(this.enchantmentSummary(draft), summaryWidth));
         header.child(UiFactory.actionButtonRow(
                 this.entryAction(
                         EntryField.UP,
@@ -313,10 +295,14 @@ public final class EnchantmentEditorPanel implements EditorPanel {
         return button;
     }
 
-    private String enchantmentSummary(ItemEditorState.EnchantmentDraft draft) {
+    private Component enchantmentSummary(ItemEditorState.EnchantmentDraft draft) {
         String id = draft.enchantmentId == null || draft.enchantmentId.isBlank() ? "-" : draft.enchantmentId;
         String level = draft.level == null || draft.level.isBlank() ? "1" : draft.level;
-        return id + " (" + level + ")";
+        return Component.empty()
+                .append(Component.literal(id).withColor(0x55FFFF))
+                .append(" (")
+                .append(Component.literal(level).withColor(0x55FF55))
+                .append(")");
     }
 
     private int adjustLevel(String raw, int delta) {

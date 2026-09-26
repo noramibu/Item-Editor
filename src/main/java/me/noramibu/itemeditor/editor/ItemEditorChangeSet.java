@@ -121,8 +121,8 @@ public final class ItemEditorChangeSet {
                         && value instanceof ItemLore lore
                         && lore.lines().isEmpty()
                 || type == DataComponents.ATTRIBUTE_MODIFIERS
-                        && value instanceof ItemAttributeModifiers modifiers
-                        && modifiers.modifiers().isEmpty();
+                        && value instanceof ItemAttributeModifiers(var modifiers)
+                        && modifiers.isEmpty();
     }
 
     private static String encode(DataComponentType<?> type, Object value, DynamicOps<Tag> ops) {
@@ -132,9 +132,8 @@ public final class ItemEditorChangeSet {
         return encodeUnchecked(type, value, ops);
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> String encodeUnchecked(DataComponentType<T> type, Object value, DynamicOps<Tag> ops) {
-        return TypedDataComponent.createUnchecked(type, (T) value)
+        return TypedDataComponent.createUnchecked(type, value)
                 .encodeValue(ops)
                 .result()
                 .map(Tag::toString)

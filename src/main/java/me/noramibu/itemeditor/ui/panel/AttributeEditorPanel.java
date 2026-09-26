@@ -18,13 +18,16 @@ import me.noramibu.itemeditor.ItemEditorClient;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
 import me.noramibu.itemeditor.editor.text.RichTextDocument;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
 import me.noramibu.itemeditor.ui.component.StyledTextFieldSection;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.ui.screen.ItemEditorScreen;
 import me.noramibu.itemeditor.ui.util.LayoutModeUtil;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import me.noramibu.itemeditor.util.RegistryUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -81,7 +84,8 @@ public final class AttributeEditorPanel implements EditorPanel {
             List<String> entryParents = PanelSearchDeclaration.parents(
                     EditorCategory.ATTRIBUTES, PanelField.TITLE.label(), ModifierField.ROW.label(index + 1));
             Runnable expand = () -> draft.uiCollapsed = false;
-            String aliases = this.attributeSummary(draft) + " " + EditorSearchDialog.english(PanelField.TITLE.path());
+            String aliases = this.attributeSummary(draft).getString() + " "
+                    + EditorSearchDialog.english(PanelField.TITLE.path());
             for (ModifierField field : ModifierField.values()) {
                 if (!field.appliesTo(draft.display.type())) {
                     continue;
@@ -156,25 +160,17 @@ public final class AttributeEditorPanel implements EditorPanel {
                     draft.uiCollapsed = false;
                     state.attributeModifiers.add(draft);
                 }));
-        intro.child(UiFactory.actionButtonRow(addButton, resetButton));
+        ButtonComponent collapseButton = null;
         if (!state.attributeModifiers.isEmpty()) {
-            Component expandText = PanelField.EXPAND.label();
-            ButtonComponent expandAll = this.introActionButton(
-                    expandText,
-                    UiFactory.ActionTone.NEUTRAL,
+            boolean anyCollapsed = state.attributeModifiers.stream().anyMatch(entry -> entry.uiCollapsed);
+            collapseButton = this.introActionButton(
+                    (anyCollapsed ? PanelField.EXPAND : PanelField.COLLAPSE).label(),
+                    UiFactory.ActionTone.PICKER,
                     button -> PanelBindings.mutateRefresh(
-                            this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = false)));
-            expandAll.tooltip(List.of(expandText));
-
-            Component collapseText = PanelField.COLLAPSE.label();
-            ButtonComponent collapseAll = this.introActionButton(
-                    collapseText,
-                    UiFactory.ActionTone.NEUTRAL,
-                    button -> PanelBindings.mutateRefresh(
-                            this.screen, () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = true)));
-            collapseAll.tooltip(List.of(collapseText));
-            intro.child(UiFactory.actionButtonRow(expandAll, collapseAll));
+                            this.screen,
+                            () -> state.attributeModifiers.forEach(entry -> entry.uiCollapsed = !anyCollapsed)));
         }
+        intro.child(UiFactory.actionButtonRow(false, addButton, resetButton, collapseButton));
         root.child(intro);
 
         for (int index = 0; index < state.attributeModifiers.size(); index++) {
@@ -182,12 +178,16 @@ public final class AttributeEditorPanel implements EditorPanel {
             ItemEditorState.AttributeModifierDraft originalDraft = originalByIdentity.get(this.draftIdentityKey(draft));
             FlowLayout card = this.attributeModifierCard(state, draft, originalDraft, index);
 
+            if (draft.uiCollapsed) {
+                root.child(card);
+                continue;
+            }
             if (prototypeKeys.contains(this.draftKey(draft))) {
                 card.child(
                         UiFactory.muted(ItemEditorText.tr("attributes.modifier.built_in"), BUILT_IN_NOTE_HINT_WIDTH));
             }
 
-            var summary = UiFactory.muted(Component.literal(this.attributeSummary(draft)), NOTE_HINT_WIDTH_WIDE);
+            var summary = UiFactory.muted(this.attributeSummary(draft), NOTE_HINT_WIDTH_WIDE);
             card.child(summary);
 
             Component previewLine = this.attributePreviewLine(draft, attributeRegistry, index);
@@ -196,15 +196,10 @@ public final class AttributeEditorPanel implements EditorPanel {
             card.child(preview);
             int modifierIndex = index;
             Runnable updateSummary = () -> {
-                summary.text(Component.literal(this.attributeSummary(draft)));
+                summary.text(this.attributeSummary(draft));
                 Component updated = this.attributePreviewLine(draft, attributeRegistry, modifierIndex);
                 preview.text(updated == null ? Component.empty() : updated);
             };
-
-            if (draft.uiCollapsed) {
-                root.child(card);
-                continue;
-            }
 
             ButtonComponent attributeButton = UiFactory.button(
                     draft.attributeId.isBlank()
@@ -252,7 +247,7 @@ public final class AttributeEditorPanel implements EditorPanel {
                     this.operationTone(draft.operation),
                     button -> PanelBindings.mutateRefresh(
                             this.screen, () -> draft.operation = nextOperation(draft.operation)));
-            rowOne.child(UiFactory.field(ModifierField.OPERATION.label(), Component.empty(), operationButton)
+            rowOne.child(CompactFieldLayout.selectorRow(ModifierField.OPERATION.label(), operationButton)
                     .horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(33)));
 
             var slotButton = UiFactory.button(
@@ -262,27 +257,26 @@ public final class AttributeEditorPanel implements EditorPanel {
                             button,
                             Arrays.asList(EquipmentSlotGroup.values()),
                             EquipmentSlotGroup::name,
-                            slot -> PanelBindings.mutate(this.screen, () -> draft.slotGroup = slot.name())));
-            rowOne.child(UiFactory.field(ModifierField.SLOT.label(), Component.empty(), slotButton)
+                            slot -> PanelBindings.mutateRefresh(this.screen, () -> draft.slotGroup = slot.name())));
+            rowOne.child(CompactFieldLayout.selectorRow(ModifierField.SLOT.label(), slotButton)
                     .horizontalSizing(compactLayout ? Sizing.fill(100) : Sizing.expand(33)));
             card.child(rowOne);
 
             FlowLayout modifierIdRow = this.modifierIdRow(draft, compactLayout);
             card.child(modifierIdRow);
-            card.child(UiFactory.field(
+            card.child(CompactFieldLayout.selectorRow(
                     ModifierField.DISPLAY.label(),
-                    Component.empty(),
                     UiFactory.button(
                             ItemEditorText.tr("attributes.modifier.display."
                                     + draft.display.type().getSerializedName()),
                             UiFactory.ButtonTextPreset.STANDARD,
-                            button -> PanelBindings.mutateRefresh(screen, () -> {
-                                draft.display = switch (draft.display.type()) {
-                                    case DEFAULT -> ItemAttributeModifiers.Display.hidden();
-                                    case HIDDEN -> ItemAttributeModifiers.Display.override(draft.displayText);
-                                    case OVERRIDE -> ItemAttributeModifiers.Display.attributeModifiers();
-                                };
-                            }))));
+                            button -> PanelBindings.mutateRefresh(
+                                    screen,
+                                    () -> draft.display = switch (draft.display.type()) {
+                                        case DEFAULT -> ItemAttributeModifiers.Display.hidden();
+                                        case HIDDEN -> ItemAttributeModifiers.Display.override(draft.displayText);
+                                        case OVERRIDE -> ItemAttributeModifiers.Display.attributeModifiers();
+                                    }))));
             if (draft.display.type() == ItemAttributeModifiers.Display.Type.OVERRIDE) {
                 var editor = StyledTextFieldSection.create(
                         screen,
@@ -327,32 +321,20 @@ public final class AttributeEditorPanel implements EditorPanel {
             int currentIndex) {
         FlowLayout card = UiFactory.subCard();
         card.id(modifierScope(currentIndex));
-        FlowLayout titleRow = UiFactory.row();
-        titleRow.child(UiFactory.title(ModifierField.ROW.label(currentIndex + 1))
-                .shadow(false)
-                .horizontalSizing(Sizing.expand(100)));
-        titleRow.child(UiFactory.collapseToggleButton(
+        Component title = ModifierField.ROW.label(currentIndex + 1);
+        if (draft.uiCollapsed) title = title.copy().append(" | ").append(this.attributeSummary(draft));
+        FlowLayout titleRow = UiFactory.collapsibleHeader(
+                UiFactory.title(UiFactory.fitToWidth(title, Math.max(1, this.screen.editorContentWidthHint() - 100)))
+                        .shadow(false)
+                        .tooltip(List.of(title)),
                 draft.uiCollapsed,
-                () -> PanelBindings.mutateRefresh(this.screen, () -> draft.uiCollapsed = !draft.uiCollapsed)));
+                () -> PanelBindings.mutateRefresh(this.screen, () -> {
+                    this.screen.selectEntry(state.attributeModifiers, draft);
+                    draft.uiCollapsed = !draft.uiCollapsed;
+                }));
         card.child(titleRow);
+        if (draft.uiCollapsed || !this.screen.isSelectedEntry(state.attributeModifiers, draft)) return card;
 
-        ButtonComponent upButton = UiFactory.button(
-                ModifierField.UP.label(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> PanelBindings.mutateRefresh(
-                        this.screen, () -> Collections.swap(state.attributeModifiers, currentIndex, currentIndex - 1)));
-        upButton.active(currentIndex > 0);
-        ButtonComponent downButton = UiFactory.button(
-                ModifierField.DOWN.label(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> PanelBindings.mutateRefresh(
-                        this.screen, () -> Collections.swap(state.attributeModifiers, currentIndex, currentIndex + 1)));
-        downButton.active(currentIndex < state.attributeModifiers.size() - 1);
-        ButtonComponent duplicateButton = UiFactory.button(
-                ModifierField.DUPLICATE.label(),
-                UiFactory.ButtonTextPreset.COMPACT,
-                button -> PanelBindings.mutateRefresh(
-                        this.screen, () -> state.attributeModifiers.add(currentIndex + 1, this.copyDraft(draft))));
         ButtonComponent resetButton = null;
         if (originalDraft != null) {
             resetButton = UiFactory.button(
@@ -362,10 +344,15 @@ public final class AttributeEditorPanel implements EditorPanel {
                             this.screen,
                             () -> state.attributeModifiers.set(currentIndex, this.copyDraft(originalDraft))));
         }
-        card.child(UiFactory.actionButtonRow(
-                upButton,
-                downButton,
-                duplicateButton,
+        card.child(UiFactory.entryActions(
+                currentIndex > 0,
+                () -> PanelBindings.mutateRefresh(
+                        this.screen, () -> Collections.swap(state.attributeModifiers, currentIndex, currentIndex - 1)),
+                currentIndex < state.attributeModifiers.size() - 1,
+                () -> PanelBindings.mutateRefresh(
+                        this.screen, () -> Collections.swap(state.attributeModifiers, currentIndex, currentIndex + 1)),
+                () -> PanelBindings.mutateRefresh(
+                        this.screen, () -> state.attributeModifiers.add(currentIndex + 1, this.copyDraft(draft))),
                 resetButton,
                 UiFactory.negativeButton(
                         ModifierField.REMOVE.label(),
@@ -409,12 +396,12 @@ public final class AttributeEditorPanel implements EditorPanel {
             section.child(UiFactory.muted(
                     ItemEditorText.tr(
                             "attributes.preview.player_base",
-                            this.formatAmount(this.screen
+                            this.coloredAmount(this.screen
                                     .session()
                                     .minecraft()
                                     .player
                                     .getAttributeBaseValue(Attributes.ATTACK_DAMAGE)),
-                            this.formatAmount(this.screen
+                            this.coloredAmount(this.screen
                                     .session()
                                     .minecraft()
                                     .player
@@ -429,13 +416,20 @@ public final class AttributeEditorPanel implements EditorPanel {
         return section;
     }
 
-    private String attributeSummary(ItemEditorState.AttributeModifierDraft draft) {
+    private Component attributeSummary(ItemEditorState.AttributeModifierDraft draft) {
         String attribute = draft.attributeId == null || draft.attributeId.isBlank() ? "-" : draft.attributeId;
         String operation = this.safeOperationName(draft.operation);
         String slot =
                 draft.slotGroup == null || draft.slotGroup.isBlank() ? EquipmentSlotGroup.ANY.name() : draft.slotGroup;
         String amount = draft.amount == null || draft.amount.isBlank() ? "0" : draft.amount;
-        return attribute + " | " + operation + " | " + slot + " | " + amount;
+        return EditorSectionSummary.value(attribute)
+                .copy()
+                .append(EditorSectionSummary.separator())
+                .append(EditorSectionSummary.value(operation))
+                .append(EditorSectionSummary.separator())
+                .append(EditorSectionSummary.value(slot))
+                .append(EditorSectionSummary.separator())
+                .append(EditorSectionSummary.value(amount));
     }
 
     private Component attributePreviewLine(
@@ -557,15 +551,20 @@ public final class AttributeEditorPanel implements EditorPanel {
                 .map(key -> key.identifier().toString())
                 .orElse(ItemEditorText.str("attributes.preview.unbound"));
         card.child(UiFactory.muted(
-                ItemEditorText.str(
+                ItemEditorText.tr(
                         "attributes.preview.source_line",
-                        sourceLabel,
-                        entry.slot().name(),
-                        entry.modifier().operation().name(),
-                        this.formatAmount(entry.modifier().amount())),
+                        Component.literal(sourceLabel).withStyle(ChatFormatting.AQUA),
+                        Component.literal(entry.slot().name()).withStyle(ChatFormatting.AQUA),
+                        Component.literal(entry.modifier().operation().name()).withStyle(ChatFormatting.AQUA),
+                        this.coloredAmount(entry.modifier().amount())),
                 NOTE_HINT_WIDTH_MEDIUM));
-        card.child(UiFactory.muted(attributeId, NOTE_HINT_WIDTH_MEDIUM));
+        card.child(UiFactory.muted(EditorSectionSummary.value(attributeId), NOTE_HINT_WIDTH_MEDIUM));
         return card;
+    }
+
+    private Component coloredAmount(double amount) {
+        return Component.literal(this.formatAmount(amount))
+                .withStyle(amount < 0 ? ChatFormatting.RED : amount > 0 ? ChatFormatting.GREEN : ChatFormatting.GRAY);
     }
 
     private Identifier modifierIdentifier(ItemEditorState.AttributeModifierDraft draft, int index) {

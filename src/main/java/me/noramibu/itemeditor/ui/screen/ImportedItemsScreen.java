@@ -1,7 +1,9 @@
 package me.noramibu.itemeditor.ui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import me.noramibu.itemeditor.editor.ItemEditorSession;
+import me.noramibu.itemeditor.editor.ItemEditorSessionOrigin;
 import me.noramibu.itemeditor.ui.component.UiFactory;
 import me.noramibu.itemeditor.util.ItemEditorText;
 import net.minecraft.client.Minecraft;
@@ -18,7 +20,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 public final class ImportedItemsScreen extends ContainerScreen {
     private static final int COLUMNS = 9;
@@ -103,7 +104,7 @@ public final class ImportedItemsScreen extends ContainerScreen {
 
     @Override
     public boolean keyPressed(@NotNull KeyEvent input) {
-        if (input.key() == GLFW.GLFW_KEY_I) {
+        if (input.key() == InputConstants.KEY_I) {
             Slot hovered = this.hoveredSlot;
             int slotId = hovered == null ? -1 : this.menu.slots.indexOf(hovered);
             if (slotId >= 0 && slotId < this.pageSize && hovered.hasItem()) {
@@ -120,7 +121,8 @@ public final class ImportedItemsScreen extends ContainerScreen {
     }
 
     private void openEditor(ItemStack stack) {
-        this.minecraft.setScreen(new ItemEditorScreen(new ItemEditorSession(this.minecraft, stack.copy())));
+        this.minecraft.setScreen(new ItemEditorScreen(
+                new ItemEditorSession(this.minecraft, stack.copy(), ItemEditorSessionOrigin.IMPORTED)));
     }
 
     private void changePage(int delta) {

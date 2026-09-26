@@ -1,14 +1,17 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.serialization.Codec;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -16,6 +19,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
@@ -24,11 +28,15 @@ import me.noramibu.itemeditor.service.EntityTagFields;
 import me.noramibu.itemeditor.service.EntityTagValues;
 import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
+import me.noramibu.itemeditor.ui.component.EditorSectionSummary;
+import me.noramibu.itemeditor.ui.component.PickerFieldFactory;
 import me.noramibu.itemeditor.ui.component.RawTextAreaComponent;
 import me.noramibu.itemeditor.ui.component.UiFactory;
+import me.noramibu.itemeditor.ui.util.TriStateBooleanUi;
 import me.noramibu.itemeditor.ui.util.UiColors;
 import me.noramibu.itemeditor.util.ItemEditorCapabilities;
 import me.noramibu.itemeditor.util.ItemEditorText;
+import me.noramibu.itemeditor.util.ItemEditorTypes;
 import me.noramibu.itemeditor.util.LootTableIds;
 import me.noramibu.itemeditor.util.ValidationUtil;
 import net.minecraft.core.UUIDUtil;
@@ -56,7 +64,6 @@ import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.item.component.SuspiciousStewEffects;
 import net.minecraft.world.item.component.TypedEntityData;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
@@ -82,10 +89,7 @@ public final class EntityTagFieldsUi {
         this.context = context;
         this.draft = draft;
         this.sections = sections(draft.entityId);
-    }
-
-    public static List<EditorSearchDialog.Target> searchTargets(SpecialDataPanelContext context) {
-        return searchTargets(context, context.special().spawnEggEntity, ItemEditorText.str("special.spawn_egg.title"));
+        if (this.hasVariantFields()) this.sections.putIfAbsent("entity", List.of());
     }
 
     public static List<EditorSearchDialog.Target> searchTargets(
@@ -144,7 +148,7 @@ public final class EntityTagFieldsUi {
                     draft.uiExpandedTagGroups.add(section.getKey());
                     if (section.getKey().equals("equipment")) draft.equipment.uiCollapsed = false;
                 };
-                var nestedPath = new ArrayList<String>(List.of(title.split(" > ")));
+                var nestedPath = new ArrayList<>(List.of(title.split(" > ")));
                 nestedPath.add(sectionLabel(draft, section.getKey()).getString());
                 nestedPath.add(label);
                 result.addAll(nestedSearchTargets(context, draft, field, nestedPath, showField));
@@ -159,9 +163,8 @@ public final class EntityTagFieldsUi {
             EntityTagFields.Field field,
             List<String> path,
             Runnable expand) {
-        var result = new ArrayList<EditorSearchDialog.Target>();
         String scope = fieldScope(draft, field);
-        result.addAll(EntityTagInputUi.searchTargets(context, draft, field, path, scope, expand));
+        var result = new ArrayList<>(EntityTagInputUi.searchTargets(context, draft, field, path, scope, expand));
         if (field.key().equals("Brain")) {
             result.addAll(EntityMemoryInputUi.searchTargets(context, draft, field, path, scope, expand));
         }
@@ -187,7 +190,6 @@ public final class EntityTagFieldsUi {
         }
         if (EntityTagValues.isItem(field.key()) || Set.of("Items", "Inventory").contains(field.key())) {
             actions.add(SpecialDataPanelContext.ItemAction.PICK);
-            actions.add(SpecialDataPanelContext.ItemAction.PICK_FROM_STORAGE);
         }
         result.addAll(SpecialDataSearch.targets(
                 context,
@@ -216,7 +218,7 @@ public final class EntityTagFieldsUi {
                             Action.REMOVE.text().getString(),
                             Action.REMOVE.key(),
                             scope,
-                            "entity-item-remove:" + index,
+                            "entity-item:" + index,
                             expand));
                 }
             }
@@ -335,7 +337,8 @@ public final class EntityTagFieldsUi {
                     .horizontalSizing(Sizing.fill(100)));
         }
         for (var group : sections.entrySet()) {
-            if (group.getValue().stream().noneMatch(field -> visible(context, draft, field))) continue;
+            if (group.getValue().stream().noneMatch(field -> visible(context, draft, field))
+                    && !(group.getKey().equals("entity") && this.hasVariantFields())) continue;
             if (group.getKey().equals("entity")
                     && draft == context.special().spawnEggEntity
                     && ItemEditorCapabilities.supportsVillagerTrades(entityType)) continue;
@@ -344,13 +347,14 @@ public final class EntityTagFieldsUi {
             FlowLayout header = UiFactory.row();
             boolean expanded = draft.uiExpandedTagGroups.contains(group.getKey());
             header.child(UiFactory.title(sectionLabel(draft, group.getKey())).horizontalSizing(Sizing.expand(100)));
-            header.child(UiFactory.muted(ItemEditorText.tr(
-                    "special.entity.effects.summary",
-                    configuredCount(
+            header.child(UiFactory.muted(EditorSectionSummary.configuredCount(configuredCount(
                             draft,
                             group.getValue().stream()
                                     .filter(field -> visible(context, draft, field))
-                                    .toList()))));
+                                    .toList())
+                    + (group.getKey().equals("entity") && this.hasVariantFields()
+                            ? EntityVariantSpecialDataSection.fieldCount(context, draft.entityId, true)
+                            : 0))));
             header.child(UiFactory.collapseToggleButton(
                     !expanded,
                     () -> context.mutateRefresh(() -> {
@@ -444,7 +448,16 @@ public final class EntityTagFieldsUi {
                 .toList();
         FlowLayout result = UiFactory.column().gap(2);
         if (!controls.isEmpty()) result.child(new CompactFieldLayout(controls, UiFactory.scaledPixels(190)));
+        if (section.equals("entity") && this.hasVariantFields()) {
+            result.child(EntityVariantSpecialDataSection.buildFields(context, draft.entityId));
+        }
         return result;
+    }
+
+    private boolean hasVariantFields() {
+        return draft == context.special().spawnEggEntity
+                && SpawnEggSpecialDataSection.supports(context.originalStack())
+                && EntityVariantSpecialDataSection.fieldCount(context, draft.entityId, false) > 0;
     }
 
     private static String fieldScope(ItemEditorState.EntitySpawnDraft draft, EntityTagFields.Field field) {
@@ -456,6 +469,17 @@ public final class EntityTagFieldsUi {
         FlowLayout wrapper = UiFactory.column();
         wrapper.id(fieldScope(draft, field));
         wrapper.child(field(context, draft, field).id("entity-tag:" + field.key()));
+        wrapper.mouseDown().subscribe((click, doubled) -> {
+            if (click.button() != InputConstants.MOUSE_BUTTON_RIGHT) return false;
+            context.screen()
+                    .confirmRestore(
+                            EntityTagInputUi.label(draft.entityId, field),
+                            currentValue(draft, field),
+                            field.read(draft.originalEntityTag),
+                            () -> context.mutate(
+                                    () -> EntityTagFields.edit(draft, field, field.read(draft.originalEntityTag))));
+            return true;
+        });
         return wrapper;
     }
 
@@ -470,8 +494,70 @@ public final class EntityTagFieldsUi {
         return !field.key().equals("Offers") || draft != context.special().spawnEggEntity;
     }
 
-    static String nextBoolean(String current) {
-        return current.isBlank() ? "1" : current.equals("1") || current.equals("true") ? "0" : "";
+    private static FlowLayout horseVariant(
+            SpecialDataPanelContext context,
+            ItemEditorState.EntitySpawnDraft draft,
+            EntityTagFields.Field field,
+            String current) {
+        var controls = new ArrayList<UIComponent>();
+        int packed = ValidationUtil.parseIntOrDefault(current, 0);
+        for (boolean markings : new boolean[] {false, true}) {
+            Component label = ItemEditorText.tr(
+                    markings ? "special.entity.tags.horse_markings" : "special.entity.tags.horse_color");
+            List<EntityTagValues.Choice> choices = markings
+                    ? Arrays.stream(Markings.values())
+                            .map(value -> new EntityTagValues.Choice(
+                                    Integer.toString(value.getId()), horseChoiceLabel(value.name())))
+                            .toList()
+                    : Arrays.stream(Variant.values())
+                            .map(value -> new EntityTagValues.Choice(
+                                    Integer.toString(value.getId()), horseChoiceLabel(value.getSerializedName())))
+                            .toList();
+            String selected = Integer.toString((packed >>> (markings ? 8 : 0)) & 255);
+            Component valueLabel = current.isBlank()
+                    ? Action.UNSET.text()
+                    : Component.literal(choices.stream()
+                            .filter(choice -> choice.value().equals(selected))
+                            .map(EntityTagValues.Choice::label)
+                            .findFirst()
+                            .orElse(selected));
+            ButtonComponent button = UiFactory.button(
+                    valueLabel.copy().withColor(current.isBlank() ? 0xAAAAAA : 0x55FFFF),
+                    UiFactory.ButtonTextPreset.STANDARD,
+                    anchor -> context.openDropdown(
+                            anchor,
+                            choices,
+                            EntityTagValues.Choice::label,
+                            choice -> context.mutateRefresh(() -> EntityTagFields.edit(
+                                    draft,
+                                    field,
+                                    Integer.toString(EntityTagValues.withHorseVariant(
+                                            ValidationUtil.parseIntOrDefault(currentValue(draft, field), 0),
+                                            Integer.parseInt(choice.value()),
+                                            markings))))));
+            button.tooltip(List.of(label.copy().append(": ").append(valueLabel)));
+            String original = field.read(draft.originalEntityTag);
+            boolean changed = current.isBlank() != original.isBlank()
+                    || (!current.isBlank()
+                            && ((ValidationUtil.parseIntOrDefault(original, 0) >>> (markings ? 8 : 0)) & 255)
+                                    != Integer.parseInt(selected));
+            controls.add(CompactFieldLayout.selectorRow(label, button, changed));
+        }
+        FlowLayout result = UiFactory.column();
+        controls.forEach(result::child);
+        ButtonComponent unset = UiFactory.button(
+                Action.UNSET.text(),
+                UiFactory.ButtonTextPreset.COMPACT,
+                button -> context.mutateRefresh(() -> EntityTagFields.edit(draft, field, "")));
+        unset.active(!current.isBlank());
+        unset.tooltip(EntityTagInputUi.tooltip(draft.entityId, field));
+        result.child(unset);
+        return result;
+    }
+
+    private static String horseChoiceLabel(String value) {
+        String text = value.toLowerCase(Locale.ROOT).replace('_', ' ');
+        return Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
     private static void openExistingEditor(SpecialDataPanelContext context, ItemEditorState.EntitySpawnDraft draft) {
@@ -491,7 +577,7 @@ public final class EntityTagFieldsUi {
                 };
         ItemStack stack = new ItemStack(item);
         tag.remove("id");
-        if (spawner) stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BlockEntityType.MOB_SPAWNER, tag));
+        if (spawner) stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(ItemEditorTypes.MOB_SPAWNER, tag));
         else
             stack.set(
                     DataComponents.ENTITY_DATA,
@@ -508,7 +594,8 @@ public final class EntityTagFieldsUi {
                             updated.putString("id", draft.entityId);
                             EntitySpawnDataUtil.replaceEntity(
                                     draft, updated, context.screen().session().registryAccess());
-                        }));
+                        }),
+                        Component.literal(draft.entityId));
     }
 
     private static FlowLayout field(
@@ -516,23 +603,17 @@ public final class EntityTagFieldsUi {
         FlowLayout row = UiFactory.column();
         String current = currentValue(draft, field);
         if (field.kind() == EntityTagFields.Kind.BOOLEAN) {
-            Component label = ItemEditorText.tr(
-                    current.isBlank()
-                            ? "common.unset"
-                            : current.equals("1") || current.equals("true") ? "common.true" : "common.false");
-            return UiFactory.column()
-                    .gap(2)
-                    .child(UiFactory.muted(EntityTagInputUi.label(draft.entityId, field))
-                            .horizontalSizing(Sizing.fill(100))
-                            .tooltip(EntityTagInputUi.tooltip(draft.entityId, field)))
-                    .child(UiFactory.button(
-                                    label,
-                                    UiFactory.ButtonTextPreset.COMPACT,
-                                    button -> context.mutateRefresh(() -> EntityTagFields.edit(
-                                            draft, field, nextBoolean(currentValue(draft, field)))))
-                            .horizontalSizing(Sizing.fill(100))
-                            .tooltip(EntityTagInputUi.tooltip(draft.entityId, field)));
+            FlowLayout toggle = TriStateBooleanUi.field(
+                    EntityTagInputUi.label(draft.entityId, field),
+                    current,
+                    !current.equals(field.read(draft.originalEntityTag)),
+                    -1,
+                    next -> context.mutateRefresh(() -> EntityTagFields.edit(
+                            draft, field, next.isBlank() ? "" : Boolean.parseBoolean(next) ? "1" : "0")));
+            toggle.tooltip(EntityTagInputUi.tooltip(draft.entityId, field));
+            return toggle;
         }
+        if (field.key().equals("Variant")) return horseVariant(context, draft, field, current);
         FlowLayout content = UiFactory.column();
         List<ButtonComponent> actions = new ArrayList<>();
         Consumer<String> setter = value -> EntityTagFields.edit(draft, field, value);
@@ -567,25 +648,22 @@ public final class EntityTagFieldsUi {
                 content.child(editor);
             }
         } else if (!choices.isEmpty()) {
-            Component valueLabel = current.isBlank()
-                    ? Action.UNSET.text()
-                    : Component.literal(choices.stream()
-                            .filter(choice -> choice.value().equals(current))
-                            .map(EntityTagValues.Choice::label)
-                            .findFirst()
-                            .orElse(current));
-            row.child(UiFactory.button(valueLabel, UiFactory.ButtonTextPreset.COMPACT, button -> {
-                        List<EntityTagValues.Choice> options = new ArrayList<>();
-                        options.add(new EntityTagValues.Choice(
-                                "", Action.UNSET.text().getString()));
-                        options.addAll(choices);
-                        context.openDropdown(
-                                button,
-                                options,
-                                EntityTagValues.Choice::label,
-                                choice -> context.mutateRefresh(() -> setter.accept(choice.value())));
-                    })
-                    .horizontalSizing(Sizing.fill(100)));
+            var selector = PickerFieldFactory.clearableValueButton(
+                    context,
+                    current,
+                    choices,
+                    EntityTagValues.Choice::value,
+                    EntityTagValues.Choice::label,
+                    value -> value,
+                    setter,
+                    UiFactory.ButtonTextPreset.COMPACT);
+            FlowLayout selectorField = CompactFieldLayout.selectorRow(
+                    EntityTagInputUi.label(draft.entityId, field),
+                    selector,
+                    !current.equals(field.read(draft.originalEntityTag)));
+            if (!actions.isEmpty())
+                selectorField.child(UiFactory.packedActionButtonRow(actions.toArray(ButtonComponent[]::new)));
+            return selectorField;
         } else if (friendlyInput != null) {
             row.child(friendlyInput);
         } else {
@@ -598,34 +676,6 @@ public final class EntityTagFieldsUi {
                     Action.PICK.text().copy().withColor(UiColors.PICKER),
                     UiFactory.ButtonTextPreset.COMPACT,
                     button -> pick(context, draft, field, setter, button)));
-        if (field.key().equals("Variant")) {
-            for (boolean markings : new boolean[] {false, true}) {
-                actions.add(UiFactory.button(
-                        ItemEditorText.tr(
-                                markings ? "special.entity.tags.horse_markings" : "special.entity.tags.horse_color"),
-                        UiFactory.ButtonTextPreset.COMPACT,
-                        button -> {
-                            List<EntityTagValues.Choice> horseChoices = markings
-                                    ? Arrays.stream(Markings.values())
-                                            .map(value -> new EntityTagValues.Choice(
-                                                    Integer.toString(value.getId()), value.name()))
-                                            .toList()
-                                    : Arrays.stream(Variant.values())
-                                            .map(value -> new EntityTagValues.Choice(
-                                                    Integer.toString(value.getId()), value.getSerializedName()))
-                                            .toList();
-                            context.openDropdown(
-                                    button,
-                                    horseChoices,
-                                    EntityTagValues.Choice::label,
-                                    choice -> context.mutateRefresh(
-                                            () -> setter.accept(Integer.toString(EntityTagValues.withHorseVariant(
-                                                    ValidationUtil.parseIntOrDefault(currentValue(draft, field), 0),
-                                                    Integer.parseInt(choice.value()),
-                                                    markings)))));
-                        }));
-            }
-        }
         if (EntityTagValues.isItem(field.key()) || Set.of("Items", "Inventory").contains(field.key())) {
             Consumer<ItemStack> applyStack = stack -> {
                 Tag encoded = ItemStack.CODEC
@@ -663,8 +713,7 @@ public final class EntityTagFieldsUi {
                     setter.accept(list.toString());
                 }
             };
-            actions.add(context.itemPickButton(applyStack));
-            actions.add(context.storagePickButton(applyStack));
+            actions.add(context.itemPickButton(field.key(), applyStack));
         }
         if (structured && field.kind() != EntityTagFields.Kind.LEASH)
             actions.add(UiFactory.button(
@@ -681,53 +730,51 @@ public final class EntityTagFieldsUi {
                     : !list && payload instanceof CompoundTag ? 1 : 0;
             for (int index = 0; index < count; index++) {
                 int selected = index;
-                List<ButtonComponent> itemActions = new ArrayList<>();
-                Tag entry = list ? ((ListTag) payload).get(index) : payload;
-                itemActions.add(UiFactory.button(
-                        itemEntryLabel(context, entry, index), UiFactory.ButtonTextPreset.COMPACT, button -> {
-                            Tag latest = parsed(field, currentValue(draft, field));
-                            if (list && !(latest instanceof ListTag)) return;
-                            Tag item = list && latest instanceof ListTag entries && selected < entries.size()
+                var ops = context.screen().session().registryAccess().createSerializationContext(NbtOps.INSTANCE);
+                Supplier<Tag> currentItem = () -> {
+                    Tag latest = parsed(field, currentValue(draft, field));
+                    return list
+                            ? latest instanceof ListTag entries && selected < entries.size()
                                     ? entries.get(selected)
-                                    : latest;
+                                    : null
+                            : latest;
+                };
+                FlowLayout itemRow = context.itemRow(
+                        () -> {
+                            Tag item = currentItem.get();
+                            return item == null
+                                    ? ItemStack.EMPTY
+                                    : ItemStack.CODEC.parse(ops, item).result().orElse(ItemStack.EMPTY);
+                        },
+                        edited -> {
+                            Tag item = currentItem.get();
                             if (!(item instanceof CompoundTag itemTag)) return;
-                            var ops = context.screen()
-                                    .session()
-                                    .registryAccess()
-                                    .createSerializationContext(NbtOps.INSTANCE);
-                            ItemStack.CODEC
-                                    .parse(ops, item)
-                                    .result()
-                                    .ifPresent(stack -> EntitySpawnDataUi.editStack(context, stack, edited -> {
-                                        CompoundTag replacement = itemTag.copy();
-                                        replacement.remove("id");
-                                        replacement.remove("count");
-                                        replacement.remove("components");
-                                        replacement.merge((CompoundTag) ItemStack.CODEC
-                                                .encodeStart(ops, edited)
-                                                .getOrThrow());
-                                        if (list) {
-                                            if (!(latest instanceof ListTag entries)) return;
-                                            ListTag updated = entries.copy();
-                                            updated.set(selected, replacement);
-                                            setter.accept(updated.toString());
-                                        } else setter.accept(replacement.toString());
-                                    }));
-                        }));
-                itemActions.getFirst().id("entity-item:" + index);
-                if (list)
-                    itemActions.add(UiFactory.button(
-                            Action.REMOVE.text(),
-                            UiFactory.ButtonTextPreset.COMPACT,
-                            button -> context.mutateRefresh(() -> {
+                            CompoundTag replacement = itemTag.copy();
+                            replacement.remove("id");
+                            replacement.remove("count");
+                            replacement.remove("components");
+                            replacement.merge((CompoundTag)
+                                    ItemStack.CODEC.encodeStart(ops, edited).getOrThrow());
+                            if (list) {
+                                if (!(parsed(field, currentValue(draft, field)) instanceof ListTag entries)
+                                        || selected >= entries.size()) return;
+                                ListTag updated = entries.copy();
+                                updated.set(selected, replacement);
+                                setter.accept(updated.toString());
+                            } else setter.accept(replacement.toString());
+                        },
+                        () -> {
+                            if (list) {
                                 if (!(parsed(field, currentValue(draft, field)) instanceof ListTag entries)
                                         || selected >= entries.size()) return;
                                 ListTag updated = entries.copy();
                                 updated.remove(selected);
                                 setter.accept(updated.toString());
-                            })));
-                if (list) itemActions.getLast().id("entity-item-remove:" + index);
-                content.child(UiFactory.packedActionButtonRow(itemActions.toArray(ButtonComponent[]::new)));
+                            } else setter.accept("");
+                        },
+                        Component.literal(field.key() + (list ? " > " + (index + 1) : "")));
+                itemRow.id("entity-item:" + index);
+                content.child(itemRow);
             }
         }
         if (EntityTagValues.isBlock(field.key()) && parsed(field, current) instanceof CompoundTag blockTag) {
@@ -736,27 +783,31 @@ public final class EntityTagFieldsUi {
                     id == null ? null : BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
             if (block != null)
                 for (Property<?> property : block.getStateDefinition().getProperties()) {
-                    content.child(UiFactory.button(
-                                    Component.literal(property.getName() + ": "
-                                            + blockTag.getCompoundOrEmpty("Properties")
-                                                    .getStringOr(property.getName(), "")),
-                                    UiFactory.ButtonTextPreset.COMPACT,
-                                    button -> context.openDropdown(
-                                            button,
-                                            SpecialDataPanelContext.propertyValues(property, false),
-                                            value -> value,
-                                            value -> context.mutateRefresh(() -> {
-                                                if (!(parsed(field, currentValue(draft, field))
-                                                        instanceof CompoundTag latest)) return;
-                                                CompoundTag updated = latest.copy();
-                                                CompoundTag properties = updated.getCompoundOrEmpty("Properties")
-                                                        .copy();
-                                                properties.putString(property.getName(), value);
-                                                updated.put("Properties", properties);
-                                                setter.accept(updated.toString());
-                                            })))
-                            .id("entity-block-property:" + property.getName())
-                            .horizontalSizing(Sizing.fill(100)));
+                    String selected = blockTag.getCompoundOrEmpty("Properties").getStringOr(property.getName(), "");
+                    Tag original = parsed(field, field.read(draft.originalEntityTag));
+                    String originalValue = original instanceof CompoundTag originalBlock
+                            ? originalBlock.getCompoundOrEmpty("Properties").getStringOr(property.getName(), "")
+                            : "";
+                    var selector = UiFactory.button(
+                            selected.isBlank() ? Action.UNSET.text() : Component.literal(selected),
+                            UiFactory.ButtonTextPreset.COMPACT,
+                            button -> context.openDropdown(
+                                    button,
+                                    SpecialDataPanelContext.propertyValues(property, false),
+                                    value -> value,
+                                    value -> context.mutateRefresh(() -> {
+                                        if (!(parsed(field, currentValue(draft, field)) instanceof CompoundTag latest))
+                                            return;
+                                        CompoundTag updated = latest.copy();
+                                        CompoundTag properties = updated.getCompoundOrEmpty("Properties")
+                                                .copy();
+                                        properties.putString(property.getName(), value);
+                                        updated.put("Properties", properties);
+                                        setter.accept(updated.toString());
+                                    })));
+                    content.child(CompactFieldLayout.selectorRow(
+                                    Component.literal(property.getName()), selector, !selected.equals(originalValue))
+                            .id("entity-block-property:" + property.getName()));
                 }
         }
         FlowLayout result = UiFactory.column().gap(2);
@@ -901,7 +952,8 @@ public final class EntityTagFieldsUi {
                                         ? codec.encodeStart(ops, edited.get(type))
                                                 .getOrThrow()
                                                 .toString()
-                                        : "")));
+                                        : "")),
+                        Component.literal(field.key()));
     }
 
     private static Tag parsed(EntityTagFields.Field field, String value) {

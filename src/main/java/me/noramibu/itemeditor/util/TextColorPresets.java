@@ -40,6 +40,27 @@ public final class TextColorPresets {
         return ColorPresetService.instance().customShadowPresets();
     }
 
+    public static List<CustomStylePreset> customStylePresets() {
+        return ColorPresetService.instance().customStylePresets();
+    }
+
+    public static void saveStylePreset(List<Integer> text, List<Integer> shadow, boolean shadowEnabled) {
+        ColorPresetService.instance().saveStylePreset(text, shadow, shadowEnabled);
+    }
+
+    public static boolean updateStylePreset(
+            String id, List<Integer> text, List<Integer> shadow, boolean shadowEnabled) {
+        return ColorPresetService.instance().updateStylePreset(id, text, shadow, shadowEnabled);
+    }
+
+    public static void removeStylePreset(String id) {
+        ColorPresetService.instance().removeStylePreset(id);
+    }
+
+    public static void moveStylePreset(String id, int direction) {
+        ColorPresetService.instance().moveStylePreset(id, direction);
+    }
+
     public static void saveColorPreset(int rgb) {
         ColorPresetService.instance().saveColorPreset("", rgb);
     }
@@ -183,6 +204,14 @@ public final class TextColorPresets {
     public record CustomShadowPreset(String id, String name, List<Integer> colors) {
         public CustomShadowPreset {
             colors = normalizeShadowStops(colors);
+        }
+    }
+
+    public record CustomStylePreset(
+            String id, String name, List<Integer> text, List<Integer> shadow, boolean shadowEnabled) {
+        public CustomStylePreset {
+            text = List.copyOf(normalizeShadowStops(text));
+            shadow = List.copyOf(normalizeShadowStopsOrDefault(shadow));
         }
     }
 }

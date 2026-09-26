@@ -1,5 +1,7 @@
 package me.noramibu.itemeditor.ui.panel.specialdata;
 
+import static me.noramibu.itemeditor.util.ItemEditorTypes.ARMOR_STAND;
+
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.DiscreteSliderComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
@@ -14,6 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import me.noramibu.itemeditor.editor.EditorCategory;
 import me.noramibu.itemeditor.editor.ItemEditorState;
+import me.noramibu.itemeditor.ui.component.CompactFieldLayout;
 import me.noramibu.itemeditor.ui.component.EditorSearchDialog;
 import me.noramibu.itemeditor.ui.component.OrbitingArmorStandComponent;
 import me.noramibu.itemeditor.ui.component.SafeDiscreteSliderComponent;
@@ -50,7 +53,7 @@ public final class ArmorStandSpecialDataSection {
                 "special.armor_stand.title",
                 "armor-stand",
                 () -> {},
-                SpecialDataPanelContext.NameField.values()));
+                SpecialDataPanelContext.CUSTOM_NAME_FIELD));
         result.addAll(SpecialDataSearch.targets(
                 context,
                 EditorCategory.SPECIAL_DATA,
@@ -83,14 +86,14 @@ public final class ArmorStandSpecialDataSection {
         }
         result.addAll(EntitySpawnDataUi.healthSearchTargets(
                 context,
-                EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                EntityType.getKey(ARMOR_STAND).toString(),
                 special.armorStandAttributes,
                 List.of(ItemEditorText.str("special.armor_stand.title")),
                 "armor-stand",
                 () -> {}));
         result.addAll(EntitySpawnDataUi.attributeSearchTargets(
                 context,
-                EntityType.getKey(EntityType.ARMOR_STAND).toString(),
+                EntityType.getKey(ARMOR_STAND).toString(),
                 special.armorStandAttributes,
                 List.of(ItemEditorText.str("special.armor_stand.title")),
                 "armor-stand",
@@ -119,7 +122,6 @@ public final class ArmorStandSpecialDataSection {
     private static final int DISABLED_SLOT_LABEL_WIDTH = 80;
     private static final int DISABLED_SLOT_HEADER_WIDTH = 84;
     private static final int DISABLED_SLOT_COMPACT_LABEL_WIDTH = 220;
-    private static final int DISABLED_SLOT_CHECK_FILL_SHARE = 32;
     private static final int DISABLED_SLOT_HINT_WIDTH = 320;
     private static final int SCALE_FIELD_WIDTH = 120;
     private static final int DISABLED_ACTION_BUTTON_WIDTH_MIN = 74;
@@ -619,7 +621,7 @@ public final class ArmorStandSpecialDataSection {
 
     private static FlowLayout buildEntityValuesCard(
             SpecialDataPanelContext context, ItemEditorState.SpecialData special) {
-        String entityId = EntityType.getKey(EntityType.ARMOR_STAND).toString();
+        String entityId = EntityType.getKey(ARMOR_STAND).toString();
         FlowLayout card = UiFactory.subCard();
         card.child(EntitySpawnDataUi.health(
                 context,
@@ -723,23 +725,19 @@ public final class ArmorStandSpecialDataSection {
         row.id("armor-lock-" + slot.getSerializedName());
         if (compactLayout) {
             row.child(UiFactory.muted(ItemEditorText.tr(slotLabelKey(slot)), DISABLED_SLOT_COMPACT_LABEL_WIDTH));
-            FlowLayout checks = UiFactory.row();
-            checks.child(UiFactory.checkbox(
+            row.child(CompactFieldLayout.compactCheckboxRow(
+                    UiFactory.checkbox(
                             LockField.LOCK.text(),
                             isDisabledSlotFlagSet(mask, slot, 0),
-                            value -> toggleDisabledSlotFlag(context, special, slot, 0, value))
-                    .horizontalSizing(Sizing.fill(DISABLED_SLOT_CHECK_FILL_SHARE)));
-            checks.child(UiFactory.checkbox(
+                            value -> toggleDisabledSlotFlag(context, special, slot, 0, value)),
+                    UiFactory.checkbox(
                             LockField.TAKE.text(),
                             isDisabledSlotFlagSet(mask, slot, DISABLE_TAKING_OFFSET),
-                            value -> toggleDisabledSlotFlag(context, special, slot, DISABLE_TAKING_OFFSET, value))
-                    .horizontalSizing(Sizing.fill(DISABLED_SLOT_CHECK_FILL_SHARE)));
-            checks.child(UiFactory.checkbox(
+                            value -> toggleDisabledSlotFlag(context, special, slot, DISABLE_TAKING_OFFSET, value)),
+                    UiFactory.checkbox(
                             LockField.PUT.text(),
                             isDisabledSlotFlagSet(mask, slot, DISABLE_PUTTING_OFFSET),
-                            value -> toggleDisabledSlotFlag(context, special, slot, DISABLE_PUTTING_OFFSET, value))
-                    .horizontalSizing(Sizing.fill(DISABLED_SLOT_CHECK_FILL_SHARE)));
-            row.child(checks);
+                            value -> toggleDisabledSlotFlag(context, special, slot, DISABLE_PUTTING_OFFSET, value))));
             return row;
         }
 
@@ -1337,7 +1335,7 @@ public final class ArmorStandSpecialDataSection {
                     part.text().getString());
             String scope = SpecialDataSearch.scope("armor-pose", part.rotation.apply(context.special()));
             for (PoseAxis axis : PoseAxis.values()) {
-                result.add(axis.control().target(context, EditorCategory.SPECIAL_DATA, path, scope, () -> {}));
+                result.add(axis.control().target(context, path, scope, () -> {}));
             }
             result.addAll(
                     SpecialDataSearch.targets(context, EditorCategory.SPECIAL_DATA, path, scope, () -> {}, POSE_RESET));

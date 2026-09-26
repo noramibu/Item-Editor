@@ -7,6 +7,7 @@ import io.wispforest.owo.ui.core.Size;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 import net.minecraft.client.Minecraft;
 
 final class PackedActionLayout extends FlowLayout {
@@ -14,12 +15,14 @@ final class PackedActionLayout extends FlowLayout {
 
     private final List<ButtonComponent> buttons;
     private final List<Integer> preferredWidths;
+    private final List<Integer> indexes;
     private final boolean forceSingleRow;
     private final boolean fillRows;
 
     PackedActionLayout(List<ButtonComponent> buttons, int gap, boolean forceSingleRow, boolean fillRows) {
         super(Sizing.fill(100), Sizing.content(), FlowLayout.Algorithm.LTR_TEXT);
         this.buttons = List.copyOf(buttons);
+        this.indexes = IntStream.range(0, buttons.size()).boxed().toList();
         this.preferredWidths =
                 buttons.stream().map(PackedActionLayout::preferredWidth).toList();
         this.forceSingleRow = forceSingleRow;
@@ -31,9 +34,10 @@ final class PackedActionLayout extends FlowLayout {
     @Override
     public void layout(Size space) {
         int availableWidth = Math.max(1, this.calculateChildSpace(space).width());
-        List<List<Integer>> rows = this.forceSingleRow
-                ? List.of(allIndexes())
-                : packedRows(availableWidth, this.gap(), this.preferredWidths);
+        List<List<Integer>> rows =
+                this.forceSingleRow && availableWidth >= this.buttons.size() + this.gap() * (this.buttons.size() - 1)
+                        ? List.of(this.indexes)
+                        : packedRows(availableWidth, this.gap(), this.preferredWidths);
 
         for (List<Integer> row : rows) {
             applyRowWidths(row, availableWidth);
@@ -60,18 +64,10 @@ final class PackedActionLayout extends FlowLayout {
 
     private void setButtonWidth(int index, int width) {
         ButtonComponent button = this.buttons.get(index);
-        if (button.getWidth() != width) {
+        if (!button.horizontalSizing().get().equals(Sizing.fixed(width))) {
             button.horizontalSizing(Sizing.fixed(width));
         }
         button.margins(Insets.bottom(this.gap()));
-    }
-
-    private List<Integer> allIndexes() {
-        List<Integer> indexes = new ArrayList<>(this.buttons.size());
-        for (int index = 0; index < this.buttons.size(); index++) {
-            indexes.add(index);
-        }
-        return indexes;
     }
 
     static List<List<Integer>> packedRows(int availableWidth, int gap, List<Integer> preferredWidths) {
